@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
 
 import anyio
 import typer
@@ -16,6 +15,8 @@ from rentl_core.io.loader import (
     load_scene_file,
     load_scene_metadata,
 )
+
+from rentl_cli.cli_types import ProjectPathArgument
 
 
 async def _validate_async(project_path: Path) -> None:
@@ -65,12 +66,7 @@ async def _validate_async(project_path: Path) -> None:
         await load_scene_file(scene_path)
 
 
-def validate(
-    project_path: Annotated[
-        Path,
-        typer.Argument(..., exists=True, file_okay=False, dir_okay=True),
-    ] = Path("examples/tiny_vn"),
-) -> None:
+def validate(project_path: ProjectPathArgument = Path("examples/tiny_vn")) -> None:
     """Run validation and exit with status 0 on success.
 
     Raises:
