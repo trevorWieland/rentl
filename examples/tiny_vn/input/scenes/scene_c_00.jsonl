@@ -1,0 +1,7 @@
+{"id": "scene_c_00_0001", "text": "おはようございます、皆さん。今日から新しいクラスメイトが加わります。", "is_choice": false, "meta": {"speaker": "担任", "idioms": [], "references": [], "style_notes": ["Formal greeting"]}}
+{"id": "scene_c_00_0002", "text": "拓海です。よろしくお願いします。", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": []}}
+{"id": "scene_c_00_0003", "text": "わー、ようこそ！私は綾。教室のことなら何でも聞いてね。", "is_choice": false, "meta": {"speaker": "aya", "idioms": [], "references": [], "style_notes": ["Cheerful, informal"]}}
+{"id": "scene_c_00_0004", "text": "……蓮。質問があれば後で聞くといい。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": ["Stoic"]}}
+{"id": "scene_c_00_0005", "text": "どっちと話してみようかな……？", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": ["Internal monologue"]}}
+{"id": "scene_c_00_0006", "text": "綾の笑顔に惹かれる", "is_choice": true, "meta": {"speaker": null, "idioms": [], "references": [], "style_notes": ["Choice label", "Branches to Aya route"]}}
+{"id": "scene_c_00_0007", "text": "蓮の真剣さに惹かれる", "is_choice": true, "meta": {"speaker": null, "idioms": [], "references": [], "style_notes": ["Choice label", "Branches to Ren route"]}}

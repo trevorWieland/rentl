@@ -1,0 +1,3 @@
+{"id": "common", "name": "Common Route", "scene_ids": ["scene_c_00"], "synopsis": "Takumi meets Aya and Ren during the first week.", "primary_characters": ["mc", "aya", "ren"]}
+{"id": "route_aya", "name": "Aya Route", "scene_ids": ["scene_a_00"], "synopsis": "Takumi helps Aya prepare a surprise gallery.", "primary_characters": ["mc", "aya"]}
+{"id": "route_ren", "name": "Ren Route", "scene_ids": ["scene_r_00", "scene_r_01"], "synopsis": "Takumi supports Ren's festival strategy and late-night confession.", "primary_characters": ["mc", "ren"]}

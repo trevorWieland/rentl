@@ -1,4 +1,8 @@
-def main():
+"""Temporary executable demonstrating repository wiring."""
+
+
+def main() -> None:
+    """Print a friendly placeholder message."""
     print("Hello from rentl!")
 
 
