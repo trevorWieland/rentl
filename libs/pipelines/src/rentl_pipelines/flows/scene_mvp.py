@@ -8,6 +8,9 @@ from pathlib import Path
 import anyio
 from rentl_agents.graph.engine import summarize_scene
 from rentl_core.context.project import load_project_context
+from rentl_core.util.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 async def _run_scene_mvp_async(
@@ -28,7 +31,9 @@ async def _run_scene_mvp_async(
     for sid in target_ids:
         scene = context.get_scene(sid)
         if scene.annotations.summary and not allow_overwrite:
+            logger.info("Skipping %s (existing summary)", sid)
             continue
+        logger.info("Queueing scene %s for summarization", sid)
         summary = await summarize_scene(context, sid, allow_overwrite=allow_overwrite)
         results[sid] = summary
 

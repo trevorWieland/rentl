@@ -5,6 +5,7 @@ from __future__ import annotations
 from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.model.line import SourceLine
+from rentl_core.util.logging import get_logger
 
 
 def format_scene_lines(lines: list[SourceLine]) -> str:
@@ -32,7 +33,15 @@ def build_scene_tools(
     """
     transcript = format_scene_lines(lines)
     scene = context.get_scene(scene_id)
-    summary_prefix = "Existing summary present." if scene.annotations.summary else "Summary not yet recorded."
+    if scene.annotations.summary and not allow_overwrite:
+        summary_text = scene.annotations.summary
+        summary_prefix = "Existing summary:"
+    elif scene.annotations.summary and allow_overwrite:
+        summary_prefix = "Existing summary will be replaced (content hidden)."
+        summary_text = None
+    else:
+        summary_prefix = "Summary not yet recorded."
+        summary_text = None
 
     @tool("read_scene_overview")
     def read_scene_overview() -> str:
@@ -47,6 +56,8 @@ def build_scene_tools(
             "Transcript:",
             transcript,
         ]
+        if summary_text:
+            meta.extend(["Current summary:", summary_text])
         return "\n".join(meta)
 
     @tool("list_context_docs")
@@ -78,3 +89,6 @@ def build_scene_tools(
         return "Summary stored."
 
     return [read_scene_overview, list_context_docs, read_context_doc, write_scene_summary]
+
+
+logger = get_logger(__name__)

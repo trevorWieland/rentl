@@ -15,6 +15,7 @@ from rentl_core.io.loader import (
     load_scene_file,
     load_scene_metadata,
 )
+from rentl_core.util.logging import configure_logging
 
 from rentl_cli.cli_types import ProjectPathArgument
 
@@ -66,12 +67,16 @@ async def _validate_async(project_path: Path) -> None:
         await load_scene_file(scene_path)
 
 
-def validate(project_path: ProjectPathArgument = Path("examples/tiny_vn")) -> None:
+def validate(
+    project_path: ProjectPathArgument = Path("examples/tiny_vn"),
+    verbose: bool = typer.Option(False, "--verbose", help="Enable verbose logging."),
+) -> None:
     """Run validation and exit with status 0 on success.
 
     Raises:
         typer.Exit: If validation encounters errors.
     """
+    configure_logging(verbose)
     try:
         anyio.run(_validate_async, project_path)
     except Exception as exc:

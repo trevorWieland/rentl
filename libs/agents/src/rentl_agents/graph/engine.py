@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from deepagents import create_deep_agent
 from rentl_core.context.project import ProjectContext
+from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.tools.scene import build_scene_tools
+
+logger = get_logger(__name__)
+
 
 SYSTEM_PROMPT = """You are a localization assistant summarizing scenes for reference.
 Always read the scene overview, ensure you understand the emotional beats, and
@@ -23,6 +27,7 @@ async def summarize_scene(context: ProjectContext, scene_id: str, *, allow_overw
     Returns:
         str: Summary text stored for the scene (empty if skipped).
     """
+    logger.info("Summarizing scene %s", scene_id)
     lines = await context.load_scene_lines(scene_id)
     tools = build_scene_tools(context, scene_id, lines, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
@@ -37,4 +42,6 @@ async def summarize_scene(context: ProjectContext, scene_id: str, *, allow_overw
     )
     await agent.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
     updated_scene = context.get_scene(scene_id)
-    return updated_scene.annotations.summary or ""
+    summary = updated_scene.annotations.summary or ""
+    logger.info("Scene %s summary stored (%d chars)", scene_id, len(summary))
+    return summary
