@@ -1,5 +1,15 @@
 # rentl – Design Document (Draft)
 
+> **⚠️ DEPRECATED**: This document has been superseded by the following:
+> - **[SCHEMAS.md](SCHEMAS.md)**: Complete data format documentation with provenance tracking
+> - **[README.md](README.md)**: User-facing overview, installation, and roadmap
+> - **[AGENTS.md](AGENTS.md)**: Guidelines for AI coding agents working on rentl
+> - **[libs/agents/README.md](libs/agents/README.md)**: HITL tool implementation guide
+>
+> This file is kept for historical reference but should not be used for current development.
+
+---
+
 > **Tagline**: A multi-agent, context-aware translation pipeline for visual novels—turning raw scene text and metadata into high-quality, consistent localizations.
 
 ---

@@ -2,62 +2,155 @@
 
 A multi-agent, context-aware translation pipeline for visual novels—turning raw scene text and metadata into high-quality, consistent JP→EN localizations.
 
+---
+
 ## Overview
 
 rentl mirrors how human teams localize VNs today with distinct phases:
 
-1. **Context Builder (v1.0)** – operates entirely in the source language to enrich metadata: scene summaries, character/location bios, glossary entries, and context docs.
-2. **Translator (v1.0)** – consumes the curated context via read-only tools and writes JP→EN translations.
-3. **Editor (v1.0)** – reviews source/target pairs, enforces style guides, and flags issues for retranslation.
+1. **Context Builder (v1.0)** – operates entirely in the source language to enrich metadata: scene summaries, character/location bios, glossary entries, and route context.
+2. **Translator (v1.0)** – consumes the curated context via read-only tools and produces aligned JP→EN translations.
+3. **Editor (v1.0)** – reviews source/target pairs, enforces style guides, and flags issues for retranslation or human review.
 
-Each phase uses DeepAgents subagents built on LangChain, making iterative workflows (context → translation → editing) predictable and reproducible.
+Each phase uses DeepAgents subagents built on LangChain, making iterative workflows (context → translation → editing) predictable and reproducible. Git serves as the version control mechanism for all metadata and translations.
+
+### What rentl Does
+
+- **Context-first translation**: Agents use character bios, glossaries, style guides, and scene summaries to produce consistent translations
+- **Human-in-the-loop controls**: Provenance tracking protects human-authored data while allowing agents to fill gaps and refine their own work
+- **Aligned corpus output**: Produces `(source line, translation, metadata)` pairs in JSONL format for easy review and export
+- **One repo per game**: Each translation project is a git-tracked repository with its own metadata, scenes, and configuration
+
+### What rentl Does NOT Do (Non-Goals)
+
+- **No text extraction**: rentl assumes text is already extracted and cleaned from the game engine
+- **No live/OCR translation**: No hooking into running games or overlaying translations in real-time
+- **No patch building**: rentl outputs aligned translation files; external tools handle patch generation for specific engines
+- **No "rewrite the story" localization**: Focus is on faithful translation with light localization, not creative rewriting
+
+---
 
 ## Installation
 
-Requirements:
+**Requirements:**
 
 - Python 3.13
-- uv for dependency/runtime management
+- [uv](https://github.com/astral-sh/uv) for dependency/runtime management
 - Access to an OpenAI-compatible chat endpoint (OpenAI, LM Studio, Ollama, etc.)
 
-Setup:
+**Setup:**
 
 ```bash
+git clone https://github.com/anthropics/rentl.git
+cd rentl
 uv sync
-cp template.env .env  # fill in URLs and API keys
+cp template.env .env  # fill in OPENAI_URL, OPENAI_API_KEY, LLM_MODEL
+```
+
+**Environment Variables** (`.env`):
+
+```bash
+OPENAI_URL=http://localhost:1234/v1        # or https://api.openai.com/v1
+OPENAI_API_KEY=your-api-key-here
+LLM_MODEL=gpt-4o                           # or local model name
+TAVILY_API_KEY=optional-for-web-search
+LANGSMITH_API_KEY=optional-for-observability
 ```
 
 ### Suggested Models
 
-| Purpose              | Model                                      | Status            |
-|----------------------|--------------------------------------------|-------------------|
-| Agentic reasoning    | `gpt-oss:20b` (LM Studio)                  | Used today        |
-| JP→EN translation    | `sugoitoolkit/Sugoi-14B-Ultra-GGUF`        | Planned for v1.0  |
+| Purpose              | Model                                      | Notes                 |
+|----------------------|--------------------------------------------|-----------------------|
+| Agentic reasoning    | `gpt-4o`, `gpt-4o-mini`                    | OpenAI hosted         |
+| Agentic reasoning    | `gpt-oss:20b` (LM Studio)                  | Local, tested         |
+| JP→EN translation    | `sugoitoolkit/Sugoi-14B-Ultra-GGUF`        | Planned for v1.0      |
+
+---
 
 ## Basic Usage
 
+**Note**: Full Copier template and project scaffolding (`rentl init`) will be available in v1.0. For now, use the `examples/tiny_vn` project for testing.
+
 ```bash
 # Validate metadata + scene files
-uv run python -m rentl_cli.main validate
+uv run python -m rentl_cli.main validate --project-path examples/tiny_vn
 
-# Context builder agent (scene detailer) across all scenes
-uv run python -m rentl_cli.main summarize-mvp
+# Context builder: summarize all scenes
+uv run python -m rentl_cli.main summarize-mvp --project-path examples/tiny_vn
 
-# Summarize a single scene
-uv run python -m rentl_cli.main summarize-scene scene_c_00
+# Context builder: summarize a single scene
+uv run python -m rentl_cli.main summarize-scene scene_c_00 --project-path examples/tiny_vn
 ```
 
-Commands accept `--project-path`, `--overwrite`, and `--verbose` flags. Translation and editor commands will join the CLI as they come online.
+**Available flags:**
+- `--project-path PATH`: Path to game project (default: `examples/tiny_vn`)
+- `--overwrite`: Allow agents to overwrite existing data
+- `--verbose`: Enable detailed logging
+
+**Coming in v1.0**:
+- `rentl init` - Initialize a new game project from Copier template
+- `rentl context` - Run Context Builder phase (all detailer subagents)
+- `rentl translate` - Run Translator phase
+- `rentl edit` - Run Editor phase (QA checks)
+
+---
+
+## Architecture
+
+rentl is a **Python 3.13 monorepo** using:
+
+- **uv** for workspace and dependency management
+- **DeepAgents + LangChain** for multi-agent orchestration
+- **Pydantic** for data models and configuration
+- **orjson** for fast JSONL I/O
+- **anyio** for async-first execution
+- **Typer** for the CLI
+- **ruff** and **ty** for linting and type checking
+- **pytest** for testing
+
+### Project Structure
+
+```
+rentl/
+  apps/
+    cli/              # Typer-based CLI (rentl-cli)
+    server/           # (Future) Web UI and REST API
+  libs/
+    core/             # Data models, I/O, config (rentl-core)
+    agents/           # Subagents, tools, LLM backends (rentl-agents)
+    pipelines/        # Orchestration flows (rentl-pipelines)
+    templates/        # Copier template for per-game repos (rentl-templates)
+  examples/
+    tiny_vn/          # Example project with sample scenes
+```
+
+### Provenance Tracking and HITL
+
+rentl uses **provenance tracking** (`*_origin` fields) to record whether each metadata field was last set by a human or an agent. This enables intelligent human-in-the-loop (HITL) approval:
+
+- Agents can freely fill in empty/missing fields
+- Agents can refine their own prior work without approval
+- Human-authored data is protected—agents must request approval to modify it
+
+**Tool approval policies:**
+- **read_* tools**: Never require approval
+- **add_* tools**: May require approval based on policy (`permissive` or `strict`)
+- **update_* tools**: Check provenance—approve only if overwriting human data
+- **delete_* tools**: Check provenance—approve if any field was human-authored
+
+See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
+
+---
 
 ## Agents (v1.0)
 
-| Agent            | Responsibilities                                                                  | Implementation Status |
-|------------------|------------------------------------------------------------------------------------|-----------------------|
-| Context Builder  | Scene, character, location, glossary, and route metadata enrichment                | **In progress** (scene detailer in repo) |
-| Pretranslator (v1.1) | (Future) idiom detection, accent/region notes, grammar hints between context/translation | Deferred (v1.1)        |
-| Translator       | Consume context, run scene translations, write aligned Translation outputs               | Planned               |
-| Editor           | QA checks (style, consistency, translation quality), flag issues for retranslation | Planned               |
+| Agent            | Responsibilities                                                                  | Status           |
+|------------------|-----------------------------------------------------------------------------------|------------------|
+| Context Builder  | Scene, character, location, glossary, and route metadata enrichment               | **In progress**  |
+| Translator       | Consume context, produce aligned JP→EN translations                               | Planned          |
+| Editor           | QA checks (style, consistency, translation quality), flag issues for retranslation | Planned          |
 
+---
 
 ## Subagents
 
@@ -65,47 +158,161 @@ Commands accept `--project-path`, `--overwrite`, and `--verbose` flags. Translat
 
 | Subagent            | Purpose                                                                                  | Status           |
 |---------------------|------------------------------------------------------------------------------------------|------------------|
-| `scene_detailer`    | Replaces simple summarizer; records summary + key scene metadata                         | Implemented      |
-| `character_detailer`| Expands character bios, pronoun guidance, notes                                          | Planned          |
-| `location_detailer` | Captures location descriptions, mood cues                                                | Planned          |
-| `glossary_detailer` | Adds/updates glossary entries via HITL                                                   | Planned          |
-| `route_detailer`    | Updates route metadata (descriptions, scene ordering) with human supervision              | Planned          |
-| `scene_detailer`    | Hidden summary content to avoid biasing replacements                             | In progress (scene_summarize MVP implemented)      |
+| `scene_detailer`    | Generates scene summaries, detects primary characters and locations                      | **Implemented**  |
+| `character_detailer`| Expands character bios, pronoun guidance, speech pattern notes                           | Planned          |
+| `location_detailer` | Captures location descriptions, mood cues, atmospheric details                           | Planned          |
+| `glossary_detailer` | Proposes new glossary entries or updates via HITL approval                               | Planned          |
+| `route_detailer`    | Enriches route metadata (synopsis, primary characters) with human supervision            | Planned          |
 
 ### Translator Subagents (v1.0)
 
-| Subagent         | Purpose                                    | Status  |
-|------------------|--------------------------------------------|---------|
-| `scene_translator`| Reads context and writes translation line pairs | Planned |
+| Subagent           | Purpose                                                                      | Status  |
+|--------------------|------------------------------------------------------------------------------|---------|
+| `scene_translator` | Reads context (characters, glossary, style guide) and writes translations    | Planned |
 
 ### Editor Subagents (v1.0)
 
-| Subagent              | Purpose                                                                      | Status  |
-|-----------------------|------------------------------------------------------------------------------|---------|
-| `scene_style_checker` | Enforces style guide (tone, honorific policies, markdown formatting)        | Planned |
-| `scene_consistency_checker` | Cross-scene review for terminology/pronouns/names consistency        | Planned |
-| `scene_translation_review` | Reviews translation quality, flags lines for retranslation             | Planned |
+| Subagent                      | Purpose                                                                      | Status  |
+|-------------------------------|------------------------------------------------------------------------------|---------|
+| `scene_style_checker`         | Enforces style guide (tone, honorific policies, formatting)                  | Planned |
+| `scene_consistency_checker`   | Cross-scene review for terminology, pronouns, character names                | Planned |
+| `scene_translation_reviewer`  | Reviews translation quality, flags lines for retranslation                   | Planned |
 
-### Future Subagents (v1.1+)
+---
 
-| Subagent              | Agent           | Purpose                                        |
-|-----------------------|-----------------|------------------------------------------------|
-| `idiom_analyzer`      | Pretranslator    | Detect idioms/cultural references for translators |
-| `accent_profiler`     | Pretranslator    | Note accent/region, speech quirks             |
-| `grammar_notebook`    | Pretranslator    | Capture grammar notes, tricky sentence structures |
+## Tools (v1.0)
 
-## Tools
+| Tool                      | Description                                                              | Agents/Subagents        | Status        |
+|---------------------------|--------------------------------------------------------------------------|-------------------------|---------------|
+| `read_scene_overview`     | Scene metadata + transcript + stored summary (hidden when overwriting)   | Context, Translator     | **Implemented** |
+| `list_context_docs`       | Lists documents under `metadata/context_docs/`                           | All agents              | **Implemented** |
+| `read_context_doc`        | Returns contents of a context document                                   | All agents              | **Implemented** |
+| `write_scene_summary`     | Writes scene summary (single-use; overwrite requires flag)               | Context                 | **Implemented** |
+| `read_character`          | Returns character metadata (names, pronouns, bio)                        | Context, Translator     | Planned       |
+| `update_character`        | Updates character fields with HITL approval                              | Context                 | Planned       |
+| `read_location`           | Returns location metadata (names, description)                           | Context, Translator     | Planned       |
+| `update_location`         | Updates location fields with HITL approval                               | Context                 | Planned       |
+| `read_glossary`           | Searches glossary entries by term                                        | Translator, Editor      | Planned       |
+| `add_glossary_entry`      | Proposes new glossary entry with HITL approval                           | Context                 | Planned       |
+| `update_glossary_entry`   | Updates existing glossary entry with HITL approval                       | Context                 | Planned       |
+| `read_route`              | Returns route metadata (synopsis, scene ordering, characters)            | Context                 | Planned       |
+| `update_route`            | Updates route fields with HITL approval                                  | Context                 | Planned       |
+| `write_translation`       | Writes translation for a line (provenance tracked)                       | Translator              | Planned       |
+| `record_style_check`      | Records style guide compliance check results                             | Editor                  | Planned       |
+| `record_consistency_check`| Records terminology/pronoun consistency check results                    | Editor                  | Planned       |
+| `record_quality_check`    | Records translation quality review results                               | Editor                  | Planned       |
 
-| Tool                   | Description                                                              | Agents/Subagents        | Status        |
-|------------------------|--------------------------------------------------------------------------|-------------------------|---------------|
-| `read_scene_overview`  | Scene metadata + transcript + stored summary (hidden when overwriting)   | Context, Translator     | Implemented   |
-| `list_context_docs`    | Lists documents under `metadata/context_docs/`                           | All agents              | Implemented   |
-| `read_context_doc`     | Returns contents of a context document                                   | All agents              | Implemented   |
-| `write_scene_summary`  | Writes one summary per scene (single-use; overwrite requires flag)       | Context                 | Implemented   |
-| `character_detail`     | Returns character bios/pronoun guidance                                  | Context/Translator      | Planned       |
-| `glossary_lookup`      | Searches glossary entries                                                | Translator/Editor       | Planned       |
-| `context_search`       | Vector/keyword search over context docs                                  | Translator              | Planned       |
-| `write_translation`    | Records line-level translations                                          | Translator              | Planned       |
-| `record_check`         | Records QA check results (style, consistency, translation review)        | Editor                  | Planned       |
+---
 
-As we implement each subagent/tool, we’ll update the tables above so contributors know what’s available in v1.0 and what’s deferred to v1.1.
+## Roadmap
+
+### v1.0 – Core Translation Pipeline (Current Target)
+
+**Goal**: Translate a complete visual novel from start to finish using the three-phase workflow.
+
+**Features**:
+- ✅ Data models with provenance tracking (`*_origin` fields)
+- ✅ Async loaders for all metadata formats
+- ✅ Project validation (referential integrity checks)
+- 🚧 Copier template for per-game project scaffolding
+- 🚧 All Context Builder subagents (scene, character, location, glossary, route detailers)
+- 🚧 Translator subagent with context-aware translation
+- 🚧 Editor subagents (style, consistency, quality checks)
+- 🚧 HITL approval workflow with provenance-based gating
+- 🚧 CLI commands: `init`, `context`, `translate`, `edit`, `validate`
+- 🚧 Complete tool suite for all subagents
+- 🚧 Example project (`examples/tiny_vn`) with full translations
+
+**Deferred to v1.1+**: Pretranslator agent, items/bgm metadata, advanced search tools.
+
+### v1.1 – Enhanced Detection & Observability
+
+**Focus**: Pretranslator + richer context detection + agent debugging tools
+
+**Features** (priorities based on v1.0 usage):
+- **Pretranslator agent** with subagents:
+  - `idiom_detector`: Identifies idioms and cultural references
+  - `accent_profiler`: Notes accent, dialect, speech quirks
+  - `grammar_annotator`: Captures tricky grammar patterns
+- **Tavily web search integration**: Reference and cultural context detection during context building
+- **LangSmith integration**: Agent trace visualization and debugging dashboards
+- **Enhanced search** (Meilisearch or similar): Fast vector/keyword search over context docs, glossary, and metadata
+- **CLI command**: `rentl pretranslate` for Pretranslator phase
+- Quality-of-life improvements based on real-world usage
+
+### v1.2 – Export Formats
+
+**Focus**: Get translations into other tools and workflows
+
+**Features**:
+- Translator++ compatible export adapter
+- Additional export formats (CSV, TMX, XLIFF, etc.)
+- Batch processing improvements
+- Performance optimizations
+
+### v1.3 – Web UI
+
+**Focus**: Interactive review and approval interface
+
+**Features**:
+- Web-based translation review
+- HITL approval dashboard with side-by-side comparison
+- Visual context browsing (characters, locations, glossary)
+- Real-time collaboration tools
+
+### v1.4 – RPGMaker Support
+
+**Focus**: Expand to RPG and gameplay-heavy visual novels
+
+**Features**:
+- `items.jsonl` metadata schema (inventory, spells, named objects)
+- `bgm.jsonl` metadata schema (music cues and descriptions)
+- RPGMaker-specific export formats
+- Gameplay text handling (menus, UI, skills, etc.)
+
+### v2.0 – Ecosystem & Extensibility
+
+**Focus**: Community contributions and multi-language support
+
+**Features**:
+- Plugin system for custom subagents and tools
+- Additional language pairs beyond JP→EN
+- Community-contributed subagent library
+- Advanced observability and analytics
+
+---
+
+## Contributing
+
+Contributions are welcome! Areas of interest:
+
+- **New subagents**: Specialized detectors, formatters, or QA checks
+- **Export formats**: Adapters for translation tools and game engines
+- **Metadata schemas**: Extensions for specific game genres (RPG, ADV, etc.)
+- **Documentation**: Tutorials, guides, and real-world case studies
+
+For now, extending rentl involves forking and modifying pipelines/subagents directly. A plugin system is planned for v2.0.
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## Resources
+
+- **[SCHEMAS.md](SCHEMAS.md)**: Complete data format documentation with provenance tracking
+- **[AGENTS.md](AGENTS.md)**: Guidelines for AI coding agents working on rentl
+- **[Examples](examples/tiny_vn)**: Sample project structure and data
+
+---
+
+## Acknowledgments
+
+Built with:
+- [DeepAgents](https://github.com/deepagents/deepagents) for multi-agent orchestration
+- [LangChain](https://github.com/langchain-ai/langchain) for LLM integration
+- [Pydantic](https://github.com/pydantic/pydantic) for data validation
+- [uv](https://github.com/astral-sh/uv) for Python project management
