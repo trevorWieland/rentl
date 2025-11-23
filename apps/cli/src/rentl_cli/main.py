@@ -2,7 +2,7 @@
 
 import typer
 
-from rentl_cli.commands.run import summarize_mvp, summarize_scene
+from rentl_cli.commands.run import detail_mvp, detail_scene
 from rentl_cli.commands.validate import validate
 
 app = typer.Typer(help="rentl CLI entrypoint placeholder")
@@ -15,8 +15,8 @@ def version() -> None:
 
 
 app.command()(validate)
-app.command("summarize-scene")(summarize_scene)
-app.command("summarize-mvp")(summarize_mvp)
+app.command("detail-scene")(detail_scene)
+app.command("detail-mvp")(detail_mvp)
 
 
 def main() -> None:

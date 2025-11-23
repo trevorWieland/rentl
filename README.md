@@ -50,20 +50,27 @@ cp template.env .env  # fill in OPENAI_URL, OPENAI_API_KEY, LLM_MODEL
 **Environment Variables** (`.env`):
 
 ```bash
+# Primary LLM (for agentic reasoning and orchestration)
 OPENAI_URL=http://localhost:1234/v1        # or https://api.openai.com/v1
 OPENAI_API_KEY=your-api-key-here
 LLM_MODEL=gpt-4o                           # or local model name
+
+# Machine Translation (MTL) backend (optional, for specialized translation)
+MTL_URL=http://localhost:1234/v1           # OpenAI-compatible endpoint
+MTL_API_KEY=your-api-key-here
+MTL_MODEL=sugoi-14b-ultra                  # Specialized JP→EN model
+
+# Optional services
 TAVILY_API_KEY=optional-for-web-search
 LANGSMITH_API_KEY=optional-for-observability
 ```
 
 ### Suggested Models
 
-| Purpose              | Model                                      | Notes                 |
-|----------------------|--------------------------------------------|-----------------------|
-| Agentic reasoning    | `gpt-4o`, `gpt-4o-mini`                    | OpenAI hosted         |
-| Agentic reasoning    | `gpt-oss:20b` (LM Studio)                  | Local, tested         |
-| JP→EN translation    | `sugoitoolkit/Sugoi-14B-Ultra-GGUF`        | Planned for v1.0      |
+| Purpose              | Model                                      | Notes                          |
+|----------------------|--------------------------------------------|--------------------------------|
+| Agentic reasoning    | `gpt-oss:20b` (LM Studio)                  | Local, tested                  |
+| JP→EN translation    | `sugoi-14b-ultra` (Sugoi-14B-Ultra-GGUF)   | Via MTL backend (v1.0)         |
 
 ---
 
@@ -75,11 +82,11 @@ LANGSMITH_API_KEY=optional-for-observability
 # Validate metadata + scene files
 uv run python -m rentl_cli.main validate --project-path examples/tiny_vn
 
-# Context builder: summarize all scenes
-uv run python -m rentl_cli.main summarize-mvp --project-path examples/tiny_vn
+# Context builder: detail all scenes (generates summary, tags, characters, locations)
+uv run python -m rentl_cli.main detail-mvp --project-path examples/tiny_vn
 
-# Context builder: summarize a single scene
-uv run python -m rentl_cli.main summarize-scene scene_c_00 --project-path examples/tiny_vn
+# Context builder: detail a single scene
+uv run python -m rentl_cli.main detail-scene scene_c_00 --project-path examples/tiny_vn
 ```
 
 **Available flags:**
@@ -158,7 +165,7 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 
 | Subagent            | Purpose                                                                                  | Status           |
 |---------------------|------------------------------------------------------------------------------------------|------------------|
-| `scene_detailer`    | Generates scene summaries, detects primary characters and locations                      | **Implemented**  |
+| `scene_detailer`    | Generates scene summaries, tags, primary characters, and locations                       | **Implemented**  |
 | `character_detailer`| Expands character bios, pronoun guidance, speech pattern notes                           | Planned          |
 | `location_detailer` | Captures location descriptions, mood cues, atmospheric details                           | Planned          |
 | `glossary_detailer` | Proposes new glossary entries or updates via HITL approval                               | Planned          |
@@ -166,9 +173,9 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 
 ### Translator Subagents (v1.0)
 
-| Subagent           | Purpose                                                                      | Status  |
-|--------------------|------------------------------------------------------------------------------|---------|
-| `scene_translator` | Reads context (characters, glossary, style guide) and writes translations    | Planned |
+| Subagent           | Purpose                                                                                           | Status  |
+|--------------------|---------------------------------------------------------------------------------------------------|---------|
+| `scene_translator` | Dual approach: direct context-aware translation OR specialized MTL model calls (e.g., Sugoi-14B)  | Planned |
 
 ### Editor Subagents (v1.0)
 
@@ -188,6 +195,9 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 | `list_context_docs`       | Lists documents under `metadata/context_docs/`                           | All agents              | **Implemented** |
 | `read_context_doc`        | Returns contents of a context document                                   | All agents              | **Implemented** |
 | `write_scene_summary`     | Writes scene summary (single-use; overwrite requires flag)               | Context                 | **Implemented** |
+| `write_scene_tags`        | Writes scene tags (single-use; overwrite requires flag)                  | Context                 | **Implemented** |
+| `write_primary_characters`| Writes primary character IDs (single-use; overwrite requires flag)       | Context                 | **Implemented** |
+| `write_scene_locations`   | Writes location IDs (single-use; overwrite requires flag)                | Context                 | **Implemented** |
 | `read_character`          | Returns character metadata (names, pronouns, bio)                        | Context, Translator     | Planned       |
 | `update_character`        | Updates character fields with HITL approval                              | Context                 | Planned       |
 | `read_location`           | Returns location metadata (names, description)                           | Context, Translator     | Planned       |
@@ -197,6 +207,7 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 | `update_glossary_entry`   | Updates existing glossary entry with HITL approval                       | Context                 | Planned       |
 | `read_route`              | Returns route metadata (synopsis, scene ordering, characters)            | Context                 | Planned       |
 | `update_route`            | Updates route fields with HITL approval                                  | Context                 | Planned       |
+| `mtl_translate`           | Calls specialized MTL backend for translation (e.g., Sugoi-14B)          | Translator              | Planned       |
 | `write_translation`       | Writes translation for a line (provenance tracked)                       | Translator              | Planned       |
 | `record_style_check`      | Records style guide compliance check results                             | Editor                  | Planned       |
 | `record_consistency_check`| Records terminology/pronoun consistency check results                    | Editor                  | Planned       |

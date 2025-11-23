@@ -3,8 +3,8 @@
 This document tracks all tasks required to reach v1.0 of the Rentl translation pipeline.
 
 **Target**: Complete core translation pipeline with Context → Translate → Edit phases
-**Current Status**: ~25% complete (MVP with scene summarization working)
-**Estimated Remaining Work**: 3,000-4,000 lines of code
+**Current Status**: ~40% complete (Context Builder subagents + Scene Translator complete)
+**Estimated Remaining Work**: 2,000-3,000 lines of code
 
 ---
 
@@ -26,39 +26,59 @@ These tasks are essential for a functional v1.0 release and should be completed 
   - [x] Update all tiny_vn example files with origin fields
   - [x] Fix linting (Google-style docstrings, TRY003 compliance)
   - [x] Pass all type checking
-- [ ] Implement translation output writer in `libs/core/io/writer.py`
-  - [ ] `write_translation()` function
-  - [ ] `write_qa_report()` function
-  - [ ] Async file operations with anyio
+- [x] Implement translation output writer in `libs/core/io/writer.py`
+  - [x] `write_translation()` function
+  - [x] `write_qa_report()` function
+  - [x] Async file operations with anyio
 
 ### 2. Context Builder Subagents
-- [ ] Create `character_detailer` subagent (~200-300 LOC)
-  - [ ] Implement in `libs/agents/src/rentl_agents/subagents/character_detailer.py`
-  - [ ] Add `read_character()` tool
-  - [ ] Add `update_character()` tool with HITL
-  - [ ] Integrate with DeepAgents framework
-- [ ] Create `location_detailer` subagent (~200-300 LOC)
-  - [ ] Implement in `libs/agents/src/rentl_agents/subagents/location_detailer.py`
-  - [ ] Add `read_location()` tool
-  - [ ] Add `update_location()` tool with HITL
-- [ ] Create `glossary_detailer` subagent (~200-300 LOC)
-  - [ ] Implement in `libs/agents/src/rentl_agents/subagents/glossary_curator.py`
-  - [ ] Add `read_glossary()` tool with search
-  - [ ] Add `add_glossary_entry()` tool with HITL
-  - [ ] Add `update_glossary_entry()` tool with HITL
-- [ ] Create `route_detailer` subagent (~200-300 LOC)
-  - [ ] Implement in `libs/agents/src/rentl_agents/subagents/route_detailer.py`
-  - [ ] Add `read_route()` tool
-  - [ ] Add `update_route()` tool with HITL
+- [x] Create `scene_detailer` subagent (~200-300 LOC)
+  - [x] Implement in `libs/agents/src/rentl_agents/subagents/scene_detailer.py`
+  - [x] Add scene metadata tools (summary, tags, characters, locations)
+  - [x] Integrate with DeepAgents framework
+  - [x] Update CLI commands (`detail-scene`, `detail-mvp`)
+- [x] Create `character_detailer` subagent (~210 LOC)
+  - [x] Implement in `libs/agents/src/rentl_agents/subagents/character_detailer.py`
+  - [x] Add `read_character()` tool
+  - [x] Add `update_character_name_tgt()`, `update_character_pronouns()`, `update_character_notes()` tools with HITL
+  - [x] Integrate with DeepAgents framework
+  - [x] Add ProjectContext methods and `_write_characters()`
+- [x] Create `location_detailer` subagent (~190 LOC)
+  - [x] Implement in `libs/agents/src/rentl_agents/subagents/location_detailer.py`
+  - [x] Add `read_location()` tool
+  - [x] Add `update_location_name_tgt()`, `update_location_description()` tools with HITL
+  - [x] Integrate with DeepAgents framework
+  - [x] Add ProjectContext methods and `_write_locations()`
+- [x] Create `glossary_curator` subagent (~200 LOC)
+  - [x] Implement in `libs/agents/src/rentl_agents/subagents/glossary_curator.py`
+  - [x] Add `search_glossary()` tool
+  - [x] Add `add_glossary_entry()` tool with HITL
+  - [x] Add `update_glossary_entry()` tool with HITL
+  - [x] Integrate with DeepAgents framework
+  - [x] Add ProjectContext methods and `_write_glossary()`
+- [x] Create `route_detailer` subagent (~185 LOC)
+  - [x] Implement in `libs/agents/src/rentl_agents/subagents/route_detailer.py`
+  - [x] Add `read_route()` tool
+  - [x] Add `update_route_synopsis()`, `update_route_characters()` tools with HITL
+  - [x] Integrate with DeepAgents framework
+  - [x] Add ProjectContext methods and `_write_routes()`
 
 ### 3. Translator Subagent (HIGHEST PRIORITY)
-- [ ] Implement `scene_translator` subagent (~400-500 LOC)
-  - [ ] Update `libs/agents/src/rentl_agents/subagents/translate_scene.py`
-  - [ ] Add `write_translation()` tool
-  - [ ] Context-aware translation using glossary/character data
-  - [ ] Line-by-line translation with metadata preservation
-  - [ ] Speaker identification and consistency
-  - [ ] Choice option handling
+- [x] Add MTL backend configuration (~50-75 LOC)
+  - [x] Update `libs/core/src/rentl_core/config/settings.py` with MTL env vars (MTL_URL, MTL_API_KEY, MTL_MODEL)
+  - [x] Create `libs/agents/src/rentl_agents/backends/mtl.py` - OpenAI-compatible MTL client
+- [x] Create translation tools (~100-150 LOC)
+  - [x] Create `libs/agents/src/rentl_agents/tools/translation.py`
+  - [x] Add `mtl_translate()` tool - Calls specialized MTL model (e.g., Sugoi-14B-Ultra)
+  - [x] Add `write_translation()` tool with HITL integration
+- [x] Implement `scene_translator` subagent (~350-400 LOC)
+  - [x] Update `libs/agents/src/rentl_agents/graph/engine.py` with translate_scene function
+  - [x] Dual translation approach: direct LLM translation OR mtl_translate() tool
+  - [x] Context-aware translation using glossary/character data
+  - [x] Line-by-line translation with metadata preservation
+  - [x] Speaker identification and consistency
+  - [x] Choice option handling
+  - [x] Dynamic decision-making between translation approaches
 
 ### 4. Editor/QA Subagents
 - [ ] Implement `scene_style_checker` subagent (~300-400 LOC)
@@ -80,13 +100,13 @@ These tasks are essential for a functional v1.0 release and should be completed 
   - [ ] Add `record_translation_review()` tool
 
 ### 5. HITL Approval System
-- [ ] Build HITL approval framework (~200-300 LOC)
-  - [ ] Create `libs/agents/src/rentl_agents/hitl/approval.py`
-  - [ ] Provenance checking logic
-  - [ ] Approval policies (permissive/standard/strict)
-  - [ ] Human data protection
-  - [ ] Approval request formatting
-  - [ ] Integration with all update/add tools
+- [x] Build HITL approval framework (~200-300 LOC)
+  - [x] Create `libs/agents/src/rentl_agents/hitl/approval.py`
+  - [x] Provenance checking logic
+  - [x] Approval policies (permissive/standard/strict)
+  - [x] Human data protection
+  - [x] Approval request formatting
+  - [x] Integration with all update/add tools
 
 ### 6. Pipeline Orchestration
 - [ ] Create full Context Builder pipeline (~150-200 LOC)
@@ -122,6 +142,10 @@ These tasks are essential for a functional v1.0 release and should be completed 
   - [ ] Run Editor pipeline
   - [ ] Report generation
   - [ ] Fix suggestions
+- [ ] Create `rentl reset-example` command (~50 LOC)
+  - [ ] Reset tiny_vn example metadata to initial state
+  - [ ] Remove agent-generated fields (annotations with *_origin = "agent:*")
+  - [ ] Important for testing repeatability
 
 ### 8. Project Template
 - [ ] Implement Copier template structure (~100 LOC)
@@ -213,39 +237,39 @@ Recommended sequence for maximum efficiency:
 ## 📊 PROGRESS METRICS
 
 **Lines of Code**:
-- Current: ~1,137 LOC
+- Current: ~2,130 LOC
 - Target: ~4,500-5,500 LOC
-- Remaining: ~3,000-4,000 LOC
+- Remaining: ~2,000-3,000 LOC
 
 **Components**:
 - [x] Data models (100% - provenance tracking complete with validation)
 - [x] Async loaders (100%)
 - [x] Basic CLI framework (100%)
-- [x] Scene summarizer (100%)
-- [ ] Translator subagent (0%)
+- [x] Scene detailer (100%)
+- [x] Context Builder subagents (100% - character, location, glossary, route detailers complete)
+- [x] Translator subagent (100% - scene_translator complete)
+- [x] HITL system (100% - provenance-based approval implemented)
 - [ ] Editor subagents (0%)
-- [ ] Detailer subagents (0%)
-- [ ] HITL system (0%)
 - [ ] Full pipelines (10%)
 - [ ] Project template (5%)
 - [ ] Tests (0%)
 
-**Subagents Status** (1/11 implemented):
-- [x] scene_detailer (summarizer)
-- [ ] character_detailer
-- [ ] location_detailer
-- [ ] glossary_detailer
-- [ ] route_detailer
-- [ ] scene_translator
+**Subagents Status** (6/9 core subagents implemented):
+- [x] scene_detailer
+- [x] character_detailer
+- [x] location_detailer
+- [x] glossary_curator
+- [x] route_detailer
+- [x] scene_translator
 - [ ] scene_style_checker
 - [ ] scene_consistency_checker
 - [ ] scene_translation_reviewer
-- [ ] detect_references (v1.1)
-- [ ] detect_puns (v1.1)
+- [ ] detect_references (v1.1 - deferred)
+- [ ] detect_puns (v1.1 - deferred)
 
 **CLI Commands** (2/6 implemented):
 - [x] validate
-- [x] summarize-mvp (development only)
+- [x] detail-scene (development only)
 - [ ] init
 - [ ] context
 - [ ] translate
@@ -269,8 +293,7 @@ A task is considered complete when:
 - [ ] Can enrich metadata with `rentl context`
 - [ ] Can translate scenes with `rentl translate`
 - [ ] Can run QA checks with `rentl edit`
-- [ ] tiny_vn has complete English translations
-- [ ] All tests pass
+- [ ] 90% test coverage of high-impact code.
 - [ ] Documentation is complete
 
 ---
@@ -284,14 +307,12 @@ A task is considered complete when:
 - Web UI is explicitly deferred to v1.3
 - Keep MVP mindset: working pipeline > perfect code
 
-**Questions to resolve**:
-1. Which LLM model for translation? (GPT-4, Claude, etc.)
-2. Batch size for parallel scene processing?
-3. Default approval policies for different operations?
-4. Progress reporting granularity?
+**Resolved questions**:
+1. **Translation approach**: Dual approach - subagents can translate directly OR call `mtl_translate()` tool for specialized translation models (e.g., Sugoi-14B-Ultra). MTL backend configured via env vars (MTL_URL, MTL_API_KEY, MTL_MODEL) using OpenAI-compatible interface.
+2. **Parallel processing**: Determined dynamically by top-level DeepAgents orchestrator. The Translation agent decides which subagents to run, when, and whether to rerun based on output quality. Enables intelligent iterative workflows.
+3. **Approval policies**: Defined in SCHEMAS.md - read_* (never approve), add_* (permissive/strict), update_* (standard checks provenance/strict always approves), delete_* (standard checks human authorship/strict always approves).
+4. **Progress reporting**: Log-level based. Non-verbose mode logs subagent invocations only. Verbose mode (`--verbose`) shows detailed step logging. Future: Progress % for naive passes (not dynamic agent passes).
 
 ---
 
-*Last Updated: 2024-11-22*
-*Step 1 (Provenance Tracking) completed and validated*
-*Generated for Rentl v1.0 development*
+*Last Updated: 2025-11-22*

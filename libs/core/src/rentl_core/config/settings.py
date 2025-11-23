@@ -14,9 +14,18 @@ _ENV_PATH = Path(".env")
 class _Settings(BaseSettings):
     """Base settings loaded from environment variables or .env files."""
 
+    # Primary LLM (agentic reasoning and orchestration)
     openai_url: str = Field(..., alias="OPENAI_URL")
     openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
     llm_model: str = Field(..., alias="LLM_MODEL")
+
+    # Machine Translation (MTL) backend (optional, for specialized translation)
+    mtl_url: str | None = Field(default=None, alias="MTL_URL")
+    mtl_api_key: str | None = Field(default=None, alias="MTL_API_KEY")
+    mtl_model: str | None = Field(default=None, alias="MTL_MODEL")
+    mtl_system_prompt: str | None = Field(default=None, alias="MTL_SYSTEM_PROMPT")
+
+    # Optional services
     tavily_api_key: str | None = Field(default=None, alias="TAVILY_API_KEY")
     langsmith_api_key: str | None = Field(default=None, alias="LANGSMITH_API_KEY")
 
