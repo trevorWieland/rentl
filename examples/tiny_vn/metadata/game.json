@@ -1,18 +1,23 @@
 {
     "title": "tiny_vn",
+    "title_origin": "human",
     "description": "Small sample VN showcasing multi-route translation pipeline.",
+    "description_origin": "human",
     "source_lang": "jpn",
     "target_lang": "eng",
     "genres": [
         "romance",
         "slice_of_life"
     ],
+    "genres_origin": "human",
     "synopsis": "A transfer student navigates friendships with Aya and Ren while preparing for the school festival.",
+    "synopsis_origin": "human",
     "timeline": [
-        "Day 1 - Arrival",
-        "Day 2 - Festival planning",
-        "Day 3 - Rooftop confession"
+        {"when": "Day 1", "event": "Arrival at new school"},
+        {"when": "Day 2", "event": "Festival planning begins"},
+        {"when": "Day 3", "event": "Rooftop confession"}
     ],
+    "timeline_origin": "human",
     "ui": {
         "max_line_length": 42,
         "allow_word_wrap": true,

@@ -1,4 +1,4 @@
-{"id": "scene_r_01_0001", "text": "終わった…夜風が気持ちいいな。", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": []}}
-{"id": "scene_r_01_0002", "text": "手伝ってくれて助かった。……ありがとう。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": ["Soft"]}}
-{"id": "scene_r_01_0003", "text": "蓮が笑うなんて珍しいね。", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": ["Playful"]}}
-{"id": "scene_r_01_0004", "text": "見ないで。……でも、少しだけなら。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": ["Shy"]}}
+{"id": "scene_r_01_0001", "text": "終わった…夜風が気持ちいいな。", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": [], "speaker_origin": "human"}}
+{"id": "scene_r_01_0002", "text": "手伝ってくれて助かった。……ありがとう。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": ["Soft"], "speaker_origin": "human", "style_notes_origin": "human"}}
+{"id": "scene_r_01_0003", "text": "蓮が笑うなんて珍しいね。", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": ["Playful"], "speaker_origin": "human", "style_notes_origin": "human"}}
+{"id": "scene_r_01_0004", "text": "見ないで。……でも、少しだけなら。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": ["Shy"], "speaker_origin": "human", "style_notes_origin": "human"}}

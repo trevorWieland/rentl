@@ -1,4 +1,4 @@
-{"id": "scene_r_00_0001", "text": "資料はここ。時間が足りない。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": ["Blunt"]}}
-{"id": "scene_r_00_0002", "text": "一緒に計画を整理しよう。どこから始めればいい？", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": []}}
-{"id": "scene_r_00_0003", "text": "予算、搬入、そして人員配置。全部見なおしたい。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": []}}
-{"id": "scene_r_00_0004", "text": "じゃあ、この図で整理してみるよ。", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": ["Calm"]}}
+{"id": "scene_r_00_0001", "text": "資料はここ。時間が足りない。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": ["Blunt"], "speaker_origin": "human", "style_notes_origin": "human"}}
+{"id": "scene_r_00_0002", "text": "一緒に計画を整理しよう。どこから始めればいい？", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": [], "speaker_origin": "human"}}
+{"id": "scene_r_00_0003", "text": "予算、搬入、そして人員配置。全部見なおしたい。", "is_choice": false, "meta": {"speaker": "ren", "idioms": [], "references": [], "style_notes": [], "speaker_origin": "human"}}
+{"id": "scene_r_00_0004", "text": "じゃあ、この図で整理してみるよ。", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": ["Calm"], "speaker_origin": "human", "style_notes_origin": "human"}}

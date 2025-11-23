@@ -1,2 +1,2 @@
-{"id": "classroom", "name_src": "教室", "name_tgt": "Classroom", "description": "Homeroom classroom with afternoon sun."}
-{"id": "school_rooftop", "name_src": "屋上", "name_tgt": "Rooftop", "description": "Windy rooftop overlooking the city."}
+{"id": "classroom", "name_src": "教室", "name_src_origin": "human", "name_tgt": "Classroom", "name_tgt_origin": "human", "description": "Homeroom classroom with afternoon sun.", "description_origin": "agent:location_detailer:2024-11-22"}
+{"id": "school_rooftop", "name_src": "屋上", "name_src_origin": "human", "name_tgt": "Rooftop", "name_tgt_origin": "human", "description": "Windy rooftop overlooking the city.", "description_origin": "agent:location_detailer:2024-11-22"}

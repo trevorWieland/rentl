@@ -1,3 +1,3 @@
-{"id": "mc", "name_src": "拓海", "name_tgt": "Takumi", "pronouns": "he/him", "notes": "Transfer student, thoughtful inner monologue."}
-{"id": "aya", "name_src": "綾", "name_tgt": "Aya", "pronouns": "she/her", "notes": "Cheerful classmate who loves practical jokes."}
-{"id": "ren", "name_src": "蓮", "name_tgt": "Ren", "pronouns": "she/her", "notes": "Stoic member of the festival committee."}
+{"id": "mc", "name_src": "拓海", "name_src_origin": "human", "name_tgt": "Takumi", "name_tgt_origin": "human", "pronouns": "he/him", "pronouns_origin": "human", "notes": "Transfer student, thoughtful inner monologue.", "notes_origin": "human"}
+{"id": "aya", "name_src": "綾", "name_src_origin": "human", "name_tgt": "Aya", "name_tgt_origin": "human", "pronouns": "she/her", "pronouns_origin": "human", "notes": "Cheerful classmate who loves practical jokes.", "notes_origin": "human"}
+{"id": "ren", "name_src": "蓮", "name_src_origin": "human", "name_tgt": "Ren", "name_tgt_origin": "human", "pronouns": "she/her", "pronouns_origin": "human", "notes": "Stoic member of the festival committee.", "notes_origin": "human"}

@@ -13,13 +13,19 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 These tasks are essential for a functional v1.0 release and should be completed in roughly this order:
 
 ### 1. Data Model Enhancements
-- [ ] Add provenance tracking (`*_origin` fields) to all data models in `libs/core/model/`
-  - [ ] Add to CharacterMetadata
-  - [ ] Add to LocationMetadata
-  - [ ] Add to SceneMetadata
-  - [ ] Add to RouteMetadata
-  - [ ] Add to GlossaryEntry
-  - [ ] Add to TranslatedLine
+- [x] Add provenance tracking (`*_origin` fields) to all data models in `libs/core/model/`
+  - [x] Add to CharacterMetadata
+  - [x] Add to LocationMetadata
+  - [x] Add to SceneMetadata
+  - [x] Add to RouteMetadata
+  - [x] Add to GlossaryEntry
+  - [x] Add to TranslatedLine
+  - [x] Add to GameMetadata
+  - [x] Add to SourceLineMeta
+  - [x] Add mandatory validation (Pydantic validators)
+  - [x] Update all tiny_vn example files with origin fields
+  - [x] Fix linting (Google-style docstrings, TRY003 compliance)
+  - [x] Pass all type checking
 - [ ] Implement translation output writer in `libs/core/io/writer.py`
   - [ ] `write_translation()` function
   - [ ] `write_qa_report()` function
@@ -212,7 +218,7 @@ Recommended sequence for maximum efficiency:
 - Remaining: ~3,000-4,000 LOC
 
 **Components**:
-- [x] Data models (85% - missing provenance)
+- [x] Data models (100% - provenance tracking complete with validation)
 - [x] Async loaders (100%)
 - [x] Basic CLI framework (100%)
 - [x] Scene summarizer (100%)
@@ -287,4 +293,5 @@ A task is considered complete when:
 ---
 
 *Last Updated: 2024-11-22*
+*Step 1 (Provenance Tracking) completed and validated*
 *Generated for Rentl v1.0 development*

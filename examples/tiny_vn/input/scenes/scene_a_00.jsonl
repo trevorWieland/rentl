@@ -1,4 +1,4 @@
-{"id": "scene_a_00_0001", "text": "拓海、まだ起きてる？手伝いが必要なの。", "is_choice": false, "meta": {"speaker": "aya", "idioms": [], "references": [], "style_notes": ["Soft whisper"]}}
-{"id": "scene_a_00_0002", "text": "こんな時間に？何をしているんだ？", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": []}}
-{"id": "scene_a_00_0003", "text": "サプライズギャラリーよ。明日までに全部飾りたいの。", "is_choice": false, "meta": {"speaker": "aya", "idioms": [], "references": [], "style_notes": []}}
-{"id": "scene_a_00_0004", "text": "一緒にやろう。どうやって並べたい？", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": ["Supportive"]}}
+{"id": "scene_a_00_0001", "text": "拓海、まだ起きてる？手伝いが必要なの。", "is_choice": false, "meta": {"speaker": "aya", "idioms": [], "references": [], "style_notes": ["Soft whisper"], "speaker_origin": "human", "style_notes_origin": "human"}}
+{"id": "scene_a_00_0002", "text": "こんな時間に？何をしているんだ？", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": [], "speaker_origin": "human"}}
+{"id": "scene_a_00_0003", "text": "サプライズギャラリーよ。明日までに全部飾りたいの。", "is_choice": false, "meta": {"speaker": "aya", "idioms": [], "references": [], "style_notes": [], "speaker_origin": "human"}}
+{"id": "scene_a_00_0004", "text": "一緒にやろう。どうやって並べたい？", "is_choice": false, "meta": {"speaker": "mc", "idioms": [], "references": [], "style_notes": ["Supportive"], "speaker_origin": "human", "style_notes_origin": "human"}}
