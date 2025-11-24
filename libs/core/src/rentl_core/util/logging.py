@@ -15,6 +15,7 @@ def configure_logging(verbose: bool = False) -> None:
         logging.basicConfig(
             level=level,
             format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+            force=True,
         )
         _LOGGING_INITIALIZED = True
     else:
@@ -26,6 +27,8 @@ def configure_logging(verbose: bool = False) -> None:
     logging.getLogger("deepagents").setLevel(logging.INFO)
     logging.getLogger("langgraph").setLevel(logging.INFO)
     logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("rentl_agents").setLevel(logging.INFO)
+    logging.getLogger("rentl_pipelines").setLevel(logging.INFO)
 
 
 def get_logger(name: str) -> logging.Logger:
