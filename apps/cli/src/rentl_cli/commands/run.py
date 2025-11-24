@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from shutil import rmtree
 from typing import Annotated
+from uuid import uuid4
 
 import typer
 from rentl_core.util.logging import configure_logging
@@ -15,6 +16,27 @@ from rentl_pipelines.flows.translator import run_translator
 
 from rentl_cli.cli_types import ProjectPathArgument
 from rentl_cli.utils.baseline import write_baseline
+
+
+def _prompt_decisions(requests: list[str]) -> list[str]:
+    """Prompt the user for HITL decisions in the CLI.
+
+    Args:
+        requests: Approval request messages from the agent.
+
+    Returns:
+        list[str]: Decisions corresponding to each request.
+    """
+    decisions: list[str] = []
+    for request in requests:
+        typer.secho("\nHITL approval requested:", fg=typer.colors.YELLOW, bold=True)
+        typer.echo(request)
+        decision = typer.prompt("Decision [approve/reject]", default="approve")
+        if decision.lower() not in {"approve", "reject"}:
+            typer.secho("Invalid choice, defaulting to 'reject'.", fg=typer.colors.RED)
+            decision = "reject"
+        decisions.append(decision.lower())
+    return decisions
 
 
 def detail_scene(
@@ -61,7 +83,13 @@ def context(
     configure_logging(verbose)
     typer.secho("Starting Context Builder pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    result = run_context_builder(project_path, allow_overwrite=overwrite)
+    thread_id = f"context-{uuid4()}"
+    result = run_context_builder(
+        project_path,
+        allow_overwrite=overwrite,
+        decision_handler=_prompt_decisions,
+        thread_id=thread_id,
+    )
 
     # Display results
     typer.secho("\nContext Builder Complete!", fg=typer.colors.GREEN, bold=True)
@@ -85,7 +113,14 @@ def translate(
     configure_logging(verbose)
     typer.secho("Starting Translator pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    result = run_translator(project_path, scene_ids=scene_ids or None, allow_overwrite=overwrite)
+    thread_id = f"translate-{uuid4()}"
+    result = run_translator(
+        project_path,
+        scene_ids=scene_ids or None,
+        allow_overwrite=overwrite,
+        decision_handler=_prompt_decisions,
+        thread_id=thread_id,
+    )
 
     # Display results
     typer.secho("\nTranslator Complete!", fg=typer.colors.GREEN, bold=True)
@@ -105,7 +140,13 @@ def edit(
     configure_logging(verbose)
     typer.secho("Starting Editor pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    result = run_editor(project_path, scene_ids=scene_ids or None)
+    thread_id = f"edit-{uuid4()}"
+    result = run_editor(
+        project_path,
+        scene_ids=scene_ids or None,
+        decision_handler=_prompt_decisions,
+        thread_id=thread_id,
+    )
 
     typer.secho("\nEditor Complete!", fg=typer.colors.GREEN, bold=True)
     typer.echo(f"  Scenes checked: {result.scenes_checked}")

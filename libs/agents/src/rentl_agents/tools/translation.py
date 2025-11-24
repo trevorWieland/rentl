@@ -9,6 +9,7 @@ from rentl_core.model.line import TranslatedLine
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.mtl import get_mtl_chat_model, get_mtl_system_prompt, is_mtl_available
+from rentl_agents.tools.hitl import request_if_human_authored
 
 logger = get_logger(__name__)
 
@@ -112,6 +113,19 @@ def build_translation_tools(
         today = date.today().isoformat()
         origin = f"agent:{agent_name}:{today}"
 
+        existing = next((t for t in await context.get_translations(scene_id) if t.id == line_id), None)
+        if existing:
+            approval = request_if_human_authored(
+                operation="update",
+                target=f"translation.{scene_id}.{line_id}",
+                current_value=existing.text_tgt,
+                current_origin=existing.text_tgt_origin,
+                proposed_value=target_text,
+            )
+            if approval:
+                return approval
+
+        logger.info("Tool call: write_translation(scene_id=%s, line_id=%s)", scene_id, line_id)
         translated_line = TranslatedLine(
             id=line_id,
             text_src=source_text,

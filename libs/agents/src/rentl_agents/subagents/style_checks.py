@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 from deepagents import CompiledSubAgent
-from langchain.agents import AgentState, create_agent
-from langchain.agents.middleware import AgentMiddleware
+from langchain.agents import create_agent
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.middleware.context import AgentContext, ContextInjectionMiddleware
 from rentl_agents.tools.qa import get_ui_settings, read_style_guide, read_translations, record_style_check
 
 logger = get_logger(__name__)
@@ -43,12 +39,12 @@ def create_style_checker_subagent(context: ProjectContext, *, name: str | None =
     """
     tools = [read_translations, read_style_guide, get_ui_settings, record_style_check]
     model = get_default_chat_model()
+    tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
+    logger.info("Launching style-checker with tools: %s", ", ".join(tool_names))
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
-        context_schema=AgentContext,
-        middleware=[cast(AgentMiddleware[AgentState, AgentContext], ContextInjectionMiddleware(context))],  # type: ignore[arg-type]
     )
 
     return CompiledSubAgent(

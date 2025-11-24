@@ -10,29 +10,35 @@ This pipeline orchestrates all context detailer subagents to enrich:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
+from typing import cast
 
 import anyio
-from deepagents import create_deep_agent
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.backends.coordinator import create_coordinator_agent
 from rentl_agents.subagents.character_detailer import create_character_detailer_subagent
 from rentl_agents.subagents.glossary_curator import create_glossary_curator_subagent
 from rentl_agents.subagents.location_detailer import create_location_detailer_subagent
 from rentl_agents.subagents.route_detailer import create_route_detailer_subagent
 from rentl_agents.subagents.scene_detailer import create_scene_detailer_subagent
-from rentl_agents.tools.stats import get_context_status, get_scene_completion
+from rentl_agents.tools.stats import build_stats_tools
 from rentl_core.context.project import load_project_context
 from rentl_core.util.logging import get_logger
+
+from rentl_pipelines.flows.utils import SupportsAinvoke, invoke_with_interrupts
 
 logger = get_logger(__name__)
 
 _CONTEXT_BUILDER_SYSTEM_PROMPT = """You are the Context Builder coordinator.
 
 Use the task() tool to run subagents that enrich scenes, characters, locations, glossary, and routes.
-Run each subagent once unless work is already complete. Keep responses concise and focused on progress."""
+Run each subagent once unless work is already complete. Keep responses concise and focused on progress.
+Before scheduling a scene, call get_scene_completion; skip scenes where all fields are yes.
+Do not call filesystem or other default tools; only use task() and stats tools."""
 
 
 class ContextBuilderResult(BaseModel):
@@ -50,12 +56,16 @@ async def _run_context_builder_async(
     project_path: Path,
     *,
     allow_overwrite: bool = False,
+    decision_handler: Callable[[list[str]], list[str]] | None = None,
+    thread_id: str | None = None,
 ) -> ContextBuilderResult:
     """Run the Context Builder pipeline asynchronously.
 
     Args:
         project_path: Path to the game project.
         allow_overwrite: Allow overwriting existing metadata.
+        decision_handler: Callback to collect HITL decisions when interrupts fire.
+        thread_id: Optional thread id for checkpointer continuity.
 
     Returns:
         ContextBuilderResult: Statistics about what was enriched.
@@ -77,10 +87,14 @@ async def _run_context_builder_async(
         create_route_detailer_subagent(context, allow_overwrite=allow_overwrite),
     ]
 
-    tools = [get_context_status, get_scene_completion]
+    tools = build_stats_tools(context)
     model = get_default_chat_model()
+    tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
+    subagent_names = [subagent["name"] for subagent in subagents]
+    logger.info("Coordinator starting with subagents: %s", ", ".join(subagent_names))
+    logger.info("Coordinator progress tools: %s", ", ".join(tool_names))
 
-    agent = create_deep_agent(
+    agent = create_coordinator_agent(
         model=model,
         tools=tools,
         subagents=subagents,
@@ -116,7 +130,12 @@ async def _run_context_builder_async(
         "Use get_context_status and get_scene_completion to track progress. End when all entities are detailed."
     )
 
-    await agent.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await invoke_with_interrupts(
+        cast(SupportsAinvoke, agent),
+        {"messages": [{"role": "user", "content": user_prompt}]},
+        decision_handler=decision_handler,
+        thread_id=thread_id,
+    )
 
     result = ContextBuilderResult(
         scenes_detailed=len(scene_ids),
@@ -131,14 +150,30 @@ async def _run_context_builder_async(
     return result
 
 
-def run_context_builder(project_path: Path, *, allow_overwrite: bool = False) -> ContextBuilderResult:
+def run_context_builder(
+    project_path: Path,
+    *,
+    allow_overwrite: bool = False,
+    decision_handler: Callable[[list[str]], list[str]] | None = None,
+    thread_id: str | None = None,
+) -> ContextBuilderResult:
     """Run the Context Builder pipeline to enrich all game metadata.
 
     Args:
         project_path: Path to the game project.
         allow_overwrite: Allow overwriting existing metadata.
+        decision_handler: Callback to collect HITL decisions when interrupts fire.
+        thread_id: Optional thread id for checkpointer continuity.
 
     Returns:
         ContextBuilderResult: Statistics about what was enriched.
     """
-    return anyio.run(partial(_run_context_builder_async, project_path, allow_overwrite=allow_overwrite))
+    return anyio.run(
+        partial(
+            _run_context_builder_async,
+            project_path,
+            allow_overwrite=allow_overwrite,
+            decision_handler=decision_handler,
+            thread_id=thread_id,
+        )
+    )

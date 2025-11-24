@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
+from rentl_core.util.logging import get_logger
+
+from rentl_agents.tools.hitl import request_if_human_authored
+
+logger = get_logger(__name__)
 
 
 def build_location_tools(
@@ -22,6 +27,7 @@ def build_location_tools(
     @tool("read_location")
     def read_location(location_id: str) -> str:
         """Return current metadata for this location."""
+        logger.info("Tool call: read_location(location_id=%s)", location_id)
         location = context.get_location(location_id)
         parts = [
             f"Location ID: {location.id}",
@@ -58,6 +64,18 @@ def build_location_tools(
         if location_id in updated_name_tgt:
             return "Target name already updated. Provide a final assistant response."
 
+        logger.info("Tool call: update_location_name_tgt(location_id=%s)", location_id)
+        location = context.get_location(location_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"location.{location_id}.name_tgt",
+            current_value=location.name_tgt,
+            current_origin=location.name_tgt_origin,
+            proposed_value=name_tgt,
+        )
+        if approval:
+            return approval
+
         origin = f"agent:location_detailer:{date.today().isoformat()}"
         result = await context.update_location_name_tgt(location_id, name_tgt, origin)
         updated_name_tgt.add(location_id)
@@ -78,6 +96,18 @@ def build_location_tools(
 
         if location_id in updated_description:
             return "Description already updated. Provide a final assistant response."
+
+        logger.info("Tool call: update_location_description(location_id=%s)", location_id)
+        location = context.get_location(location_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"location.{location_id}.description",
+            current_value=location.description,
+            current_origin=location.description_origin,
+            proposed_value=description,
+        )
+        if approval:
+            return approval
 
         origin = f"agent:location_detailer:{date.today().isoformat()}"
         result = await context.update_location_description(location_id, description, origin)

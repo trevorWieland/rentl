@@ -6,6 +6,8 @@ from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
+from rentl_agents.tools.hitl import request_if_human_authored
+
 
 def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False) -> list:
     """Construct scene tools usable across scenes.
@@ -21,6 +23,7 @@ def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False)
     @tool("read_scene_overview")
     async def read_scene_overview(scene_id: str) -> str:
         """Return metadata and transcript for the scene."""
+        logger.info("Tool call: read_scene_overview(scene_id=%s)", scene_id)
         lines = await context.load_scene_lines(scene_id)
         scene = context.get_scene(scene_id)
 
@@ -79,6 +82,18 @@ def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False)
         if scene_id in written_summary:
             return "Summary already stored. Provide a final assistant response."
 
+        scene = context.get_scene(scene_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"scene.{scene_id}.summary",
+            current_value=scene.annotations.summary,
+            current_origin=scene.annotations.summary_origin,
+            proposed_value=summary,
+        )
+        if approval:
+            return approval
+
+        logger.info("Tool call: write_scene_summary(scene_id=%s)", scene_id)
         origin = f"agent:scene_detailer:{date.today().isoformat()}"
         result = await context.set_scene_summary(scene_id, summary, origin)
         written_summary.add(scene_id)
@@ -96,6 +111,18 @@ def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False)
         if scene_id in written_tags:
             return "Tags already stored. Provide a final assistant response."
 
+        scene = context.get_scene(scene_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"scene.{scene_id}.tags",
+            current_value=scene.annotations.tags,
+            current_origin=scene.annotations.tags_origin,
+            proposed_value=tags,
+        )
+        if approval:
+            return approval
+
+        logger.info("Tool call: write_scene_tags(scene_id=%s)", scene_id)
         origin = f"agent:scene_detailer:{date.today().isoformat()}"
         result = await context.set_scene_tags(scene_id, tags, origin)
         written_tags.add(scene_id)
@@ -113,6 +140,18 @@ def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False)
         if scene_id in written_characters:
             return "Characters already stored. Provide a final assistant response."
 
+        scene = context.get_scene(scene_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"scene.{scene_id}.primary_characters",
+            current_value=scene.annotations.primary_characters,
+            current_origin=scene.annotations.primary_characters_origin,
+            proposed_value=character_ids,
+        )
+        if approval:
+            return approval
+
+        logger.info("Tool call: write_primary_characters(scene_id=%s)", scene_id)
         origin = f"agent:scene_detailer:{date.today().isoformat()}"
         result = await context.set_scene_characters(scene_id, character_ids, origin)
         written_characters.add(scene_id)
@@ -130,6 +169,18 @@ def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False)
         if scene_id in written_locations:
             return "Locations already stored. Provide a final assistant response."
 
+        scene = context.get_scene(scene_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"scene.{scene_id}.locations",
+            current_value=scene.annotations.locations,
+            current_origin=scene.annotations.locations_origin,
+            proposed_value=location_ids,
+        )
+        if approval:
+            return approval
+
+        logger.info("Tool call: write_scene_locations(scene_id=%s)", scene_id)
         origin = f"agent:scene_detailer:{date.today().isoformat()}"
         result = await context.set_scene_locations(scene_id, location_ids, origin)
         written_locations.add(scene_id)

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
+from rentl_core.util.logging import get_logger
+
+from rentl_agents.tools.hitl import request_if_human_authored
+
+logger = get_logger(__name__)
 
 
 def build_character_tools(
@@ -23,6 +28,7 @@ def build_character_tools(
     @tool("read_character")
     def read_character(character_id: str) -> str:
         """Return current metadata for this character."""
+        logger.info("Tool call: read_character(character_id=%s)", character_id)
         character = context.get_character(character_id)
         parts = [
             f"Character ID: {character.id}",
@@ -60,6 +66,18 @@ def build_character_tools(
         if character_id in updated_name_tgt:
             return "Target name already updated. Provide a final assistant response."
 
+        logger.info("Tool call: update_character_name_tgt(character_id=%s)", character_id)
+        character = context.get_character(character_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"character.{character_id}.name_tgt",
+            current_value=character.name_tgt,
+            current_origin=character.name_tgt_origin,
+            proposed_value=name_tgt,
+        )
+        if approval:
+            return approval
+
         origin = f"agent:character_detailer:{date.today().isoformat()}"
         result = await context.update_character_name_tgt(character_id, name_tgt, origin)
         updated_name_tgt.add(character_id)
@@ -81,6 +99,18 @@ def build_character_tools(
         if character_id in updated_pronouns:
             return "Pronouns already updated. Provide a final assistant response."
 
+        logger.info("Tool call: update_character_pronouns(character_id=%s)", character_id)
+        character = context.get_character(character_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"character.{character_id}.pronouns",
+            current_value=character.pronouns,
+            current_origin=character.pronouns_origin,
+            proposed_value=pronouns,
+        )
+        if approval:
+            return approval
+
         origin = f"agent:character_detailer:{date.today().isoformat()}"
         result = await context.update_character_pronouns(character_id, pronouns, origin)
         updated_pronouns.add(character_id)
@@ -101,6 +131,18 @@ def build_character_tools(
 
         if character_id in updated_notes:
             return "Notes already updated. Provide a final assistant response."
+
+        logger.info("Tool call: update_character_notes(character_id=%s)", character_id)
+        character = context.get_character(character_id)
+        approval = request_if_human_authored(
+            operation="update",
+            target=f"character.{character_id}.notes",
+            current_value=character.notes,
+            current_origin=character.notes_origin,
+            proposed_value=notes,
+        )
+        if approval:
+            return approval
 
         origin = f"agent:character_detailer:{date.today().isoformat()}"
         result = await context.update_character_notes(character_id, notes, origin)

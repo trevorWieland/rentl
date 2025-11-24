@@ -6,17 +6,13 @@ by analyzing the scenes that make up each route.
 
 from __future__ import annotations
 
-from typing import cast
-
 from deepagents import CompiledSubAgent
-from langchain.agents import AgentState, create_agent
-from langchain.agents.middleware import AgentMiddleware
+from langchain.agents import create_agent
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.middleware.context import AgentContext, ContextInjectionMiddleware
 from rentl_agents.tools.route import build_route_tools
 
 
@@ -120,9 +116,6 @@ def create_route_detailer_subagent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
-        context_schema=AgentContext,
-        # ty lacks support for AgentMiddleware generic narrowing; ignore is safe here.
-        middleware=[cast(AgentMiddleware[AgentState, AgentContext], ContextInjectionMiddleware(context))],  # type: ignore[arg-type]
     )
 
     return CompiledSubAgent(

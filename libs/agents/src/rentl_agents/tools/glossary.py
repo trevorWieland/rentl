@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
+from rentl_core.util.logging import get_logger
+
+from rentl_agents.tools.hitl import request_if_human_authored
+
+logger = get_logger(__name__)
 
 
 def build_glossary_tools(
@@ -27,6 +32,7 @@ def build_glossary_tools(
         Returns:
             str: Glossary entry details or "not found" message.
         """
+        logger.info("Tool call: search_glossary(term_src=%s)", term_src)
         for entry in context.glossary:
             if entry.term_src == term_src:
                 parts = [
@@ -62,6 +68,7 @@ def build_glossary_tools(
         """
         from datetime import date
 
+        logger.info("Tool call: add_glossary_entry(term_src=%s)", term_src)
         origin = f"agent:glossary_curator:{date.today().isoformat()}"
         result = await context.add_glossary_entry(term_src=term_src, term_tgt=term_tgt, notes=notes, origin=origin)
         return result
@@ -79,6 +86,30 @@ def build_glossary_tools(
             str: Confirmation message after persistence.
         """
         from datetime import date
+
+        logger.info("Tool call: update_glossary_entry(term_src=%s)", term_src)
+        existing_entry = next((entry for entry in context.glossary if entry.term_src == term_src), None)
+        if existing_entry:
+            if term_tgt is not None:
+                approval = request_if_human_authored(
+                    operation="update",
+                    target=f"glossary.{term_src}.term_tgt",
+                    current_value=existing_entry.term_tgt,
+                    current_origin=existing_entry.term_tgt_origin,
+                    proposed_value=term_tgt,
+                )
+                if approval:
+                    return approval
+            if notes is not None:
+                approval = request_if_human_authored(
+                    operation="update",
+                    target=f"glossary.{term_src}.notes",
+                    current_value=existing_entry.notes,
+                    current_origin=existing_entry.notes_origin,
+                    proposed_value=notes,
+                )
+                if approval:
+                    return approval
 
         origin = f"agent:glossary_curator:{date.today().isoformat()}"
         result = await context.update_glossary_entry(term_src=term_src, term_tgt=term_tgt, notes=notes, origin=origin)
