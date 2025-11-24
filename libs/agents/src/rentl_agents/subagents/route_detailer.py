@@ -6,12 +6,17 @@ by analyzing the scenes that make up each route.
 
 from __future__ import annotations
 
-from deepagents import create_deep_agent
+from typing import cast
+
+from deepagents import CompiledSubAgent
+from langchain.agents import AgentState, create_agent
+from langchain.agents.middleware import AgentMiddleware
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.middleware.context import AgentContext, ContextInjectionMiddleware
 from rentl_agents.tools.route import build_route_tools
 
 
@@ -61,9 +66,8 @@ async def detail_route(context: ProjectContext, route_id: str, *, allow_overwrit
         RouteDetailResult: Updated route metadata.
     """
     logger.info("Detailing route %s", route_id)
-    tools = build_route_tools(context, route_id, allow_overwrite=allow_overwrite)
-    model = get_default_chat_model()
-    agent = create_deep_agent(model=model, tools=tools, system_prompt=SYSTEM_PROMPT)
+    subagent = create_route_detailer_subagent(context, allow_overwrite=allow_overwrite)
+    runnable = subagent["runnable"]
 
     user_prompt = f"""Enrich metadata for this route.
 
@@ -72,13 +76,13 @@ Route ID: {route_id}
 Instructions:
 1. Read the route's current metadata (including scene list)
 2. Review any context documents that mention this route
-3. Update synopsis with a concise narrative summary (1-3 sentences covering the route's arc)
-4. Update primary_characters with key character IDs featured in this route
+3. Update synopsis with a concise narrative summary (1-3 sentences covering the route's arc) using update_route_synopsis(route_id, synopsis)
+4. Update primary_characters with key character IDs featured in this route using update_route_characters(route_id, ids)
 5. End conversation when all updates are complete
 
 Begin analysis now."""
 
-    await agent.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
 
     # Retrieve updated route metadata
     updated_route = context.get_route(route_id)
@@ -97,3 +101,32 @@ Begin analysis now."""
     )
 
     return result
+
+
+def create_route_detailer_subagent(
+    context: ProjectContext,
+    *,
+    allow_overwrite: bool = False,
+    name: str | None = None,
+) -> CompiledSubAgent:
+    """Create route detailer LangChain subagent.
+
+    Returns:
+        CompiledSubAgent: Configured route detailer agent.
+    """
+    tools = build_route_tools(context, allow_overwrite=allow_overwrite)
+    model = get_default_chat_model()
+    graph = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        context_schema=AgentContext,
+        # ty lacks support for AgentMiddleware generic narrowing; ignore is safe here.
+        middleware=[cast(AgentMiddleware[AgentState, AgentContext], ContextInjectionMiddleware(context))],  # type: ignore[arg-type]
+    )
+
+    return CompiledSubAgent(
+        name=name or "route-detailer",
+        description="Enriches route metadata with synopsis and primary characters",
+        runnable=graph,
+    )

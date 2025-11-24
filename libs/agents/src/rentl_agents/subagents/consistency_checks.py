@@ -1,20 +1,72 @@
-"""Consistency checker subagent.
-
-This subagent performs cross-scene terminology validation, character pronoun consistency,
-and glossary term usage validation.
-"""
+"""Consistency checker subagent."""
 
 from __future__ import annotations
 
+from typing import cast
 
-def check_consistency() -> None:
-    """Run the consistency checker agent (placeholder).
+from deepagents import CompiledSubAgent
+from langchain.agents import AgentState, create_agent
+from langchain.agents.middleware import AgentMiddleware
+from pydantic import BaseModel, Field
+from rentl_core.context.project import ProjectContext
+from rentl_core.util.logging import get_logger
 
-    TODO: Implement consistency checker that:
-    - Reads translated scenes and metadata
-    - Validates cross-scene terminology consistency
-    - Checks character pronoun consistency
-    - Validates glossary term usage
-    - Records check results via record_consistency_check tool
+from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.middleware.context import AgentContext, ContextInjectionMiddleware
+from rentl_agents.tools.qa import read_translations, record_consistency_check
+
+logger = get_logger(__name__)
+
+
+class ConsistencyCheckResult(BaseModel):
+    """Result for consistency checker subagent."""
+
+    scene_id: str = Field(description="Scene reviewed")
+    checks_recorded: int = Field(description="Number of consistency checks recorded.")
+
+
+SYSTEM_PROMPT = """You are a consistency checker ensuring terminology and pronouns match glossary/metadata.
+
+Workflow:
+1) Call read_translations(scene_id) to see translated lines.
+2) Verify character names/pronouns and glossary terms are consistent.
+3) Call record_consistency_check(scene_id, line_id, passed, note) for each line reviewed.
+4) Be concise and avoid restating text. End when checks are recorded."""
+
+
+def create_consistency_checker_subagent(context: ProjectContext, *, name: str | None = None) -> CompiledSubAgent:
+    """Create consistency checker LangChain subagent.
+
+    Returns:
+        CompiledSubAgent: Configured consistency checker agent.
     """
-    raise NotImplementedError
+    tools = [read_translations, record_consistency_check]
+    model = get_default_chat_model()
+    graph = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        context_schema=AgentContext,
+        middleware=[cast(AgentMiddleware[AgentState, AgentContext], ContextInjectionMiddleware(context))],  # type: ignore[arg-type]
+    )
+
+    return CompiledSubAgent(
+        name=name or "consistency-checker",
+        description="Runs consistency checks on translated lines",
+        runnable=graph,
+    )
+
+
+async def run_consistency_checks(context: ProjectContext, scene_id: str) -> ConsistencyCheckResult:
+    """Run consistency checker for a scene.
+
+    Returns:
+        ConsistencyCheckResult: Recorded consistency check counts.
+    """
+    subagent = create_consistency_checker_subagent(context)
+    await subagent["runnable"].ainvoke(
+        {"messages": [{"role": "user", "content": f"Check consistency for {scene_id}."}]}
+    )
+    translations = await context.get_translations(scene_id)
+    recorded = sum(1 for line in translations if "consistency_check" in line.meta.checks)
+    return ConsistencyCheckResult(scene_id=scene_id, checks_recorded=recorded)

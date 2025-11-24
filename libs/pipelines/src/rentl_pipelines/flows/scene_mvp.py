@@ -29,11 +29,7 @@ async def _run_scene_mvp_async(
     results: dict[str, SceneDetailResult] = {}
 
     for sid in target_ids:
-        scene = context.get_scene(sid)
-        if scene.annotations.summary and not allow_overwrite:
-            logger.info("Skipping %s (existing metadata)", sid)
-            continue
-        logger.info("Queueing scene %s for detailing", sid)
+        logger.info("Detailing scene %s", sid)
         metadata = await detail_scene(context, sid, allow_overwrite=allow_overwrite)
         results[sid] = metadata
 

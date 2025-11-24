@@ -60,15 +60,11 @@ def build_glossary_tools(
         Returns:
             str: Confirmation message after persistence.
         """
-        # Check if entry already exists
-        for entry in context.glossary:
-            if entry.term_src == term_src:
-                return f"Entry for '{term_src}' already exists. Use update_glossary_entry to modify it."
+        from datetime import date
 
-        await context.add_glossary_entry(
-            term_src=term_src, term_tgt=term_tgt, notes=notes, allow_overwrite=allow_overwrite
-        )
-        return f"Added glossary entry for '{term_src}'."
+        origin = f"agent:glossary_curator:{date.today().isoformat()}"
+        result = await context.add_glossary_entry(term_src=term_src, term_tgt=term_tgt, notes=notes, origin=origin)
+        return result
 
     @tool("update_glossary_entry")
     async def update_glossary_entry(term_src: str, term_tgt: str | None = None, notes: str | None = None) -> str:
@@ -82,20 +78,11 @@ def build_glossary_tools(
         Returns:
             str: Confirmation message after persistence.
         """
-        # Check if entry exists
-        found = False
-        for entry in context.glossary:
-            if entry.term_src == term_src:
-                found = True
-                break
+        from datetime import date
 
-        if not found:
-            return f"No entry found for '{term_src}'. Use add_glossary_entry to create it."
-
-        await context.update_glossary_entry(
-            term_src=term_src, term_tgt=term_tgt, notes=notes, allow_overwrite=allow_overwrite
-        )
-        return f"Updated glossary entry for '{term_src}'."
+        origin = f"agent:glossary_curator:{date.today().isoformat()}"
+        result = await context.update_glossary_entry(term_src=term_src, term_tgt=term_tgt, notes=notes, origin=origin)
+        return result
 
     return [
         search_glossary,

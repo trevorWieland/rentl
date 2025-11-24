@@ -8,20 +8,21 @@ from rentl_core.context.project import ProjectContext
 
 def build_location_tools(
     context: ProjectContext,
-    location_id: str,
     *,
     allow_overwrite: bool = False,
 ) -> list:
-    """Construct tools bound to a specific location.
+    """Construct tools usable across locations.
 
     Returns:
-        list: Tool callables ready to supply to ``create_deep_agent``.
+        list: Tool callables ready to supply to ``create_agent``.
     """
-    location = context.get_location(location_id)
+    updated_name_tgt: set[str] = set()
+    updated_description: set[str] = set()
 
     @tool("read_location")
-    def read_location() -> str:
+    def read_location(location_id: str) -> str:
         """Return current metadata for this location."""
+        location = context.get_location(location_id)
         parts = [
             f"Location ID: {location.id}",
             f"Source Name: {location.name_src}",
@@ -41,44 +42,47 @@ def build_location_tools(
         """Return the contents of a context document."""
         return await context.read_context_doc(filename)
 
-    has_updated_name_tgt = False
-    has_updated_description = False
-
     @tool("update_location_name_tgt")
-    async def update_location_name_tgt(name_tgt: str) -> str:
+    async def update_location_name_tgt(location_id: str, name_tgt: str) -> str:
         """Update the target language name for this location.
 
         Args:
+            location_id: Location identifier.
             name_tgt: Localized name in the target language.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        nonlocal has_updated_name_tgt
-        if has_updated_name_tgt:
+        from datetime import date
+
+        if location_id in updated_name_tgt:
             return "Target name already updated. Provide a final assistant response."
 
-        await context.update_location_name_tgt(location_id, name_tgt, allow_overwrite=allow_overwrite)
-        has_updated_name_tgt = True
-        return "Target name updated."
+        origin = f"agent:location_detailer:{date.today().isoformat()}"
+        result = await context.update_location_name_tgt(location_id, name_tgt, origin)
+        updated_name_tgt.add(location_id)
+        return result
 
     @tool("update_location_description")
-    async def update_location_description(description: str) -> str:
+    async def update_location_description(location_id: str, description: str) -> str:
         """Update the description for this location.
 
         Args:
+            location_id: Location identifier.
             description: Location description with mood, atmosphere, and sensory details.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        nonlocal has_updated_description
-        if has_updated_description:
+        from datetime import date
+
+        if location_id in updated_description:
             return "Description already updated. Provide a final assistant response."
 
-        await context.update_location_description(location_id, description, allow_overwrite=allow_overwrite)
-        has_updated_description = True
-        return "Description updated."
+        origin = f"agent:location_detailer:{date.today().isoformat()}"
+        result = await context.update_location_description(location_id, description, origin)
+        updated_description.add(location_id)
+        return result
 
     return [
         read_location,

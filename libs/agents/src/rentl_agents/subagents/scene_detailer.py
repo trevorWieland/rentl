@@ -6,12 +6,17 @@ primary characters, and locations by analyzing scene content.
 
 from __future__ import annotations
 
-from deepagents import create_deep_agent
+from typing import cast
+
+from deepagents import CompiledSubAgent
+from langchain.agents import AgentState, create_agent
+from langchain.agents.middleware import AgentMiddleware
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.middleware.context import AgentContext, ContextInjectionMiddleware
 from rentl_agents.tools.scene import build_scene_tools
 
 
@@ -66,9 +71,8 @@ async def detail_scene(context: ProjectContext, scene_id: str, *, allow_overwrit
     """
     logger.info("Detailing scene %s", scene_id)
     lines = await context.load_scene_lines(scene_id)
-    tools = build_scene_tools(context, scene_id, lines, allow_overwrite=allow_overwrite)
-    model = get_default_chat_model()
-    agent = create_deep_agent(model=model, tools=tools, system_prompt=SYSTEM_PROMPT)
+    subagent = create_scene_detailer_subagent(context, allow_overwrite=allow_overwrite)
+    runnable = subagent["runnable"]
 
     source_lang = context.game.source_lang.upper()
     line_count = len(lines)
@@ -82,15 +86,15 @@ Source Language: {source_lang}
 Instructions:
 1. Read the scene overview (shows existing metadata if any)
 2. Analyze the full transcript
-3. Write summary in {source_lang} (1-2 sentences covering mood, key events, outcomes)
+3. Write summary in {source_lang} (1-2 sentences covering mood, key events, outcomes) using write_scene_summary(scene_id, summary)
 4. Write tags (3-6 quick descriptive tags)
-5. Write primary_characters (character IDs from speakers and context)
-6. Write scene_locations (location IDs inferred from setting/context)
+5. Write primary_characters (character IDs from speakers and context) using write_primary_characters(scene_id, ids)
+6. Write scene_locations (location IDs inferred from setting/context) using write_scene_locations(scene_id, ids)
 7. End conversation when all 4 metadata types are recorded
 
 Begin analysis now."""
 
-    await agent.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
 
     # Retrieve updated scene metadata
     updated_scene = context.get_scene(scene_id)
@@ -113,3 +117,32 @@ Begin analysis now."""
     )
 
     return result
+
+
+def create_scene_detailer_subagent(
+    context: ProjectContext,
+    *,
+    allow_overwrite: bool = False,
+    name: str | None = None,
+) -> CompiledSubAgent:
+    """Create scene detailer LangChain subagent.
+
+    Returns:
+        CompiledSubAgent: Configured scene detailer agent.
+    """
+    tools = build_scene_tools(context, allow_overwrite=allow_overwrite)
+    model = get_default_chat_model()
+    graph = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        context_schema=AgentContext,
+        # ty lacks support for AgentMiddleware generic narrowing; ignore is safe here.
+        middleware=[cast(AgentMiddleware[AgentState, AgentContext], ContextInjectionMiddleware(context))],  # type: ignore[arg-type]
+    )
+
+    return CompiledSubAgent(
+        name=name or "scene-detailer",
+        description="Enriches scene metadata with summary, tags, characters, and locations",
+        runnable=graph,
+    )

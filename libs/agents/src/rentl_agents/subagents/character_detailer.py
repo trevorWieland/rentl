@@ -6,12 +6,17 @@ by analyzing scenes where characters appear.
 
 from __future__ import annotations
 
-from deepagents import create_deep_agent
+from typing import cast
+
+from deepagents import CompiledSubAgent
+from langchain.agents import AgentState, create_agent
+from langchain.agents.middleware import AgentMiddleware
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.middleware.context import AgentContext, ContextInjectionMiddleware
 from rentl_agents.tools.character import build_character_tools
 
 
@@ -68,9 +73,8 @@ async def detail_character(
         CharacterDetailResult: Updated character metadata.
     """
     logger.info("Detailing character %s", character_id)
-    tools = build_character_tools(context, character_id, allow_overwrite=allow_overwrite)
-    model = get_default_chat_model()
-    agent = create_deep_agent(model=model, tools=tools, system_prompt=SYSTEM_PROMPT)
+    subagent = create_character_detailer_subagent(context, allow_overwrite=allow_overwrite)
+    runnable = subagent["runnable"]
 
     target_lang = context.game.target_lang.upper()
 
@@ -82,14 +86,14 @@ Target Language: {target_lang}
 Instructions:
 1. Read the character's current metadata
 2. Review any context documents that mention this character
-3. Update name_tgt with appropriate localized name (if empty or needs refinement)
-4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them")
-5. Update notes with personality, speech patterns, tone, translation guidance
+3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_character_name_tgt(character_id, name)
+4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them") using update_character_pronouns(character_id, pronouns)
+5. Update notes with personality, speech patterns, tone, translation guidance using update_character_notes(character_id, notes)
 6. End conversation when all updates are complete
 
 Begin analysis now."""
 
-    await agent.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
 
     # Retrieve updated character metadata
     updated_character = context.get_character(character_id)
@@ -110,3 +114,32 @@ Begin analysis now."""
     )
 
     return result
+
+
+def create_character_detailer_subagent(
+    context: ProjectContext,
+    *,
+    allow_overwrite: bool = False,
+    name: str | None = None,
+) -> CompiledSubAgent:
+    """Create character detailer LangChain subagent.
+
+    Returns:
+        CompiledSubAgent: Configured character detailer agent.
+    """
+    tools = build_character_tools(context, allow_overwrite=allow_overwrite)
+    model = get_default_chat_model()
+    graph = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        context_schema=AgentContext,
+        # ty lacks support for AgentMiddleware generic narrowing; ignore is safe here.
+        middleware=[cast(AgentMiddleware[AgentState, AgentContext], ContextInjectionMiddleware(context))],  # type: ignore[arg-type]
+    )
+
+    return CompiledSubAgent(
+        name=name or "character-detailer",
+        description="Enriches character metadata with localized names, pronouns, and notes",
+        runnable=graph,
+    )

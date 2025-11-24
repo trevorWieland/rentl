@@ -28,6 +28,355 @@ rentl is a Python 3.13, multi-agent translation pipeline for visual novels (init
 
 ---
 
+## Agent Architecture: LangChain vs DeepAgents
+
+rentl uses **two different agent frameworks** for different purposes. Understanding this distinction is critical for correct implementation.
+
+### Top-Level Agents (DeepAgents)
+
+**Use `create_deep_agent` from the `deepagents` package.**
+
+Top-level agents are intelligent orchestrators that coordinate subagents:
+- **Context Builder Agent** - Decides which detailer subagents to run and when
+- **Translator Agent** - Manages scene translation workflows
+- **Editor Agent** - Coordinates QA and review subagents
+
+**Key characteristics:**
+- Use `create_deep_agent(model, tools, subagents=[], system_prompt, interrupt_on={}, checkpointer)`
+- Have access to stats/progress tools for high-level decision making
+- Spawn subagents via the `task()` tool provided by `SubAgentMiddleware`
+- Support HITL interrupts via `interrupt_on` parameter (requires checkpointer)
+- Automatically include TodoListMiddleware, FilesystemMiddleware, SubAgentMiddleware
+
+**Example:**
+```python
+from deepagents import create_deep_agent, CompiledSubAgent
+from langgraph.checkpoint.memory import MemorySaver
+
+context_builder = create_deep_agent(
+    model="claude-sonnet-4-5-20250929",
+    tools=[get_context_status, analyze_progress],  # Stats tools, NOT read tools
+    system_prompt="You coordinate context enrichment...",
+    subagents=[scene_detailer, character_detailer, ...],
+    interrupt_on={"update_scene_summary": True},  # HITL for provenance violations
+    checkpointer=MemorySaver()
+)
+```
+
+### Subagents (LangChain Agents)
+
+**Use `create_agent` from the `langchain.agents` package.**
+
+Subagents are specialized workers that perform focused tasks:
+- **scene_detailer** - Enriches scene metadata
+- **character_detailer** - Enriches character metadata
+- **translate_scene** - Translates a single scene
+- etc.
+
+**Key characteristics:**
+- Use `create_agent(model, tools, system_prompt, middleware=[])`
+- Have specialized tools for their specific domain (no general filesystem access)
+- Work in isolation - context stays clean for top-level agent
+- Return results via `CompiledSubAgent` wrapper
+- Can have their own middleware (TodoListMiddleware for complex tasks, NO FilesystemMiddleware)
+
+**Example:**
+```python
+from langchain.agents import create_agent
+from deepagents import CompiledSubAgent
+
+# Create LangChain agent graph
+scene_detailer_graph = create_agent(
+    model=model,
+    tools=build_scene_tools(context, scene_id),
+    system_prompt="You enrich scene metadata..."
+    # No middleware = no default tools, only our specialized tools
+)
+
+# Wrap for use as subagent
+scene_detailer = CompiledSubAgent(
+    name="scene-detailer",
+    description="Enriches scene metadata with summary, tags, characters, locations",
+    runnable=scene_detailer_graph
+)
+```
+
+### Middleware Differences
+
+**DeepAgents middleware** (auto-included by `create_deep_agent`):
+- `TodoListMiddleware` - Provides `write_todos` tool for task planning
+- `FilesystemMiddleware` - Provides ls, read_file, write_file, edit_file, glob, grep
+- `SubAgentMiddleware` - Provides `task()` tool for spawning subagents
+
+**LangChain middleware** (must be explicitly added to `create_agent`):
+- Different set of middleware for agent customization
+- `TodoListMiddleware` - Same concept, different implementation
+- NO automatic FilesystemMiddleware
+- NO SubAgentMiddleware (subagents don't spawn other subagents)
+
+**Critical rule:** When using `middleware=[]` in DeepAgents, you remove ALL middleware including SubAgentMiddleware, preventing the agent from spawning subagents!
+
+### Human-in-the-Loop (HITL) Differences
+
+**DeepAgents HITL** (for top-level agents):
+```python
+# Configure via interrupt_on parameter
+agent = create_deep_agent(
+    tools=[update_scene_summary, read_scene],
+    interrupt_on={
+        "update_scene_summary": {"allowed_decisions": ["approve", "edit", "reject"]},
+        "read_scene": False,  # No interrupts
+    },
+    checkpointer=MemorySaver()  # Required for HITL
+)
+
+# Handle interrupts
+if result.get("__interrupt__"):
+    interrupts = result["__interrupt__"][0].value
+    # Present to user, get decisions
+    result = agent.invoke(Command(resume={"decisions": decisions}), config=config)
+```
+
+**LangChain HITL** (for subagents, if needed):
+```python
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+
+subagent = create_agent(
+    tools=[update_metadata],
+    middleware=[
+        HumanInTheLoopMiddleware(
+            interrupt_on={"update_metadata": True}
+        )
+    ],
+    checkpointer=MemorySaver()
+)
+```
+
+### Provenance-Based HITL Integration
+
+rentl uses **two-layer HITL**:
+
+**Layer 1 - Provenance checking in tools:**
+```python
+from langchain.tools import tool, ToolRuntime
+
+@tool
+async def update_scene_summary(scene_id: str, summary: str, runtime: ToolRuntime) -> str:
+    """Update scene summary with HITL approval for human-authored data."""
+    context = runtime.context.project_context
+    scene = context.get_scene(scene_id)
+
+    # Check provenance
+    if scene.annotations.summary_origin == "human":
+        return "Requesting approval to overwrite human-authored summary"
+
+    # Update if agent-authored or empty
+    await context.update_scene_summary(scene_id, summary)
+    return f"Updated summary for {scene_id}"
+```
+
+**Layer 2 - DeepAgents interrupt configuration:**
+```python
+interrupt_on={
+    "update_scene_summary": True,  # Pauses when tool requests approval
+    "read_scene": False,           # No interrupts for read-only tools
+}
+```
+
+**How it works:**
+1. Tool checks provenance (`if origin == "human"`)
+2. Tool returns message requesting approval
+3. DeepAgents sees tool in `interrupt_on` and pauses
+4. Human approves/edits/rejects
+5. If approved, tool updates with agent origin
+
+### Context Management
+
+**Top-level agents:**
+- See high-level stats and summaries
+- Use stats tools: `get_context_status()`, `get_translation_progress()`
+- Do NOT use read tools that return full scene transcripts (causes context bloat)
+- Receive concise results from subagents
+
+**Subagents:**
+- Work in isolated context
+- Have full access to detailed data via specialized tools
+- Return only essential results to top-level agent
+- Can read full scenes, character details, etc. without bloating main context
+
+### Shared ProjectContext Architecture
+
+rentl enforces **single-game-per-repo** with a **shared mutable ProjectContext** instance.
+
+**Design principles:**
+1. **One shared instance**: `ProjectContext` loaded once at top-level agent creation
+2. **Passed by reference**: All subagents receive the same context instance
+3. **Immediate visibility**: In-memory updates are instantly visible to all concurrent agents
+4. **Tool-only access**: Subagents interact ONLY via tools (`read_*`, `update_*`, `add_*`, `delete_*`)
+5. **Provenance enforcement**: All writes go through tools that track `*_origin` fields
+6. **Write-through persistence**: Updates immediately written to disk (crash-safe)
+
+**Implementation pattern:**
+```python
+# Top-level agent factory
+async def create_context_builder_agent(project_path: Path) -> Agent:
+    # Load shared context ONCE
+    context = await load_project_context(project_path)
+
+    # Create subagents, passing SAME context instance
+    subagents = [
+        create_scene_detailer_subagent(context),
+        create_character_detailer_subagent(context),
+    ]
+
+    # Middleware injects context into runtime
+    class ContextMiddleware:
+        async def before_agent(self, state, runtime):
+            runtime.context.project_context = context
+            return {}
+
+    agent = create_deep_agent(
+        model=...,
+        tools=build_stats_tools(),
+        subagents=subagents,
+        middleware=[ContextMiddleware()],
+    )
+
+    return agent
+
+# Subagent factory (captures shared context via closure)
+def create_scene_detailer_subagent(context: ProjectContext) -> CompiledSubAgent:
+    tools = build_scene_tools()
+
+    # Middleware injects SAME context instance
+    class SubagentContextMiddleware:
+        async def before_agent(self, state, runtime):
+            runtime.context.project_context = context  # Same instance!
+            return {}
+
+    graph = create_agent(
+        model=...,
+        tools=tools,
+        middleware=[SubagentContextMiddleware()]
+    )
+
+    return CompiledSubAgent(name="scene-detailer", runnable=graph)
+
+# Tools access shared context (stateless, pure)
+@tool
+async def update_scene_summary(scene_id: str, summary: str, runtime: ToolRuntime) -> str:
+    # All agents see the SAME context instance
+    context = runtime.context.project_context
+
+    # Update with locking + persistence
+    await context.update_scene_summary(scene_id, summary, origin="agent:scene_detailer")
+
+    return f"Updated scene {scene_id}"
+```
+
+**Why single-game-per-repo:**
+- Eliminates confusion about which game is being processed
+- Simplifies tool design (no need to pass game_id everywhere)
+- Prevents agents from accidentally mixing contexts from different games
+- If translating a sequel, include prequel context in `metadata/context_docs/`
+
+### Concurrency: Feedback-Providing Locks
+
+**Problem:** When multiple subagents run concurrently, they might try to update the same field.
+
+**Solution:** Entity-level locks with intelligent conflict detection.
+
+**Pattern:**
+```python
+class ProjectContext:
+    def __init__(self, project_path: Path):
+        # Entity-level locks (per scene, per character, etc.)
+        self._scene_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+        self._character_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+        # Track recent updates for conflict detection
+        self._recent_updates: dict[tuple[str, str, str], float] = {}
+
+    async def update_character_bio(
+        self,
+        char_id: str,
+        new_bio: str,
+        origin: str,
+        conflict_threshold_seconds: float = 30
+    ) -> str:
+        async with self._character_locks[char_id]:
+            char = self.characters[char_id]
+            current_bio = char.bio
+
+            # Check if field was recently updated by another agent
+            update_key = ("character", char_id, "bio")
+            last_update = self._recent_updates.get(update_key, 0)
+            time_since_update = time.time() - last_update
+
+            # Provide feedback if concurrent update detected
+            if time_since_update < conflict_threshold_seconds and current_bio:
+                return f"""CONCURRENT UPDATE DETECTED
+Bio was updated {time_since_update:.1f}s ago.
+Current: {current_bio}
+Your proposed: {new_bio}
+
+Review and retry if your update is still needed."""
+
+            # No conflict - proceed
+            char.bio = new_bio
+            char.bio_origin = origin
+            self._recent_updates[update_key] = time.time()
+
+            # Write immediately (crash-safe)
+            await write_character_metadata(self.project_path, char)
+
+            return f"Successfully updated bio for {char_id}"
+```
+
+**How it works:**
+1. **Subagent 1** updates character bio → succeeds, releases lock
+2. **Subagent 2** (concurrent) waits for lock, then acquires it
+3. **Subagent 2** detects recent update (2 seconds ago)
+4. **Tool returns feedback** with both current and proposed values
+5. **Subagent 2 decides**: Skip (redundant), combine both, or overwrite
+
+**Benefits:**
+- ✅ No data loss (second update doesn't blindly overwrite)
+- ✅ Intelligent coordination (agents see each other's work)
+- ✅ No deadlocks (locks held only during update)
+- ✅ Crash-safe (immediate writes to disk)
+
+### When to Use Which
+
+| Use Case | Framework | Function |
+|----------|-----------|----------|
+| Context Builder coordinator | DeepAgents | `create_deep_agent` |
+| Translator coordinator | DeepAgents | `create_deep_agent` |
+| Editor coordinator | DeepAgents | `create_deep_agent` |
+| Scene detailer | LangChain | `create_agent` → `CompiledSubAgent` |
+| Character detailer | LangChain | `create_agent` → `CompiledSubAgent` |
+| Translation worker | LangChain | `create_agent` → `CompiledSubAgent` |
+| Style checker | LangChain | `create_agent` → `CompiledSubAgent` |
+
+### Common Mistakes to Avoid
+
+❌ **Don't** use `create_deep_agent` for subagents
+❌ **Don't** use `create_agent` for top-level coordinators
+❌ **Don't** give top-level agents read tools that return full content (context bloat)
+❌ **Don't** use `middleware=[]` in DeepAgents (removes SubAgentMiddleware)
+❌ **Don't** confuse LangChain middleware with DeepAgents middleware
+❌ **Don't** skip checkpointer when using HITL in either system
+❌ **Don't** hardcode language/style rules in prompts—inject small configs (source/target lang, game title, etc.) or have agents call tools (style guide, UI settings, metadata) to stay context-driven.
+
+✅ **Do** use stats/progress tools for top-level agents
+✅ **Do** use specialized tools for subagents
+✅ **Do** wrap `create_agent` results in `CompiledSubAgent`
+✅ **Do** check provenance in tools before updating
+✅ **Do** configure `interrupt_on` for update tools
+✅ **Do** provide checkpointer for HITL support
+
+---
+
 ## Scope
 
 ### In Scope
@@ -241,27 +590,19 @@ Before committing code, run:
    uv sync
    ```
 
-2. **Format code**:
+2. **Repo-standard commands**:
+   - `make fix` (format + lint autofix)
+   - `make check` (format check, lint, type, tests)
+   These apply formatting/lint fixes and run formatting, linting, typing, and testing. If you hit a permission error (e.g., uv cache), ask for permission rather than changing env vars.
+
+   If you must run individually:
    ```bash
    uv run ruff format
-   ```
-
-3. **Lint**:
-   ```bash
    uv run ruff check --fix
-   ```
-   Honor repo config; don't relax rules without approval.
-
-4. **Type check**:
-   ```bash
    uv run ty check
-   ```
-
-5. **Run tests**:
-   ```bash
    uv run pytest
    ```
-   Prefer deterministic/mocked LLM backends; use example fixtures.
+   Prefer deterministic/mocked LLM backends; use example fixtures. Use the context7 MCP server to clarify library APIs early (pydantic, langchain, etc.). If ty can’t express a pattern, a targeted `# type: ignore[...]` with a reason is acceptable.
 
 **Standards**:
 - Line length ≤120 characters

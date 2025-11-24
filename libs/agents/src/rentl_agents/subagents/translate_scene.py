@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
-from deepagents import create_deep_agent
+from typing import cast
+
+from deepagents import CompiledSubAgent
+from langchain.agents import AgentState, create_agent
+from langchain.agents.middleware import AgentMiddleware
+from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.backends.mtl import is_mtl_available
+from rentl_agents.middleware.context import AgentContext, ContextInjectionMiddleware
 from rentl_agents.tools.translation import build_translation_tools
 
 logger = get_logger(__name__)
+
+
+class SceneTranslationResult(BaseModel):
+    """Result structure from scene translator subagent."""
+
+    scene_id: str = Field(description="Scene identifier that was translated.")
+    lines_translated: int = Field(description="Number of lines translated in this scene.")
 
 
 def build_translator_system_prompt(source_lang: str, target_lang: str) -> str:
@@ -25,15 +38,16 @@ def build_translator_system_prompt(source_lang: str, target_lang: str) -> str:
     """
     return f"""You are a professional visual novel translator specializing in {source_lang.upper()}→{target_lang.upper()} translation.
 
-Your goal is to produce natural, accurate, and context-aware translations that preserve the
-original meaning, tone, and character voices. You have access to:
+    Your goal is to produce natural, accurate, and context-aware translations that preserve the
+    original meaning, tone, and character voices. You have access to:
 
-- Character metadata (names, pronouns, speech patterns)
-- Glossary entries (canonical terminology)
-- Style guide (localization guidelines)
-- Scene context (summaries, tags, primary characters)
+    - Character metadata (names, pronouns, speech patterns)
+    - Glossary entries (canonical terminology)
+    - Style guide (localization guidelines)
+    - Scene context (summaries, tags, primary characters)
+    - UI constraints (line length, wrapping rules)
 
-You also have access to two translation approaches:
+    You also have access to two translation approaches:
 
 1. **MTL Translation Tool (mtl_translate)**: A specialized translation model fine-tuned for
    visual novel translation. Use this for initial translations or when you want assistance
@@ -48,6 +62,7 @@ You also have access to two translation approaches:
    - Consider speaker, emotional tone, and context
    - Optionally call mtl_translate for assistance
    - Review and refine the translation as needed
+   - Call read_style_guide and get_ui_settings if you need guidance on style/length
    - Call write_translation with your final translation
 3. Maintain consistency with glossary and character voices
 4. Follow style guide preferences (honorifics, idioms, references)
@@ -65,34 +80,35 @@ You also have access to two translation approaches:
 async def translate_scene(
     context: ProjectContext,
     scene_id: str,
-) -> dict[str, str]:
-    """Run the scene translation agent for *scene_id* and return translations.
+    *,
+    allow_overwrite: bool = False,
+) -> SceneTranslationResult:
+    """Run the scene translation agent for *scene_id* and return translation statistics.
 
     Args:
         context: Project context with metadata.
         scene_id: Scene identifier to translate.
+        allow_overwrite: Allow overwriting existing translations.
 
     Returns:
-        dict[str, str]: Mapping of line IDs to translated text.
+        SceneTranslationResult: Translation statistics for this scene.
 
     Notes:
         This function creates a translation agent that can use either direct translation
         or the MTL backend (if configured). The agent reviews MTL output and refines it
-        before writing final translations.
+        before writing final translations to disk.
     """
     logger.info("Translating scene %s", scene_id)
 
     # Get language pair from game metadata
-    source_lang = context.game.source_lang
     target_lang = context.game.target_lang
 
     lines = await context.load_scene_lines(scene_id)
-    tools = build_translation_tools(context, scene_id, agent_name="scene_translator")
-    model = get_default_chat_model()
+    await context._load_translations(scene_id)
+    pre_count = context.get_translated_line_count(scene_id)
 
-    # Build language-aware system prompt
-    system_prompt = build_translator_system_prompt(source_lang, target_lang)
-    agent = create_deep_agent(model=model, tools=tools, system_prompt=system_prompt)
+    subagent = create_scene_translator_subagent(context, allow_overwrite=allow_overwrite)
+    runnable = subagent["runnable"]
 
     # Check MTL availability
     mtl_status = "MTL backend is available" if is_mtl_available() else "MTL backend not configured"
@@ -116,15 +132,53 @@ Instructions:
 1. Read the scene overview to understand context
 2. Translate each line maintaining speaker personality and tone
 3. You may use mtl_translate for assistance, but review and refine the output
-4. Call write_translation for each line with your final translation
-5. Ensure all {line_count} lines are translated
-6. End the conversation when complete
+4. Call read_style_guide and get_ui_settings if you need format/style constraints
+5. Call write_translation(scene_id, line_id, source_text, target_text) for each line with your final translation
+6. Ensure all {line_count} lines are translated
+7. End the conversation when complete
 
 Begin translation now."""
 
-    await agent.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
 
-    # TODO: Collect translations from agent execution
-    # For now, return empty dict (translations are logged in tools)
-    logger.info("Scene %s translation complete", scene_id)
-    return {}
+    # Return translation statistics
+    post_count = context.get_translated_line_count(scene_id)
+    delta = max(post_count - pre_count, 0)
+    result = SceneTranslationResult(
+        scene_id=scene_id,
+        lines_translated=delta or line_count,
+    )
+
+    logger.info("Scene %s translation complete: %d lines", scene_id, line_count)
+    return result
+
+
+def create_scene_translator_subagent(
+    context: ProjectContext,
+    *,
+    allow_overwrite: bool = False,
+    name: str | None = None,
+) -> CompiledSubAgent:
+    """Create scene translator LangChain subagent.
+
+    Returns:
+        CompiledSubAgent: Configured scene translator agent.
+    """
+    tools = build_translation_tools(context, agent_name="scene_translator", allow_overwrite=allow_overwrite)
+    model = get_default_chat_model()
+    system_prompt = build_translator_system_prompt(context.game.source_lang, context.game.target_lang)
+
+    graph = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=system_prompt,
+        context_schema=AgentContext,
+        # ty lacks support for AgentMiddleware generic narrowing; ignore is safe here.
+        middleware=[cast(AgentMiddleware[AgentState, AgentContext], ContextInjectionMiddleware(context))],  # type: ignore[arg-type]
+    )
+
+    return CompiledSubAgent(
+        name=name or "scene-translator",
+        description="Translates a scene with context-aware JP→EN handling and optional MTL assistance",
+        runnable=graph,
+    )

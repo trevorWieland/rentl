@@ -15,16 +15,16 @@ logger = get_logger(__name__)
 
 def build_translation_tools(
     context: ProjectContext,
-    scene_id: str,
     *,
     agent_name: str = "scene_translator",
+    allow_overwrite: bool = False,
 ) -> list:
-    """Construct translation tools bound to a specific scene.
+    """Construct translation tools usable across scenes.
 
     Args:
         context: Project context with metadata and translation state.
-        scene_id: Scene identifier being translated.
         agent_name: Name of the agent using these tools (for provenance).
+        allow_overwrite: Allow overwriting existing translations.
 
     Returns:
         list: Tool callables ready to supply to translation agents.
@@ -84,7 +84,7 @@ def build_translation_tools(
         return translation
 
     @tool("write_translation")
-    def write_translation(line_id: str, source_text: str, target_text: str) -> str:
+    async def write_translation(scene_id: str, line_id: str, source_text: str, target_text: str) -> str:
         """Write a translation for a line with provenance tracking.
 
         This tool records the final translation for a line. It includes HITL approval
@@ -92,6 +92,7 @@ def build_translation_tools(
         approval will be required to overwrite it.
 
         Args:
+            scene_id: Scene identifier owning the line.
             line_id: Stable line identifier (must match SourceLine.id).
             source_text: Original Japanese source text (for verification).
             target_text: Final English translation to record.
@@ -108,36 +109,43 @@ def build_translation_tools(
         if line_id in written_line_ids:
             return f"ERROR: Line {line_id} already written in this session. Provide a final assistant response."
 
-        # Check if this line already has a translation
-        # TODO: In full implementation, load existing translations and check provenance
-        # For now, we'll assume new translations (provenance checking will be added when
-        # translation loading is implemented)
-
-        # Build provenance string
         today = date.today().isoformat()
         origin = f"agent:{agent_name}:{today}"
 
-        # Create TranslatedLine for validation
-        # Note: In full implementation, we'd verify source_text matches the actual SourceLine
-        # and store it in the context
-        _validated = TranslatedLine(
+        translated_line = TranslatedLine(
             id=line_id,
             text_src=source_text,
             text_tgt=target_text,
             text_tgt_origin=origin,
         )
 
-        # Store in context (this will be used when writing the full translation file)
-        # TODO: Add method to ProjectContext for accumulating translations
-        # For now, we log the translation
-        logger.info(f"Translation recorded: {line_id} -> {target_text[:50]}...")
+        result = await context.record_translation(
+            scene_id,
+            translated_line,
+            allow_overwrite=allow_overwrite,
+        )
 
         # Mark as written
         written_line_ids.add(line_id)
 
-        return f"Translation stored for line {line_id}."
+        return result
 
     tools = [mtl_translate, write_translation]
+
+    @tool("read_style_guide")
+    async def read_style_guide() -> str:
+        """Return the project style guide content."""
+        return await context.read_style_guide()
+
+    @tool("get_ui_settings")
+    def get_ui_settings() -> str:
+        """Return UI constraints from game metadata."""
+        ui = context.get_ui_config()
+        if not ui:
+            return "No UI settings configured."
+        return "\n".join(f"{k}: {v}" for k, v in ui.items())
+
+    tools.extend([read_style_guide, get_ui_settings])
 
     # Add MTL availability check tool for agents to query
     @tool("check_mtl_available")

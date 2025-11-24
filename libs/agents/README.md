@@ -30,6 +30,284 @@ libs/agents/src/rentl_agents/
 
 ---
 
+## Subagent Architecture
+
+<Warning>
+**Critical distinction:** rentl uses **LangChain agents** for subagents, NOT DeepAgents. Only top-level coordinators (Context Builder, Translator, Editor) use DeepAgents.
+</Warning>
+
+### Creating Subagents
+
+Subagents are created using `create_agent` from `langchain.agents` and wrapped in `CompiledSubAgent` for use by top-level DeepAgents:
+
+```python
+from langchain.agents import create_agent
+from deepagents import CompiledSubAgent
+
+# Step 1: Build LangChain agent graph
+scene_detailer_graph = create_agent(
+    model=model,
+    tools=build_scene_tools(context, scene_id),
+    system_prompt=SYSTEM_PROMPT
+    # No middleware parameter = no default tools
+)
+
+# Step 2: Wrap as CompiledSubAgent
+scene_detailer = CompiledSubAgent(
+    name="scene-detailer",
+    description="Enriches scene metadata with summary, tags, characters, locations",
+    runnable=scene_detailer_graph
+)
+
+# Step 3: Pass to top-level agent
+context_builder = create_deep_agent(
+    model="claude-sonnet-4-5-20250929",
+    subagents=[scene_detailer, character_detailer, ...]
+)
+```
+
+### Subagent Implementation Pattern
+
+Each subagent file should follow this pattern:
+
+```python
+"""Scene detailer subagent.
+
+This subagent enriches scene metadata with summaries, tags, characters, and locations.
+"""
+
+from langchain.agents import create_agent
+from deepagents import CompiledSubAgent
+from pydantic import BaseModel, Field
+from rentl_core.context.project import ProjectContext
+from rentl_core.util.logging import get_logger
+
+from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.tools.scene import build_scene_tools
+
+
+class SceneDetailResult(BaseModel):
+    """Result structure from scene detailer subagent."""
+    scene_id: str = Field(description="Scene identifier that was detailed.")
+    summary: str | None = Field(description="Scene summary.")
+    tags: list[str] = Field(description="Scene tags.")
+    primary_characters: list[str] = Field(description="Primary character IDs.")
+    locations: list[str] = Field(description="Location IDs.")
+
+
+logger = get_logger(__name__)
+
+SYSTEM_PROMPT = """You are a scene analysis assistant.
+
+Your task is to enrich scene metadata by:
+1. Reading the scene transcript
+2. Writing a concise summary (2-3 sentences)
+3. Identifying tags that describe the scene
+4. Identifying primary characters (who speak or are mentioned)
+5. Identifying locations where the scene takes place
+
+Use the provided tools to read scene data and update metadata."""
+
+
+def create_scene_detailer_subagent(
+    context: ProjectContext,
+    scene_id: str,
+    *,
+    allow_overwrite: bool = False
+) -> CompiledSubAgent:
+    """Create scene detailer subagent for a specific scene.
+
+    Args:
+        context: Project context with metadata.
+        scene_id: Scene identifier to detail.
+        allow_overwrite: Allow overwriting existing metadata.
+
+    Returns:
+        CompiledSubAgent: Wrapped LangChain agent ready for use by top-level agent.
+    """
+    tools = build_scene_tools(context, scene_id, allow_overwrite=allow_overwrite)
+    model = get_default_chat_model()
+
+    # Create LangChain agent graph
+    graph = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT
+    )
+
+    # Wrap as CompiledSubAgent
+    return CompiledSubAgent(
+        name="scene-detailer",
+        description=f"Enriches metadata for scene {scene_id}",
+        runnable=graph
+    )
+```
+
+### Key Differences from Top-Level Agents
+
+| Aspect | Top-Level Agents (DeepAgents) | Subagents (LangChain) |
+|--------|-------------------------------|------------------------|
+| **Creation function** | `create_deep_agent` | `create_agent` → `CompiledSubAgent` |
+| **Package** | `deepagents` | `langchain.agents` |
+| **Tools** | Stats/progress tools | Specialized domain tools |
+| **Middleware** | Auto-included (TodoList, Filesystem, SubAgent) | Must explicitly add |
+| **Context isolation** | No (sees everything) | Yes (isolated execution) |
+| **Spawns subagents** | Yes via `task()` tool | No |
+| **Returns results** | Via invoke/stream | Via CompiledSubAgent wrapper |
+
+### Tool Access with ToolRuntime
+
+Subagent tools should use `ToolRuntime` to access state, context, and store:
+
+```python
+from langchain.tools import tool, ToolRuntime
+
+@tool
+async def update_scene_summary(
+    scene_id: str,
+    summary: str,
+    runtime: ToolRuntime
+) -> str:
+    """Update scene summary with provenance checking."""
+    # Access project context from runtime
+    context = runtime.context.project_context
+    scene = context.get_scene(scene_id)
+
+    # Check provenance for HITL
+    if scene.annotations.summary_origin == "human":
+        return "Requesting approval to overwrite human-authored summary"
+
+    # Update with agent origin
+    await context.update_scene_summary(scene_id, summary)
+    return f"Updated summary for {scene_id}"
+```
+
+**Available via ToolRuntime:**
+- `runtime.state` - Agent state (messages, custom fields)
+- `runtime.context` - Immutable configuration (user IDs, project context)
+- `runtime.store` - Persistent long-term memory
+- `runtime.stream_writer` - Stream custom updates
+- `runtime.config` - RunnableConfig for execution
+- `runtime.tool_call_id` - ID of current tool call
+
+### Middleware for Subagents
+
+**Default:** No middleware (only specialized tools)
+
+**Optional:** TodoListMiddleware for complex multi-step tasks
+
+```python
+from langchain.agents.middleware import TodoListMiddleware
+
+graph = create_agent(
+    model=model,
+    tools=tools,
+    system_prompt=SYSTEM_PROMPT,
+    middleware=[TodoListMiddleware()]  # Optional: task planning
+)
+```
+
+**Never use:** FilesystemMiddleware (conflicts with specialized tools)
+
+---
+
+## Subagent Tool-Only Access
+
+**Critical rule:** Subagents interact with metadata ONLY via tools—never through direct file operations or context document reads.
+
+**Why:**
+1. **Provenance enforcement**: All writes must go through tools that track `*_origin` fields
+2. **HITL gating**: Tools handle approval workflows for human-authored data
+3. **Conflict detection**: Tools implement locking and concurrent update detection
+4. **Immediate visibility**: Tool updates reflect instantly for all concurrent agents
+
+**Forbidden operations for subagents:**
+- ❌ Direct file reads (`open()`, `Path.read_text()`, etc.)
+- ❌ Filesystem middleware (`ls`, `read_file`, `write_file`)
+- ❌ Bypassing tools to modify `ProjectContext` directly
+
+**Required pattern:**
+```python
+# ✅ Good: Use tools
+@tool
+async def read_character(char_id: str, runtime: ToolRuntime) -> str:
+    context = runtime.context.project_context
+    char = context.get_character(char_id)  # Via context
+    return format_character_data(char)
+
+# ❌ Bad: Direct file access
+async def read_character_file(char_id: str) -> str:
+    with open(f"metadata/characters/{char_id}.json") as f:
+        return f.read()  # Bypasses provenance, locking, conflict detection!
+```
+
+### Complete CRUD Tool Coverage
+
+Each entity type needs comprehensive tool coverage:
+
+**Scenes:**
+- `read_scene(scene_id)` - Get scene metadata + transcript
+- `update_scene_summary(scene_id, summary)` - Modify summary
+- `update_scene_tags(scene_id, tags)` - Modify tags
+- `update_scene_characters(scene_id, character_ids)` - Modify character list
+- `update_scene_locations(scene_id, location_ids)` - Modify location list
+
+**Characters:**
+- `read_character(char_id)` - Get character metadata
+- `update_character_name(char_id, name_tgt)` - Modify target name
+- `update_character_pronouns(char_id, pronouns)` - Modify pronouns
+- `update_character_bio(char_id, bio)` - Modify bio/notes
+- `add_character(char_id, ...)` - Create new character
+
+**Glossary:**
+- `search_glossary(term)` - Find matching entries
+- `read_glossary_entry(term_src)` - Get specific entry
+- `add_glossary_entry(term_src, term_tgt, notes)` - Create entry
+- `update_glossary_entry(term_src, term_tgt, notes)` - Modify entry
+- `delete_glossary_entry(term_src)` - Remove entry
+
+**Context Docs (read-only):**
+- `list_context_docs()` - List available documents
+- `read_context_doc(filename)` - Get document contents
+
+### Context Injection via Middleware
+
+Tools access the shared `ProjectContext` via `ToolRuntime`, which is injected by middleware:
+
+```python
+# Subagent factory
+def create_scene_detailer_subagent(context: ProjectContext) -> CompiledSubAgent:
+    """Create scene detailer with context injection."""
+    tools = build_scene_tools()  # Generic tools, NOT scene-specific
+
+    # Middleware injects shared context into runtime
+    class ContextInjectionMiddleware:
+        async def before_agent(self, state, runtime):
+            # All tools can now access via runtime.context.project_context
+            runtime.context.project_context = context
+            return {}
+
+    graph = create_agent(
+        model=get_default_chat_model(),
+        tools=tools,
+        middleware=[ContextInjectionMiddleware()]
+    )
+
+    return CompiledSubAgent(
+        name="scene-detailer",
+        description="Enriches scene metadata",
+        runnable=graph
+    )
+```
+
+**Key points:**
+- Context is passed to subagent factory (captured via closure)
+- Middleware injects same instance into `runtime.context`
+- All concurrent subagents share the same `ProjectContext` instance
+- Updates are immediately visible to all agents
+
+---
+
 ## Tool Categories and Approval Policies
 
 Tools are categorized by their operation type. Each category has default approval policies based on risk and provenance tracking.
@@ -197,6 +475,91 @@ async def update_character_bio(
 - Always update the corresponding `*_origin` field after modification
 - Provide clear error messages for invalid inputs
 - DeepAgents `interrupt_on` middleware handles the actual approval pause
+
+#### Conflict Detection in update_* Tools
+
+When multiple subagents run concurrently, they might try to update the same field. `ProjectContext` implements **feedback-providing locks** to handle this intelligently:
+
+```python
+@tool
+async def update_character_bio(
+    char_id: str,
+    new_bio: str,
+    runtime: ToolRuntime
+) -> str:
+    """Update character bio with conflict detection."""
+    context = runtime.context.project_context
+
+    # ProjectContext.update_character_bio handles:
+    # 1. Entity-level locking (waits if another agent is updating this character)
+    # 2. Conflict detection (checks if field was recently updated)
+    # 3. Feedback (returns message if concurrent update detected)
+    # 4. Persistence (writes to disk immediately)
+
+    result = await context.update_character_bio(
+        char_id,
+        new_bio,
+        origin="agent:character_detailer"
+    )
+
+    return result  # Either success message or conflict notification
+```
+
+**How conflict detection works:**
+1. **Subagent 1** updates bio → acquires lock, updates, writes file, releases lock
+2. **Subagent 2** (concurrent) → waits for lock, then acquires it
+3. **Subagent 2** sees bio was updated 2 seconds ago
+4. **Tool returns feedback**:
+   ```
+   CONCURRENT UPDATE DETECTED
+   Bio was updated 2.0s ago.
+   Current: Cheerful high school student
+   Your proposed: Main protagonist and student council member
+
+   Review and retry if your update is still needed.
+   ```
+5. **Subagent 2 decides**: Skip (redundant), combine both, or retry
+
+**Benefits:**
+- ✅ No data loss (second update doesn't blindly overwrite first)
+- ✅ Intelligent coordination (agents see each other's work)
+- ✅ Agents make decisions (human-like collaboration)
+- ✅ No deadlocks (locks are held only during actual update)
+
+**Implementation in ProjectContext:**
+```python
+class ProjectContext:
+    async def update_character_bio(
+        self,
+        char_id: str,
+        new_bio: str,
+        origin: str,
+        conflict_threshold_seconds: float = 30
+    ) -> str:
+        # Entity-level lock
+        async with self._character_locks[char_id]:
+            char = self.characters[char_id]
+            current_bio = char.bio
+
+            # Track recent updates
+            update_key = ("character", char_id, "bio")
+            last_update = self._recent_updates.get(update_key, 0)
+            time_since_update = time.time() - last_update
+
+            # Detect concurrent update
+            if time_since_update < conflict_threshold_seconds and current_bio:
+                return f"CONCURRENT UPDATE DETECTED\n..."
+
+            # No conflict - proceed
+            char.bio = new_bio
+            char.bio_origin = origin
+            self._recent_updates[update_key] = time.time()
+
+            # Write immediately
+            await write_character_metadata(self.project_path, char)
+
+            return f"Successfully updated bio for {char_id}"
+```
 
 ---
 

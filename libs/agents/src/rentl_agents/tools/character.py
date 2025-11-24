@@ -8,20 +8,22 @@ from rentl_core.context.project import ProjectContext
 
 def build_character_tools(
     context: ProjectContext,
-    character_id: str,
     *,
     allow_overwrite: bool = False,
 ) -> list:
-    """Construct tools bound to a specific character.
+    """Construct tools usable across characters.
 
     Returns:
-        list: Tool callables ready to supply to ``create_deep_agent``.
+        list: Tool callables ready to supply to ``create_agent``.
     """
-    character = context.get_character(character_id)
+    updated_name_tgt: set[str] = set()
+    updated_pronouns: set[str] = set()
+    updated_notes: set[str] = set()
 
     @tool("read_character")
-    def read_character() -> str:
+    def read_character(character_id: str) -> str:
         """Return current metadata for this character."""
+        character = context.get_character(character_id)
         parts = [
             f"Character ID: {character.id}",
             f"Source Name: {character.name_src}",
@@ -42,63 +44,68 @@ def build_character_tools(
         """Return the contents of a context document."""
         return await context.read_context_doc(filename)
 
-    has_updated_name_tgt = False
-    has_updated_pronouns = False
-    has_updated_notes = False
-
     @tool("update_character_name_tgt")
-    async def update_character_name_tgt(name_tgt: str) -> str:
+    async def update_character_name_tgt(character_id: str, name_tgt: str) -> str:
         """Update the target language name for this character.
 
         Args:
+            character_id: Character identifier.
             name_tgt: Localized name in the target language.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        nonlocal has_updated_name_tgt
-        if has_updated_name_tgt:
+        from datetime import date
+
+        if character_id in updated_name_tgt:
             return "Target name already updated. Provide a final assistant response."
 
-        await context.update_character_name_tgt(character_id, name_tgt, allow_overwrite=allow_overwrite)
-        has_updated_name_tgt = True
-        return "Target name updated."
+        origin = f"agent:character_detailer:{date.today().isoformat()}"
+        result = await context.update_character_name_tgt(character_id, name_tgt, origin)
+        updated_name_tgt.add(character_id)
+        return result
 
     @tool("update_character_pronouns")
-    async def update_character_pronouns(pronouns: str) -> str:
+    async def update_character_pronouns(character_id: str, pronouns: str) -> str:
         """Update pronoun preferences for this character.
 
         Args:
+            character_id: Character identifier.
             pronouns: Pronoun preferences (e.g., "she/her", "he/him", "they/them").
 
         Returns:
             str: Confirmation message after persistence.
         """
-        nonlocal has_updated_pronouns
-        if has_updated_pronouns:
+        from datetime import date
+
+        if character_id in updated_pronouns:
             return "Pronouns already updated. Provide a final assistant response."
 
-        await context.update_character_pronouns(character_id, pronouns, allow_overwrite=allow_overwrite)
-        has_updated_pronouns = True
-        return "Pronouns updated."
+        origin = f"agent:character_detailer:{date.today().isoformat()}"
+        result = await context.update_character_pronouns(character_id, pronouns, origin)
+        updated_pronouns.add(character_id)
+        return result
 
     @tool("update_character_notes")
-    async def update_character_notes(notes: str) -> str:
+    async def update_character_notes(character_id: str, notes: str) -> str:
         """Update character notes (personality, speech patterns, translation guidance).
 
         Args:
+            character_id: Character identifier.
             notes: Character notes describing personality, speech style, quirks, etc.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        nonlocal has_updated_notes
-        if has_updated_notes:
+        from datetime import date
+
+        if character_id in updated_notes:
             return "Notes already updated. Provide a final assistant response."
 
-        await context.update_character_notes(character_id, notes, allow_overwrite=allow_overwrite)
-        has_updated_notes = True
-        return "Notes updated."
+        origin = f"agent:character_detailer:{date.today().isoformat()}"
+        result = await context.update_character_notes(character_id, notes, origin)
+        updated_notes.add(character_id)
+        return result
 
     return [
         read_character,

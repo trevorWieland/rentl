@@ -6,12 +6,17 @@ with HITL approval for consistent terminology management.
 
 from __future__ import annotations
 
-from deepagents import create_deep_agent
+from typing import cast
+
+from deepagents import CompiledSubAgent
+from langchain.agents import AgentState, create_agent
+from langchain.agents.middleware import AgentMiddleware
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.middleware.context import AgentContext, ContextInjectionMiddleware
 from rentl_agents.tools.glossary import build_glossary_tools
 
 
@@ -28,26 +33,53 @@ logger = get_logger(__name__)
 
 SYSTEM_PROMPT = """You are a localization assistant managing glossary entries.
 
-Your task is to curate terminology for consistent translation:
-
-1. **Search**: Look up existing glossary entries by source term
-2. **Add**: Propose new glossary entries for important terms that aren't documented
-3. **Update**: Refine existing entries with better target translations or notes
+Your task is to curate terminology for consistent translation.
 
 **Workflow:**
-1. Read context documents to understand the game's terminology
-2. Search for key terms that need glossary entries
-3. Add new entries for undocumented terms (with target translation and notes)
-4. Update existing entries if they need refinement
-5. End the conversation once curation is complete
+1. Call `list_context_docs()` to see available context documents
+2. Call `read_context_doc(filename)` to review each document for terminology
+3. Call `search_glossary(term)` to check for existing entries
+4. Call `add_glossary_entry(term_src, term_tgt, notes)` for new important terms
+5. Call `update_glossary_entry(term_src, term_tgt, notes)` to refine existing entries
+6. End the conversation once curation is complete
 
 **Important:**
-- Focus on terms that need consistent translation (honorifics, character names, locations, cultural terms)
+- Focus on terms needing consistent translation (honorifics, character names, locations, cultural terms)
 - Provide clear target language renderings and translator guidance in notes
 - Be selective - not every word needs a glossary entry
 - Respect existing human-authored data (you may be asked for approval before overwriting)
-- Each add/update tool can be called multiple times if needed
 """
+
+
+def create_glossary_curator_subagent(context: ProjectContext, *, allow_overwrite: bool = False) -> CompiledSubAgent:
+    """Create glossary curator subagent for terminology management.
+
+    Args:
+        context: Project context with metadata (shared instance).
+        allow_overwrite: Allow overwriting existing human-authored metadata.
+
+    Returns:
+        CompiledSubAgent: Glossary curator subagent ready for top-level agent use.
+    """
+    tools = build_glossary_tools(context, allow_overwrite=allow_overwrite)
+    model = get_default_chat_model()
+
+    # Create LangChain agent (NOT DeepAgent)
+    graph = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        context_schema=AgentContext,
+        # ty lacks support for AgentMiddleware generic narrowing; ignore is safe here.
+        middleware=[cast(AgentMiddleware[AgentState, AgentContext], ContextInjectionMiddleware(context))],  # type: ignore[arg-type]
+    )
+
+    # Wrap as CompiledSubAgent for DeepAgent use
+    return CompiledSubAgent(
+        name="glossary-curator",
+        description="Curates glossary entries for consistent translation terminology",
+        runnable=graph,
+    )
 
 
 async def detail_glossary(context: ProjectContext, *, allow_overwrite: bool = False) -> GlossaryDetailResult:
@@ -62,9 +94,9 @@ async def detail_glossary(context: ProjectContext, *, allow_overwrite: bool = Fa
     """
     logger.info("Curating glossary")
     initial_count = len(context.glossary)
-    tools = build_glossary_tools(context, allow_overwrite=allow_overwrite)
-    model = get_default_chat_model()
-    agent = create_deep_agent(model=model, tools=tools, system_prompt=SYSTEM_PROMPT)
+
+    # Create the subagent
+    subagent = create_glossary_curator_subagent(context, allow_overwrite=allow_overwrite)
 
     source_lang = context.game.source_lang.upper()
     target_lang = context.game.target_lang.upper()
@@ -84,12 +116,14 @@ Instructions:
 
 Begin curation now."""
 
-    await agent.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    # Invoke the subagent directly (for flow usage)
+    runnable = subagent["runnable"]
+    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
 
     # Calculate statistics
     final_count = len(context.glossary)
     entries_added = final_count - initial_count
-    entries_updated = context._glossary_update_count if hasattr(context, "_glossary_update_count") else 0
+    entries_updated = context._glossary_update_count
 
     result = GlossaryDetailResult(
         entries_added=entries_added,
