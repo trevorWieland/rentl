@@ -6,13 +6,18 @@ by analyzing scenes where characters appear.
 
 from __future__ import annotations
 
-from deepagents import CompiledSubAgent
+from collections.abc import Callable
+
 from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.character import build_character_tools
 
 
@@ -56,7 +61,12 @@ Your task is to analyze character information and enhance their metadata for tra
 
 
 async def detail_character(
-    context: ProjectContext, character_id: str, *, allow_overwrite: bool = False
+    context: ProjectContext,
+    character_id: str,
+    *,
+    allow_overwrite: bool = False,
+    decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
+    thread_id: str | None = None,
 ) -> CharacterDetailResult:
     """Run the character detailer agent for *character_id* and return metadata.
 
@@ -64,13 +74,14 @@ async def detail_character(
         context: Project context with metadata.
         character_id: Character identifier to detail.
         allow_overwrite: Allow overwriting existing human-authored metadata.
+        decision_handler: Optional callback to resolve HITL interrupts.
+        thread_id: Optional thread identifier for resumable runs.
 
     Returns:
         CharacterDetailResult: Updated character metadata.
     """
     logger.info("Detailing character %s", character_id)
     subagent = create_character_detailer_subagent(context, allow_overwrite=allow_overwrite)
-    runnable = subagent["runnable"]
 
     target_lang = context.game.target_lang.upper()
 
@@ -90,7 +101,12 @@ Instructions:
 Begin analysis now."""
 
     logger.debug("Character detailer prompt for %s:\n%s", character_id, user_prompt)
-    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await run_with_human_loop(
+        subagent,
+        {"messages": [{"role": "user", "content": user_prompt}]},
+        decision_handler=decision_handler,
+        thread_id=f"{thread_id or 'character-detail'}:{character_id}",
+    )
 
     # Retrieve updated character metadata
     updated_character = context.get_character(character_id)
@@ -117,23 +133,25 @@ def create_character_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    name: str | None = None,
-) -> CompiledSubAgent:
-    """Create character detailer LangChain subagent.
+) -> CompiledStateGraph:
+    """Create character detailer LangChain subagent and return the runnable graph.
 
     Returns:
-        CompiledSubAgent: Configured character detailer agent.
+        CompiledStateGraph: Runnable agent graph for character detailing.
     """
     tools = build_character_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
+    interrupt_on = {
+        "update_character_name_tgt": True,
+        "update_character_pronouns": True,
+        "update_character_notes": True,
+    }
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
+        checkpointer=MemorySaver(),
     )
 
-    return CompiledSubAgent(
-        name=name or "character-detailer",
-        description="Enriches character metadata with localized names, pronouns, and notes",
-        runnable=graph,
-    )
+    return graph

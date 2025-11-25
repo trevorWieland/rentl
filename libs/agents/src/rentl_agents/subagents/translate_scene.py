@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from deepagents import CompiledSubAgent
+from collections.abc import Callable
+
 from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.backends.mtl import is_mtl_available
+from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.translation import build_translation_tools
 
 logger = get_logger(__name__)
@@ -78,6 +83,8 @@ async def translate_scene(
     scene_id: str,
     *,
     allow_overwrite: bool = False,
+    decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
+    thread_id: str | None = None,
 ) -> SceneTranslationResult:
     """Run the scene translation agent for *scene_id* and return translation statistics.
 
@@ -85,6 +92,8 @@ async def translate_scene(
         context: Project context with metadata.
         scene_id: Scene identifier to translate.
         allow_overwrite: Allow overwriting existing translations.
+        decision_handler: Optional callback to resolve HITL interrupts.
+        thread_id: Optional thread identifier for resumable runs.
 
     Returns:
         SceneTranslationResult: Translation statistics for this scene.
@@ -104,7 +113,6 @@ async def translate_scene(
     pre_count = context.get_translated_line_count(scene_id)
 
     subagent = create_scene_translator_subagent(context, allow_overwrite=allow_overwrite)
-    runnable = subagent["runnable"]
 
     # Check MTL availability
     mtl_status = "MTL backend is available" if is_mtl_available() else "MTL backend not configured"
@@ -136,7 +144,12 @@ Instructions:
 Begin translation now."""
 
     logger.debug("Scene translator prompt for %s:\n%s", scene_id, user_prompt)
-    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await run_with_human_loop(
+        subagent,
+        {"messages": [{"role": "user", "content": user_prompt}]},
+        decision_handler=decision_handler,
+        thread_id=f"{thread_id or 'translate'}:{scene_id}",
+    )
 
     # Return translation statistics
     post_count = context.get_translated_line_count(scene_id)
@@ -154,25 +167,25 @@ def create_scene_translator_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    name: str | None = None,
-) -> CompiledSubAgent:
-    """Create scene translator LangChain subagent.
+) -> CompiledStateGraph:
+    """Create scene translator LangChain subagent and return the runnable graph.
 
     Returns:
-        CompiledSubAgent: Configured scene translator agent.
+        CompiledStateGraph: Runnable agent graph for scene translation.
     """
     tools = build_translation_tools(context, agent_name="scene_translator", allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     system_prompt = build_translator_system_prompt(context.game.source_lang, context.game.target_lang)
 
+    interrupt_on = {
+        "write_translation": True,
+    }
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=system_prompt,
+        middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
+        checkpointer=MemorySaver(),
     )
 
-    return CompiledSubAgent(
-        name=name or "scene-translator",
-        description="Translates a scene with context-aware JP→EN handling and optional MTL assistance",
-        runnable=graph,
-    )
+    return graph

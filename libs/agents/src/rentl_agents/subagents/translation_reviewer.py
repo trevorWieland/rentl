@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from deepagents import CompiledSubAgent
 from langchain.agents import create_agent
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
@@ -31,11 +31,11 @@ Workflow:
 5) Be concise and avoid restating text. End when checks are recorded."""
 
 
-def create_translation_reviewer_subagent(context: ProjectContext, *, name: str | None = None) -> CompiledSubAgent:
-    """Create translation reviewer LangChain subagent.
+def create_translation_reviewer_subagent(context: ProjectContext) -> CompiledStateGraph:
+    """Create translation reviewer LangChain subagent and return the runnable graph.
 
     Returns:
-        CompiledSubAgent: Configured translation reviewer agent.
+        CompiledStateGraph: Runnable agent graph for translation review.
     """
     tools = [read_translations, read_style_guide, get_ui_settings, record_translation_review]
     model = get_default_chat_model()
@@ -47,11 +47,7 @@ def create_translation_reviewer_subagent(context: ProjectContext, *, name: str |
         system_prompt=SYSTEM_PROMPT,
     )
 
-    return CompiledSubAgent(
-        name=name or "translation-reviewer",
-        description="Reviews translations for fidelity and fluency",
-        runnable=graph,
-    )
+    return graph
 
 
 async def run_translation_review(context: ProjectContext, scene_id: str) -> TranslationReviewResult:
@@ -61,9 +57,7 @@ async def run_translation_review(context: ProjectContext, scene_id: str) -> Tran
         TranslationReviewResult: Recorded review counts.
     """
     subagent = create_translation_reviewer_subagent(context)
-    await subagent["runnable"].ainvoke(
-        {"messages": [{"role": "user", "content": f"Review translation for {scene_id}."}]}
-    )
+    await subagent.ainvoke({"messages": [{"role": "user", "content": f"Review translation for {scene_id}."}]})
     translations = await context.get_translations(scene_id)
     recorded = sum(1 for line in translations if "translation_review" in line.meta.checks)
     return TranslationReviewResult(scene_id=scene_id, checks_recorded=recorded)

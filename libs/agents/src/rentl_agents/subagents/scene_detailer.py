@@ -6,13 +6,18 @@ primary characters, and locations by analyzing scene content.
 
 from __future__ import annotations
 
-from deepagents import CompiledSubAgent
+from collections.abc import Callable
+
 from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.scene import build_scene_tools
 
 
@@ -54,13 +59,22 @@ Your task is to read scene transcripts and generate comprehensive metadata:
 """
 
 
-async def detail_scene(context: ProjectContext, scene_id: str, *, allow_overwrite: bool = False) -> SceneDetailResult:
+async def detail_scene(
+    context: ProjectContext,
+    scene_id: str,
+    *,
+    allow_overwrite: bool = False,
+    decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
+    thread_id: str | None = None,
+) -> SceneDetailResult:
     """Run the scene detailer agent for *scene_id* and return metadata.
 
     Args:
         context: Project context with metadata.
         scene_id: Scene identifier to detail.
         allow_overwrite: Allow overwriting existing metadata.
+        decision_handler: Optional callback to resolve HITL interrupts.
+        thread_id: Optional thread identifier for resumable runs.
 
     Returns:
         SceneDetailResult: Scene metadata with summary, tags, characters, locations.
@@ -68,7 +82,6 @@ async def detail_scene(context: ProjectContext, scene_id: str, *, allow_overwrit
     logger.info("Detailing scene %s", scene_id)
     lines = await context.load_scene_lines(scene_id)
     subagent = create_scene_detailer_subagent(context, allow_overwrite=allow_overwrite)
-    runnable = subagent["runnable"]
 
     source_lang = context.game.source_lang.upper()
     line_count = len(lines)
@@ -91,7 +104,12 @@ Instructions:
 Begin analysis now."""
 
     logger.debug("Scene detailer prompt for %s:\n%s", scene_id, user_prompt)
-    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await run_with_human_loop(
+        subagent,
+        {"messages": [{"role": "user", "content": user_prompt}]},
+        decision_handler=decision_handler,
+        thread_id=f"{thread_id or 'scene-detail'}:{scene_id}",
+    )
 
     # Retrieve updated scene metadata
     updated_scene = context.get_scene(scene_id)
@@ -120,23 +138,26 @@ def create_scene_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    name: str | None = None,
-) -> CompiledSubAgent:
-    """Create scene detailer LangChain subagent.
+) -> CompiledStateGraph:
+    """Create scene detailer LangChain subagent and return the runnable graph.
 
     Returns:
-        CompiledSubAgent: Configured scene detailer agent.
+        CompiledStateGraph: Runnable agent graph for scene detailing.
     """
     tools = build_scene_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
+    interrupt_on = {
+        "write_scene_summary": True,
+        "write_scene_tags": True,
+        "write_primary_characters": True,
+        "write_scene_locations": True,
+    }
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
+        checkpointer=MemorySaver(),
     )
 
-    return CompiledSubAgent(
-        name=name or "scene-detailer",
-        description="Enriches scene metadata with summary, tags, characters, and locations",
-        runnable=graph,
-    )
+    return graph

@@ -6,13 +6,18 @@ by analyzing the scenes that make up each route.
 
 from __future__ import annotations
 
-from deepagents import CompiledSubAgent
+from collections.abc import Callable
+
 from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.route import build_route_tools
 
 
@@ -50,20 +55,28 @@ Your task is to analyze route information and enhance their metadata for transla
 """
 
 
-async def detail_route(context: ProjectContext, route_id: str, *, allow_overwrite: bool = False) -> RouteDetailResult:
+async def detail_route(
+    context: ProjectContext,
+    route_id: str,
+    *,
+    allow_overwrite: bool = False,
+    decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
+    thread_id: str | None = None,
+) -> RouteDetailResult:
     """Run the route detailer agent for *route_id* and return metadata.
 
     Args:
         context: Project context with metadata.
         route_id: Route identifier to detail.
         allow_overwrite: Allow overwriting existing human-authored metadata.
+        decision_handler: Optional callback to resolve HITL interrupts.
+        thread_id: Optional thread identifier for resumable runs.
 
     Returns:
         RouteDetailResult: Updated route metadata.
     """
     logger.info("Detailing route %s", route_id)
     subagent = create_route_detailer_subagent(context, allow_overwrite=allow_overwrite)
-    runnable = subagent["runnable"]
 
     user_prompt = f"""Enrich metadata for this route.
 
@@ -78,7 +91,12 @@ Instructions:
 
 Begin analysis now."""
 
-    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await run_with_human_loop(
+        subagent,
+        {"messages": [{"role": "user", "content": user_prompt}]},
+        decision_handler=decision_handler,
+        thread_id=f"{thread_id or 'route-detail'}:{route_id}",
+    )
 
     # Retrieve updated route metadata
     updated_route = context.get_route(route_id)
@@ -103,23 +121,24 @@ def create_route_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    name: str | None = None,
-) -> CompiledSubAgent:
-    """Create route detailer LangChain subagent.
+) -> CompiledStateGraph:
+    """Create route detailer LangChain subagent and return the runnable graph.
 
     Returns:
-        CompiledSubAgent: Configured route detailer agent.
+        CompiledStateGraph: Runnable agent graph for route detailing.
     """
     tools = build_route_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
+    interrupt_on = {
+        "update_route_synopsis": True,
+        "update_route_characters": True,
+    }
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
+        checkpointer=MemorySaver(),
     )
 
-    return CompiledSubAgent(
-        name=name or "route-detailer",
-        description="Enriches route metadata with synopsis and primary characters",
-        runnable=graph,
-    )
+    return graph

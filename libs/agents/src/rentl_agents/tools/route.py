@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
+from rentl_agents.tools.context_docs import build_context_doc_tools
 from rentl_agents.tools.hitl import request_if_human_authored
 
 logger = get_logger(__name__)
@@ -23,6 +24,7 @@ def build_route_tools(
     """
     updated_synopsis: set[str] = set()
     updated_characters: set[str] = set()
+    context_doc_tools = build_context_doc_tools(context)
 
     @tool("read_route")
     def read_route(route_id: str) -> str:
@@ -37,17 +39,6 @@ def build_route_tools(
             f"Primary Characters: {', '.join(route.primary_characters) if route.primary_characters else '(not set)'}",
         ]
         return "\n".join(parts)
-
-    @tool("list_context_docs")
-    async def list_context_docs() -> str:
-        """Return the available context document names."""
-        docs = await context.list_context_docs()
-        return "\n".join(docs) if docs else "(no context docs)"
-
-    @tool("read_context_doc")
-    async def read_context_doc(filename: str) -> str:
-        """Return the contents of a context document."""
-        return await context.read_context_doc(filename)
 
     @tool("update_route_synopsis")
     async def update_route_synopsis(route_id: str, synopsis: str) -> str:
@@ -117,8 +108,7 @@ def build_route_tools(
 
     return [
         read_route,
-        list_context_docs,
-        read_context_doc,
+        *context_doc_tools,
         update_route_synopsis,
         update_route_characters,
     ]

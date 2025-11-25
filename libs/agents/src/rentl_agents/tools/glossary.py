@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
+from rentl_agents.tools.context_docs import build_context_doc_tools
 from rentl_agents.tools.hitl import request_if_human_authored
 
 logger = get_logger(__name__)
@@ -21,6 +22,7 @@ def build_glossary_tools(
     Returns:
         list: Tool callables ready to supply to ``create_deep_agent``.
     """
+    context_doc_tools = build_context_doc_tools(context)
 
     @tool("search_glossary")
     def search_glossary(term_src: str) -> str:
@@ -43,16 +45,19 @@ def build_glossary_tools(
                 return "\n".join(parts)
         return f"No glossary entry found for '{term_src}'"
 
-    @tool("list_context_docs")
-    async def list_context_docs() -> str:
-        """Return the available context document names."""
-        docs = await context.list_context_docs()
-        return "\n".join(docs) if docs else "(no context docs)"
-
-    @tool("read_context_doc")
-    async def read_context_doc(filename: str) -> str:
-        """Return the contents of a context document."""
-        return await context.read_context_doc(filename)
+    @tool("read_glossary_entry")
+    def read_glossary_entry(term_src: str) -> str:
+        """Return a specific glossary entry if present."""
+        logger.info("Tool call: read_glossary_entry(term_src=%s)", term_src)
+        for entry in context.glossary:
+            if entry.term_src == term_src:
+                parts = [
+                    f"Term (source): {entry.term_src}",
+                    f"Term (target): {entry.term_tgt or '(not set)'}",
+                    f"Notes: {entry.notes or '(not set)'}",
+                ]
+                return "\n".join(parts)
+        return f"No glossary entry found for '{term_src}'"
 
     @tool("add_glossary_entry")
     async def add_glossary_entry(term_src: str, term_tgt: str, notes: str | None = None) -> str:
@@ -115,10 +120,21 @@ def build_glossary_tools(
         result = await context.update_glossary_entry(term_src=term_src, term_tgt=term_tgt, notes=notes, origin=origin)
         return result
 
+    @tool("delete_glossary_entry")
+    async def delete_glossary_entry(term_src: str) -> str:
+        """Delete a glossary entry if it exists.
+
+        Returns:
+            str: Status message indicating deletion or not-found.
+        """
+        logger.info("Tool call: delete_glossary_entry(term_src=%s)", term_src)
+        return await context.delete_glossary_entry(term_src)
+
     return [
         search_glossary,
-        list_context_docs,
-        read_context_doc,
+        read_glossary_entry,
+        *context_doc_tools,
         add_glossary_entry,
         update_glossary_entry,
+        delete_glossary_entry,
     ]

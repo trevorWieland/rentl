@@ -6,13 +6,15 @@ from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV_PATH = Path(".env")
 
 
 class _Settings(BaseSettings):
     """Base settings loaded from environment variables or .env files."""
+
+    model_config = SettingsConfigDict(env_file=_ENV_PATH, env_file_encoding="utf-8", case_sensitive=False)
 
     # Primary LLM (agentic reasoning and orchestration)
     openai_url: str = Field(..., alias="OPENAI_URL")
@@ -28,11 +30,6 @@ class _Settings(BaseSettings):
     # Optional services
     tavily_api_key: str | None = Field(default=None, alias="TAVILY_API_KEY")
     langsmith_api_key: str | None = Field(default=None, alias="LANGSMITH_API_KEY")
-
-    class Config:
-        env_file = _ENV_PATH
-        env_file_encoding = "utf-8"
-        case_sensitive = False
 
 
 @lru_cache(maxsize=1)

@@ -4,30 +4,29 @@ from __future__ import annotations
 
 from pathlib import Path
 from shutil import rmtree
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import uuid4
 
 import typer
 from rentl_core.util.logging import configure_logging
 from rentl_pipelines.flows.context_builder import run_context_builder
 from rentl_pipelines.flows.editor import run_editor
-from rentl_pipelines.flows.scene_mvp import run_scene_detail, run_scene_mvp
 from rentl_pipelines.flows.translator import run_translator
 
 from rentl_cli.cli_types import ProjectPathArgument
 from rentl_cli.utils.baseline import write_baseline
 
 
-def _prompt_decisions(requests: list[str]) -> list[str]:
+def _prompt_decisions(requests: list[str]) -> list[str | dict[str, str]]:
     """Prompt the user for HITL decisions in the CLI.
 
     Args:
         requests: Approval request messages from the agent.
 
     Returns:
-        list[str]: Decisions corresponding to each request.
+        list[str | dict[str, str]]: Decisions corresponding to each request.
     """
-    decisions: list[str] = []
+    decisions: list[str | dict[str, str]] = []
     for request in requests:
         typer.secho("\nHITL approval requested:", fg=typer.colors.YELLOW, bold=True)
         typer.echo(request)
@@ -39,44 +38,14 @@ def _prompt_decisions(requests: list[str]) -> list[str]:
     return decisions
 
 
-def detail_scene(
-    scene_id: Annotated[str, typer.Argument(help="Scene identifier, e.g., scene_c_00.")],
-    project_path: ProjectPathArgument = Path("examples/tiny_vn"),
-    overwrite: Annotated[bool, typer.Option(help="Allow overwriting existing metadata.")] = False,
-    verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
-) -> None:
-    """Detail a single scene and display the resulting metadata."""
-    configure_logging(verbose)
-    result = run_scene_detail(project_path, scene_id, allow_overwrite=overwrite)
-    if result:
-        typer.secho(f"Metadata for {scene_id}:", fg=typer.colors.GREEN)
-        typer.echo(f"  Summary: {result.summary}")
-        typer.echo(f"  Tags: {', '.join(result.tags)}")
-        typer.echo(f"  Characters: {', '.join(result.primary_characters)}")
-        typer.echo(f"  Locations: {', '.join(result.locations)}")
-    else:
-        typer.secho(f"No metadata was created for {scene_id} (possibly skipped).", fg=typer.colors.YELLOW)
-
-
-def detail_mvp(
-    project_path: ProjectPathArgument = Path("examples/tiny_vn"),
-    overwrite: Annotated[bool, typer.Option(help="Allow overwriting existing metadata.")] = False,
-    verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
-) -> None:
-    """Detail every scene in the project."""
-    configure_logging(verbose)
-    results = run_scene_mvp(project_path, allow_overwrite=overwrite)
-    if not results:
-        typer.secho("No scenes were detailed (already up-to-date?).", fg=typer.colors.YELLOW)
-        return
-
-    for scene_id, result in results.items():
-        typer.echo(f"[{scene_id}] {result.summary}")
-
-
 def context(
     project_path: ProjectPathArgument = Path("examples/tiny_vn"),
     overwrite: Annotated[bool, typer.Option(help="Allow overwriting existing metadata.")] = False,
+    mode: Annotated[
+        Literal["overwrite", "gap-fill", "new-only"],
+        typer.Option(help="Processing mode: overwrite, gap-fill (default), or new-only"),
+    ] = "gap-fill",
+    concurrency: Annotated[int, typer.Option(help="Maximum concurrent detailer runs.")] = 4,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Context Builder pipeline to enrich all game metadata."""
@@ -87,6 +56,8 @@ def context(
     result = run_context_builder(
         project_path,
         allow_overwrite=overwrite,
+        mode=mode,
+        concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
     )
@@ -107,6 +78,11 @@ def translate(
         list[str] | None, typer.Option("--scene", "-s", help="Specific scene IDs to translate (default: all).")
     ] = None,
     overwrite: Annotated[bool, typer.Option(help="Allow overwriting existing translations.")] = False,
+    mode: Annotated[
+        Literal["overwrite", "gap-fill", "new-only"],
+        typer.Option(help="Processing mode: overwrite, gap-fill (default), or new-only"),
+    ] = "gap-fill",
+    concurrency: Annotated[int, typer.Option(help="Maximum concurrent scene translations.")] = 4,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Translator pipeline to translate scenes."""
@@ -118,6 +94,8 @@ def translate(
         project_path,
         scene_ids=scene_ids or None,
         allow_overwrite=overwrite,
+        mode=mode,
+        concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
     )
@@ -134,6 +112,11 @@ def edit(
     scene_ids: Annotated[
         list[str] | None, typer.Option("--scene", "-s", help="Specific scene IDs to QA (default: all).")
     ] = None,
+    mode: Annotated[
+        Literal["overwrite", "gap-fill", "new-only"],
+        typer.Option(help="Processing mode: overwrite, gap-fill (default), or new-only"),
+    ] = "gap-fill",
+    concurrency: Annotated[int, typer.Option(help="Maximum concurrent QA runs.")] = 4,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Editor pipeline to perform QA on translations."""
@@ -144,6 +127,8 @@ def edit(
     result = run_editor(
         project_path,
         scene_ids=scene_ids or None,
+        mode=mode,
+        concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
     )

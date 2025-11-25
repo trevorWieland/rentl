@@ -1,4 +1,4 @@
-.PHONY: help validate context translate detail-scene detail-mvp clean test lint format typecheck
+.PHONY: help validate context translate clean test lint format typecheck
 
 # Default project path for development
 PROJECT ?= examples/tiny_vn
@@ -10,10 +10,6 @@ help:
 	@echo "  make validate       - Validate project structure and metadata"
 	@echo "  make context        - Run Context Builder pipeline (enrich metadata)"
 	@echo "  make translate      - Run Translator pipeline (translate scenes)"
-	@echo ""
-	@echo "Development Commands:"
-	@echo "  make detail-scene SCENE=<id>  - Detail a specific scene"
-	@echo "  make detail-mvp     - Detail all scenes (MVP command)"
 	@echo ""
 	@echo "Quality Commands:"
 	@echo "  make test           - Run test suite"
@@ -41,20 +37,9 @@ context:
 translate:
 	uv run python -m rentl_cli translate --project-path $(PROJECT) $(OVERWRITE_FLAG) $(VERBOSE_FLAG)
 
-# Development commands
-detail-scene:
-	@if [ -z "$(SCENE)" ]; then \
-		echo "Error: SCENE parameter required. Usage: make detail-scene SCENE=scene_c_00"; \
-		exit 1; \
-	fi
-	uv run python -m rentl_cli detail-scene $(SCENE) --project-path $(PROJECT) $(OVERWRITE_FLAG) $(VERBOSE_FLAG)
-
-detail-mvp:
-	uv run python -m rentl_cli detail-mvp --project-path $(PROJECT) $(OVERWRITE_FLAG) $(VERBOSE_FLAG)
-
 # Quality commands
 test:
-	uv run pytest
+	uv run pytest --cov=rentl_core --cov=rentl_agents --cov=rentl_pipelines --cov-report=term-missing
 
 lint:
 	uv run ruff check --fix

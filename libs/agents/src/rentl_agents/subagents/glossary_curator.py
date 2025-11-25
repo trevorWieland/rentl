@@ -6,13 +6,18 @@ with HITL approval for consistent terminology management.
 
 from __future__ import annotations
 
-from deepagents import CompiledSubAgent
+from collections.abc import Callable
+
 from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.glossary import build_glossary_tools
 
 
@@ -47,40 +52,45 @@ Your task is to curate terminology for consistent translation.
 """
 
 
-def create_glossary_curator_subagent(context: ProjectContext, *, allow_overwrite: bool = False) -> CompiledSubAgent:
-    """Create glossary curator subagent for terminology management.
-
-    Args:
-        context: Project context with metadata (shared instance).
-        allow_overwrite: Allow overwriting existing human-authored metadata.
+def create_glossary_curator_subagent(context: ProjectContext, *, allow_overwrite: bool = False) -> CompiledStateGraph:
+    """Create glossary curator subagent for terminology management and return the runnable graph.
 
     Returns:
-        CompiledSubAgent: Glossary curator subagent ready for top-level agent use.
+        CompiledStateGraph: Runnable agent graph for glossary curation.
     """
     tools = build_glossary_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
 
-    # Create LangChain agent (NOT DeepAgent)
+    interrupt_on = {
+        "add_glossary_entry": True,
+        "update_glossary_entry": True,
+        "delete_glossary_entry": True,
+    }
+
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
+        checkpointer=MemorySaver(),
     )
-
-    # Wrap as CompiledSubAgent for DeepAgent use
-    return CompiledSubAgent(
-        name="glossary-curator",
-        description="Curates glossary entries for consistent translation terminology",
-        runnable=graph,
-    )
+    return graph
 
 
-async def detail_glossary(context: ProjectContext, *, allow_overwrite: bool = False) -> GlossaryDetailResult:
+async def detail_glossary(
+    context: ProjectContext,
+    *,
+    allow_overwrite: bool = False,
+    decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
+    thread_id: str | None = None,
+) -> GlossaryDetailResult:
     """Run the glossary curator agent and return curation results.
 
     Args:
         context: Project context with metadata.
         allow_overwrite: Allow overwriting existing human-authored metadata.
+        decision_handler: Optional callback to resolve HITL interrupts.
+        thread_id: Optional thread identifier for resumable runs.
 
     Returns:
         GlossaryDetailResult: Curation statistics.
@@ -88,7 +98,6 @@ async def detail_glossary(context: ProjectContext, *, allow_overwrite: bool = Fa
     logger.info("Curating glossary")
     initial_count = len(context.glossary)
 
-    # Create the subagent
     subagent = create_glossary_curator_subagent(context, allow_overwrite=allow_overwrite)
 
     source_lang = context.game.source_lang.upper()
@@ -110,9 +119,13 @@ Instructions:
 Begin curation now."""
 
     # Invoke the subagent directly (for flow usage)
-    runnable = subagent["runnable"]
     logger.debug("Glossary curator prompt:\n%s", user_prompt)
-    await runnable.ainvoke({"messages": [{"role": "user", "content": user_prompt}]})
+    await run_with_human_loop(
+        subagent,
+        {"messages": [{"role": "user", "content": user_prompt}]},
+        decision_handler=decision_handler,
+        thread_id=f"{thread_id or 'glossary-curator'}",
+    )
 
     # Calculate statistics
     final_count = len(context.glossary)

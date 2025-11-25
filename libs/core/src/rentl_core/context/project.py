@@ -530,6 +530,47 @@ Review and retry if your update is still needed."""
         async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
             await stream.write("\n".join(lines) + "\n")
 
+    async def add_character(
+        self,
+        character_id: str,
+        name_src: str,
+        *,
+        name_tgt: str | None = None,
+        pronouns: str | None = None,
+        notes: str | None = None,
+        origin: str,
+    ) -> str:
+        """Add a new character entry with provenance tracking.
+
+        Args:
+            character_id: New character identifier.
+            name_src: Source-language name.
+            name_tgt: Optional target-language name.
+            pronouns: Optional pronouns/notes.
+            notes: Optional character notes.
+            origin: Provenance string to apply to all provided fields.
+
+        Returns:
+            Status message.
+        """
+        if character_id in self.characters:
+            return f"Character '{character_id}' already exists."
+
+        new_character = CharacterMetadata(
+            id=character_id,
+            name_src=name_src,
+            name_src_origin=origin,
+            name_tgt=name_tgt,
+            name_tgt_origin=origin if name_tgt else None,
+            pronouns=pronouns,
+            pronouns_origin=origin if pronouns else None,
+            notes=notes,
+            notes_origin=origin if notes else None,
+        )
+        self.characters[character_id] = new_character
+        await self._write_characters()
+        return f"Added character '{character_id}'"
+
     async def update_location_name_tgt(
         self,
         location_id: str,
@@ -622,6 +663,43 @@ Review and retry if your update is still needed."""
         lines = [orjson.dumps(self.locations[key].model_dump()).decode("utf-8") for key in sorted(self.locations)]
         async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
             await stream.write("\n".join(lines) + "\n")
+
+    async def add_location(
+        self,
+        location_id: str,
+        name_src: str,
+        *,
+        name_tgt: str | None = None,
+        description: str | None = None,
+        origin: str,
+    ) -> str:
+        """Add a new location entry with provenance tracking.
+
+        Args:
+            location_id: New location identifier.
+            name_src: Source-language name.
+            name_tgt: Optional target-language name.
+            description: Optional description.
+            origin: Provenance string to apply to provided fields.
+
+        Returns:
+            Status message.
+        """
+        if location_id in self.locations:
+            return f"Location '{location_id}' already exists."
+
+        new_location = LocationMetadata(
+            id=location_id,
+            name_src=name_src,
+            name_src_origin=origin,
+            name_tgt=name_tgt,
+            name_tgt_origin=origin if name_tgt else None,
+            description=description,
+            description_origin=origin if description else None,
+        )
+        self.locations[location_id] = new_location
+        await self._write_locations()
+        return f"Added location '{location_id}'"
 
     async def add_glossary_entry(
         self,
@@ -724,9 +802,27 @@ Review and retry if your update is still needed."""
                 self._glossary_update_count += 1
                 self._recent_updates[update_key] = time.time()
                 await self._write_glossary()
-                return f"Successfully updated glossary entry: {term_src}"
+            return f"Successfully updated glossary entry: {term_src}"
 
-            return f"No changes to glossary entry: {term_src}"
+        return f"No changes to glossary entry: {term_src}"
+
+    async def delete_glossary_entry(self, term_src: str) -> str:
+        """Delete a glossary entry if present.
+
+        Args:
+            term_src: Source term to delete.
+
+        Returns:
+            Status message.
+        """
+        async with self._glossary_lock:
+            remaining = [entry for entry in self.glossary if entry.term_src != term_src]
+            if len(remaining) == len(self.glossary):
+                return f"Glossary entry for '{term_src}' not found."
+
+            self.glossary = remaining
+            await self._write_glossary()
+            return f"Deleted glossary entry: {term_src}"
 
     async def _write_glossary(self) -> None:
         """Persist the current glossary to disk."""

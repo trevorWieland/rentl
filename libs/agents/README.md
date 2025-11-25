@@ -11,7 +11,7 @@ The `rentl-agents` package contains:
 - **Subagents**: Specialized agents for context building, translation, and editing
 - **Tools**: LangChain tools with HITL approval gating
 - **LLM backends**: Wrappers for OpenAI-compatible endpoints
-- **Graph engine**: DeepAgents orchestration setup
+- **Graph helpers**: Convenience exports/typing glue
 
 **File structure**:
 ```
@@ -20,7 +20,7 @@ libs/agents/src/rentl_agents/
     base.py           # LLM backend abstractions
     openai_like.py    # ChatOpenAI wrapper
   graph/
-    engine.py         # DeepAgents setup and middleware
+    engine.py         # Shared exports for subagents (legacy naming)
   subagents/
     *.py              # Individual subagent implementations
   tools/
@@ -33,16 +33,15 @@ libs/agents/src/rentl_agents/
 ## Subagent Architecture
 
 <Warning>
-**Critical distinction:** rentl uses **LangChain agents** for subagents, NOT DeepAgents. Only top-level coordinators (Context Builder, Translator, Editor) use DeepAgents.
+**Critical distinction:** rentl uses **LangChain agents** for subagents, orchestrated by deterministic pipelines. There are no LLM “coordinator” agents at the top level.
 </Warning>
 
 ### Creating Subagents
 
-Subagents are created using `create_agent` from `langchain.agents` and wrapped in `CompiledSubAgent` for use by top-level DeepAgents:
+Subagents are created using `create_agent` from `langchain.agents`; pipelines call the returned runnable graph directly:
 
 ```python
 from langchain.agents import create_agent
-from deepagents import CompiledSubAgent
 
 # Step 1: Build LangChain agent graph
 scene_detailer_graph = create_agent(
@@ -52,18 +51,7 @@ scene_detailer_graph = create_agent(
     # No middleware parameter = no default tools
 )
 
-# Step 2: Wrap as CompiledSubAgent
-scene_detailer = CompiledSubAgent(
-    name="scene-detailer",
-    description="Enriches scene metadata with summary, tags, characters, locations",
-    runnable=scene_detailer_graph
-)
-
-# Step 3: Pass to top-level agent
-context_builder = create_deep_agent(
-    model="claude-sonnet-4-5-20250929",
-    subagents=[scene_detailer, character_detailer, ...]
-)
+scene_detailer = scene_detailer_graph  # Pipelines invoke this runnable with shared context
 ```
 
 ### Subagent Implementation Pattern
@@ -77,7 +65,6 @@ This subagent enriches scene metadata with summaries, tags, characters, and loca
 """
 
 from langchain.agents import create_agent
-from deepagents import CompiledSubAgent
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
@@ -114,46 +101,25 @@ def create_scene_detailer_subagent(
     scene_id: str,
     *,
     allow_overwrite: bool = False
-) -> CompiledSubAgent:
-    """Create scene detailer subagent for a specific scene.
-
-    Args:
-        context: Project context with metadata.
-        scene_id: Scene identifier to detail.
-        allow_overwrite: Allow overwriting existing metadata.
-
-    Returns:
-        CompiledSubAgent: Wrapped LangChain agent ready for use by top-level agent.
-    """
+):
+    """Create scene detailer subagent for a specific scene and return the runnable graph."""
     tools = build_scene_tools(context, scene_id, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
 
     # Create LangChain agent graph
-    graph = create_agent(
+    return create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT
     )
-
-    # Wrap as CompiledSubAgent
-    return CompiledSubAgent(
-        name="scene-detailer",
-        description=f"Enriches metadata for scene {scene_id}",
-        runnable=graph
-    )
 ```
 
-### Key Differences from Top-Level Agents
+### Subagent characteristics
 
-| Aspect | Top-Level Agents (DeepAgents) | Subagents (LangChain) |
-|--------|-------------------------------|------------------------|
-| **Creation function** | `create_deep_agent` | `create_agent` → `CompiledSubAgent` |
-| **Package** | `deepagents` | `langchain.agents` |
-| **Tools** | Stats/progress tools | Specialized domain tools |
-| **Middleware** | Auto-included (TodoList, Filesystem, SubAgent) | Must explicitly add |
-| **Context isolation** | No (sees everything) | Yes (isolated execution) |
-| **Spawns subagents** | Yes via `task()` tool | No |
-| **Returns results** | Via invoke/stream | Via CompiledSubAgent wrapper |
+- Created with `create_agent` (runnable graph)
+- Use specialized tools only; no filesystem access
+- Optional middleware: `HumanInTheLoopMiddleware` (approvals), `TodoListMiddleware` (self-planning)
+- Context is injected via middleware; pipelines pass the shared `ProjectContext`
 
 ### Tool Access with ToolRuntime
 
@@ -276,7 +242,7 @@ Tools access the shared `ProjectContext` via `ToolRuntime`, which is injected by
 
 ```python
 # Subagent factory
-def create_scene_detailer_subagent(context: ProjectContext) -> CompiledSubAgent:
+def create_scene_detailer_subagent(context: ProjectContext):
     """Create scene detailer with context injection."""
     tools = build_scene_tools()  # Generic tools, NOT scene-specific
 
@@ -287,16 +253,10 @@ def create_scene_detailer_subagent(context: ProjectContext) -> CompiledSubAgent:
             runtime.context.project_context = context
             return {}
 
-    graph = create_agent(
+    return create_agent(
         model=get_default_chat_model(),
         tools=tools,
         middleware=[ContextInjectionMiddleware()]
-    )
-
-    return CompiledSubAgent(
-        name="scene-detailer",
-        description="Enriches scene metadata",
-        runnable=graph
     )
 ```
 
@@ -459,7 +419,7 @@ async def update_character_bio(
     if char is None:
         raise ValueError(f"Character '{character_id}' not found")
 
-    # Provenance check happens in DeepAgents middleware via interrupt_on
+    # Provenance check happens in LangChain HITL middleware via interrupt_on
     # If char.notes_origin == "human", execution pauses for approval
     # If char.notes_origin is None or "agent:*", proceeds automatically
 
@@ -474,7 +434,7 @@ async def update_character_bio(
 - Check provenance before updating: `if field_origin == "human": # pause for approval`
 - Always update the corresponding `*_origin` field after modification
 - Provide clear error messages for invalid inputs
-- DeepAgents `interrupt_on` middleware handles the actual approval pause
+- LangChain `HumanInTheLoopMiddleware` handles the actual approval pause
 
 #### Conflict Detection in update_* Tools
 
@@ -609,7 +569,7 @@ async def delete_glossary_entry(
         entry.notes_origin == "human"
     ])
 
-    # If has_human_origin, DeepAgents middleware pauses for approval
+    # If has_human_origin, LangChain HITL middleware pauses for approval
     # Otherwise, proceeds automatically
 
     context.glossary.remove(entry)
@@ -684,7 +644,7 @@ async def update_field(context, value):
 
     # Check provenance
     if entity.field_origin == "human":
-        # DeepAgents middleware will pause here via interrupt_on
+        # LangChain HITL middleware will pause here via interrupt_on
         # Human approves/rejects/edits the change
         pass
     elif entity.field_origin is None or entity.field_origin.startswith("agent:"):
@@ -699,49 +659,37 @@ async def update_field(context, value):
 
 ---
 
-## DeepAgents Integration
+## HITL Integration (LangChain)
 
-### Tool Registration with interrupt_on
-
-Tools are registered with DeepAgents using the `interrupt_on` parameter for HITL approval:
+Use LangChain `HumanInTheLoopMiddleware` on subagents when you need approvals for overwriting human-authored data. Pair it with a checkpointer so runs can pause and resume.
 
 ```python
-from deepagents import create_deep_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langgraph.checkpoint.memory import MemorySaver
 
-# Define tools with approval policies
-tools = [
-    read_character,           # approval_policy="permissive" (implicit)
-    update_character_bio,     # approval_policy="standard"
-    add_glossary_entry,       # approval_policy="permissive"
-    delete_glossary_entry,    # approval_policy="standard"
-]
-
-# Create agent with HITL gating
-agent = create_deep_agent(
-    model=llm,
-    tools=tools,
-    interrupt_on={
-        "update_character_bio": {
-            "allowed_decisions": ["approve", "edit", "reject"]
-        },
-        "delete_glossary_entry": {
-            "allowed_decisions": ["approve", "reject"]
-        }
-    },
+graph = create_agent(
+    model=model,
+    tools=[
+        read_character,
+        update_character_bio,
+    ],
     middleware=[
-        TodoListMiddleware(),
-        FilesystemMiddleware(),
-        SubAgentMiddleware()
-    ]
+        HumanInTheLoopMiddleware(
+            interrupt_on={
+                "update_character_bio": {"allowed_decisions": ["approve", "edit", "reject"]},
+                "read_character": False,
+            }
+        )
+    ],
+    checkpointer=MemorySaver(),
 )
 ```
 
 **How it works**:
-1. Agent calls `update_character_bio` tool
-2. DeepAgents checks if tool is in `interrupt_on` dict
-3. If yes, execution pauses and waits for human decision
-4. Human approves/edits/rejects via CLI or web UI
-5. Execution resumes with the decision
+1. Subagent proposes a tool call (e.g., `update_character_bio`).
+2. Middleware checks `interrupt_on` and pauses if configured.
+3. CLI/TUI collects decisions (approve/edit/reject) and resumes with the same thread_id.
+4. Approved or edited actions execute; rejected actions produce tool feedback.
 
 ---
 
@@ -865,7 +813,7 @@ async def update_location_description(
             f"Available locations: {', '.join(context.locations.keys())}"
         )
 
-    # Provenance check (DeepAgents middleware handles approval pause)
+    # Provenance check (LangChain HITL middleware handles approval pause)
     # If description_origin == "human", execution pauses for approval
     # If description_origin is None or "agent:*", proceeds automatically
 

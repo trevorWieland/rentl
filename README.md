@@ -1,6 +1,6 @@
 # rentl
 
-A multi-agent, context-aware translation pipeline for visual novels—turning raw scene text and metadata into high-quality, consistent JP→EN localizations.
+A multi-agent, context-aware translation pipeline for visual novels—turning raw scene text and metadata into high-quality, consistent JP→EN localizations. Phases are driven by deterministic pipelines (no LLM top-level coordinators), with LangChain subagents, provenance-aware tools, and human-in-the-loop controls.
 
 ---
 
@@ -12,7 +12,7 @@ rentl mirrors how human teams localize VNs today with distinct phases:
 2. **Translator (v1.0)** – consumes the curated context via read-only tools and produces aligned JP→EN translations.
 3. **Editor (v1.0)** – reviews source/target pairs, enforces style guides, and flags issues for retranslation or human review.
 
-Each phase uses DeepAgents subagents built on LangChain, making iterative workflows (context → translation → editing) predictable and reproducible. Git serves as the version control mechanism for all metadata and translations.
+Each phase is orchestrated by code-driven pipelines that schedule LangChain subagents (scene detailers, translators, QA checkers). Human-in-the-loop is handled with LangChain HITL middleware and provenance-aware tools. A modern TUI (Textual) is planned for non-technical users, alongside the CLI. Git serves as the version control mechanism for all metadata and translations.
 
 ### What rentl Does
 
@@ -83,10 +83,8 @@ LANGSMITH_API_KEY=optional-for-observability
 uv run python -m rentl_cli.main validate --project-path examples/tiny_vn
 
 # Context builder: detail all scenes (generates summary, tags, characters, locations)
-uv run python -m rentl_cli.main detail-mvp --project-path examples/tiny_vn
-
-# Context builder: detail a single scene
-uv run python -m rentl_cli.main detail-scene scene_c_00 --project-path examples/tiny_vn
+# Context builder: detail scenes (pipeline mode)
+uv run python -m rentl_cli.main context --project-path examples/tiny_vn
 ```
 
 **Available flags:**
@@ -107,7 +105,7 @@ uv run python -m rentl_cli.main detail-scene scene_c_00 --project-path examples/
 rentl is a **Python 3.13 monorepo** using:
 
 - **uv** for workspace and dependency management
-- **DeepAgents + LangChain** for multi-agent orchestration
+- **LangChain** for subagents + HITL middleware (pipelines drive orchestration; no LLM coordinators)
 - **Pydantic** for data models and configuration
 - **orjson** for fast JSONL I/O
 - **anyio** for async-first execution
@@ -323,7 +321,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 Built with:
-- [DeepAgents](https://github.com/deepagents/deepagents) for multi-agent orchestration
-- [LangChain](https://github.com/langchain-ai/langchain) for LLM integration
+- [LangChain](https://github.com/langchain-ai/langchain) for subagents, HITL middleware, and LLM integration
 - [Pydantic](https://github.com/pydantic/pydantic) for data validation
 - [uv](https://github.com/astral-sh/uv) for Python project management

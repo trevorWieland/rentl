@@ -67,6 +67,19 @@ def build_stats_tools(context: ProjectContext) -> list:
         ]
         return "\n".join(parts)
 
+    @tool("get_character_completion")
+    def get_character_completion(character_id: str) -> str:
+        """Return completion for a specific character."""
+        character = context.get_character(character_id)
+        parts = [
+            f"Character {character_id}:",
+            f"- Source Name: {'yes' if character.name_src else 'no'}",
+            f"- Target Name: {'yes' if character.name_tgt else 'no'}",
+            f"- Pronouns: {'yes' if character.pronouns else 'no'}",
+            f"- Notes: {'yes' if character.notes else 'no'}",
+        ]
+        return "\n".join(parts)
+
     @tool("get_translation_progress")
     async def get_translation_progress(scene_id: str) -> str:
         """Report translation progress for a scene.
@@ -85,4 +98,28 @@ def build_stats_tools(context: ProjectContext) -> list:
             f"({_get_completion_ratio(translated, total_lines)})"
         )
 
-    return [get_context_status, get_scene_completion, get_translation_progress]
+    @tool("get_route_progress")
+    def get_route_progress(route_id: str) -> str:
+        """Report route metadata completion.
+
+        Returns:
+            str: Route completion summary.
+        """
+        route = context.get_route(route_id)
+        synopsis_done = bool(route.synopsis)
+        chars_done = bool(route.primary_characters)
+        parts = [
+            f"Route {route_id}:",
+            f"- Synopsis: {'yes' if synopsis_done else 'no'}",
+            f"- Primary Characters: {'yes' if chars_done else 'no'}",
+            f"- Scenes: {len(route.scene_ids)} linked",
+        ]
+        return "\n".join(parts)
+
+    return [
+        get_context_status,
+        get_scene_completion,
+        get_character_completion,
+        get_translation_progress,
+        get_route_progress,
+    ]

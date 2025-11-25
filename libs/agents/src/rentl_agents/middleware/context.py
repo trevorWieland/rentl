@@ -43,7 +43,7 @@ class ContextInjectionMiddleware(AgentMiddleware[AgentState, AgentContext]):
 
 
 class DeepContextMiddleware(AgentMiddleware[AgentState, AgentContext]):
-    """Inject shared ProjectContext for DeepAgents coordinators."""
+    """Inject shared ProjectContext for coordinator-style agents (legacy)."""
 
     def __init__(self, project_context: ProjectContext) -> None:
         """Store the shared project context for later injection."""

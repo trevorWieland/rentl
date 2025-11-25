@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
+from rentl_agents.tools.context_docs import build_context_doc_tools
 from rentl_agents.tools.hitl import request_if_human_authored
 
 
@@ -19,6 +20,34 @@ def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False)
     written_tags: set[str] = set()
     written_characters: set[str] = set()
     written_locations: set[str] = set()
+    context_doc_tools = build_context_doc_tools(context)
+
+    @tool("read_scene")
+    async def read_scene(scene_id: str) -> str:
+        """Return metadata and transcript for the scene (no redactions)."""
+        logger.info("Tool call: read_scene(scene_id=%s)", scene_id)
+        lines = await context.load_scene_lines(scene_id)
+        scene = context.get_scene(scene_id)
+
+        formatted_rows: list[str] = []
+        for idx, line in enumerate(lines, start=1):
+            speaker = line.meta.speaker or "Narration"
+            prefix = "[CHOICE] " if line.is_choice else ""
+            notes = f" (notes: {'; '.join(line.meta.style_notes)})" if line.meta.style_notes else ""
+            formatted_rows.append(f"{idx}. {prefix}{speaker}: {line.text}{notes}")
+        transcript = "\n".join(formatted_rows)
+
+        meta = [
+            f"Title: {scene.title}",
+            f"Routes: {', '.join(scene.route_ids)}",
+            f"Tags: {', '.join(scene.annotations.tags)}",
+            f"Primary Characters: {', '.join(scene.annotations.primary_characters)}",
+            f"Locations: {', '.join(scene.annotations.locations)}",
+        ]
+        if scene.annotations.summary:
+            meta.extend(["Summary:", scene.annotations.summary])
+        meta.extend(["Transcript:", transcript])
+        return "\n".join(meta)
 
     @tool("read_scene_overview")
     async def read_scene_overview(scene_id: str) -> str:
@@ -58,17 +87,6 @@ def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False)
         if summary_text:
             meta.extend(["Current summary:", summary_text])
         return "\n".join(meta)
-
-    @tool("list_context_docs")
-    async def list_context_docs() -> str:
-        """Return the available context document names."""
-        docs = await context.list_context_docs()
-        return "\n".join(docs) if docs else "(no context docs)"
-
-    @tool("read_context_doc")
-    async def read_context_doc(filename: str) -> str:
-        """Return the contents of a context document."""
-        return await context.read_context_doc(filename)
 
     @tool("write_scene_summary")
     async def write_scene_summary(scene_id: str, summary: str) -> str:
@@ -187,9 +205,9 @@ def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False)
         return result
 
     return [
+        read_scene,
         read_scene_overview,
-        list_context_docs,
-        read_context_doc,
+        *context_doc_tools,
         write_scene_summary,
         write_scene_tags,
         write_primary_characters,

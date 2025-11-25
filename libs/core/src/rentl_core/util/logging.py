@@ -24,7 +24,6 @@ def configure_logging(verbose: bool = False) -> None:
     # Keep noisy libraries at a reasonable level even in verbose mode to avoid flooding logs.
     logging.getLogger("httpx").setLevel(logging.ERROR)
     logging.getLogger("langchain").setLevel(logging.WARNING)
-    logging.getLogger("deepagents").setLevel(logging.INFO)
     logging.getLogger("langgraph").setLevel(logging.INFO)
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("rentl_agents").setLevel(logging.INFO)

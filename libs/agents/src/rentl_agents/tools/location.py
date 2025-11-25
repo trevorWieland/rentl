@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
+from rentl_agents.tools.context_docs import build_context_doc_tools
 from rentl_agents.tools.hitl import request_if_human_authored
 
 logger = get_logger(__name__)
@@ -23,6 +24,7 @@ def build_location_tools(
     """
     updated_name_tgt: set[str] = set()
     updated_description: set[str] = set()
+    context_doc_tools = build_context_doc_tools(context)
 
     @tool("read_location")
     def read_location(location_id: str) -> str:
@@ -37,16 +39,29 @@ def build_location_tools(
         ]
         return "\n".join(parts)
 
-    @tool("list_context_docs")
-    async def list_context_docs() -> str:
-        """Return the available context document names."""
-        docs = await context.list_context_docs()
-        return "\n".join(docs) if docs else "(no context docs)"
+    @tool("add_location")
+    async def add_location(
+        location_id: str,
+        name_src: str,
+        name_tgt: str | None = None,
+        description: str | None = None,
+    ) -> str:
+        """Add a new location entry with provenance tracking.
 
-    @tool("read_context_doc")
-    async def read_context_doc(filename: str) -> str:
-        """Return the contents of a context document."""
-        return await context.read_context_doc(filename)
+        Returns:
+            str: Status message after attempting creation.
+        """
+        from datetime import date
+
+        logger.info("Tool call: add_location(location_id=%s)", location_id)
+        origin = f"agent:location_detailer:{date.today().isoformat()}"
+        return await context.add_location(
+            location_id,
+            name_src,
+            name_tgt=name_tgt,
+            description=description,
+            origin=origin,
+        )
 
     @tool("update_location_name_tgt")
     async def update_location_name_tgt(location_id: str, name_tgt: str) -> str:
@@ -116,8 +131,8 @@ def build_location_tools(
 
     return [
         read_location,
-        list_context_docs,
-        read_context_doc,
+        add_location,
+        *context_doc_tools,
         update_location_name_tgt,
         update_location_description,
     ]

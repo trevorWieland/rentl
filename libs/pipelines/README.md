@@ -1,61 +1,39 @@
-# rentl-pipelines: Top-Level Agent Orchestration
+# rentl-pipelines: Phase Pipelines
 
-Contains top-level DeepAgents that intelligently coordinate subagents for context building, translation, and editing workflows.
+Deterministic, phase-first pipelines that schedule LangChain subagents for context building, translation, pretranslation, and editing/QA. No LLM “coordinator” agents—pipelines are regular Python flows with queues, bounded concurrency, and human-in-the-loop pauses.
 
 ---
 
 ## Purpose
 
-`rentl-pipelines` provides **intelligent top-level agents** that:
+`rentl-pipelines` provides **phase runners** that:
 
-- Dynamically decide which subagents to run and when
-- Manage scene-level, route-level, and game-level processing
-- Handle errors and adaptive workflows
-- Collect and report results
-
-**These are NOT simple async functions** - they are intelligent DeepAgents that can:
-- Analyze current state to determine what work is needed
-- Spawn appropriate subagents via the `task()` tool
-- Iterate based on quality of subagent results
-- Make dynamic decisions about workflow execution
+- Build work queues from project state (e.g., incomplete scenes, untranslated scenes, QA-needed scenes)
+- Schedule LangChain subagents with bounded concurrency
+- Handle retries and HITL pauses (via LangChain middleware + checkpointers)
+- Collect and report results for CLI/TUI dashboards
 
 **Not responsible for**:
 - Individual subagent logic (belongs in `rentl-agents`)
 - Data models or I/O (belongs in `rentl-core`)
-- CLI interface (belongs in `rentl-cli`)
+- CLI/TUI interface (belongs in `rentl-cli` and future Textual UI)
 
 ---
 
 ## Architecture
 
-### Top-Level Agents (This Package)
+### Pipelines (This Package)
 
-Each pipeline contains a **top-level DeepAgent** that acts as an intelligent coordinator:
-
-**Context Builder Agent:**
-- Uses `create_deep_agent` from `deepagents`
-- Has stats/progress tools to understand current state
-- Spawns scene_detailer, character_detailer, location_detailer, glossary_curator, route_detailer subagents
-- Can decide to skip, retry, or iterate on subagent results
-
-**Translator Agent:**
-- Uses `create_deep_agent` from `deepagents`
-- Has translation progress tools
-- Spawns translate_scene subagent for each scene
-- Can decide whether to use direct translation or MTL backend
-
-**Editor Agent:**
-- Uses `create_deep_agent` from `deepagents`
-- Has QA status tools
-- Spawns style_checker, consistency_checker, translation_reviewer subagents
-- Can flag issues and request retranslation
+- **Context pipeline**: runs scene/character/location/route/glossary detailers over incomplete entities; supports overwrite, gap-fill, or new-only modes.
+- **Translator pipeline**: runs scene translators for targeted scenes; respects overwrite flags and progress checks.
+- **Editor/QA pipeline**: runs style/consistency/reviewer subagents on translated scenes.
+- **Pretranslation (v1.1)**: planned phase for idioms/references/accent profiling.
 
 ### Subagents (rentl-agents Package)
 
-Subagents are specialized workers created with `create_agent` from `langchain.agents`:
-- Work in isolated context (don't bloat main agent's context)
-- Have specialized tools for their domain
-- Return concise results to top-level agent
+Subagents are specialized LangChain agents:
+- Work in isolated context; only see specialized tools
+- Use HITL middleware as needed (`HumanInTheLoopMiddleware` + checkpointer)
 - See `libs/agents/README.md` for implementation details
 
 ---
@@ -81,15 +59,9 @@ Subagents are specialized workers created with `create_agent` from `langchain.ag
 
 ## Key Modules
 
-### flows/
-
-Pipeline implementations:
-
-```
-flows/
-  scene_mvp.py       # v1.0 scene-level pipeline (context → translate → edit)
-  full_game.py       # (Future) Game-level multi-pass pipeline
-```
+- flows/context_builder.py
+- flows/translator.py
+- flows/editor.py
 
 ### runner.py
 
@@ -109,156 +81,33 @@ results = await run_context_pipeline(
 
 ## Design Patterns
 
-### Top-Level Agent Pattern
+### Pipeline Pattern
 
-Each pipeline contains an intelligent DeepAgent that coordinates the workflow:
+Each pipeline is a deterministic async flow:
 
 ```python
-from deepagents import create_deep_agent, CompiledSubAgent
-from langgraph.checkpoint.memory import MemorySaver
-
-def create_context_builder_agent(
-    project_path: Path,
-    *,
-    allow_overwrite: bool = False
-) -> Agent:
-    """Create Context Builder top-level agent.
-
-    Returns:
-        DeepAgent: Intelligent coordinator for context enrichment.
-    """
-    # Load project context for tools
+async def run_context_pipeline(project_path: Path, *, allow_overwrite: bool = False):
     context = await load_project_context(project_path)
 
-    # Create stats tools for decision making
-    stats_tools = [
-        get_context_status,
-        get_scene_completion,
-        get_character_completion,
-    ]
+    # Compute queues from state
+    pending_scenes = [sid for sid, scene in context.scenes.items() if not scene.annotations.summary]
 
-    # Create subagents (built with create_agent from langchain.agents)
-    subagents = [
-        create_scene_detailer_subagent(context, allow_overwrite=allow_overwrite),
-        create_character_detailer_subagent(context, allow_overwrite=allow_overwrite),
-        create_location_detailer_subagent(context, allow_overwrite=allow_overwrite),
-        create_glossary_curator_subagent(context, allow_overwrite=allow_overwrite),
-        create_route_detailer_subagent(context, allow_overwrite=allow_overwrite),
-    ]
+    # Run subagents directly; replace with bounded concurrency when ready
+    for sid in pending_scenes:
+        await detail_scene(context, sid, allow_overwrite=allow_overwrite)
 
-    # Create top-level DeepAgent
-    return create_deep_agent(
-        model="claude-sonnet-4-5-20250929",
-        tools=stats_tools,
-        system_prompt=CONTEXT_BUILDER_PROMPT,
-        subagents=subagents,
-        interrupt_on={
-            # HITL for provenance violations
-            "update_scene_summary": True,
-            "update_character_notes": True,
-            # ... other update tools
-        },
-        checkpointer=MemorySaver()
-    )
+    return {"scenes_detailed": len(pending_scenes)}
 ```
 
 **Key principles**:
-- Top-level agent is **intelligent** - makes decisions, not just runs steps
-- Uses **stats tools** to understand current state (NOT read tools)
-- Spawns subagents via `task()` tool when work is needed
-- Can **iterate** if results are insufficient
-- Handles **HITL interrupts** for provenance violations
+- Pipelines are **deterministic**: queues are derived from on-disk state
+- Concurrency should be bounded (anyio task groups) when added
+- HITL pauses come from LangChain middleware + checkpointers on subagents
+- Progress is recomputed on each run; reruns naturally resume
 
 ### Shared ProjectContext Management
 
-rentl enforces **single-game-per-repo** with a **shared mutable ProjectContext** that all agents see.
-
-**Critical implementation details:**
-
-```python
-async def create_context_builder_agent(project_path: Path) -> Agent:
-    # 1. Load shared context ONCE
-    context = await load_project_context(project_path)
-
-    # 2. Pass same instance to ALL subagent factories
-    subagents = [
-        create_scene_detailer_subagent(context),  # Same context
-        create_character_detailer_subagent(context),  # Same context
-        create_glossary_curator_subagent(context),  # Same context
-    ]
-
-    # 3. Create stats tools (also need context via ToolRuntime)
-    stats_tools = build_stats_tools()
-
-    # 4. Middleware injects context into ToolRuntime
-    class ContextMiddleware:
-        async def before_agent(self, state, runtime):
-            runtime.context.project_context = context
-            runtime.context.project_path = project_path
-            return {}
-
-    # 5. Create top-level agent with middleware
-    agent = create_deep_agent(
-        model="claude-sonnet-4-5-20250929",
-        tools=stats_tools,
-        subagents=subagents,
-        middleware=[ContextMiddleware()],  # Injects context
-        interrupt_on={...},
-        checkpointer=MemorySaver()
-    )
-
-    return agent
-```
-
-**How context flows:**
-1. **Top-level agent loads** `ProjectContext` once from `project_path`
-2. **Subagent factories receive** same context instance via parameter
-3. **Subagent middleware injects** context into `runtime.context.project_context`
-4. **Tools access** context via `runtime.context.project_context`
-5. **All updates are immediate** - in-memory changes visible to all concurrent agents
-6. **Writes are crash-safe** - each update persists to disk immediately
-
-**Why this works:**
-- ✅ **No stale data**: All agents see the same in-memory instance
-- ✅ **Immediate visibility**: When one subagent updates, others see it instantly
-- ✅ **Crash-safe**: Each update writes to disk before releasing lock
-- ✅ **No confusion**: Single game per repo = single context instance
-- ✅ **Thread-safe**: Entity-level locks prevent concurrent update conflicts
-
-**Subagent factory pattern:**
-```python
-def create_scene_detailer_subagent(context: ProjectContext) -> CompiledSubAgent:
-    """Create scene detailer with shared context."""
-    tools = build_scene_tools()  # Generic tools, NOT scene-specific
-
-    # Middleware injects SAME context instance into subagent runtime
-    class SubagentContextMiddleware:
-        async def before_agent(self, state, runtime):
-            runtime.context.project_context = context  # Same instance!
-            return {}
-
-    graph = create_agent(
-        model=get_default_chat_model(),
-        tools=tools,
-        middleware=[SubagentContextMiddleware()]
-    )
-
-    return CompiledSubAgent(
-        name="scene-detailer",
-        description="Enriches scene metadata",
-        runnable=graph
-    )
-```
-
-**Key: Tools are generic and accept scene_id as parameter:**
-```python
-@tool
-async def update_scene_summary(scene_id: str, summary: str, runtime: ToolRuntime) -> str:
-    """Update any scene's summary."""
-    context = runtime.context.project_context  # Shared instance
-    await context.update_scene_summary(scene_id, summary, origin="agent:scene_detailer")
-    return f"Updated scene {scene_id}"
-```
+rentl enforces **single-game-per-repo** with a **shared mutable ProjectContext** that all subagents see. Pipelines load it once, subagents receive it via middleware, tools do all I/O, and updates persist immediately with locks and conflict feedback.
 
 ### Stats Tools for Top-Level Agents
 
