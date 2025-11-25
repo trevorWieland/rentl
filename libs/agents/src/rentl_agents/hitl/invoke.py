@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from typing import Any, cast
+from collections.abc import Callable, MutableMapping, Sequence
+from typing import Any
 from uuid import uuid4
 
 from langchain_core.runnables import Runnable, RunnableConfig
@@ -48,7 +48,7 @@ def _format_decisions(decisions: list[str | dict[str, Any]]) -> list[dict[str, A
 
 
 async def run_with_human_loop(
-    agent: Runnable | CompiledStateGraph,
+    agent: Runnable[object, object] | CompiledStateGraph,
     user_input: object,
     *,
     decision_handler: Callable[[list[str]], list[str | dict[str, Any]]] | None = None,
@@ -65,15 +65,18 @@ async def run_with_human_loop(
     config: RunnableConfig = {"configurable": {"thread_id": thread_id or str(uuid4())}}
     logger.info("Agent invoke start thread_id=%s", config["configurable"]["thread_id"])
 
-    result = await agent.ainvoke(user_input, config=config)
+    result: object = await agent.ainvoke(user_input, config=config)
 
-    while isinstance(result, dict) and "__interrupt__" in result:
+    while isinstance(result, MutableMapping):
+        if "__interrupt__" not in result:
+            break
+
         if decision_handler is None:
             message = "Agent requested approval but no decision handler was provided."
             raise RuntimeError(message)
 
-        typed_result: dict[str, object] = cast(dict[str, object], result)
-        interrupt_obj = typed_result.get("__interrupt__")
+        interrupt_payload: dict[str, object] = {str(key): value for key, value in result.items()}
+        interrupt_obj = interrupt_payload.get("__interrupt__")
         interrupt_seq: Sequence[object] = interrupt_obj if isinstance(interrupt_obj, Sequence) else [interrupt_obj]
         requests = _extract_interrupt_messages(interrupt_seq)
         logger.info("Agent interrupt: %s", "; ".join(requests))
