@@ -10,13 +10,14 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.route import build_route_tools
 
@@ -62,6 +63,7 @@ async def detail_route(
     allow_overwrite: bool = False,
     decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
     thread_id: str | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> RouteDetailResult:
     """Run the route detailer agent for *route_id* and return metadata.
 
@@ -71,12 +73,13 @@ async def detail_route(
         allow_overwrite: Allow overwriting existing human-authored metadata.
         decision_handler: Optional callback to resolve HITL interrupts.
         thread_id: Optional thread identifier for resumable runs.
+        checkpointer: Optional LangGraph checkpointer (defaults to SQLite if configured).
 
     Returns:
         RouteDetailResult: Updated route metadata.
     """
     logger.info("Detailing route %s", route_id)
-    subagent = create_route_detailer_subagent(context, allow_overwrite=allow_overwrite)
+    subagent = create_route_detailer_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
 
     user_prompt = f"""Enrich metadata for this route.
 
@@ -121,6 +124,7 @@ def create_route_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Create route detailer LangChain subagent and return the runnable graph.
 
@@ -133,12 +137,13 @@ def create_route_detailer_subagent(
         "update_route_synopsis": True,
         "update_route_characters": True,
     }
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=MemorySaver(),
+        checkpointer=effective_checkpointer,
     )
 
     return graph

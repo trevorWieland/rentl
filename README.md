@@ -97,6 +97,7 @@ uv run python -m rentl_cli.main context --project-path examples/tiny_vn
 - `rentl context` - Run Context Builder phase (all detailer subagents)
 - `rentl translate` - Run Translator phase
 - `rentl edit` - Run Editor phase (QA checks)
+- Persistent HITL/resume via SQLite checkpointer (`.rentl/checkpoints.db` by default; override with `RENTL_CHECKPOINT_DB`)
 
 ---
 

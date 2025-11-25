@@ -13,6 +13,7 @@ from typing import Literal, Protocol
 
 import anyio
 from pydantic import BaseModel, Field
+from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.subagents.translate_scene import translate_scene
 from rentl_core.context.project import load_project_context
 from rentl_core.model.line import SourceLine
@@ -55,6 +56,7 @@ async def _run_translator_async(
     """
     logger.info("Starting Translator pipeline for %s", project_path)
     context = await load_project_context(project_path)
+    checkpointer = get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
 
     # Determine which scenes to translate
     target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())
@@ -81,6 +83,7 @@ async def _run_translator_async(
                     context,
                     sid,
                     allow_overwrite=allow_overwrite,
+                    checkpointer=checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:{sid}",
                 ),

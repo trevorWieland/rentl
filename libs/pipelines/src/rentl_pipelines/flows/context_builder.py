@@ -17,6 +17,7 @@ from typing import Literal
 
 import anyio
 from pydantic import BaseModel, Field
+from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.subagents.character_detailer import detail_character
 from rentl_agents.subagents.glossary_curator import GlossaryDetailResult, detail_glossary
 from rentl_agents.subagents.location_detailer import detail_location
@@ -67,6 +68,7 @@ async def _run_context_builder_async(
     """
     logger.info("Starting Context Builder pipeline for %s", project_path)
     context = await load_project_context(project_path)
+    checkpointer = get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
     allow_overwrite = mode == "overwrite"
     scenes_to_run = _filter_scenes(context.scenes.values(), mode)
     characters_to_run = _filter_characters(context.characters.values(), mode)
@@ -89,6 +91,7 @@ async def _run_context_builder_async(
                     context,
                     sid,
                     allow_overwrite=allow_overwrite,
+                    checkpointer=checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:scene:{sid}",
                 ),
@@ -102,6 +105,7 @@ async def _run_context_builder_async(
                     context,
                     cid,
                     allow_overwrite=allow_overwrite,
+                    checkpointer=checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:character:{cid}",
                 ),
@@ -115,6 +119,7 @@ async def _run_context_builder_async(
                     context,
                     lid,
                     allow_overwrite=allow_overwrite,
+                    checkpointer=checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:location:{lid}",
                 ),
@@ -125,6 +130,7 @@ async def _run_context_builder_async(
         glossary_result = await detail_glossary(
             context,
             allow_overwrite=allow_overwrite,
+            checkpointer=checkpointer,
             decision_handler=decision_handler,
             thread_id=f"{base_thread}:glossary",
         )
@@ -139,6 +145,7 @@ async def _run_context_builder_async(
                     context,
                     rid,
                     allow_overwrite=allow_overwrite,
+                    checkpointer=checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:route:{rid}",
                 ),

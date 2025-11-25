@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
@@ -14,6 +14,7 @@ from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.backends.mtl import is_mtl_available
+from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.translation import build_translation_tools
 
@@ -85,6 +86,7 @@ async def translate_scene(
     allow_overwrite: bool = False,
     decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
     thread_id: str | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> SceneTranslationResult:
     """Run the scene translation agent for *scene_id* and return translation statistics.
 
@@ -94,6 +96,7 @@ async def translate_scene(
         allow_overwrite: Allow overwriting existing translations.
         decision_handler: Optional callback to resolve HITL interrupts.
         thread_id: Optional thread identifier for resumable runs.
+        checkpointer: Optional LangGraph checkpointer (defaults to SQLite if configured).
 
     Returns:
         SceneTranslationResult: Translation statistics for this scene.
@@ -112,7 +115,7 @@ async def translate_scene(
     await context._load_translations(scene_id)
     pre_count = context.get_translated_line_count(scene_id)
 
-    subagent = create_scene_translator_subagent(context, allow_overwrite=allow_overwrite)
+    subagent = create_scene_translator_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
 
     # Check MTL availability
     mtl_status = "MTL backend is available" if is_mtl_available() else "MTL backend not configured"
@@ -167,6 +170,7 @@ def create_scene_translator_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Create scene translator LangChain subagent and return the runnable graph.
 
@@ -180,12 +184,13 @@ def create_scene_translator_subagent(
     interrupt_on = {
         "write_translation": True,
     }
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=system_prompt,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=MemorySaver(),
+        checkpointer=effective_checkpointer,
     )
 
     return graph

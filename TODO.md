@@ -3,8 +3,8 @@
 This document tracks all tasks required to reach v1.0 of the Rentl translation pipeline.
 
 **Target**: Complete core translation pipeline with Context → Translate → Edit phases (Pretranslation in v1.1)
-**Current Status**: ~60% complete (CLI UX, HITL polish, concurrency/queueing, and testing still needed)
-**Estimated Remaining Work**: 1,500-2,500 lines of code
+**Current Status**: ~65% complete (CLI UX, persistence/resume, and testing still needed)
+**Estimated Remaining Work**: 1,300-2,200 lines of code
 
 **Direction update (2025-03)**: Top-level DeepAgents coordinators are being retired in favor of deterministic, phase-first pipelines that schedule LangChain subagents directly. HITL will rely on LangChain middleware + provenance-aware tools. UX will emphasize a Textual TUI (plus CLI) with per-phase dashboards and a HITL inbox.
 
@@ -24,12 +24,12 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 
 ### Phase pipelines & execution
 - [ ] Polish deterministic runners (context/translate/edit) and add pretranslate when ready
-- [ ] Add queue-based execution with bounded concurrency and resumable thread IDs (HITL pauses via LangChain middleware)
+- [ ] Add queue-based execution with bounded concurrency and resumable thread IDs (HITL middleware + thread_id now wired; still need persistent checkpointer/resume UX)
 - [ ] Support modes: overwrite, gap-fill, new-only; per-scene/route targeting
-- [ ] Add retry/backoff, failure surfacing, and progress/state APIs for CLI (TUI later)
+- [ ] Add retry/backoff, failure surfacing, and progress/state APIs for CLI/TUI
 
 ### CLI UX (TUI later)
-- [ ] Update CLI commands to call new runners (mode/target flags), expose status, and manage thread_id + HITL decisions
+- [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring now present; need progress + resume UX)
 - [ ] Onboarding/smoke test for model config; `status` command for phase stats
 - [ ] Plan Textual TUI (phase dashboards, job queue, HITL inbox) after CLI parity
 
@@ -178,9 +178,8 @@ Recommended sequence for maximum efficiency:
 - [ ] detect_references (v1.1 - deferred)
 - [ ] detect_puns (v1.1 - deferred)
 
-**CLI Commands** (5/6 implemented):
+**CLI Commands** (4/5 core implemented):
 - [x] validate
-- [x] detail-scene (development only)
 - [x] context
 - [x] translate
 - [x] edit
@@ -226,4 +225,4 @@ A task is considered complete when:
 
 ---
 
-*Last Updated: 2025-03-15*
+*Last Updated: 2025-03-20*

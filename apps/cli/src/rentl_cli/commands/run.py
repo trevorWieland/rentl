@@ -46,13 +46,14 @@ def context(
         typer.Option(help="Processing mode: overwrite, gap-fill (default), or new-only"),
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent detailer runs.")] = 4,
+    thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Context Builder pipeline to enrich all game metadata."""
     configure_logging(verbose)
     typer.secho("Starting Context Builder pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    thread_id = f"context-{uuid4()}"
+    thread_id = thread_id or f"context-{uuid4()}"
     result = run_context_builder(
         project_path,
         allow_overwrite=overwrite,
@@ -83,13 +84,14 @@ def translate(
         typer.Option(help="Processing mode: overwrite, gap-fill (default), or new-only"),
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent scene translations.")] = 4,
+    thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Translator pipeline to translate scenes."""
     configure_logging(verbose)
     typer.secho("Starting Translator pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    thread_id = f"translate-{uuid4()}"
+    thread_id = thread_id or f"translate-{uuid4()}"
     result = run_translator(
         project_path,
         scene_ids=scene_ids or None,
@@ -117,13 +119,14 @@ def edit(
         typer.Option(help="Processing mode: overwrite, gap-fill (default), or new-only"),
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent QA runs.")] = 4,
+    thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Editor pipeline to perform QA on translations."""
     configure_logging(verbose)
     typer.secho("Starting Editor pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    thread_id = f"edit-{uuid4()}"
+    thread_id = thread_id or f"edit-{uuid4()}"
     result = run_editor(
         project_path,
         scene_ids=scene_ids or None,

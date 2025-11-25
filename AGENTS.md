@@ -64,6 +64,23 @@ scene_detailer = create_agent(
 - Use LangChain’s `HumanInTheLoopMiddleware` with `interrupt_on` per tool, plus a checkpointer (MemorySaver for dev; persistent saver for production).
 - Pipelines/CLI/TUI provide decisions (approve/edit/reject) and resume using the same thread ID.
 - Tools still perform provenance checks; middleware is the pause/resume mechanism.
+- Standardize invocation with `rentl_agents.hitl.invoke.run_with_human_loop` so all frontends handle interrupts the same way. Default checkpointer is SQLite at `.rentl/checkpoints.db` (override with `RENTL_CHECKPOINT_DB`):
+
+```python
+from rentl_agents.hitl.invoke import run_with_human_loop
+from rentl_agents.hitl.checkpoints import get_default_checkpointer
+
+checkpointer = get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+
+await run_with_human_loop(
+    scene_detailer,
+    {"messages": [{"role": "user", "content": user_prompt}]},
+    decision_handler=my_decision_fn,  # CLI/TUI/other frontend
+    thread_id="context:scene_a_00",   # RunnableConfig thread_id for resume
+)
+```
+
+- Do not reimplement interrupt loops in pipelines—re-use the helper above.
 
 ### Provenance-Based HITL Integration
 

@@ -10,13 +10,14 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.glossary import build_glossary_tools
 
@@ -52,7 +53,12 @@ Your task is to curate terminology for consistent translation.
 """
 
 
-def create_glossary_curator_subagent(context: ProjectContext, *, allow_overwrite: bool = False) -> CompiledStateGraph:
+def create_glossary_curator_subagent(
+    context: ProjectContext,
+    *,
+    allow_overwrite: bool = False,
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> CompiledStateGraph:
     """Create glossary curator subagent for terminology management and return the runnable graph.
 
     Returns:
@@ -67,12 +73,13 @@ def create_glossary_curator_subagent(context: ProjectContext, *, allow_overwrite
         "delete_glossary_entry": True,
     }
 
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=MemorySaver(),
+        checkpointer=effective_checkpointer,
     )
     return graph
 
@@ -83,6 +90,7 @@ async def detail_glossary(
     allow_overwrite: bool = False,
     decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
     thread_id: str | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> GlossaryDetailResult:
     """Run the glossary curator agent and return curation results.
 
@@ -91,6 +99,7 @@ async def detail_glossary(
         allow_overwrite: Allow overwriting existing human-authored metadata.
         decision_handler: Optional callback to resolve HITL interrupts.
         thread_id: Optional thread identifier for resumable runs.
+        checkpointer: Optional LangGraph checkpointer (defaults to SQLite if configured).
 
     Returns:
         GlossaryDetailResult: Curation statistics.
@@ -98,7 +107,7 @@ async def detail_glossary(
     logger.info("Curating glossary")
     initial_count = len(context.glossary)
 
-    subagent = create_glossary_curator_subagent(context, allow_overwrite=allow_overwrite)
+    subagent = create_glossary_curator_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
 
     source_lang = context.game.source_lang.upper()
     target_lang = context.game.target_lang.upper()

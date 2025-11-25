@@ -10,13 +10,14 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.character import build_character_tools
 
@@ -67,6 +68,7 @@ async def detail_character(
     allow_overwrite: bool = False,
     decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
     thread_id: str | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CharacterDetailResult:
     """Run the character detailer agent for *character_id* and return metadata.
 
@@ -76,12 +78,13 @@ async def detail_character(
         allow_overwrite: Allow overwriting existing human-authored metadata.
         decision_handler: Optional callback to resolve HITL interrupts.
         thread_id: Optional thread identifier for resumable runs.
+        checkpointer: Optional LangGraph checkpointer (defaults to SQLite if configured).
 
     Returns:
         CharacterDetailResult: Updated character metadata.
     """
     logger.info("Detailing character %s", character_id)
-    subagent = create_character_detailer_subagent(context, allow_overwrite=allow_overwrite)
+    subagent = create_character_detailer_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
 
     target_lang = context.game.target_lang.upper()
 
@@ -133,6 +136,7 @@ def create_character_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Create character detailer LangChain subagent and return the runnable graph.
 
@@ -146,12 +150,13 @@ def create_character_detailer_subagent(
         "update_character_pronouns": True,
         "update_character_notes": True,
     }
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=MemorySaver(),
+        checkpointer=effective_checkpointer,
     )
 
     return graph

@@ -10,13 +10,14 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
+from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.tools.scene import build_scene_tools
 
@@ -66,6 +67,7 @@ async def detail_scene(
     allow_overwrite: bool = False,
     decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
     thread_id: str | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> SceneDetailResult:
     """Run the scene detailer agent for *scene_id* and return metadata.
 
@@ -75,13 +77,14 @@ async def detail_scene(
         allow_overwrite: Allow overwriting existing metadata.
         decision_handler: Optional callback to resolve HITL interrupts.
         thread_id: Optional thread identifier for resumable runs.
+        checkpointer: Optional LangGraph checkpointer (defaults to SQLite if configured).
 
     Returns:
         SceneDetailResult: Scene metadata with summary, tags, characters, locations.
     """
     logger.info("Detailing scene %s", scene_id)
     lines = await context.load_scene_lines(scene_id)
-    subagent = create_scene_detailer_subagent(context, allow_overwrite=allow_overwrite)
+    subagent = create_scene_detailer_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
 
     source_lang = context.game.source_lang.upper()
     line_count = len(lines)
@@ -138,6 +141,7 @@ def create_scene_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Create scene detailer LangChain subagent and return the runnable graph.
 
@@ -152,12 +156,13 @@ def create_scene_detailer_subagent(
         "write_primary_characters": True,
         "write_scene_locations": True,
     }
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=MemorySaver(),
+        checkpointer=effective_checkpointer,
     )
 
     return graph
