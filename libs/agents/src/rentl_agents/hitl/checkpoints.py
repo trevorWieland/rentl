@@ -44,3 +44,17 @@ async def get_default_checkpointer(sqlite_path: str | Path | None = None) -> Bas
 
     logger.info("No checkpoint db specified; using MemorySaver for HITL checkpoints.")
     return MemorySaver()
+
+
+async def maybe_close_checkpointer(checkpointer: BaseCheckpointSaver) -> None:
+    """Close sqlite-backed checkpointers to avoid hanging interpreter shutdown.
+
+    Args:
+        checkpointer: The checkpointer to close if it owns a sqlite connection.
+    """
+    # AsyncSqliteSaver exposes the underlying connection as ``conn``.
+    conn = getattr(checkpointer, "conn", None)
+    if conn is not None:
+        close = getattr(conn, "close", None)
+        if callable(close):
+            await close()

@@ -242,10 +242,9 @@ Integration coverage includes pipeline retry handling and a mocked tiny_vn end-t
 - ✅ All Context Builder subagents (scene, character, location, glossary, route detailers)
 - ✅ Translator subagent with context-aware translation
 - ✅ Editor subagents (style, consistency, quality checks)
-- 🚧 HITL approval workflow with provenance-based gating
+- ✅ HITL approval workflow with provenance-based gating (CLI resume/status UX still in progress)
 - 🚧 CLI commands: `init`, `context`, `translate`, `edit`, `validate`
 - 🚧 Complete tool suite for all subagents
-- 🚧 Example project (`examples/tiny_vn`) with full translations
 
 **Deferred to v1.1+**: Pretranslator agent, items/bgm metadata, advanced search tools.
 

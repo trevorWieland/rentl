@@ -10,7 +10,7 @@ from typing import Literal, TypeVar
 import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
-from rentl_agents.hitl.checkpoints import get_default_checkpointer
+from rentl_agents.hitl.checkpoints import get_default_checkpointer, maybe_close_checkpointer
 from rentl_agents.subagents.consistency_checks import (
     ConsistencyCheckResult,
     run_consistency_checks,
@@ -57,6 +57,7 @@ async def _run_editor_async(
     style_runner: Callable[..., Awaitable[StyleCheckResult]] | None = None,
     consistency_runner: Callable[..., Awaitable[ConsistencyCheckResult]] | None = None,
     review_runner: Callable[..., Awaitable[TranslationReviewResult]] | None = None,
+    checkpoint_enabled: bool = True,
 ) -> EditorResult:
     """Run the Editor pipeline asynchronously.
 
@@ -73,13 +74,21 @@ async def _run_editor_async(
         style_runner: Optional override for style check runner (for testing).
         consistency_runner: Optional override for consistency check runner (for testing).
         review_runner: Optional override for translation review runner (for testing).
+        checkpoint_enabled: Disable checkpoint persistence when False (uses in-memory).
 
     Returns:
         EditorResult: QA summary for the run.
     """
     logger.info("Starting Editor pipeline for %s", project_path)
     context = await load_project_context(project_path)
-    effective_checkpointer = checkpointer or await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+    created_checkpointer = checkpointer is None
+    effective_checkpointer = (
+        checkpointer
+        if checkpointer is not None
+        else await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+        if checkpoint_enabled
+        else None
+    )
     output_reports_dir = project_path / "output" / "reports"
     if report_path is None:
         report_path = output_reports_dir / REPORT_FILENAME
@@ -160,6 +169,8 @@ async def _run_editor_async(
     result = EditorResult(scenes_checked=len(set(completed_scene_ids)), errors=errors)
     await _write_editor_report(report_path, result)
     logger.info("Editor pipeline complete: %s", result)
+    if created_checkpointer and effective_checkpointer is not None:
+        await maybe_close_checkpointer(effective_checkpointer)
     return result
 
 
@@ -177,6 +188,7 @@ def run_editor(
     style_runner: Callable[..., Awaitable[StyleCheckResult]] | None = None,
     consistency_runner: Callable[..., Awaitable[ConsistencyCheckResult]] | None = None,
     review_runner: Callable[..., Awaitable[TranslationReviewResult]] | None = None,
+    checkpoint_enabled: bool = True,
 ) -> EditorResult:
     """Run the Editor pipeline.
 
@@ -193,6 +205,7 @@ def run_editor(
         style_runner: Optional override for style check runner (for testing).
         consistency_runner: Optional override for consistency check runner (for testing).
         review_runner: Optional override for translation review runner (for testing).
+        checkpoint_enabled: Disable checkpoint persistence when False (uses in-memory).
 
     Returns:
         EditorResult: QA summary for the run.
@@ -212,6 +225,7 @@ def run_editor(
             style_runner=style_runner,
             consistency_runner=consistency_runner,
             review_runner=review_runner,
+            checkpoint_enabled=checkpoint_enabled,
         )
     )
 

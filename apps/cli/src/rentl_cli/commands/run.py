@@ -9,8 +9,15 @@ from typing import Annotated, Literal
 from uuid import uuid4
 
 import typer
+from rentl_core.context.project import load_project_context
 from rentl_core.util.logging import configure_logging
-from rentl_pipelines.flows.context_builder import run_context_builder
+from rentl_pipelines.flows.context_builder import (
+    _filter_characters,
+    _filter_locations,
+    _filter_routes,
+    _filter_scenes,
+    run_context_builder,
+)
 from rentl_pipelines.flows.editor import run_editor
 from rentl_pipelines.flows.translator import run_translator
 
@@ -50,6 +57,50 @@ def _progress_printer(verbose: bool) -> Callable[[str, str], None] | None:
     return _cb
 
 
+def status(
+    project_path: ProjectPathOption = Path("."),
+) -> None:
+    """Show quick pipeline status for a project (scenes, characters, translations)."""
+
+    async def _status_async(path: Path) -> None:
+        context = await load_project_context(path)
+        scenes = context.scenes.values()
+        characters = context.characters.values()
+        locations = context.locations.values()
+        routes = context.routes.values()
+
+        scenes_incomplete = _filter_scenes(scenes, "gap-fill")
+        characters_incomplete = _filter_characters(characters, "gap-fill")
+        locations_incomplete = _filter_locations(locations, "gap-fill")
+        routes_incomplete = _filter_routes(routes, "gap-fill")
+
+        total_lines = 0
+        translated_lines = 0
+        for sid in context.scenes:
+            lines = await context.load_scene_lines(sid)
+            total_lines += len(lines)
+            await context._load_translations(sid)
+            translated_lines += context.get_translated_line_count(sid)
+
+        typer.secho("Status", fg=typer.colors.CYAN, bold=True)
+        typer.echo(f"  Scenes: {len(scenes)} total / {len(scenes_incomplete)} incomplete")
+        typer.echo(f"  Characters: {len(characters)} total / {len(characters_incomplete)} incomplete")
+        typer.echo(f"  Locations: {len(locations)} total / {len(locations_incomplete)} incomplete")
+        typer.echo(f"  Routes: {len(routes)} total / {len(routes_incomplete)} incomplete")
+        typer.echo(f"  Translations: {translated_lines}/{total_lines} lines")
+
+        checkpoint_path = path / ".rentl" / "checkpoints.db"
+        if checkpoint_path.exists():
+            typer.echo(f"  Checkpoints: found at {checkpoint_path}")
+        else:
+            typer.echo("  Checkpoints: none (using in-memory)")
+
+    typer.echo("Collecting project status...")
+    import anyio
+
+    anyio.run(_status_async, project_path)
+
+
 def context(
     project_path: ProjectPathOption = Path("."),
     overwrite: Annotated[bool, typer.Option(help="Allow overwriting existing metadata.")] = False,
@@ -59,6 +110,7 @@ def context(
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent detailer runs.")] = 4,
     thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
+    no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Context Builder pipeline to enrich all game metadata."""
@@ -74,6 +126,7 @@ def context(
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
         progress_cb=_progress_printer(verbose),
+        checkpoint_enabled=not no_checkpoint,
     )
 
     # Display results
@@ -100,6 +153,7 @@ def translate(
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent scene translations.")] = 4,
     thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
+    no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Translator pipeline to translate scenes."""
@@ -116,6 +170,7 @@ def translate(
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
         progress_cb=_progress_printer(verbose),
+        checkpoint_enabled=not no_checkpoint,
     )
 
     # Display results
@@ -138,6 +193,7 @@ def edit(
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent QA runs.")] = 4,
     thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
+    no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
     """Run the Editor pipeline to perform QA on translations."""
@@ -153,6 +209,7 @@ def edit(
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
         progress_cb=_progress_printer(verbose),
+        checkpoint_enabled=not no_checkpoint,
     )
 
     typer.secho("\nEditor Complete!", fg=typer.colors.GREEN, bold=True)

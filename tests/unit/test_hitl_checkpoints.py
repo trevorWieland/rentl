@@ -38,3 +38,6 @@ async def test_get_default_checkpointer_creates_sqlite(tmp_path: Path) -> None:
 
     assert restored is not None
     assert restored["id"] == "c1"
+
+    # Ensure the underlying sqlite connection is closed to avoid thread leaks.
+    await saver.conn.close()

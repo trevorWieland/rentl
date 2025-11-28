@@ -18,7 +18,7 @@ from typing import Literal, TypeVar
 import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
-from rentl_agents.hitl.checkpoints import get_default_checkpointer
+from rentl_agents.hitl.checkpoints import get_default_checkpointer, maybe_close_checkpointer
 from rentl_agents.subagents.character_detailer import detail_character
 from rentl_agents.subagents.glossary_curator import GlossaryDetailResult, detail_glossary
 from rentl_agents.subagents.location_detailer import detail_location
@@ -65,6 +65,7 @@ async def _run_context_builder_async(
     thread_id: str | None = None,
     progress_cb: Callable[[str, str], None] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
+    checkpoint_enabled: bool = True,
 ) -> ContextBuilderResult:
     """Run the Context Builder pipeline asynchronously.
 
@@ -78,14 +79,21 @@ async def _run_context_builder_async(
         progress_cb: Optional callback invoked as (event, entity_id) per subagent start.
         checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
         checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
-        checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
+        checkpoint_enabled: Disable checkpoint persistence when False (uses in-memory).
 
     Returns:
         ContextBuilderResult: Statistics about what was enriched.
     """
     logger.info("Starting Context Builder pipeline for %s", project_path)
     context = await load_project_context(project_path)
-    effective_checkpointer = checkpointer or await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+    created_checkpointer = checkpointer is None
+    effective_checkpointer = (
+        checkpointer
+        if checkpointer is not None
+        else await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+        if checkpoint_enabled
+        else None
+    )
     allow_overwrite = mode == "overwrite"
     scenes_to_run = _filter_scenes(context.scenes.values(), mode)
     characters_to_run = _filter_characters(context.characters.values(), mode)
@@ -225,6 +233,8 @@ async def _run_context_builder_async(
     )
 
     logger.info("Context Builder pipeline complete: %s", result)
+    if created_checkpointer and effective_checkpointer is not None:
+        await maybe_close_checkpointer(effective_checkpointer)
     return result
 
 
@@ -238,6 +248,7 @@ def run_context_builder(
     thread_id: str | None = None,
     progress_cb: Callable[[str, str], None] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
+    checkpoint_enabled: bool = True,
 ) -> ContextBuilderResult:
     """Run the Context Builder pipeline to enrich all game metadata.
 
@@ -250,6 +261,7 @@ def run_context_builder(
         thread_id: Optional thread id for checkpointer continuity.
         progress_cb: Optional callback invoked as (event, entity_id) per subagent start.
         checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
+        checkpoint_enabled: Disable checkpoint persistence when False (uses in-memory).
 
     Returns:
         ContextBuilderResult: Statistics about what was enriched.
@@ -265,6 +277,7 @@ def run_context_builder(
             thread_id=thread_id,
             progress_cb=progress_cb,
             checkpointer=checkpointer,
+            checkpoint_enabled=checkpoint_enabled,
         )
     )
 

@@ -14,9 +14,12 @@ def request_if_human_authored(
     proposed_value: ProvenanceValue,
     policy: ApprovalPolicy = ApprovalPolicy.STANDARD,
 ) -> str | None:
-    """Return an approval request message when overwriting human-authored data."""
+    """Return an approval request message when overwriting human-authored data.
+
+    Includes a no-op short circuit to avoid spurious interrupts when the value is unchanged.
+    """
     if current_value == proposed_value:
-        return "No change: proposed value matches current value."
+        return None
 
     gate = ApprovalGate(policy=policy, operation=operation, target=target)
     if gate.requires_approval(current_value, current_origin):

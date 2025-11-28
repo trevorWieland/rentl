@@ -14,7 +14,7 @@ from typing import Literal, Protocol, TypeVar
 import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
-from rentl_agents.hitl.checkpoints import get_default_checkpointer
+from rentl_agents.hitl.checkpoints import get_default_checkpointer, maybe_close_checkpointer
 from rentl_agents.subagents.translate_scene import translate_scene
 from rentl_core.context.project import load_project_context
 from rentl_core.model.line import SourceLine
@@ -52,6 +52,7 @@ async def _run_translator_async(
     thread_id: str | None = None,
     progress_cb: Callable[[str, str], None] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
+    checkpoint_enabled: bool = True,
 ) -> TranslatorResult:
     """Run the Translator pipeline asynchronously.
 
@@ -65,13 +66,21 @@ async def _run_translator_async(
         thread_id: Optional thread id for checkpointer continuity.
         progress_cb: Optional callback invoked as (event, scene_id) per scene start.
         checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
+        checkpoint_enabled: Disable checkpoint persistence when False (uses in-memory).
 
     Returns:
         TranslatorResult: Statistics about what was translated.
     """
     logger.info("Starting Translator pipeline for %s", project_path)
     context = await load_project_context(project_path)
-    effective_checkpointer = checkpointer or await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+    created_checkpointer = checkpointer is None
+    effective_checkpointer = (
+        checkpointer
+        if checkpointer is not None
+        else await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+        if checkpoint_enabled
+        else None
+    )
 
     # Determine which scenes to translate
     target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())
@@ -138,6 +147,8 @@ async def _run_translator_async(
     )
 
     logger.info("Translator pipeline complete: %s", result)
+    if created_checkpointer and effective_checkpointer is not None:
+        await maybe_close_checkpointer(effective_checkpointer)
     return result
 
 
@@ -152,6 +163,7 @@ def run_translator(
     thread_id: str | None = None,
     progress_cb: Callable[[str, str], None] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
+    checkpoint_enabled: bool = True,
 ) -> TranslatorResult:
     """Run the Translator pipeline to translate scenes.
 
@@ -165,6 +177,7 @@ def run_translator(
         thread_id: Optional thread id for checkpointer continuity.
         progress_cb: Optional callback invoked as (event, scene_id) per scene start.
         checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
+        checkpoint_enabled: Disable checkpoint persistence when False (uses in-memory).
 
     Returns:
         TranslatorResult: Statistics about what was translated.
@@ -181,6 +194,7 @@ def run_translator(
             thread_id=thread_id,
             progress_cb=progress_cb,
             checkpointer=checkpointer,
+            checkpoint_enabled=checkpoint_enabled,
         )
     )
 

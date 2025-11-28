@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
-from typing import TypeVar, cast
+from typing import NotRequired, TypeVar, cast
 from uuid import uuid4
 
 from langchain_core.runnables import Runnable, RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt
 from rentl_core.util.logging import get_logger
+from typing_extensions import TypedDict
 
 logger = get_logger(__name__)
 
@@ -22,6 +23,14 @@ InterruptPayload = MutableMapping[str, JSONLike]
 # mapping to this module boundary so the rest of the codebase stays strongly typed.
 
 
+class ActionRequest(TypedDict):
+    """Shape emitted by LangGraph HITL middleware."""
+
+    name: str
+    args: Mapping[str, object]
+    description: NotRequired[str]
+
+
 def _extract_interrupt_messages(interrupts: Sequence[Interrupt | JSONLike]) -> list[str]:
     """Normalize interrupt payloads into strings for human review.
 
@@ -31,6 +40,35 @@ def _extract_interrupt_messages(interrupts: Sequence[Interrupt | JSONLike]) -> l
     messages: list[str] = []
     for interrupt in interrupts:
         value = interrupt.value if isinstance(interrupt, Interrupt) else None
+        payload: Mapping[str, object] | None = None
+        if isinstance(value, Mapping):
+            payload = value
+        elif isinstance(interrupt, Mapping) and not isinstance(interrupt, (str, bytes, bytearray)):
+            payload = cast(Mapping[str, object], interrupt)
+
+        if payload and "value" in payload:
+            nested_value = payload.get("value")
+            if isinstance(nested_value, Mapping):
+                payload = cast(Mapping[str, object], nested_value)
+
+        if isinstance(payload, Mapping) and "action_requests" in payload:
+            requests = payload.get("action_requests")
+            if isinstance(requests, Sequence):
+                parsed_any = False
+                for req in requests:
+                    if isinstance(req, Mapping):
+                        req_map = cast(Mapping[str, object], req)
+                        name_val = req_map.get("name", None)
+                        name = name_val if isinstance(name_val, str) else "<unknown>"
+                        args = req_map.get("args", {})
+                        desc = req_map.get("description", "")
+                        reason = desc.splitlines()[0] if isinstance(desc, str) else ""
+                        messages.append(f"{name} args={args} reason={reason}")
+                        parsed_any = True
+                    else:
+                        messages.append(str(req))
+                if parsed_any:
+                    continue
 
         if value is None and isinstance(interrupt, str):
             messages.append(interrupt)

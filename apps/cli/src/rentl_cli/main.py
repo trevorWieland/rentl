@@ -2,7 +2,7 @@
 
 import typer
 
-from rentl_cli.commands.run import context, edit, reset_example, translate
+from rentl_cli.commands.run import context, edit, reset_example, status, translate
 from rentl_cli.commands.validate import validate
 
 app = typer.Typer(help="rentl - Multi-agent translation pipeline for visual novels")
@@ -19,6 +19,7 @@ app.command()(validate)
 app.command()(context)
 app.command()(translate)
 app.command()(edit)
+app.command()(status)
 app.command("reset-example")(reset_example)
 
 

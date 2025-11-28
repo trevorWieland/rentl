@@ -26,12 +26,13 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [x] Add queue-based execution with bounded concurrency and resumable thread IDs (HITL middleware + thread_id + SQLite checkpointer now wired)
 - [x] Support modes: overwrite, gap-fill, new-only; per-scene/route targeting
 - [x] Add retry/backoff and failure surfacing in pipelines (error collection + backoff added; progress callbacks wired)
-- [ ] Surface status/resume/failure details to CLI/TUI (status command + resume UX)
+- [ ] Surface status/resume/failure details to CLI/TUI (status command added; resume UX still needed)
 
 ### CLI UX (TUI later)
-- [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring present; add status/resume command using checkpoints + progress callbacks)
-- [ ] Onboarding/smoke test for model config; `status` command for phase stats
+- [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring present; status command added; resume UX pending)
+- [ ] Onboarding/smoke test for model config; `status` command for phase stats (status exists; onboarding pending)
 - [ ] Plan Textual TUI (phase dashboards, job queue, HITL inbox) after CLI parity
+- [x] Add `--no-checkpoint` toggle for quick local runs
 
 ### Testing & fixtures
 - [x] Unit/integration tests for pipelines with mocked LLMs and retry/error handling
@@ -39,6 +40,9 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [x] Fixtures to reset a temp tiny_vn baseline per test (no mutations to real example)
 - [x] QA output/report validation (editor report smoke test added)
 - [x] Tiny_vn end-to-end smoke test with stubbed agents (context → translate → edit)
+- [x] HITL interrupt/resume integration test to validate middleware + runner loop
+- [x] Basic model/loader validation tests (provenance requirements, missing/invalid files)
+- [x] HITL interrupt formatting tests (action_requests parsing, decision normalization)
 
 ### Completed foundations (for reference)
 - Data models with provenance; async loaders/writers
