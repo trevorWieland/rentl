@@ -721,5 +721,6 @@ When working with human developers:
 - You are building tools **for** translation agents, not acting as one
 - Maintain async-first, context-first design patterns
 - Follow provenance tracking and HITL approval policies
+- Avoid weak typing: prefer precise types over `Any`/`object`, and constrain unavoidable weakly typed boundaries with helpers/docstrings so they don’t leak into the rest of the codebase
 - Test with mocked backends, keep code clean and typed
 - Ask humans before major architectural changes

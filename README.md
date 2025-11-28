@@ -217,6 +217,17 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 
 ---
 
+## Testing & Development
+
+Run the repo-standard checks before committing:
+
+```bash
+make fix   # format + lint autofix
+make check # format check, lint, type check, and pytest (includes tiny_vn smoke)
+```
+
+Integration coverage includes pipeline retry handling and a mocked tiny_vn end-to-end smoke (context → translate → edit) to ensure the phases wire together without real LLM calls.
+
 ## Roadmap
 
 ### v1.0 – Core Translation Pipeline (Current Target)

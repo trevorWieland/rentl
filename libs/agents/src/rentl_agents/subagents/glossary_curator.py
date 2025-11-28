@@ -18,7 +18,7 @@ from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
-from rentl_agents.hitl.invoke import run_with_human_loop
+from rentl_agents.hitl.invoke import Decision, run_with_human_loop
 from rentl_agents.tools.glossary import build_glossary_tools
 
 
@@ -87,7 +87,7 @@ async def detail_glossary(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    decision_handler: Callable[[list[str]], list[dict[str, str] | str]] | None = None,
+    decision_handler: Callable[[list[str]], list[Decision]] | None = None,
     thread_id: str | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
 ) -> GlossaryDetailResult:

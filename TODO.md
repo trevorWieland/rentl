@@ -35,9 +35,10 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 
 ### Testing & fixtures
 - [x] Unit/integration tests for pipelines with mocked LLMs and retry/error handling
-- [ ] HITL/resume persistence tests with SQLite checkpointer (interrupt/resume smoke)
+- [x] HITL/resume persistence tests with SQLite checkpointer (interrupt/resume smoke)
 - [x] Fixtures to reset a temp tiny_vn baseline per test (no mutations to real example)
 - [x] QA output/report validation (editor report smoke test added)
+- [x] Tiny_vn end-to-end smoke test with stubbed agents (context → translate → edit)
 
 ### Completed foundations (for reference)
 - Data models with provenance; async loaders/writers
