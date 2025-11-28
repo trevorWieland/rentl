@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from rentl_agents.hitl.approval import ApprovalGate, ApprovalPolicy
+from rentl_agents.hitl.approval import ApprovalGate, ApprovalPolicy, ProvenanceValue
 
 
 def request_if_human_authored(
     *,
     operation: str,
     target: str,
-    current_value: object,
+    current_value: ProvenanceValue,
     current_origin: str | None,
-    proposed_value: object,
+    proposed_value: ProvenanceValue,
     policy: ApprovalPolicy = ApprovalPolicy.STANDARD,
 ) -> str | None:
     """Return an approval request message when overwriting human-authored data."""

@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from functools import partial
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, TypeVar
 
 import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -36,6 +36,9 @@ class TranslatorResult(BaseModel):
     lines_translated: int = Field(description="Total number of lines translated.")
     scenes_skipped: int = Field(description="Number of scenes skipped (already translated).")
     errors: list[PipelineError] = Field(default_factory=list, description="Errors encountered during translation.")
+
+
+_T = TypeVar("_T")
 
 
 async def _run_translator_async(
@@ -91,7 +94,7 @@ async def _run_translator_async(
         if progress_cb:
             progress_cb(f"{stage}_error", entity_id)
 
-    async def _bounded(scene_id: str, coro_factory: Callable[[], Awaitable[object]]) -> None:
+    async def _bounded(scene_id: str, coro_factory: Callable[[], Awaitable[_T]]) -> None:
         async with semaphore:
             try:
                 await run_with_retries(

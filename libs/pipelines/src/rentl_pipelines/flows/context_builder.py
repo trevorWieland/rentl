@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from functools import partial
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeVar
 
 import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -50,6 +50,9 @@ class ContextBuilderResult(BaseModel):
     glossary_entries_updated: int = Field(description="Number of glossary entries updated.")
     routes_detailed: int = Field(description="Number of routes detailed.")
     errors: list[PipelineError] = Field(default_factory=list, description="Errors encountered during processing.")
+
+
+_T = TypeVar("_T")
 
 
 async def _run_context_builder_async(
@@ -104,7 +107,7 @@ async def _run_context_builder_async(
         if progress_cb:
             progress_cb(f"{stage}_error", entity_id)
 
-    async def _bounded(stage: str, entity_id: str, coro_factory: Callable[[], Awaitable[object]]) -> None:
+    async def _bounded(stage: str, entity_id: str, coro_factory: Callable[[], Awaitable[_T]]) -> None:
         async with semaphore:
             try:
                 await run_with_retries(

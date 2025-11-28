@@ -2,19 +2,27 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, MutableMapping, Sequence
-from typing import Any
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
+from typing import TypeVar, cast
 from uuid import uuid4
 
 from langchain_core.runnables import Runnable, RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.types import Command
+from langgraph.types import Command, Interrupt
 from rentl_core.util.logging import get_logger
 
 logger = get_logger(__name__)
 
+JSONLike = str | int | float | bool | Sequence["JSONLike"] | Mapping[str, "JSONLike"] | None
+Decision = dict[str, str] | str
+_AgentInput = TypeVar("_AgentInput")
+_AgentOutput = TypeVar("_AgentOutput")
+InterruptPayload = MutableMapping[str, JSONLike]
+# LangGraph interrupt payloads are intentionally loosely typed; confine the weakly typed
+# mapping to this module boundary so the rest of the codebase stays strongly typed.
 
-def _extract_interrupt_messages(interrupts: Sequence[object]) -> list[str]:
+
+def _extract_interrupt_messages(interrupts: Sequence[Interrupt | JSONLike]) -> list[str]:
     """Normalize interrupt payloads into strings for human review.
 
     Returns:
@@ -22,8 +30,11 @@ def _extract_interrupt_messages(interrupts: Sequence[object]) -> list[str]:
     """
     messages: list[str] = []
     for interrupt in interrupts:
-        value = getattr(interrupt, "value", None)
-        if value is None:
+        value = interrupt.value if isinstance(interrupt, Interrupt) else None
+
+        if value is None and isinstance(interrupt, str):
+            messages.append(interrupt)
+        elif value is None:
             messages.append(str(interrupt))
         elif isinstance(value, str):
             messages.append(value)
@@ -32,13 +43,13 @@ def _extract_interrupt_messages(interrupts: Sequence[object]) -> list[str]:
     return messages
 
 
-def _format_decisions(decisions: list[str | dict[str, Any]]) -> list[dict[str, Any]]:
+def _format_decisions(decisions: Sequence[Decision]) -> list[dict[str, str]]:
     """Convert simple string decisions into Command resume payloads.
 
     Returns:
-        list[dict[str, Any]]: Normalized decision dicts accepted by Command.
+        list[dict[str, str]]: Normalized decision dicts accepted by Command.
     """
-    formatted: list[dict[str, Any]] = []
+    formatted: list[dict[str, str]] = []
     for decision in decisions:
         if isinstance(decision, dict):
             formatted.append(decision)
@@ -48,16 +59,16 @@ def _format_decisions(decisions: list[str | dict[str, Any]]) -> list[dict[str, A
 
 
 async def run_with_human_loop(
-    agent: Runnable[object, object] | CompiledStateGraph,
-    user_input: object,
+    agent: Runnable[_AgentInput | Command, _AgentOutput] | CompiledStateGraph,
+    user_input: _AgentInput,
     *,
-    decision_handler: Callable[[list[str]], list[str | dict[str, Any]]] | None = None,
+    decision_handler: Callable[[list[str]], list[Decision]] | None = None,
     thread_id: str | None = None,
-) -> object:
+) -> _AgentOutput:
     """Invoke an agent and handle HITL interrupts with a decision handler.
 
     Returns:
-        object: Final agent result after handling any interrupts.
+        Agent output type: Final agent result after handling any interrupts.
 
     Raises:
         RuntimeError: If an interrupt occurs and no decision handler was supplied.
@@ -65,7 +76,7 @@ async def run_with_human_loop(
     config: RunnableConfig = {"configurable": {"thread_id": thread_id or str(uuid4())}}
     logger.info("Agent invoke start thread_id=%s", config["configurable"]["thread_id"])
 
-    result: object = await agent.ainvoke(user_input, config=config)
+    result: _AgentOutput | InterruptPayload = await agent.ainvoke(user_input, config=config)
 
     while isinstance(result, MutableMapping):
         if "__interrupt__" not in result:
@@ -75,9 +86,14 @@ async def run_with_human_loop(
             message = "Agent requested approval but no decision handler was provided."
             raise RuntimeError(message)
 
-        interrupt_payload: dict[str, object] = {str(key): value for key, value in result.items()}
+        interrupt_payload: dict[str, JSONLike] = {str(key): cast(JSONLike, value) for key, value in result.items()}
         interrupt_obj = interrupt_payload.get("__interrupt__")
-        interrupt_seq: Sequence[object] = interrupt_obj if isinstance(interrupt_obj, Sequence) else [interrupt_obj]
+        if interrupt_obj is None:
+            interrupt_seq: Sequence[Interrupt | JSONLike] = []
+        elif isinstance(interrupt_obj, Sequence) and not isinstance(interrupt_obj, (str, bytes, bytearray)):
+            interrupt_seq = list(interrupt_obj)
+        else:
+            interrupt_seq = [interrupt_obj]
         requests = _extract_interrupt_messages(interrupt_seq)
         logger.info("Agent interrupt: %s", "; ".join(requests))
 
@@ -87,4 +103,4 @@ async def run_with_human_loop(
         result = await agent.ainvoke(resume_payload, config=config)
 
     logger.info("Agent invoke complete thread_id=%s", config["configurable"]["thread_id"])
-    return result
+    return cast(_AgentOutput, result)

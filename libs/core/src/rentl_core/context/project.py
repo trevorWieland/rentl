@@ -6,7 +6,6 @@ import asyncio
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
 
 import anyio
 import orjson
@@ -195,10 +194,15 @@ class ProjectContext:
             return "No style guide found."
         return await path.read_text()
 
-    def get_ui_config(self) -> dict[str, Any]:
-        """Return UI configuration from game metadata (e.g., max line length)."""
-        ui = self.game.ui or {}
-        return dict(ui)
+    def get_ui_config(self) -> dict[str, int | bool | str]:
+        """Return UI configuration from game metadata (e.g., max line length).
+
+        Notes:
+            UI constraints are normalized to primitives to avoid leaking ``Any`` into callers.
+        """
+        ui = self.game.ui.model_dump(exclude_none=True)
+        # max_line_length -> int, allow_word_wrap -> bool, charset -> str
+        return {key: value for key, value in ui.items()}
 
     async def set_scene_summary(
         self,

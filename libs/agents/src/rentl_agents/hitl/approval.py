@@ -6,7 +6,11 @@ human-in-the-loop controls based on provenance tracking (*_origin fields).
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
+
+ProvenanceValue = str | list[str] | None
+ProvenanceEntry = Mapping[str, str | None]
 
 
 class ApprovalPolicy(StrEnum):
@@ -66,7 +70,7 @@ def is_agent_authored(origin: str | None) -> bool:
 
 
 def check_field_approval(
-    field_value: object,
+    field_value: ProvenanceValue,
     field_origin: str | None,
     policy: ApprovalPolicy = ApprovalPolicy.STANDARD,
 ) -> bool:
@@ -109,8 +113,8 @@ def check_field_approval(
 
 
 def check_entry_approval(
-    entry: dict[str, object],
-    origin_fields: list[str],
+    entry: ProvenanceEntry,
+    origin_fields: Sequence[str],
     policy: ApprovalPolicy = ApprovalPolicy.STANDARD,
 ) -> bool:
     """Check if approval is needed to delete an entry based on provenance.
@@ -153,8 +157,8 @@ def format_approval_request(
     operation: str,
     target: str,
     reason: str,
-    old_value: object = None,
-    new_value: object = None,
+    old_value: ProvenanceValue = None,
+    new_value: ProvenanceValue = None,
 ) -> str:
     """Format a concise, single-line approval request message.
 
@@ -215,10 +219,10 @@ class ApprovalGate:
 
     def requires_approval(
         self,
-        field_value: object = None,
+        field_value: ProvenanceValue = None,
         field_origin: str | None = None,
-        entry: dict[str, object] | None = None,
-        origin_fields: list[str] | None = None,
+        entry: ProvenanceEntry | None = None,
+        origin_fields: Sequence[str] | None = None,
     ) -> bool:
         """Check if approval is required for the operation.
 
@@ -239,8 +243,8 @@ class ApprovalGate:
     def format_request(
         self,
         reason: str,
-        old_value: object = None,
-        new_value: object = None,
+        old_value: ProvenanceValue = None,
+        new_value: ProvenanceValue = None,
     ) -> str:
         """Format an approval request message.
 
