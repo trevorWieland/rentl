@@ -14,7 +14,7 @@ from rentl_pipelines.flows.context_builder import run_context_builder
 from rentl_pipelines.flows.editor import run_editor
 from rentl_pipelines.flows.translator import run_translator
 
-from rentl_cli.cli_types import ProjectPathArgument
+from rentl_cli.cli_types import ProjectPathOption
 from rentl_cli.utils.baseline import write_baseline
 
 
@@ -51,7 +51,7 @@ def _progress_printer(verbose: bool) -> Callable[[str, str], None] | None:
 
 
 def context(
-    project_path: ProjectPathArgument = Path("examples/tiny_vn"),
+    project_path: ProjectPathOption = Path("."),
     overwrite: Annotated[bool, typer.Option(help="Allow overwriting existing metadata.")] = False,
     mode: Annotated[
         Literal["overwrite", "gap-fill", "new-only"],
@@ -89,7 +89,7 @@ def context(
 
 
 def translate(
-    project_path: ProjectPathArgument = Path("examples/tiny_vn"),
+    project_path: ProjectPathOption = Path("."),
     scene_ids: Annotated[
         list[str] | None, typer.Option("--scene", "-s", help="Specific scene IDs to translate (default: all).")
     ] = None,
@@ -128,7 +128,7 @@ def translate(
 
 
 def edit(
-    project_path: ProjectPathArgument = Path("examples/tiny_vn"),
+    project_path: ProjectPathOption = Path("."),
     scene_ids: Annotated[
         list[str] | None, typer.Option("--scene", "-s", help="Specific scene IDs to QA (default: all).")
     ] = None,
@@ -162,7 +162,7 @@ def edit(
 
 
 def reset_example(
-    project_path: ProjectPathArgument = Path("examples/tiny_vn"),
+    project_path: ProjectPathOption = Path("examples/tiny_vn"),
 ) -> None:
     """Reset example project metadata/output to a clean baseline for repeatable tests."""
     output_dir = project_path / "output"

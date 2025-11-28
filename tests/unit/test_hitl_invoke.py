@@ -1,4 +1,5 @@
 """Unit tests for HITL invocation helper."""
+# ruff: noqa: ANN401  # Base Runnable signatures require **kwargs: Any; match exactly for override compatibility.
 
 from __future__ import annotations
 
@@ -6,7 +7,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import pytest
-from langchain_core.runnables import Runnable
+from langchain_core.runnables import Runnable, RunnableConfig
 from rentl_agents.hitl.invoke import run_with_human_loop
 
 
@@ -28,12 +29,12 @@ class FakeAgent(Runnable[object, object]):
         self.responses = list(responses)
         self.calls: list[dict[str, Any]] = []
 
-    def invoke(self, input: object, *, config: object | None = None, **kwargs: object) -> object:
+    def invoke(self, input: object, config: RunnableConfig | None = None, **kwargs: Any) -> object:
         """Synchronously invoke by delegating to async implementation for interface completeness."""
         message = "FakeAgent.invoke is not implemented; use ainvoke in tests."
         raise NotImplementedError(message)
 
-    async def ainvoke(self, payload: object, *, config: object | None = None) -> object:
+    async def ainvoke(self, input: object, config: RunnableConfig | None = None, **kwargs: Any) -> object:
         """Simulate agent invocation by returning queued responses.
 
         Returns:
@@ -42,7 +43,7 @@ class FakeAgent(Runnable[object, object]):
         Raises:
             RuntimeError: If no responses remain.
         """
-        self.calls.append({"payload": payload, "config": config})
+        self.calls.append({"payload": input, "config": config})
         if not self.responses:
             message = "No more responses queued."
             raise RuntimeError(message)

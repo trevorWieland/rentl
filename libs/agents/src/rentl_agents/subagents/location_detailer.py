@@ -79,7 +79,10 @@ async def detail_location(
         LocationDetailResult: Updated location metadata.
     """
     logger.info("Detailing location %s", location_id)
-    subagent = create_location_detailer_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or await get_default_checkpointer()
+    subagent = create_location_detailer_subagent(
+        context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
+    )
 
     target_lang = context.game.target_lang.upper()
 
@@ -128,7 +131,7 @@ def create_location_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    checkpointer: BaseCheckpointSaver | None = None,
+    checkpointer: BaseCheckpointSaver,
 ) -> CompiledStateGraph:
     """Create location detailer LangChain subagent and return the runnable graph.
 
@@ -141,13 +144,12 @@ def create_location_detailer_subagent(
         "update_location_name_tgt": True,
         "update_location_description": True,
     }
-    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=effective_checkpointer,
+        checkpointer=checkpointer,
     )
 
     return graph

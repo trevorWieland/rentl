@@ -68,7 +68,7 @@ async def _run_translator_async(
     """
     logger.info("Starting Translator pipeline for %s", project_path)
     context = await load_project_context(project_path)
-    effective_checkpointer = checkpointer or get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+    effective_checkpointer = checkpointer or await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
 
     # Determine which scenes to translate
     target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())

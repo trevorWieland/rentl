@@ -76,7 +76,7 @@ async def _run_editor_async(
     """
     logger.info("Starting Editor pipeline for %s", project_path)
     context = await load_project_context(project_path)
-    effective_checkpointer = checkpointer or get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+    effective_checkpointer = checkpointer or await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
     output_reports_dir = project_path / "output" / "reports"
     if report_path is None:
         report_path = output_reports_dir / REPORT_FILENAME

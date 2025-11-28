@@ -1,26 +1,23 @@
 {
-    "title": "tiny_vn",
-    "title_origin": "human",
-    "description": "Small sample VN showcasing multi-route translation pipeline.",
-    "description_origin": "human",
-    "source_lang": "jpn",
-    "target_lang": "eng",
-    "genres": [
-        "romance",
-        "slice_of_life"
-    ],
-    "genres_origin": "human",
-    "synopsis": "A transfer student navigates friendships with Aya and Ren while preparing for the school festival.",
-    "synopsis_origin": "human",
-    "timeline": [
-        {"when": "Day 1", "event": "Arrival at new school"},
-        {"when": "Day 2", "event": "Festival planning begins"},
-        {"when": "Day 3", "event": "Rooftop confession"}
-    ],
-    "timeline_origin": "human",
-    "ui": {
-        "max_line_length": 42,
-        "allow_word_wrap": true,
-        "charset": "unicode"
-    }
+  "title": "tiny_vn",
+  "title_origin": "human",
+  "title_src": null,
+  "title_src_origin": null,
+  "title_tgt": null,
+  "title_tgt_origin": null,
+  "description": "Starter baseline for rentl demo.",
+  "description_origin": "human",
+  "source_lang": "jpn",
+  "target_lang": "eng",
+  "genres": [],
+  "genres_origin": "human",
+  "synopsis": null,
+  "synopsis_origin": null,
+  "timeline": [],
+  "timeline_origin": null,
+  "ui": {
+    "max_line_length": 42,
+    "allow_word_wrap": true,
+    "charset": "unicode"
+  }
 }

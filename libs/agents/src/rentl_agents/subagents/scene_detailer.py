@@ -84,7 +84,10 @@ async def detail_scene(
     """
     logger.info("Detailing scene %s", scene_id)
     lines = await context.load_scene_lines(scene_id)
-    subagent = create_scene_detailer_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or await get_default_checkpointer()
+    subagent = create_scene_detailer_subagent(
+        context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
+    )
 
     source_lang = context.game.source_lang.upper()
     line_count = len(lines)
@@ -141,7 +144,7 @@ def create_scene_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    checkpointer: BaseCheckpointSaver | None = None,
+    checkpointer: BaseCheckpointSaver,
 ) -> CompiledStateGraph:
     """Create scene detailer LangChain subagent and return the runnable graph.
 
@@ -156,13 +159,12 @@ def create_scene_detailer_subagent(
         "write_primary_characters": True,
         "write_scene_locations": True,
     }
-    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=effective_checkpointer,
+        checkpointer=checkpointer,
     )
 
     return graph

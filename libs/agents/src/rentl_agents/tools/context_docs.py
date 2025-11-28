@@ -21,6 +21,11 @@ def build_context_doc_tools(context: ProjectContext) -> list:
     @tool("read_context_doc")
     async def read_context_doc(filename: str) -> str:
         """Return the contents of a context document."""
-        return await context.read_context_doc(filename)
+        try:
+            return await context.read_context_doc(filename)
+        except FileNotFoundError:
+            available = await context.list_context_docs()
+            available_display = ", ".join(available) if available else "(none)"
+            return f"Context doc not found: {filename}. Available: {available_display}."
 
     return [list_context_docs, read_context_doc]

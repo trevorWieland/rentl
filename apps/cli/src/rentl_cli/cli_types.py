@@ -5,7 +5,14 @@ from typing import Annotated
 
 import typer
 
-ProjectPathArgument = Annotated[
+ProjectPathOption = Annotated[
     Path,
-    typer.Argument(..., exists=True, file_okay=False, dir_okay=True),
+    typer.Option(
+        "--project-path",
+        "-p",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Path to the game project (default: current directory).",
+    ),
 ]

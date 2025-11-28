@@ -88,7 +88,7 @@ uv run python -m rentl_cli.main context --project-path examples/tiny_vn
 ```
 
 **Available flags:**
-- `--project-path PATH`: Path to game project (default: `examples/tiny_vn`)
+- `--project-path PATH`: Path to game project (default: current directory; pass `examples/tiny_vn` for the included sample)
 - `--overwrite`: Allow agents to overwrite existing data
 - `--verbose`: Enable detailed logging
 - `--thread-id`: Resume a HITL-interrupted run (persisted checkpoints under `.rentl/checkpoints.db`)

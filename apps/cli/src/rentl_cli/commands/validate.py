@@ -17,7 +17,7 @@ from rentl_core.io.loader import (
 )
 from rentl_core.util.logging import configure_logging
 
-from rentl_cli.cli_types import ProjectPathArgument
+from rentl_cli.cli_types import ProjectPathOption
 
 
 async def _validate_async(project_path: Path) -> None:
@@ -68,7 +68,7 @@ async def _validate_async(project_path: Path) -> None:
 
 
 def validate(
-    project_path: ProjectPathArgument = Path("examples/tiny_vn"),
+    project_path: ProjectPathOption = Path("."),
     verbose: bool = typer.Option(False, "--verbose", help="Enable verbose logging."),
 ) -> None:
     """Run validation and exit with status 0 on success.

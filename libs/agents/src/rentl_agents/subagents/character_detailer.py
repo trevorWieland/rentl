@@ -84,7 +84,10 @@ async def detail_character(
         CharacterDetailResult: Updated character metadata.
     """
     logger.info("Detailing character %s", character_id)
-    subagent = create_character_detailer_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or await get_default_checkpointer()
+    subagent = create_character_detailer_subagent(
+        context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
+    )
 
     target_lang = context.game.target_lang.upper()
 
@@ -136,7 +139,7 @@ def create_character_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    checkpointer: BaseCheckpointSaver | None = None,
+    checkpointer: BaseCheckpointSaver,
 ) -> CompiledStateGraph:
     """Create character detailer LangChain subagent and return the runnable graph.
 
@@ -150,13 +153,12 @@ def create_character_detailer_subagent(
         "update_character_pronouns": True,
         "update_character_notes": True,
     }
-    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=effective_checkpointer,
+        checkpointer=checkpointer,
     )
 
     return graph

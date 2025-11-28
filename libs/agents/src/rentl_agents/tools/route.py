@@ -66,6 +66,8 @@ def build_route_tools(
             proposed_value=synopsis,
         )
         if approval:
+            if approval.startswith("No change"):
+                updated_synopsis.add(route_id)
             return approval
 
         origin = f"agent:route_detailer:{date.today().isoformat()}"
@@ -99,6 +101,8 @@ def build_route_tools(
             proposed_value=character_ids,
         )
         if approval:
+            if approval.startswith("No change"):
+                updated_characters.add(route_id)
             return approval
 
         origin = f"agent:route_detailer:{date.today().isoformat()}"

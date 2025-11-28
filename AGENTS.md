@@ -70,7 +70,7 @@ scene_detailer = create_agent(
 from rentl_agents.hitl.invoke import run_with_human_loop
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 
-checkpointer = get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+checkpointer = await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
 
 await run_with_human_loop(
     scene_detailer,

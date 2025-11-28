@@ -82,7 +82,7 @@ async def _run_context_builder_async(
     """
     logger.info("Starting Context Builder pipeline for %s", project_path)
     context = await load_project_context(project_path)
-    effective_checkpointer = checkpointer or get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+    effective_checkpointer = checkpointer or await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
     allow_overwrite = mode == "overwrite"
     scenes_to_run = _filter_scenes(context.scenes.values(), mode)
     characters_to_run = _filter_characters(context.characters.values(), mode)

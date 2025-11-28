@@ -2,31 +2,27 @@
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 
+import aiosqlite
+import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from rentl_core.util.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def _ensure_parent(path: Path) -> None:
-    """Ensure parent directories exist for the checkpoint database."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+async def _load_sqlite_saver(db_path: Path) -> BaseCheckpointSaver:
+    """Return an async SQLite-backed checkpointer."""
+    await anyio.Path(db_path.parent).mkdir(parents=True, exist_ok=True)
+    connection = await aiosqlite.connect(db_path)
+    return AsyncSqliteSaver(connection)
 
 
-def _load_sqlite_saver(db_path: Path) -> BaseCheckpointSaver:
-    """Return a SQLite-backed checkpointer."""
-    _ensure_parent(db_path)
-    connection = sqlite3.connect(db_path)
-    return SqliteSaver(connection)
-
-
-def get_default_checkpointer(sqlite_path: str | Path | None = None) -> BaseCheckpointSaver:
-    """Return the preferred checkpointer for subagents.
+async def get_default_checkpointer(sqlite_path: str | Path | None = None) -> BaseCheckpointSaver:
+    """Return the preferred checkpointer for subagents (async-only).
 
     Args:
         sqlite_path: Optional path to a sqlite database for persistence. If not
@@ -44,7 +40,7 @@ def get_default_checkpointer(sqlite_path: str | Path | None = None) -> BaseCheck
             path = Path(db_env)
 
     if path:
-        return _load_sqlite_saver(path)
+        return await _load_sqlite_saver(path)
 
     logger.info("No checkpoint db specified; using MemorySaver for HITL checkpoints.")
     return MemorySaver()

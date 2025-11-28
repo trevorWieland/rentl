@@ -156,44 +156,14 @@ def format_approval_request(
     old_value: object = None,
     new_value: object = None,
 ) -> str:
-    """Format a human-readable approval request message.
-
-    Args:
-        operation: Type of operation (e.g., "update", "delete", "add").
-        target: Target of the operation (e.g., "character.name_tgt", "glossary entry").
-        reason: Explanation of why approval is needed.
-        old_value: Current/old value (optional).
-        new_value: Proposed new value (optional).
+    """Format a concise, single-line approval request message.
 
     Returns:
-        str: Formatted approval request message.
-
-    Examples:
-        >>> msg = format_approval_request(
-        ...     "update",
-        ...     "character.name_tgt",
-        ...     "Field is human-authored",
-        ...     old_value="Aya",
-        ...     new_value="Ayane"
-        ... )
-        >>> print(msg)  # doctest: +NORMALIZE_WHITESPACE
-        APPROVAL REQUIRED: update character.name_tgt
-        Reason: Field is human-authored
-        Current: Aya
-        Proposed: Ayane
+        str: Human-readable approval prompt including reason and value changes.
     """
-    lines = [
-        f"APPROVAL REQUIRED: {operation} {target}",
-        f"Reason: {reason}",
-    ]
-
-    if old_value is not None:
-        lines.append(f"Current: {old_value}")
-
-    if new_value is not None:
-        lines.append(f"Proposed: {new_value}")
-
-    return "\n".join(lines)
+    current_display = f" current={old_value!r}" if old_value is not None else ""
+    proposed_display = f" -> proposed={new_value!r}" if new_value is not None else ""
+    return f"APPROVAL REQUIRED: {operation} {target} ({reason}){current_display}{proposed_display}"
 
 
 class ApprovalGate:

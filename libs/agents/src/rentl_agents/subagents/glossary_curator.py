@@ -57,7 +57,7 @@ def create_glossary_curator_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    checkpointer: BaseCheckpointSaver | None = None,
+    checkpointer: BaseCheckpointSaver,
 ) -> CompiledStateGraph:
     """Create glossary curator subagent for terminology management and return the runnable graph.
 
@@ -73,13 +73,12 @@ def create_glossary_curator_subagent(
         "delete_glossary_entry": True,
     }
 
-    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=effective_checkpointer,
+        checkpointer=checkpointer,
     )
     return graph
 
@@ -107,7 +106,10 @@ async def detail_glossary(
     logger.info("Curating glossary")
     initial_count = len(context.glossary)
 
-    subagent = create_glossary_curator_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or await get_default_checkpointer()
+    subagent = create_glossary_curator_subagent(
+        context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
+    )
 
     source_lang = context.game.source_lang.upper()
     target_lang = context.game.target_lang.upper()

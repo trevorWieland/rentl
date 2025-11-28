@@ -79,7 +79,10 @@ async def detail_route(
         RouteDetailResult: Updated route metadata.
     """
     logger.info("Detailing route %s", route_id)
-    subagent = create_route_detailer_subagent(context, allow_overwrite=allow_overwrite, checkpointer=checkpointer)
+    effective_checkpointer: BaseCheckpointSaver = checkpointer or await get_default_checkpointer()
+    subagent = create_route_detailer_subagent(
+        context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
+    )
 
     user_prompt = f"""Enrich metadata for this route.
 
@@ -87,7 +90,7 @@ Route ID: {route_id}
 
 Instructions:
 1. Read the route's current metadata (including scene list)
-2. Review any context documents that mention this route
+2. Only read context documents returned by list_context_docs if they look relevant
 3. Update synopsis with a concise narrative summary (1-3 sentences covering the route's arc) using update_route_synopsis(route_id, synopsis)
 4. Update primary_characters with key character IDs featured in this route using update_route_characters(route_id, ids)
 5. End conversation when all updates are complete
@@ -124,7 +127,7 @@ def create_route_detailer_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
-    checkpointer: BaseCheckpointSaver | None = None,
+    checkpointer: BaseCheckpointSaver,
 ) -> CompiledStateGraph:
     """Create route detailer LangChain subagent and return the runnable graph.
 
@@ -137,13 +140,12 @@ def create_route_detailer_subagent(
         "update_route_synopsis": True,
         "update_route_characters": True,
     }
-    effective_checkpointer: BaseCheckpointSaver = checkpointer or get_default_checkpointer()
     graph = create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         middleware=[HumanInTheLoopMiddleware(interrupt_on=interrupt_on)],
-        checkpointer=effective_checkpointer,
+        checkpointer=checkpointer,
     )
 
     return graph
