@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from shutil import rmtree
 from typing import Annotated, Literal
@@ -38,6 +39,17 @@ def _prompt_decisions(requests: list[str]) -> list[str | dict[str, str]]:
     return decisions
 
 
+def _progress_printer(verbose: bool) -> Callable[[str, str], None] | None:
+    """Return a progress callback that logs events when verbose is enabled."""
+    if not verbose:
+        return None
+
+    def _cb(event: str, entity: str) -> None:
+        typer.echo(f"[progress] {event} :: {entity}")
+
+    return _cb
+
+
 def context(
     project_path: ProjectPathArgument = Path("examples/tiny_vn"),
     overwrite: Annotated[bool, typer.Option(help="Allow overwriting existing metadata.")] = False,
@@ -61,6 +73,7 @@ def context(
         concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
+        progress_cb=_progress_printer(verbose),
     )
 
     # Display results
@@ -71,6 +84,8 @@ def context(
     typer.echo(f"  Glossary entries added: {result.glossary_entries_added}")
     typer.echo(f"  Glossary entries updated: {result.glossary_entries_updated}")
     typer.echo(f"  Routes detailed: {result.routes_detailed}")
+    if result.errors:
+        typer.secho(f"  Errors: {len(result.errors)} (see logs for details)", fg=typer.colors.RED)
 
 
 def translate(
@@ -100,6 +115,7 @@ def translate(
         concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
+        progress_cb=_progress_printer(verbose),
     )
 
     # Display results
@@ -107,6 +123,8 @@ def translate(
     typer.echo(f"  Scenes translated: {result.scenes_translated}")
     typer.echo(f"  Lines translated: {result.lines_translated}")
     typer.echo(f"  Scenes skipped: {result.scenes_skipped}")
+    if result.errors:
+        typer.secho(f"  Errors: {len(result.errors)} (see logs for details)", fg=typer.colors.RED)
 
 
 def edit(
@@ -134,10 +152,13 @@ def edit(
         concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
+        progress_cb=_progress_printer(verbose),
     )
 
     typer.secho("\nEditor Complete!", fg=typer.colors.GREEN, bold=True)
     typer.echo(f"  Scenes checked: {result.scenes_checked}")
+    if result.errors:
+        typer.secho(f"  Errors: {len(result.errors)} (see logs for details)", fg=typer.colors.RED)
 
 
 def reset_example(

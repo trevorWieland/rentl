@@ -675,6 +675,7 @@ async def test_full_context_pipeline():
 - **Use deterministic fixtures** for reproducible results
 - **Test edge cases**: empty fields, missing metadata, invalid provenance
 - **Don't commit test API keys** - use mock credentials
+- **Prefer real ProjectContext data** for pipelines: seed with `examples/tiny_vn` (or `write_baseline`) and only mock LLM/model calls rather than fabricating context objects
 
 ---
 

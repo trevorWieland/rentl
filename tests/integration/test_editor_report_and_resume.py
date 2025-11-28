@@ -1,0 +1,59 @@
+"""Integration tests for editor report output and SQLite checkpointer."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import anyio
+import pytest
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from rentl_agents.subagents.consistency_checks import ConsistencyCheckResult
+from rentl_agents.subagents.style_checks import StyleCheckResult
+from rentl_agents.subagents.translation_reviewer import TranslationReviewResult
+from rentl_cli.utils.baseline import write_baseline
+from rentl_pipelines.flows.editor import EditorResult, _run_editor_async
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    """Force asyncio backend.
+
+    Returns:
+        str: The backend name.
+    """
+    return "asyncio"
+
+
+@pytest.mark.anyio
+async def test_editor_writes_report_and_uses_sqlite_checkpointer(tmp_path: Path) -> None:
+    """Editor pipeline should write a report and accept a SQLite checkpointer."""
+    await write_baseline(tmp_path)
+    report_path = tmp_path / "output" / "reports" / "editor_report_test.json"
+    db_path = tmp_path / ".rentl" / "checkpoints.db"
+    await anyio.Path(db_path.parent).mkdir(parents=True, exist_ok=True)
+    async with AsyncSqliteSaver.from_conn_string(str(db_path)) as checkpointer:
+
+        async def style_ok(context: object, scene_id: str, **_: object) -> StyleCheckResult:
+            await anyio.sleep(0.001)
+            return StyleCheckResult(scene_id=scene_id, checks_recorded=1)
+
+        async def consistency_ok(context: object, scene_id: str, **_: object) -> ConsistencyCheckResult:
+            await anyio.sleep(0.001)
+            return ConsistencyCheckResult(scene_id=scene_id, checks_recorded=1)
+
+        async def review_ok(context: object, scene_id: str, **_: object) -> TranslationReviewResult:
+            await anyio.sleep(0.001)
+            return TranslationReviewResult(scene_id=scene_id, checks_recorded=1)
+
+        result: EditorResult = await _run_editor_async(
+            tmp_path,
+            concurrency=2,
+            checkpointer=checkpointer,
+            report_path=report_path,
+            style_runner=style_ok,
+            consistency_runner=consistency_ok,
+            review_runner=review_ok,
+        )
+
+        assert report_path.exists(), "Report file should be written."
+        assert result.scenes_checked > 0

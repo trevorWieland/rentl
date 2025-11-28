@@ -3,10 +3,9 @@
 This document tracks all tasks required to reach v1.0 of the Rentl translation pipeline.
 
 **Target**: Complete core translation pipeline with Context → Translate → Edit phases (Pretranslation in v1.1)
-**Current Status**: ~65% complete (CLI UX, persistence/resume, and testing still needed)
-**Estimated Remaining Work**: 1,300-2,200 lines of code
+**Current Status**: ~75% complete (CLI UX/resume, retries/progress surface, and testing still needed)
 
-**Direction update (2025-03)**: Top-level DeepAgents coordinators are being retired in favor of deterministic, phase-first pipelines that schedule LangChain subagents directly. HITL will rely on LangChain middleware + provenance-aware tools. UX will emphasize a Textual TUI (plus CLI) with per-phase dashboards and a HITL inbox.
+**Direction update**: Top-level DeepAgents coordinators are being retired in favor of deterministic, phase-first pipelines that schedule LangChain subagents directly. HITL will rely on LangChain middleware + provenance-aware tools. UX will emphasize a Textual TUI (plus CLI) with per-phase dashboards and a HITL inbox.
 
 ---
 
@@ -24,23 +23,21 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 
 ### Phase pipelines & execution
 - [ ] Polish deterministic runners (context/translate/edit) and add pretranslate when ready
-- [ ] Add queue-based execution with bounded concurrency and resumable thread IDs (HITL middleware + thread_id now wired; still need persistent checkpointer/resume UX)
-- [ ] Support modes: overwrite, gap-fill, new-only; per-scene/route targeting
-- [ ] Add retry/backoff, failure surfacing, and progress/state APIs for CLI/TUI
+- [x] Add queue-based execution with bounded concurrency and resumable thread IDs (HITL middleware + thread_id + SQLite checkpointer now wired)
+- [x] Support modes: overwrite, gap-fill, new-only; per-scene/route targeting
+- [x] Add retry/backoff and failure surfacing in pipelines (error collection + backoff added; progress callbacks wired)
+- [ ] Surface status/resume/failure details to CLI/TUI (status command + resume UX)
 
 ### CLI UX (TUI later)
-- [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring now present; need progress + resume UX)
+- [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring present; add status/resume command using checkpoints + progress callbacks)
 - [ ] Onboarding/smoke test for model config; `status` command for phase stats
 - [ ] Plan Textual TUI (phase dashboards, job queue, HITL inbox) after CLI parity
 
 ### Testing & fixtures
-- [ ] Unit/integration tests for pipelines with mocked LLMs and HITL decisions
-- [ ] Fixtures to reset `examples/tiny_vn` baseline before/after runs
-- [ ] QA output/report validation
-
-### Template & onboarding
-- [ ] Complete Copier template and wire `rentl init`
-- [ ] Document/setup flow for non-technical users (keys/models, smoke test)
+- [x] Unit/integration tests for pipelines with mocked LLMs and retry/error handling
+- [ ] HITL/resume persistence tests with SQLite checkpointer (interrupt/resume smoke)
+- [x] Fixtures to reset a temp tiny_vn baseline per test (no mutations to real example)
+- [x] QA output/report validation (editor report smoke test added)
 
 ### Completed foundations (for reference)
 - Data models with provenance; async loaders/writers
@@ -57,22 +54,24 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 
 ### Project Template
 - [ ] Implement Copier template structure
+- [ ] Complete Copier template and wire `rentl init`
+- [ ] Document/setup flow for non-technical users (keys/models, smoke test)
 - [ ] Template variables in `copier.yml`
 - [ ] Directory structure templates + default metadata files
 
 ---
 
-## 📦 SUPPORTING TASKS (Important but not blocking)
+## 📦 SUPPORTING TASKS
 
 ### Error Handling & Robustness
 - [ ] Add comprehensive error handling throughout
-  - [ ] Retry logic for transient LLM failures
+  - [x] Retry logic for transient LLM failures (pipeline backoff wrappers)
   - [ ] Graceful degradation
   - [ ] User-friendly error messages
   - [ ] Recovery mechanisms
 - [ ] Add progress reporting callbacks
-  - [ ] Scene-level progress
-  - [ ] Pipeline-level progress
+  - [x] Scene-level progress (callbacks + CLI verbose printing)
+  - [ ] Pipeline-level progress/state and resume UX
   - [ ] Time estimates
 - [ ] CLI verbosity tiers
   - [ ] Default: high-level progress/stats + subagent task starts/finishes (no LLM dumps)
@@ -87,103 +86,21 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [ ] Create API documentation
 - [ ] Add usage examples to README
 
-### Testing (Can be done in parallel)
-- [ ] Write unit tests for data models (~200 LOC)
+### Testing
+- [ ] Write unit tests for data models
   - [ ] Model validation tests
   - [ ] Provenance tracking tests
-- [ ] Write unit tests for loaders (~150 LOC)
+- [ ] Write unit tests for loaders
   - [ ] Async loader tests
   - [ ] Error case handling
-- [ ] Write integration tests for subagents (~300 LOC)
+- [ ] Write integration tests for subagents
   - [ ] Mock LLM responses
   - [ ] Tool execution tests
   - [ ] HITL approval tests
-- [ ] Write E2E tests for pipelines (~200 LOC)
-  - [ ] Full workflow tests
+- [ ] Write E2E tests for pipelines
+  - [ ] Full workflow tests with real LLMs
+  - [ ] agentevals-based testing
   - [ ] tiny_vn example validation
-
-### Example Project Completion
-- [ ] Complete tiny_vn translations
-  - [ ] Generate English translations for all 4 scenes
-  - [ ] Add QA reports
-  - [ ] Add sample context documents
-  - [ ] Demonstrate full workflow
-
----
-
-## 🎯 IMPLEMENTATION ORDER
-
-Recommended sequence for maximum efficiency:
-
-**Phase 1: Foundation (Week 1)**
-1. Add provenance tracking to models
-2. Implement translation output writer
-3. Build HITL approval framework
-
-**Phase 2: Translation Core (Week 2)**
-4. Implement scene_translator subagent
-5. Create translator pipeline
-6. Add `rentl translate` CLI command
-7. Test with tiny_vn example
-
-**Phase 3: Context Enhancement (Week 3)**
-8. Implement all detailer subagents
-9. Create context builder pipeline
-10. Add `rentl context` CLI command
-
-**Phase 4: Quality Assurance (Week 4)**
-11. Implement all editor subagents
-12. Create editor pipeline
-13. Add `rentl edit` CLI command
-
-**Phase 5: Polish & Testing (Week 5-6)**
-14. Complete project template
-15. Add `rentl init` command
-16. Write comprehensive tests
-17. Complete documentation
-18. Finalize tiny_vn example
-
----
-
-## 📊 PROGRESS METRICS
-
-**Lines of Code**:
-- Current: ~2,130 LOC
-- Target: ~4,500-5,500 LOC
-- Remaining: ~2,000-3,000 LOC
-
-**Components**:
-- [x] Data models (100% - provenance tracking complete with validation)
-- [x] Async loaders (100%)
-- [x] Basic CLI framework (100%)
-- [x] Scene detailer (100%)
-- [x] Context Builder subagents (100% - character, location, glossary, route detailers complete)
-- [x] Translator subagent (100% - scene_translator complete)
-- [x] HITL system (100% - provenance-based approval implemented)
-- [x] Editor subagents (style/consistency/reviewer) (100%)
-- [x] Full pipelines (context/translate/edit) (100%)
-- [ ] Project template (5%)
-- [ ] Tests (10% - unit coverage starting)
-
-**Subagents Status** (9/9 core subagents implemented):
-- [x] scene_detailer
-- [x] character_detailer
-- [x] location_detailer
-- [x] glossary_curator
-- [x] route_detailer
-- [x] scene_translator
-- [x] scene_style_checker
-- [x] scene_consistency_checker
-- [x] scene_translation_reviewer
-- [ ] detect_references (v1.1 - deferred)
-- [ ] detect_puns (v1.1 - deferred)
-
-**CLI Commands** (4/5 core implemented):
-- [x] validate
-- [x] context
-- [x] translate
-- [x] edit
-- [ ] init
 
 ---
 
@@ -198,31 +115,10 @@ A task is considered complete when:
 6. Documentation updated
 
 **v1.0 is complete when**:
-- [ ] Can initialize a new project with `rentl init`
+- [ ] Can initialize a new project using copier with `rentl init`
 - [x] Can validate project structure with `rentl validate`
 - [ ] Can enrich metadata with `rentl context` (with CLI HITL UX)
 - [ ] Can translate scenes with `rentl translate` (with CLI HITL UX/resume)
 - [ ] Can run QA checks with `rentl edit` (with report output)
-- [ ] 90% test coverage of high-impact code.
+- [ ] 90% test coverage.
 - [ ] Documentation is complete
-
----
-
-## 📝 NOTES
-
-- Focus on translation pipeline first (it's the core value)
-- HITL approval system is critical for user trust
-- Provenance tracking enables safe human-AI collaboration
-- Tests can be written in parallel by another developer
-- Web UI is explicitly deferred to v1.3
-- Keep MVP mindset: working pipeline > perfect code
-
-**Resolved questions**:
-1. **Translation approach**: Dual approach - subagents can translate directly OR call `mtl_translate()` tool for specialized translation models (e.g., Sugoi-14B-Ultra). MTL backend configured via env vars (MTL_URL, MTL_API_KEY, MTL_MODEL) using OpenAI-compatible interface.
-2. **Parallel processing**: Pipelines are deterministic; add bounded concurrency/queues in code (no LLM planners). Reruns derive from on-disk state.
-3. **Approval policies**: Defined in SCHEMAS.md - read_* (never approve), add_* (permissive/strict), update_* (standard checks provenance/strict always approves), delete_* (standard checks human authorship/strict always approves).
-4. **Progress reporting**: Log-level based. Non-verbose mode logs pipeline/subagent invocations only. Verbose mode (`--verbose`) shows detailed step logging. Future: Progress % from state-derived queues.
-
----
-
-*Last Updated: 2025-03-20*

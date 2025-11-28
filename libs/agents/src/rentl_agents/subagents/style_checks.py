@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from langchain.agents import create_agent
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
@@ -31,7 +32,9 @@ Workflow:
 5) Be concise and avoid restating the text. End when checks are recorded."""
 
 
-def create_style_checker_subagent(context: ProjectContext) -> CompiledStateGraph:
+def create_style_checker_subagent(
+    context: ProjectContext, *, checkpointer: BaseCheckpointSaver | None = None
+) -> CompiledStateGraph:
     """Create style checker LangChain subagent and return the runnable graph.
 
     Returns:
@@ -45,19 +48,29 @@ def create_style_checker_subagent(context: ProjectContext) -> CompiledStateGraph
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        checkpointer=checkpointer,
     )
 
     return graph
 
 
-async def run_style_checks(context: ProjectContext, scene_id: str) -> StyleCheckResult:
+async def run_style_checks(
+    context: ProjectContext,
+    scene_id: str,
+    *,
+    checkpointer: BaseCheckpointSaver | None = None,
+    thread_id: str | None = None,
+) -> StyleCheckResult:
     """Run style checker for a scene.
 
     Returns:
         StyleCheckResult: Recorded style check counts.
     """
-    subagent = create_style_checker_subagent(context)
-    await subagent.ainvoke({"messages": [{"role": "user", "content": f"Check style for {scene_id}."}]})
+    subagent = create_style_checker_subagent(context, checkpointer=checkpointer)
+    await subagent.ainvoke(
+        {"messages": [{"role": "user", "content": f"Check style for {scene_id}."}]},
+        config={"configurable": {"thread_id": thread_id or f"edit-style:{scene_id}"}},
+    )
     translations = await context.get_translations(scene_id)
     # Count checks recorded for this scene
     recorded = 0

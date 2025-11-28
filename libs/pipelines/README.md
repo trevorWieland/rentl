@@ -1,6 +1,6 @@
 # rentl-pipelines: Phase Pipelines
 
-Deterministic, phase-first pipelines that schedule LangChain subagents for context building, translation, pretranslation, and editing/QA. No LLM “coordinator” agents—pipelines are regular Python flows with queues, bounded concurrency, and human-in-the-loop pauses.
+Deterministic, phase-first pipelines that schedule LangChain subagents for context building, translation, and editing/QA. No LLM “coordinator” agents—pipelines are regular Python flows with queues, bounded concurrency, and human-in-the-loop pauses. Pretranslation is planned for v1.1.
 
 ---
 
@@ -26,7 +26,7 @@ Deterministic, phase-first pipelines that schedule LangChain subagents for conte
 
 - **Context pipeline**: runs scene/character/location/route/glossary detailers over incomplete entities; supports overwrite, gap-fill, or new-only modes.
 - **Translator pipeline**: runs scene translators for targeted scenes; respects overwrite flags and progress checks.
-- **Editor/QA pipeline**: runs style/consistency/reviewer subagents on translated scenes.
+- **Editor/QA pipeline**: runs style/consistency/reviewer subagents on translated scenes and writes a report.
 - **Pretranslation (v1.1)**: planned phase for idioms/references/accent profiling.
 
 ### Subagents (rentl-agents Package)
@@ -48,6 +48,7 @@ Subagents are specialized LangChain agents:
 - Error handling and retry logic
 - Progress reporting and result aggregation
 - Task-level parallelism (run independent subagents concurrently)
+- Optional checkpointers (SQLite/Memory) and resumable thread IDs
 
 ### Out of Scope
 

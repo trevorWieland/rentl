@@ -12,12 +12,19 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 import anyio
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.subagents.translate_scene import translate_scene
 from rentl_core.context.project import load_project_context
 from rentl_core.model.line import SourceLine
 from rentl_core.util.logging import get_logger
+
+from rentl_pipelines.flows.utils import (
+    PIPELINE_FAILURE_EXCEPTIONS,
+    PipelineError,
+    run_with_retries,
+)
 
 logger = get_logger(__name__)
 
@@ -28,6 +35,7 @@ class TranslatorResult(BaseModel):
     scenes_translated: int = Field(description="Number of scenes translated.")
     lines_translated: int = Field(description="Total number of lines translated.")
     scenes_skipped: int = Field(description="Number of scenes skipped (already translated).")
+    errors: list[PipelineError] = Field(default_factory=list, description="Errors encountered during translation.")
 
 
 async def _run_translator_async(
@@ -39,6 +47,8 @@ async def _run_translator_async(
     concurrency: int = 4,
     decision_handler: Callable[[list[str]], list[str | dict[str, str]]] | None = None,
     thread_id: str | None = None,
+    progress_cb: Callable[[str, str], None] | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> TranslatorResult:
     """Run the Translator pipeline asynchronously.
 
@@ -50,13 +60,15 @@ async def _run_translator_async(
         concurrency: Maximum concurrent scene translations.
         decision_handler: Callback to collect HITL decisions when interrupts fire.
         thread_id: Optional thread id for checkpointer continuity.
+        progress_cb: Optional callback invoked as (event, scene_id) per scene start.
+        checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
 
     Returns:
         TranslatorResult: Statistics about what was translated.
     """
     logger.info("Starting Translator pipeline for %s", project_path)
     context = await load_project_context(project_path)
-    checkpointer = get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+    effective_checkpointer = checkpointer or get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
 
     # Determine which scenes to translate
     target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())
@@ -70,33 +82,56 @@ async def _run_translator_async(
     base_thread = thread_id or "translate"
 
     semaphore = anyio.Semaphore(max(1, concurrency))
+    errors: list[PipelineError] = []
+    completed_scene_ids: list[str] = []
 
-    async def _bounded(coro: Awaitable[object]) -> None:
+    def _record_error(stage: str, entity_id: str, exc: BaseException) -> None:
+        errors.append(PipelineError(stage=stage, entity_id=entity_id, error=str(exc)))
+        logger.error("%s failed for %s: %s", stage, entity_id, exc)
+        if progress_cb:
+            progress_cb(f"{stage}_error", entity_id)
+
+    async def _bounded(scene_id: str, coro_factory: Callable[[], Awaitable[object]]) -> None:
         async with semaphore:
-            await coro
+            try:
+                await run_with_retries(
+                    coro_factory,
+                    on_retry=lambda attempt, exc: logger.warning(
+                        "Retrying translate for %s (attempt %d): %s", scene_id, attempt + 1, exc
+                    ),
+                )
+                completed_scene_ids.append(scene_id)
+                if progress_cb:
+                    progress_cb("translate_done", scene_id)
+            except PIPELINE_FAILURE_EXCEPTIONS as exc:
+                _record_error("translate_scene", scene_id, exc)
 
     async with anyio.create_task_group() as tg:
         for sid in remaining_scene_ids:
+            if progress_cb:
+                progress_cb("translate_start", sid)
             tg.start_soon(
                 _bounded,
-                translate_scene(
+                sid,
+                lambda sid=sid: translate_scene(
                     context,
                     sid,
                     allow_overwrite=allow_overwrite,
-                    checkpointer=checkpointer,
+                    checkpointer=effective_checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:{sid}",
                 ),
             )
 
     total_lines = 0
-    for sid in remaining_scene_ids:
+    for sid in completed_scene_ids:
         total_lines += len(await context.load_scene_lines(sid))
 
     result = TranslatorResult(
-        scenes_translated=len(remaining_scene_ids),
+        scenes_translated=len(completed_scene_ids),
         lines_translated=total_lines,
         scenes_skipped=scenes_skipped,
+        errors=errors,
     )
 
     logger.info("Translator pipeline complete: %s", result)
@@ -112,6 +147,8 @@ def run_translator(
     concurrency: int = 4,
     decision_handler: Callable[[list[str]], list[str | dict[str, str]]] | None = None,
     thread_id: str | None = None,
+    progress_cb: Callable[[str, str], None] | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> TranslatorResult:
     """Run the Translator pipeline to translate scenes.
 
@@ -123,6 +160,8 @@ def run_translator(
         concurrency: Maximum concurrent scene translations.
         decision_handler: Callback to collect HITL decisions when interrupts fire.
         thread_id: Optional thread id for checkpointer continuity.
+        progress_cb: Optional callback invoked as (event, scene_id) per scene start.
+        checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
 
     Returns:
         TranslatorResult: Statistics about what was translated.
@@ -137,6 +176,8 @@ def run_translator(
             concurrency=concurrency,
             decision_handler=decision_handler,
             thread_id=thread_id,
+            progress_cb=progress_cb,
+            checkpointer=checkpointer,
         )
     )
 

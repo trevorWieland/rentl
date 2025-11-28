@@ -76,7 +76,7 @@ LANGSMITH_API_KEY=optional-for-observability
 
 ## Basic Usage
 
-**Note**: Full Copier template and project scaffolding (`rentl init`) will be available in v1.0. For now, use the `examples/tiny_vn` project for testing.
+**Note**: Full Copier template and project scaffolding (`rentl init`) will be available later in v1.0. For now, use `examples/tiny_vn` or a temp baseline.
 
 ```bash
 # Validate metadata + scene files
@@ -91,12 +91,15 @@ uv run python -m rentl_cli.main context --project-path examples/tiny_vn
 - `--project-path PATH`: Path to game project (default: `examples/tiny_vn`)
 - `--overwrite`: Allow agents to overwrite existing data
 - `--verbose`: Enable detailed logging
+- `--thread-id`: Resume a HITL-interrupted run (persisted checkpoints under `.rentl/checkpoints.db`)
 
-**Coming in v1.0**:
+Pipelines include bounded concurrency, retry/backoff for transient errors, and scene-level progress callbacks. In `--verbose` mode, the CLI prints start/done/error events per entity and summarizes any errors at the end of a run.
+
+**In progress for v1.0**:
 - `rentl init` - Initialize a new game project from Copier template
 - `rentl context` - Run Context Builder phase (all detailer subagents)
 - `rentl translate` - Run Translator phase
-- `rentl edit` - Run Editor phase (QA checks)
+- `rentl edit` - Run Editor phase (QA checks + report output)
 - Persistent HITL/resume via SQLite checkpointer (`.rentl/checkpoints.db` by default; override with `RENTL_CHECKPOINT_DB`)
 
 ---
@@ -150,11 +153,11 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 
 ## Agents (v1.0)
 
-| Agent            | Responsibilities                                                                  | Status           |
-|------------------|-----------------------------------------------------------------------------------|------------------|
-| Context Builder  | Scene, character, location, glossary, and route metadata enrichment               | **In progress**  |
-| Translator       | Consume context, produce aligned JP→EN translations                               | Planned          |
-| Editor           | QA checks (style, consistency, translation quality), flag issues for retranslation | Planned          |
+| Agent            | Responsibilities                                                                  | Status              |
+|------------------|-----------------------------------------------------------------------------------|---------------------|
+| Context Builder  | Scene, character, location, glossary, and route metadata enrichment               | **Implemented**     |
+| Translator       | Consume context, produce aligned JP→EN translations                               | **Implemented**     |
+| Editor           | QA checks (style, consistency, translation quality), flag issues for retranslation | **Implemented**     |
 
 ---
 
@@ -162,55 +165,55 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 
 ### Context Builder Subagents (v1.0)
 
-| Subagent            | Purpose                                                                                  | Status           |
-|---------------------|------------------------------------------------------------------------------------------|------------------|
-| `scene_detailer`    | Generates scene summaries, tags, primary characters, and locations                       | **Implemented**  |
-| `character_detailer`| Expands character bios, pronoun guidance, speech pattern notes                           | Planned          |
-| `location_detailer` | Captures location descriptions, mood cues, atmospheric details                           | Planned          |
-| `glossary_detailer` | Proposes new glossary entries or updates via HITL approval                               | Planned          |
-| `route_detailer`    | Enriches route metadata (synopsis, primary characters) with human supervision            | Planned          |
+| Subagent            | Purpose                                                                                  | Status              |
+|---------------------|------------------------------------------------------------------------------------------|---------------------|
+| `scene_detailer`    | Generates scene summaries, tags, primary characters, and locations                       | **Implemented**     |
+| `character_detailer`| Expands character bios, pronoun guidance, speech pattern notes                           | **Implemented**     |
+| `location_detailer` | Captures location descriptions, mood cues, atmospheric details                           | **Implemented**     |
+| `glossary_detailer` | Proposes new glossary entries or updates via HITL approval                               | **Implemented**     |
+| `route_detailer`    | Enriches route metadata (synopsis, primary characters) with human supervision            | **Implemented**     |
 
 ### Translator Subagents (v1.0)
 
-| Subagent           | Purpose                                                                                           | Status  |
-|--------------------|---------------------------------------------------------------------------------------------------|---------|
-| `scene_translator` | Dual approach: direct context-aware translation OR specialized MTL model calls (e.g., Sugoi-14B)  | Planned |
+| Subagent           | Purpose                                                                                           | Status          |
+|--------------------|---------------------------------------------------------------------------------------------------|-----------------|
+| `scene_translator` | Dual approach: direct context-aware translation OR specialized MTL model calls (e.g., Sugoi-14B)  | **Implemented** |
 
 ### Editor Subagents (v1.0)
 
-| Subagent                      | Purpose                                                                      | Status  |
-|-------------------------------|------------------------------------------------------------------------------|---------|
-| `scene_style_checker`         | Enforces style guide (tone, honorific policies, formatting)                  | Planned |
-| `scene_consistency_checker`   | Cross-scene review for terminology, pronouns, character names                | Planned |
-| `scene_translation_reviewer`  | Reviews translation quality, flags lines for retranslation                   | Planned |
+| Subagent                      | Purpose                                                                      | Status          |
+|-------------------------------|------------------------------------------------------------------------------|-----------------|
+| `scene_style_checker`         | Enforces style guide (tone, honorific policies, formatting)                  | **Implemented** |
+| `scene_consistency_checker`   | Cross-scene review for terminology, pronouns, character names                | **Implemented** |
+| `scene_translation_reviewer`  | Reviews translation quality, flags lines for retranslation                   | **Implemented** |
 
 ---
 
 ## Tools (v1.0)
 
-| Tool                      | Description                                                              | Agents/Subagents        | Status        |
-|---------------------------|--------------------------------------------------------------------------|-------------------------|---------------|
-| `read_scene_overview`     | Scene metadata + transcript + stored summary (hidden when overwriting)   | Context, Translator     | **Implemented** |
-| `list_context_docs`       | Lists documents under `metadata/context_docs/`                           | All agents              | **Implemented** |
-| `read_context_doc`        | Returns contents of a context document                                   | All agents              | **Implemented** |
-| `write_scene_summary`     | Writes scene summary (single-use; overwrite requires flag)               | Context                 | **Implemented** |
-| `write_scene_tags`        | Writes scene tags (single-use; overwrite requires flag)                  | Context                 | **Implemented** |
-| `write_primary_characters`| Writes primary character IDs (single-use; overwrite requires flag)       | Context                 | **Implemented** |
-| `write_scene_locations`   | Writes location IDs (single-use; overwrite requires flag)                | Context                 | **Implemented** |
-| `read_character`          | Returns character metadata (names, pronouns, bio)                        | Context, Translator     | Planned       |
-| `update_character`        | Updates character fields with HITL approval                              | Context                 | Planned       |
-| `read_location`           | Returns location metadata (names, description)                           | Context, Translator     | Planned       |
-| `update_location`         | Updates location fields with HITL approval                               | Context                 | Planned       |
-| `read_glossary`           | Searches glossary entries by term                                        | Translator, Editor      | Planned       |
-| `add_glossary_entry`      | Proposes new glossary entry with HITL approval                           | Context                 | Planned       |
-| `update_glossary_entry`   | Updates existing glossary entry with HITL approval                       | Context                 | Planned       |
-| `read_route`              | Returns route metadata (synopsis, scene ordering, characters)            | Context                 | Planned       |
-| `update_route`            | Updates route fields with HITL approval                                  | Context                 | Planned       |
-| `mtl_translate`           | Calls specialized MTL backend for translation (e.g., Sugoi-14B)          | Translator              | Planned       |
-| `write_translation`       | Writes translation for a line (provenance tracked)                       | Translator              | Planned       |
-| `record_style_check`      | Records style guide compliance check results                             | Editor                  | Planned       |
-| `record_consistency_check`| Records terminology/pronoun consistency check results                    | Editor                  | Planned       |
-| `record_quality_check`    | Records translation quality review results                               | Editor                  | Planned       |
+| Tool                      | Description                                                              | Agents/Subagents        | Status            |
+|---------------------------|--------------------------------------------------------------------------|-------------------------|-------------------|
+| `read_scene_overview`     | Scene metadata + transcript + stored summary (hidden when overwriting)   | Context, Translator     | **Implemented**   |
+| `list_context_docs`       | Lists documents under `metadata/context_docs/`                           | All agents              | **Implemented**   |
+| `read_context_doc`        | Returns contents of a context document                                   | All agents              | **Implemented**   |
+| `write_scene_summary`     | Writes scene summary (single-use; overwrite requires flag)               | Context                 | **Implemented**   |
+| `write_scene_tags`        | Writes scene tags (single-use; overwrite requires flag)                  | Context                 | **Implemented**   |
+| `write_primary_characters`| Writes primary character IDs (single-use; overwrite requires flag)       | Context                 | **Implemented**   |
+| `write_scene_locations`   | Writes location IDs (single-use; overwrite requires flag)                | Context                 | **Implemented**   |
+| `read_character`          | Returns character metadata (names, pronouns, bio)                        | Context, Translator     | **Implemented**   |
+| `update_character`        | Updates character fields with HITL approval                              | Context                 | **Implemented**   |
+| `read_location`           | Returns location metadata (names, description)                           | Context, Translator     | **Implemented**   |
+| `update_location`         | Updates location fields with HITL approval                               | Context                 | **Implemented**   |
+| `read_glossary`           | Searches glossary entries by term                                        | Translator, Editor      | **Implemented**   |
+| `add_glossary_entry`      | Proposes new glossary entry with HITL approval                           | Context                 | **Implemented**   |
+| `update_glossary_entry`   | Updates existing glossary entry with HITL approval                       | Context                 | **Implemented**   |
+| `read_route`              | Returns route metadata (synopsis, scene ordering, characters)            | Context                 | **Implemented**   |
+| `update_route`            | Updates route fields with HITL approval                                  | Context                 | **Implemented**   |
+| `mtl_translate`           | Calls specialized MTL backend for translation (e.g., Sugoi-14B)          | Translator              | **Implemented**   |
+| `write_translation`       | Writes translation for a line (provenance tracked)                       | Translator              | **Implemented**   |
+| `record_style_check`      | Records style guide compliance check results                             | Editor                  | **Implemented**   |
+| `record_consistency_check`| Records terminology/pronoun consistency check results                    | Editor                  | **Implemented**   |
+| `record_quality_check`    | Records translation quality review results                               | Editor                  | **Implemented**   |
 
 ---
 
@@ -225,9 +228,9 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 - ✅ Async loaders for all metadata formats
 - ✅ Project validation (referential integrity checks)
 - 🚧 Copier template for per-game project scaffolding
-- 🚧 All Context Builder subagents (scene, character, location, glossary, route detailers)
-- 🚧 Translator subagent with context-aware translation
-- 🚧 Editor subagents (style, consistency, quality checks)
+- ✅ All Context Builder subagents (scene, character, location, glossary, route detailers)
+- ✅ Translator subagent with context-aware translation
+- ✅ Editor subagents (style, consistency, quality checks)
 - 🚧 HITL approval workflow with provenance-based gating
 - 🚧 CLI commands: `init`, `context`, `translate`, `edit`, `validate`
 - 🚧 Complete tool suite for all subagents

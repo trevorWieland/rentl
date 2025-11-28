@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Literal
 
 import anyio
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.subagents.character_detailer import detail_character
@@ -30,6 +31,12 @@ from rentl_core.model.route import RouteMetadata
 from rentl_core.model.scene import SceneMetadata
 from rentl_core.util.logging import get_logger
 
+from rentl_pipelines.flows.utils import (
+    PIPELINE_FAILURE_EXCEPTIONS,
+    PipelineError,
+    run_with_retries,
+)
+
 logger = get_logger(__name__)
 
 
@@ -42,6 +49,7 @@ class ContextBuilderResult(BaseModel):
     glossary_entries_added: int = Field(description="Number of glossary entries added.")
     glossary_entries_updated: int = Field(description="Number of glossary entries updated.")
     routes_detailed: int = Field(description="Number of routes detailed.")
+    errors: list[PipelineError] = Field(default_factory=list, description="Errors encountered during processing.")
 
 
 async def _run_context_builder_async(
@@ -52,6 +60,8 @@ async def _run_context_builder_async(
     concurrency: int = 4,
     decision_handler: Callable[[list[str]], list[str | dict[str, str]]] | None = None,
     thread_id: str | None = None,
+    progress_cb: Callable[[str, str], None] | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> ContextBuilderResult:
     """Run the Context Builder pipeline asynchronously.
 
@@ -62,13 +72,17 @@ async def _run_context_builder_async(
         concurrency: Maximum concurrent subagent runs.
         decision_handler: Callback to collect HITL decisions when interrupts fire.
         thread_id: Optional thread id for checkpointer continuity.
+        progress_cb: Optional callback invoked as (event, entity_id) per subagent start.
+        checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
+        checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
+        checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
 
     Returns:
         ContextBuilderResult: Statistics about what was enriched.
     """
     logger.info("Starting Context Builder pipeline for %s", project_path)
     context = await load_project_context(project_path)
-    checkpointer = get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
+    effective_checkpointer = checkpointer or get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
     allow_overwrite = mode == "overwrite"
     scenes_to_run = _filter_scenes(context.scenes.values(), mode)
     characters_to_run = _filter_characters(context.characters.values(), mode)
@@ -76,22 +90,56 @@ async def _run_context_builder_async(
     routes_to_run = _filter_routes(context.routes.values(), mode)
 
     semaphore = anyio.Semaphore(max(1, concurrency))
+    errors: list[PipelineError] = []
+    scenes_completed = 0
+    characters_completed = 0
+    locations_completed = 0
+    routes_completed = 0
 
     base_thread = thread_id or "context"
 
-    async def _bounded(coro: Awaitable[object]) -> None:
+    def _record_error(stage: str, entity_id: str, exc: BaseException) -> None:
+        errors.append(PipelineError(stage=stage, entity_id=entity_id, error=str(exc)))
+        logger.error("%s failed for %s: %s", stage, entity_id, exc)
+        if progress_cb:
+            progress_cb(f"{stage}_error", entity_id)
+
+    async def _bounded(stage: str, entity_id: str, coro_factory: Callable[[], Awaitable[object]]) -> None:
         async with semaphore:
-            await coro
+            try:
+                await run_with_retries(
+                    coro_factory,
+                    on_retry=lambda attempt, exc: logger.warning(
+                        "Retrying %s for %s (attempt %d): %s", stage, entity_id, attempt + 1, exc
+                    ),
+                )
+                if progress_cb:
+                    progress_cb(f"{stage}_done", entity_id)
+                nonlocal scenes_completed, characters_completed, locations_completed, routes_completed
+                if stage == "scene_detail":
+                    scenes_completed += 1
+                elif stage == "character_detail":
+                    characters_completed += 1
+                elif stage == "location_detail":
+                    locations_completed += 1
+                elif stage == "route_detail":
+                    routes_completed += 1
+            except PIPELINE_FAILURE_EXCEPTIONS as exc:
+                _record_error(stage, entity_id, exc)
 
     async with anyio.create_task_group() as tg:
         for sid in scenes_to_run:
+            if progress_cb:
+                progress_cb("scene_detail_start", sid)
             tg.start_soon(
                 _bounded,
-                detail_scene(
+                "scene_detail",
+                sid,
+                lambda sid=sid: detail_scene(
                     context,
                     sid,
                     allow_overwrite=allow_overwrite,
-                    checkpointer=checkpointer,
+                    checkpointer=effective_checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:scene:{sid}",
                 ),
@@ -99,13 +147,17 @@ async def _run_context_builder_async(
 
     async with anyio.create_task_group() as tg:
         for cid in characters_to_run:
+            if progress_cb:
+                progress_cb("character_detail_start", cid)
             tg.start_soon(
                 _bounded,
-                detail_character(
+                "character_detail",
+                cid,
+                lambda cid=cid: detail_character(
                     context,
                     cid,
                     allow_overwrite=allow_overwrite,
-                    checkpointer=checkpointer,
+                    checkpointer=effective_checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:character:{cid}",
                 ),
@@ -113,13 +165,17 @@ async def _run_context_builder_async(
 
     async with anyio.create_task_group() as tg:
         for lid in locations_to_run:
+            if progress_cb:
+                progress_cb("location_detail_start", lid)
             tg.start_soon(
                 _bounded,
-                detail_location(
+                "location_detail",
+                lid,
+                lambda lid=lid: detail_location(
                     context,
                     lid,
                     allow_overwrite=allow_overwrite,
-                    checkpointer=checkpointer,
+                    checkpointer=effective_checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:location:{lid}",
                 ),
@@ -130,7 +186,7 @@ async def _run_context_builder_async(
         glossary_result = await detail_glossary(
             context,
             allow_overwrite=allow_overwrite,
-            checkpointer=checkpointer,
+            checkpointer=effective_checkpointer,
             decision_handler=decision_handler,
             thread_id=f"{base_thread}:glossary",
         )
@@ -139,25 +195,30 @@ async def _run_context_builder_async(
 
     async with anyio.create_task_group() as tg:
         for rid in routes_to_run:
+            if progress_cb:
+                progress_cb("route_detail_start", rid)
             tg.start_soon(
                 _bounded,
-                detail_route(
+                "route_detail",
+                rid,
+                lambda rid=rid: detail_route(
                     context,
                     rid,
                     allow_overwrite=allow_overwrite,
-                    checkpointer=checkpointer,
+                    checkpointer=effective_checkpointer,
                     decision_handler=decision_handler,
                     thread_id=f"{base_thread}:route:{rid}",
                 ),
             )
 
     result = ContextBuilderResult(
-        scenes_detailed=len(scenes_to_run),
-        characters_detailed=len(characters_to_run),
-        locations_detailed=len(locations_to_run),
+        scenes_detailed=scenes_completed,
+        characters_detailed=characters_completed,
+        locations_detailed=locations_completed,
         glossary_entries_added=(glossary_result.entries_added if glossary_result else 0),
         glossary_entries_updated=(glossary_result.entries_updated if glossary_result else 0),
-        routes_detailed=len(routes_to_run),
+        routes_detailed=routes_completed,
+        errors=errors,
     )
 
     logger.info("Context Builder pipeline complete: %s", result)
@@ -172,6 +233,8 @@ def run_context_builder(
     concurrency: int = 4,
     decision_handler: Callable[[list[str]], list[str | dict[str, str]]] | None = None,
     thread_id: str | None = None,
+    progress_cb: Callable[[str, str], None] | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> ContextBuilderResult:
     """Run the Context Builder pipeline to enrich all game metadata.
 
@@ -182,6 +245,8 @@ def run_context_builder(
         concurrency: Maximum concurrent subagent runs.
         decision_handler: Callback to collect HITL decisions when interrupts fire.
         thread_id: Optional thread id for checkpointer continuity.
+        progress_cb: Optional callback invoked as (event, entity_id) per subagent start.
+        checkpointer: Optional LangGraph checkpoint saver to reuse (defaults to SQLite).
 
     Returns:
         ContextBuilderResult: Statistics about what was enriched.
@@ -195,6 +260,8 @@ def run_context_builder(
             concurrency=concurrency,
             decision_handler=decision_handler,
             thread_id=thread_id,
+            progress_cb=progress_cb,
+            checkpointer=checkpointer,
         )
     )
 

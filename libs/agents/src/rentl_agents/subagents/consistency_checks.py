@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from langchain.agents import create_agent
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
@@ -30,7 +31,9 @@ Workflow:
 4) Be concise and avoid restating text. End when checks are recorded."""
 
 
-def create_consistency_checker_subagent(context: ProjectContext) -> CompiledStateGraph:
+def create_consistency_checker_subagent(
+    context: ProjectContext, *, checkpointer: BaseCheckpointSaver | None = None
+) -> CompiledStateGraph:
     """Create consistency checker LangChain subagent and return the runnable graph.
 
     Returns:
@@ -44,19 +47,29 @@ def create_consistency_checker_subagent(context: ProjectContext) -> CompiledStat
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        checkpointer=checkpointer,
     )
 
     return graph
 
 
-async def run_consistency_checks(context: ProjectContext, scene_id: str) -> ConsistencyCheckResult:
+async def run_consistency_checks(
+    context: ProjectContext,
+    scene_id: str,
+    *,
+    checkpointer: BaseCheckpointSaver | None = None,
+    thread_id: str | None = None,
+) -> ConsistencyCheckResult:
     """Run consistency checker for a scene.
 
     Returns:
         ConsistencyCheckResult: Recorded consistency check counts.
     """
-    subagent = create_consistency_checker_subagent(context)
-    await subagent.ainvoke({"messages": [{"role": "user", "content": f"Check consistency for {scene_id}."}]})
+    subagent = create_consistency_checker_subagent(context, checkpointer=checkpointer)
+    await subagent.ainvoke(
+        {"messages": [{"role": "user", "content": f"Check consistency for {scene_id}."}]},
+        config={"configurable": {"thread_id": thread_id or f"edit-consistency:{scene_id}"}},
+    )
     translations = await context.get_translations(scene_id)
     recorded = sum(1 for line in translations if "consistency_check" in line.meta.checks)
     return ConsistencyCheckResult(scene_id=scene_id, checks_recorded=recorded)

@@ -8,8 +8,8 @@ This document provides implementation guidance for building tools and subagents 
 
 The `rentl-agents` package contains:
 
-- **Subagents**: Specialized agents for context building, translation, and editing
-- **Tools**: LangChain tools with HITL approval gating
+- **Subagents**: Specialized agents for context building, translation, and editing (style/consistency/review)
+- **Tools**: LangChain tools with HITL approval gating and provenance checks
 - **LLM backends**: Wrappers for OpenAI-compatible endpoints
 - **Graph helpers**: Convenience exports/typing glue
 
@@ -22,10 +22,14 @@ libs/agents/src/rentl_agents/
   graph/
     engine.py         # Shared exports for subagents (legacy naming)
   subagents/
-    *.py              # Individual subagent implementations
+    *.py              # Individual subagent implementations (context, translation, QA)
   tools/
     scene.py          # Scene-related tools
-    metadata.py       # Character/glossary/route tools
+    character.py      # Character tools
+    glossary.py       # Glossary tools
+    route.py          # Route tools
+    translation.py    # Translation tools (MTL + write_translation)
+    qa.py             # QA tools (style/consistency/review)
 ```
 
 ---
