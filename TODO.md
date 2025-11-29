@@ -58,9 +58,9 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [x] Editor pipeline end-to-end test with mocked LLMs (real flow on tiny_vn, report contents, route issue counts)
 - [x] HITL approval/interrupt edge coverage (rentl_agents/hitl/approval.py, invoke.py)
 - [x] Tool coverage across scene/character/location/glossary/route/qa/stats/translation (provenance, conflicts, delete)
-- [ ] ProjectContext persistence/conflict branches (routes/characters/locations/glossary delete, translation writer)
-- [ ] Loader error/empty-line coverage (JSON/JSONL parsing edges)
-- [ ] Backend stubs coverage (mtl prompt override/availability, graph/engine placeholders)
+- [x] ProjectContext persistence/conflict branches (routes/characters/locations/glossary delete, translation writer)
+- [x] Loader error/empty-line coverage (JSON/JSONL parsing edges)
+- [x] Backend stubs coverage (mtl prompt override/availability, graph/engine placeholders)
 
 ### Completed foundations (for reference)
 - Data models with provenance; async loaders/writers
@@ -101,7 +101,7 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
   - [x] Verbose: add tool call summaries and failures
   - [x] Debug/log: full trace to log file only (LLM reasoning/tokens kept out of stdout)
 - [x] Add pytest fixtures/utilities to reset tiny_vn baseline before/after integration tests for repeatability
-- [ ] Stats/report helpers (structured progress for CLI/agents)
+- [x] Stats/report helpers (structured progress for CLI/agents)
 - [x] Surface route issue counts and top issues in CLI/status snapshots
 - [x] Add phase timestamp/thread-id hints in progress snapshots
 
@@ -142,8 +142,8 @@ A task is considered complete when:
 **v1.0 is complete when**:
 - [ ] Can initialize a new project using copier with `rentl init`
 - [x] Can validate project structure with `rentl validate`
-- [ ] Can enrich metadata with `rentl context` (with CLI HITL UX)
-- [ ] Can translate scenes with `rentl translate` (with CLI HITL UX/resume)
-- [ ] Can run QA checks with `rentl edit` (with report output)
+- [x] Can enrich metadata with `rentl context` (with CLI HITL UX)
+- [x] Can translate scenes with `rentl translate` (with CLI HITL UX/resume)
+- [x] Can run QA checks with `rentl edit` (with report output)
 - [ ] 90% test coverage.
 - [ ] Documentation is complete
