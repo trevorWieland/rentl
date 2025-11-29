@@ -15,6 +15,7 @@ dev = [
     "ty>=0.0.1a26",
     "pytest>=8.3.3",
     "pytest-cov>=7.0.0",
+    "agentevals>=0.0.9",
 ]
 
 [tool.uv.sources]

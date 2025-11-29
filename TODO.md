@@ -122,9 +122,24 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
   - [x] Mock LLM responses
   - [x] Tool execution tests
   - [x] HITL approval tests
-- [ ] Write E2E tests for pipelines
-  - [ ] Full workflow tests with real LLMs
-  - [ ] agentevals-based testing
+- [x] Add live LLM test gate and helpers
+  - [x] `llm_live` pytest marker + `RENTL_LLM_TESTS` env guard (require OPENAI_URL, OPENAI_API_KEY, LLM_MODEL)
+  - [x] Shared helper to run subagents with MemorySaver + auto-approve decisions and return trajectories
+  - [x] Makefile target `check-full` that runs `make check` + `pytest -m llm_live`
+- [ ] Live agentevals coverage (per-subagent)
+  - [ ] Scene detailer: trajectory match (superset) requires write_* tools; LLM judge for source-language summary/tags/locations
+  - [ ] Character detailer: trajectory match uses write_* character tools; judge checks source-language notes + target names/pronouns
+  - [ ] Location detailer: trajectory match uses write_* location tools; judge checks source-language descriptions
+  - [ ] Route detailer: trajectory match uses write_* route tools; judge checks source-language synopses
+  - [ ] Glossary curator: trajectory match uses add/update/delete glossary tools; judge checks source/target language fields
+  - [ ] Translator: trajectory match ensures one write_translation per line (allow mtl_translate optionally); LLM judge for target language and non-copying
+  - [ ] Style checker: trajectory match requires read_translations + record_style_check; judge encourages style-guide/UI usage
+  - [ ] Consistency checker: trajectory match requires read_translations + record_consistency_check; judge checks consistency rationale
+  - [ ] Translation reviewer: trajectory match requires read_translations + record_translation_review; judge checks fidelity/fluency notes
+- [ ] Pipeline live smoke
+  - [ ] Context pipeline with real LLM (concurrency=1, checkpoint_disabled) writes metadata to disk
+  - [ ] Translator pipeline with real LLM (concurrency=1, checkpoint_disabled) writes translations to disk
+  - [ ] Editor pipeline with real LLM (concurrency=1, checkpoint_disabled) writes QA checks/report to disk
   - [x] tiny_vn example validation
 
 ---

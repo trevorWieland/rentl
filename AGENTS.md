@@ -266,6 +266,15 @@ Review and retry if your update is still needed."""
 ❌ **Don't** hardcode style/language rules—pull from configs, style guides, UI settings, or tools
 ❌ **Don't** forget thread_id/checkpointer when enabling HITL middleware
 
+### agentevals (live LLM testing)
+
+- **Opt-in only**: Guard all live-LLM tests with `@pytest.mark.llm_live` and an env flag `RENTL_LLM_TESTS=1`. Require `OPENAI_URL`, `OPENAI_API_KEY`, and `LLM_MODEL` to be set; skip otherwise.
+- **Model selection**: Use the same LLM as the main reasoning model for judges unless explicitly overridden; read `source_lang`/`target_lang` from `game.json` instead of assuming JP/EN.
+- **Make targets**: Add `make check-full` to run `make check` plus `pytest -m llm_live`; keep `make check` fast and mock-only by default.
+- **Per-subagent evals**: Use agentevals trajectory match (e.g., `superset` mode) to require expected tool calls (`write_translation`, `write_scene_*`, `record_*`). Use LLM-as-judge prompts to check language correctness and that style-guide/UI tools are used when notes demand it.
+- **Pipelines**: A guarded translator → editor smoke test may run live LLMs with `concurrency=1` and checkpoints disabled to limit cost; persist outputs for assertions but do not mock.
+- **No mocks**: In `llm_live` tests, avoid fake models and stubs—exercise real network calls to verify wiring, tool schemas, and provenance behavior.
+
 ✅ **Do** keep pipelines deterministic: build queues from state and run subagents with bounded concurrency
 ✅ **Do** return `create_agent` runnable graphs directly
 ✅ **Do** check provenance in tools before updating and return approval requests when needed

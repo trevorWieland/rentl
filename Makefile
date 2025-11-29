@@ -1,4 +1,4 @@
-.PHONY: help validate context translate clean test lint format typecheck
+.PHONY: help validate context translate clean test lint format typecheck check-full
 
 # Default project path for development
 PROJECT ?= examples/tiny_vn
@@ -17,6 +17,7 @@ help:
 	@echo "  make format         - Format code (ruff)"
 	@echo "  make typecheck      - Run type checker (ty)"
 	@echo "  make check          - Run all quality checks"
+	@echo "  make check-full     - Run all checks + llm_live tests (requires OPENAI_* env + RENTL_LLM_TESTS)"
 	@echo ""
 	@echo "Options:"
 	@echo "  PROJECT=<path>      - Set project path (default: examples/tiny_vn)"
@@ -60,6 +61,9 @@ fix: format lint
 
 check: format-check lint-check type test
 	@echo "All checks passed!"
+
+check-full: format-check lint-check type
+	RENTL_LLM_TESTS=1 uv run pytest --cov=rentl_core --cov=rentl_agents --cov=rentl_pipelines --cov-report=term-missing
 
 # Cleanup
 clean:
