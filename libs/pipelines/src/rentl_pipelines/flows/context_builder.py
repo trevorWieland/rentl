@@ -31,11 +31,7 @@ from rentl_core.model.route import RouteMetadata
 from rentl_core.model.scene import SceneMetadata
 from rentl_core.util.logging import get_logger
 
-from rentl_pipelines.flows.utils import (
-    PIPELINE_FAILURE_EXCEPTIONS,
-    PipelineError,
-    run_with_retries,
-)
+from rentl_pipelines.flows.utils import PIPELINE_FAILURE_EXCEPTIONS, PipelineError, SkippedItem, run_with_retries
 
 logger = get_logger(__name__)
 
@@ -49,6 +45,8 @@ class ContextBuilderResult(BaseModel):
     glossary_entries_added: int = Field(description="Number of glossary entries added.")
     glossary_entries_updated: int = Field(description="Number of glossary entries updated.")
     routes_detailed: int = Field(description="Number of routes detailed.")
+    scenes_skipped: int = Field(description="Scenes skipped based on mode/completeness.")
+    skipped_scenes: list[SkippedItem] = Field(default_factory=list, description="Skipped scenes with reasons.")
     errors: list[PipelineError] = Field(default_factory=list, description="Errors encountered during processing.")
 
 
@@ -110,7 +108,7 @@ async def _run_context_builder_async(
             sid for sid in selected_scenes if any(rid in route_set for rid in context.get_scene(sid).route_ids)
         ]
 
-    scenes_to_run = _filter_scenes((context.scenes[sid] for sid in selected_scenes), mode)
+    scenes_to_run, skipped_scenes = _filter_scenes((context.scenes[sid] for sid in selected_scenes), mode)
     characters_to_run = _filter_characters(context.characters.values(), mode)
     locations_to_run = _filter_locations(context.locations.values(), mode)
     routes_to_run = (
@@ -248,6 +246,8 @@ async def _run_context_builder_async(
         glossary_entries_added=(glossary_result.entries_added if glossary_result else 0),
         glossary_entries_updated=(glossary_result.entries_updated if glossary_result else 0),
         routes_detailed=routes_completed,
+        scenes_skipped=len(skipped_scenes),
+        skipped_scenes=skipped_scenes,
         errors=errors,
     )
 
@@ -307,9 +307,15 @@ def run_context_builder(
     )
 
 
-def _filter_scenes(scenes: Iterable[SceneMetadata], mode: Literal["overwrite", "gap-fill", "new-only"]) -> list[str]:
+def _filter_scenes(
+    scenes: Iterable[SceneMetadata], mode: Literal["overwrite", "gap-fill", "new-only"]
+) -> tuple[list[str], list[SkippedItem]]:
+    """Return scenes to process and skipped scenes with reasons."""
     if mode == "overwrite":
-        return sorted(scene.id for scene in scenes)
+        return sorted(scene.id for scene in scenes), []
+
+    remaining: list[str] = []
+    skipped: list[SkippedItem] = []
 
     def incomplete(scene: SceneMetadata) -> bool:
         ann = scene.annotations
@@ -317,7 +323,18 @@ def _filter_scenes(scenes: Iterable[SceneMetadata], mode: Literal["overwrite", "
             return not any([ann.summary, ann.tags, ann.primary_characters, ann.locations])
         return not all([ann.summary, ann.tags, ann.primary_characters, ann.locations])
 
-    return sorted(scene.id for scene in scenes if incomplete(scene))
+    for scene in scenes:
+        if incomplete(scene):
+            remaining.append(scene.id)
+        else:
+            skipped.append(
+                SkippedItem(
+                    entity_id=scene.id,
+                    reason="Metadata already complete; use overwrite to recompute." if mode == "gap-fill" else "",
+                )
+            )
+
+    return sorted(remaining), skipped
 
 
 def _filter_characters(

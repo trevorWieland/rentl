@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from rentl_core.model.character import CharacterMetadata
-from rentl_core.model.line import SourceLine, SourceLineMeta
+from rentl_core.model.line import SourceLine, SourceLineMeta, TranslatedLine
 from rentl_core.model.location import LocationMetadata
 from rentl_core.model.route import RouteMetadata
 from rentl_core.model.scene import SceneAnnotations, SceneMetadata
@@ -16,6 +16,7 @@ from rentl_pipelines.flows.context_builder import (
     _filter_routes,
     _filter_scenes,
 )
+from rentl_pipelines.flows.editor import _filter_scenes_to_edit
 from rentl_pipelines.flows.translator import _filter_scenes_to_translate
 
 
@@ -97,9 +98,17 @@ def test_filter_scenes_gap_fill_and_new_only() -> None:
         _scene_with(id="new", summary=None, tags=None, primary_characters=None, locations=None),
     ]
 
-    assert _filter_scenes(scenes, "gap-fill") == ["new", "partial"]
-    assert _filter_scenes(scenes, "new-only") == ["new"]
-    assert _filter_scenes(scenes, "overwrite") == ["full", "new", "partial"]
+    gap_remaining, gap_skipped = _filter_scenes(scenes, "gap-fill")
+    assert gap_remaining == ["new", "partial"]
+    assert {entry.entity_id for entry in gap_skipped} == {"full"}
+
+    new_remaining, new_skipped = _filter_scenes(scenes, "new-only")
+    assert new_remaining == ["new"]
+    assert {entry.entity_id for entry in new_skipped} == {"full", "partial"}
+
+    overwrite_remaining, overwrite_skipped = _filter_scenes(scenes, "overwrite")
+    assert overwrite_remaining == ["full", "new", "partial"]
+    assert not overwrite_skipped
 
 
 def test_filter_characters_locations_routes_gap_fill() -> None:
@@ -154,12 +163,59 @@ async def test_filter_scenes_to_translate(tmp_path: Path) -> None:
 
     remaining, skipped = await _filter_scenes_to_translate(ctx, scene_ids, "gap-fill", allow_overwrite=False)
     assert set(remaining) == {"partial", "none"}
-    assert skipped == 1
+    assert {entry.entity_id for entry in skipped} == {"done"}
 
     remaining_new, skipped_new = await _filter_scenes_to_translate(ctx, scene_ids, "new-only", allow_overwrite=False)
     assert remaining_new == ["none"]
-    assert skipped_new == 2
+    assert {entry.entity_id for entry in skipped_new} == {"done", "partial"}
 
     remaining_over, skipped_over = await _filter_scenes_to_translate(ctx, scene_ids, "overwrite", allow_overwrite=True)
     assert remaining_over == scene_ids
-    assert skipped_over == 0
+    assert not skipped_over
+
+
+@pytest.mark.anyio("asyncio")
+async def test_filter_scenes_to_edit() -> None:
+    """Editor filter respects mode and QA coverage."""
+
+    class FakeEditContext:
+        def __init__(self, translations: dict[str, list[TranslatedLine]]) -> None:
+            self._translations = translations
+
+        async def _load_translations(self, scene_id: str) -> None:
+            _ = scene_id
+
+        async def get_translations(self, scene_id: str) -> list[TranslatedLine]:
+            return self._translations.get(scene_id, [])
+
+    base_line = SourceLine(id="line", text="src", meta=SourceLineMeta())
+    checked_line = TranslatedLine.from_source(base_line, "tgt", text_tgt_origin="agent:test")
+    checked_line = checked_line.model_copy(
+        update={"meta": checked_line.meta.model_copy(update={"checks": {"style": (True, "")}})}
+    )
+
+    translations = {
+        "full": [checked_line, checked_line],
+        "partial": [
+            checked_line,
+            TranslatedLine.from_source(base_line, "other", text_tgt_origin="agent:test"),
+        ],
+        "none": [
+            TranslatedLine.from_source(base_line, "first", text_tgt_origin="agent:test"),
+            TranslatedLine.from_source(base_line, "second", text_tgt_origin="agent:test"),
+        ],
+        "untranslated": [],
+    }
+    ctx = FakeEditContext(translations)
+
+    overwrite, skipped_overwrite = await _filter_scenes_to_edit(ctx, list(translations.keys()), "overwrite")
+    assert overwrite == ["full", "partial", "none"]
+    assert {entry.entity_id for entry in skipped_overwrite} == {"untranslated"}
+
+    gap_fill, skipped_gap_fill = await _filter_scenes_to_edit(ctx, list(translations.keys()), "gap-fill")
+    assert gap_fill == ["partial", "none"]
+    assert {entry.entity_id for entry in skipped_gap_fill} == {"full", "untranslated"}
+
+    new_only, skipped_new_only = await _filter_scenes_to_edit(ctx, list(translations.keys()), "new-only")
+    assert new_only == ["none"]
+    assert {entry.entity_id for entry in skipped_new_only} == {"full", "partial", "untranslated"}

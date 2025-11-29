@@ -24,6 +24,7 @@ from rentl_core.util.logging import get_logger
 from rentl_pipelines.flows.utils import (
     PIPELINE_FAILURE_EXCEPTIONS,
     PipelineError,
+    SkippedItem,
     run_with_retries,
 )
 
@@ -36,6 +37,7 @@ class TranslatorResult(BaseModel):
     scenes_translated: int = Field(description="Number of scenes translated.")
     lines_translated: int = Field(description="Total number of lines translated.")
     scenes_skipped: int = Field(description="Number of scenes skipped (already translated).")
+    skipped: list[SkippedItem] = Field(default_factory=list, description="Skipped scenes with reasons.")
     errors: list[PipelineError] = Field(default_factory=list, description="Errors encountered during translation.")
 
 
@@ -96,7 +98,7 @@ async def _run_translator_async(
     logger.info("Target scenes: %d", len(target_scene_ids))
 
     allow_overwrite = mode == "overwrite"
-    remaining_scene_ids, scenes_skipped = await _filter_scenes_to_translate(
+    remaining_scene_ids, skipped_scenes = await _filter_scenes_to_translate(
         context, target_scene_ids, mode, allow_overwrite
     )
 
@@ -151,7 +153,8 @@ async def _run_translator_async(
     result = TranslatorResult(
         scenes_translated=len(completed_scene_ids),
         lines_translated=total_lines,
-        scenes_skipped=scenes_skipped,
+        scenes_skipped=len(skipped_scenes),
+        skipped=skipped_scenes,
         errors=errors,
     )
 
@@ -216,11 +219,11 @@ async def _filter_scenes_to_translate(
     scene_ids: list[str],
     mode: Literal["overwrite", "gap-fill", "new-only"],
     allow_overwrite: bool,
-) -> tuple[list[str], int]:
-    """Return (scenes_to_run, scenes_skipped) based on mode and existing translations."""
+) -> tuple[list[str], list[SkippedItem]]:
+    """Return (scenes_to_run, skipped_scenes) based on mode and existing translations."""
     output_dir = context.project_path / "output" / "translations"
     remaining: list[str] = []
-    skipped = 0
+    skipped: list[SkippedItem] = []
 
     for sid in scene_ids:
         output_file = output_dir / f"{sid}.jsonl"
@@ -240,14 +243,14 @@ async def _filter_scenes_to_translate(
             if translated == 0:
                 remaining.append(sid)
             else:
-                skipped += 1
+                skipped.append(SkippedItem(entity_id=sid, reason="Already has translations; use overwrite to replace."))
             continue
 
         if mode == "gap-fill":
             if translated < total_lines:
                 remaining.append(sid)
             else:
-                skipped += 1
+                skipped.append(SkippedItem(entity_id=sid, reason="Scene already fully translated for gap-fill."))
             continue
 
         # overwrite handled above

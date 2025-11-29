@@ -30,6 +30,13 @@ class PipelineError(BaseModel):
     error: str = Field(description="Stringified error for display/logging.")
 
 
+class SkippedItem(BaseModel):
+    """Metadata for skipped entities with a human-readable reason."""
+
+    entity_id: str = Field(description="Identifier for the skipped entity.")
+    reason: str = Field(description="Reason why the entity was skipped.")
+
+
 async def run_with_retries[T](
     coro_factory: Callable[[], Awaitable[T]],
     *,

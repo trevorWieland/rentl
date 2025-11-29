@@ -55,6 +55,8 @@ All commands support:
 ```bash
 --project-path PATH    # Path to game project (default: current directory)
 --verbose              # Enable detailed logging
+--resume               # Resume a prior run using --thread-id
+--resume-latest        # Resume the most recent checkpoint thread id
 --help                 # Show command help
 ```
 
@@ -259,6 +261,9 @@ rentl context
 # Process specific scene
 rentl context --scene scene_c_00
 
+# Resume the most recent interrupted run
+rentl context --resume-latest
+
 # Allow overwriting existing summaries
 rentl context --overwrite
 
@@ -287,6 +292,9 @@ rentl translate
 # Translate specific scene
 rentl translate --scene scene_c_00
 
+# Resume most recent translation run
+rentl translate --resume-latest
+
 # Use specific LLM model
 rentl translate --model gpt-4o
 ```
@@ -309,6 +317,9 @@ rentl edit
 
 # Check specific scene
 rentl edit --scene scene_c_00
+
+# Resume most recent editor run
+rentl edit --resume-latest
 
 # Run specific QA checks only
 rentl edit --checks style,consistency
@@ -333,6 +344,8 @@ Running QA checks...
   - 0 scenes failed
 
 See output/reports/ for detailed results
+
+Skipped scenes are reported with reasons (context complete, fully translated, etc.) in CLI output and the JSON status snapshot (`rentl status --snapshot-json`).
 ```
 
 ---

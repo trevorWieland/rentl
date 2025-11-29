@@ -11,6 +11,8 @@ from rentl_agents.subagents.consistency_checks import ConsistencyCheckResult
 from rentl_agents.subagents.style_checks import StyleCheckResult
 from rentl_agents.subagents.translation_reviewer import TranslationReviewResult
 from rentl_cli.utils.baseline import write_baseline
+from rentl_core.context.project import load_project_context
+from rentl_core.model.line import TranslatedLine
 from rentl_pipelines.flows.editor import EditorResult, _run_editor_async
 
 
@@ -24,10 +26,21 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+async def _seed_translations(project_path: Path) -> None:
+    """Write simple translations for all scenes to enable editing tests."""
+    context = await load_project_context(project_path)
+    for sid, scene in context.scenes.items():
+        lines = await context.load_scene_lines(sid)
+        for line in lines:
+            translation = TranslatedLine.from_source(line, f"tgt-{line.id}", text_tgt_origin="agent:test")
+            await context.record_translation(scene.id, translation, allow_overwrite=True)
+
+
 @pytest.mark.anyio
 async def test_editor_writes_report_and_uses_sqlite_checkpointer(tmp_path: Path) -> None:
     """Editor pipeline should write a report and accept a SQLite checkpointer."""
     await write_baseline(tmp_path)
+    await _seed_translations(tmp_path)
     report_path = tmp_path / "output" / "reports" / "editor_report_test.json"
     db_path = tmp_path / ".rentl" / "checkpoints.db"
     await anyio.Path(db_path.parent).mkdir(parents=True, exist_ok=True)
@@ -57,6 +70,7 @@ async def test_editor_writes_report_and_uses_sqlite_checkpointer(tmp_path: Path)
 
         assert report_path.exists(), "Report file should be written."
         assert result.scenes_checked > 0
+        assert result.scenes_skipped == 0
         assert result.translation_progress >= 0.0
         assert result.editing_progress >= 0.0
         assert result.report_path == str(report_path)

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from shutil import rmtree
-from typing import Annotated, Any, Literal, cast
-from uuid import uuid4
+from typing import Annotated, Literal
 
 import typer
+from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext, load_project_context
 from rentl_core.util.logging import configure_logging
 from rentl_pipelines.flows.context_builder import (
@@ -21,9 +21,11 @@ from rentl_pipelines.flows.context_builder import (
 )
 from rentl_pipelines.flows.editor import run_editor
 from rentl_pipelines.flows.translator import run_translator
+from rentl_pipelines.flows.utils import SkippedItem
 
 from rentl_cli.cli_types import ProjectPathOption
 from rentl_cli.utils.baseline import write_baseline
+from rentl_cli.utils.resume import choose_thread_id
 
 
 def _prompt_decisions(requests: list[str]) -> list[str | dict[str, str]]:
@@ -47,6 +49,53 @@ def _prompt_decisions(requests: list[str]) -> list[str | dict[str, str]]:
     return decisions
 
 
+class SnapshotSkippedScene(BaseModel):
+    """Skipped scene entry for status snapshots."""
+
+    scene_id: str = Field(description="Identifier of the skipped scene.")
+    reason: str = Field(description="Reason the scene was skipped.")
+
+
+class SnapshotRouteProgress(BaseModel):
+    """Route-level progress for status snapshots."""
+
+    route_id: str = Field(description="Route identifier.")
+    total_lines: int = Field(description="Total source lines in the route.")
+    translated_lines: int = Field(description="Translated lines in the route.")
+    checked_lines: int = Field(description="Lines with QA checks in the route.")
+    failing_checks: int = Field(description="Number of failing QA checks in the route.")
+    translation_progress_pct: float = Field(description="Percent of lines translated in the route.")
+    editing_progress_pct: float = Field(description="Percent of translated lines QA'd in the route.")
+
+
+class SnapshotCheckpoint(BaseModel):
+    """Checkpoint metadata for resume hints."""
+
+    path: str = Field(description="Path to the checkpoint database.")
+    modified: datetime = Field(description="Last modified timestamp.")
+
+
+class SnapshotProgress(BaseModel):
+    """Status snapshot payload for CLI/TUI consumption."""
+
+    translation_progress_pct: float = Field(description="Overall translation progress percent.")
+    editing_progress_pct: float = Field(description="Overall editing progress percent.")
+    total_lines: int = Field(description="Total source lines across all scenes.")
+    translated_lines: int = Field(description="Translated lines across all scenes.")
+    checked_lines: int = Field(description="Lines with QA checks across all scenes.")
+    failing_checks: int = Field(description="Total failing QA checks.")
+    routes: list[SnapshotRouteProgress] = Field(description="Per-route progress.")
+    checkpoint: SnapshotCheckpoint | None = Field(description="Latest checkpoint metadata, if present.")
+    thread_id_hints: list[str] = Field(description="Suggested thread id formats for resumable runs.")
+    skipped_context_scenes: list[SnapshotSkippedScene] = Field(
+        description="Scenes skipped for context due to completeness."
+    )
+    skipped_translation_scenes: list[SnapshotSkippedScene] = Field(
+        description="Scenes skipped for translation due to completeness."
+    )
+    generated_at: datetime = Field(description="Snapshot generation timestamp.")
+
+
 def _progress_printer(verbose: bool) -> Callable[[str, str], None] | None:
     """Return a progress callback that logs events when verbose is enabled."""
     if not verbose:
@@ -58,24 +107,31 @@ def _progress_printer(verbose: bool) -> Callable[[str, str], None] | None:
     return _cb
 
 
-async def _collect_progress_snapshot(context: ProjectContext) -> dict[str, Any]:
+async def _collect_progress_snapshot(context: ProjectContext) -> SnapshotProgress:
     """Compute translation/editing progress for public-facing sharing.
 
     Returns:
-        dict[str, object]: Progress snapshot with overall and per-route percentages.
+        SnapshotProgress: Structured snapshot with progress percentages, skips, and checkpoint hints.
     """
     total_lines = 0
     translated_lines = 0
     checked_lines = 0
     total_issues = 0
-    routes_payload: list[dict[str, object]] = []
+    routes_payload: list[SnapshotRouteProgress] = []
 
+    skipped_translation: list[dict[str, str]] = []
+    skipped_context: list[dict[str, str]] = []
     for sid in context.scenes:
         lines = await context.load_scene_lines(sid)
         total_lines += len(lines)
         await context._load_translations(sid)
         translations = await context.get_translations(sid)
         translated_lines += len(translations)
+        if translations and len(translations) == len(lines):
+            skipped_translation.append({"scene_id": sid, "reason": "Fully translated"})
+        ann = context.get_scene(sid).annotations
+        if all([ann.summary, ann.tags, ann.primary_characters, ann.locations]):
+            skipped_context.append({"scene_id": sid, "reason": "Context complete"})
         for t in translations:
             if t.meta.checks:
                 checked_lines += 1
@@ -97,40 +153,44 @@ async def _collect_progress_snapshot(context: ProjectContext) -> dict[str, Any]:
                     route_checked += 1
                     route_issues += sum(1 for passed, _ in t.meta.checks.values() if not passed)
         routes_payload.append(
-            {
-                "route_id": route.id,
-                "total_lines": route_lines,
-                "translated_lines": route_translated,
-                "checked_lines": route_checked,
-                "failing_checks": route_issues,
-                "translation_progress_pct": round((route_translated / route_lines * 100) if route_lines else 0.0, 1),
-                "editing_progress_pct": round((route_checked / route_translated * 100) if route_translated else 0.0, 1),
-            }
+            SnapshotRouteProgress(
+                route_id=route.id,
+                total_lines=route_lines,
+                translated_lines=route_translated,
+                checked_lines=route_checked,
+                failing_checks=route_issues,
+                translation_progress_pct=round((route_translated / route_lines * 100) if route_lines else 0.0, 1),
+                editing_progress_pct=round((route_checked / route_translated * 100) if route_translated else 0.0, 1),
+            )
         )
 
     translation_progress = (translated_lines / total_lines * 100) if total_lines else 0.0
     editing_progress = (checked_lines / translated_lines * 100) if translated_lines else 0.0
 
     checkpoint_path = context.project_path / ".rentl" / "checkpoints.db"
-    checkpoint_info: dict[str, str] | None = None
+    checkpoint_info: SnapshotCheckpoint | None = None
     if checkpoint_path.exists():
-        from datetime import datetime
-
         mtime = checkpoint_path.stat().st_mtime
-        checkpoint_info = {"path": str(checkpoint_path), "modified": datetime.fromtimestamp(mtime).isoformat()}
+        checkpoint_info = SnapshotCheckpoint(path=str(checkpoint_path), modified=datetime.fromtimestamp(mtime, UTC))
 
-    return {
-        "translation_progress_pct": round(translation_progress, 1),
-        "editing_progress_pct": round(editing_progress, 1),
-        "total_lines": total_lines,
-        "translated_lines": translated_lines,
-        "checked_lines": checked_lines,
-        "failing_checks": total_issues,
-        "routes": routes_payload,
-        "checkpoint": checkpoint_info,
-        "thread_id_hints": ["context-<uuid>", "translate-<uuid>", "edit-<uuid>"],
-        "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
-    }
+    return SnapshotProgress(
+        translation_progress_pct=round(translation_progress, 1),
+        editing_progress_pct=round(editing_progress, 1),
+        total_lines=total_lines,
+        translated_lines=translated_lines,
+        checked_lines=checked_lines,
+        failing_checks=total_issues,
+        routes=routes_payload,
+        checkpoint=checkpoint_info,
+        thread_id_hints=["context-<uuid>", "translate-<uuid>", "edit-<uuid>"],
+        skipped_context_scenes=[
+            SnapshotSkippedScene(scene_id=item["scene_id"], reason=item["reason"]) for item in skipped_context
+        ],
+        skipped_translation_scenes=[
+            SnapshotSkippedScene(scene_id=item["scene_id"], reason=item["reason"]) for item in skipped_translation
+        ],
+        generated_at=datetime.now(UTC),
+    )
 
 
 def _print_top_issues(report_path: str) -> None:
@@ -174,7 +234,7 @@ def status(
         locations = context.locations.values()
         routes = context.routes.values()
 
-        scenes_incomplete = _filter_scenes(scenes, "gap-fill")
+        scenes_incomplete, _ = _filter_scenes(scenes, "gap-fill")
         characters_incomplete = _filter_characters(characters, "gap-fill")
         locations_incomplete = _filter_locations(locations, "gap-fill")
         routes_incomplete = _filter_routes(routes, "gap-fill")
@@ -186,27 +246,26 @@ def status(
             typer.echo(f"  Locations: {len(locations)} total / {len(locations_incomplete)} incomplete")
             typer.echo(f"  Routes: {len(routes)} total / {len(routes_incomplete)} incomplete")
             typer.echo(
-                f"  Translation Progress: {progress['translation_progress_pct']:.1f}% "
-                f"({progress['translated_lines']}/{progress['total_lines']} lines)"
+                f"  Translation Progress: {progress.translation_progress_pct:.1f}% "
+                f"({progress.translated_lines}/{progress.total_lines} lines)"
             )
             typer.echo(
-                f"  Editing Progress: {progress['editing_progress_pct']:.1f}% "
-                f"({progress['checked_lines']}/{progress['translated_lines']} translated lines)"
+                f"  Editing Progress: {progress.editing_progress_pct:.1f}% "
+                f"({progress.checked_lines}/{progress.translated_lines} translated lines)"
             )
-            typer.echo(f"  Failing Checks: {progress.get('failing_checks', 0)}")
+            typer.echo(f"  Failing Checks: {progress.failing_checks}")
 
         if by_route and not public_only:
             typer.secho("\n  By Route:", fg=typer.colors.CYAN, bold=True)
-            routes_progress = cast(list[dict[str, object]], progress.get("routes", []))
-            for route in routes_progress:
-                t_pct = route["translation_progress_pct"]
-                e_pct = route["editing_progress_pct"]
-                route_lines = route["total_lines"]
-                route_translated = route["translated_lines"]
-                route_checked = route["checked_lines"]
-                failing = route.get("failing_checks", 0)
+            for route in progress.routes:
+                t_pct = route.translation_progress_pct
+                e_pct = route.editing_progress_pct
+                route_lines = route.total_lines
+                route_translated = route.translated_lines
+                route_checked = route.checked_lines
+                failing = route.failing_checks
                 typer.echo(
-                    f"    {route['route_id']}: translate {t_pct:.1f}% ({route_translated}/{route_lines}), "
+                    f"    {route.route_id}: translate {t_pct:.1f}% ({route_translated}/{route_lines}), "
                     f"edit {e_pct:.1f}% ({route_checked}/{route_translated or 1}), "
                     f"failing checks {failing}"
                 )
@@ -222,15 +281,35 @@ def status(
             else:
                 typer.echo("  Checkpoints: none (using in-memory)")
 
+        skipped_ctx = progress.skipped_context_scenes
+        skipped_tx = progress.skipped_translation_scenes
+        if skipped_ctx and not public_only:
+            typer.secho("  Skipped context scenes:", fg=typer.colors.YELLOW)
+            for entry in skipped_ctx:
+                typer.echo(f"    {entry.scene_id}: {entry.reason}")
+        if skipped_tx and not public_only:
+            typer.secho("  Skipped translation scenes:", fg=typer.colors.YELLOW)
+            for entry in skipped_tx:
+                typer.echo(f"    {entry.scene_id}: {entry.reason}")
+
         if snapshot_json or public_only:
             if not public_only:
                 typer.echo("\nPublic progress snapshot (JSON):")
-            typer.echo(json.dumps(progress, indent=2))
+            typer.echo(progress.model_dump_json(indent=2))
 
     typer.echo("Collecting project status...")
     import anyio
 
     anyio.run(_status_async, project_path)
+
+
+def _print_skipped(scenes: list[SkippedItem], label: str) -> None:
+    """Print skipped scene details."""
+    if not scenes:
+        return
+    typer.secho(f"  {label}:", fg=typer.colors.YELLOW)
+    for entry in scenes:
+        typer.echo(f"    {entry.entity_id}: {entry.reason}")
 
 
 def context(
@@ -248,6 +327,10 @@ def context(
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent detailer runs.")] = 4,
     thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
+    resume: Annotated[bool, typer.Option(help="Resume a previous run; requires --thread-id.")] = False,
+    resume_latest: Annotated[
+        bool, typer.Option(help="Resume the most recent checkpoint thread id (ignores --thread-id).")
+    ] = False,
     no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
@@ -255,7 +338,14 @@ def context(
     configure_logging(verbose)
     typer.secho("Starting Context Builder pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    thread_id = thread_id or f"context-{uuid4()}"
+    thread_id = choose_thread_id(
+        prefix="context",
+        resume=resume,
+        resume_latest=resume_latest,
+        thread_id=thread_id,
+        no_checkpoint=no_checkpoint,
+        checkpoint_path=project_path / ".rentl" / "checkpoints.db",
+    )
     result = run_context_builder(
         project_path,
         allow_overwrite=overwrite,
@@ -272,12 +362,14 @@ def context(
     # Display results
     typer.secho("\nContext Builder Complete!", fg=typer.colors.GREEN, bold=True)
     typer.echo(f"  Scenes detailed: {result.scenes_detailed}")
+    typer.echo(f"  Scenes skipped: {result.scenes_skipped}")
     typer.echo(f"  Characters detailed: {result.characters_detailed}")
     typer.echo(f"  Locations detailed: {result.locations_detailed}")
     typer.echo(f"  Glossary entries added: {result.glossary_entries_added}")
     typer.echo(f"  Glossary entries updated: {result.glossary_entries_updated}")
     typer.echo(f"  Routes detailed: {result.routes_detailed}")
     typer.echo(f"  Resume thread id: {thread_id}")
+    _print_skipped(result.skipped_scenes, "Skipped scenes")
     if result.errors:
         typer.secho(f"  Errors: {len(result.errors)} (see logs for details)", fg=typer.colors.RED)
 
@@ -297,6 +389,10 @@ def translate(
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent scene translations.")] = 4,
     thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
+    resume: Annotated[bool, typer.Option(help="Resume a previous run; requires --thread-id.")] = False,
+    resume_latest: Annotated[
+        bool, typer.Option(help="Resume the most recent checkpoint thread id (ignores --thread-id).")
+    ] = False,
     no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
@@ -304,7 +400,14 @@ def translate(
     configure_logging(verbose)
     typer.secho("Starting Translator pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    thread_id = thread_id or f"translate-{uuid4()}"
+    thread_id = choose_thread_id(
+        prefix="translate",
+        resume=resume,
+        resume_latest=resume_latest,
+        thread_id=thread_id,
+        no_checkpoint=no_checkpoint,
+        checkpoint_path=project_path / ".rentl" / "checkpoints.db",
+    )
     result = run_translator(
         project_path,
         scene_ids=scene_ids or None,
@@ -324,6 +427,7 @@ def translate(
     typer.echo(f"  Lines translated: {result.lines_translated}")
     typer.echo(f"  Scenes skipped: {result.scenes_skipped}")
     typer.echo(f"  Resume thread id: {thread_id}")
+    _print_skipped(result.skipped, "Skipped scenes")
     if result.errors:
         typer.secho(f"  Errors: {len(result.errors)} (see logs for details)", fg=typer.colors.RED)
 
@@ -342,6 +446,10 @@ def edit(
     ] = "gap-fill",
     concurrency: Annotated[int, typer.Option(help="Maximum concurrent QA runs.")] = 4,
     thread_id: Annotated[str | None, typer.Option(help="Resume/identify a HITL run by thread id.")] = None,
+    resume: Annotated[bool, typer.Option(help="Resume a previous run; requires --thread-id.")] = False,
+    resume_latest: Annotated[
+        bool, typer.Option(help="Resume the most recent checkpoint thread id (ignores --thread-id).")
+    ] = False,
     no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
 ) -> None:
@@ -349,7 +457,14 @@ def edit(
     configure_logging(verbose)
     typer.secho("Starting Editor pipeline...", fg=typer.colors.CYAN, bold=True)
 
-    thread_id = thread_id or f"edit-{uuid4()}"
+    thread_id = choose_thread_id(
+        prefix="edit",
+        resume=resume,
+        resume_latest=resume_latest,
+        thread_id=thread_id,
+        no_checkpoint=no_checkpoint,
+        checkpoint_path=project_path / ".rentl" / "checkpoints.db",
+    )
     result = run_editor(
         project_path,
         scene_ids=scene_ids or None,
@@ -364,6 +479,7 @@ def edit(
 
     typer.secho("\nEditor Complete!", fg=typer.colors.GREEN, bold=True)
     typer.echo(f"  Scenes checked: {result.scenes_checked}")
+    typer.echo(f"  Scenes skipped: {result.scenes_skipped}")
     typer.echo(f"  Translation Progress: {result.translation_progress:.1f}%")
     typer.echo(f"  Editing Progress: {result.editing_progress:.1f}%")
     if result.report_path:
@@ -374,6 +490,7 @@ def edit(
         for rid, count in sorted(result.route_issue_counts.items()):
             typer.echo(f"    {rid}: {count} failing checks")
     typer.echo(f"  Resume thread id: {thread_id}")
+    _print_skipped(result.skipped, "Skipped scenes")
     if result.errors:
         typer.secho(f"  Errors: {len(result.errors)} (see logs for details)", fg=typer.colors.RED)
 

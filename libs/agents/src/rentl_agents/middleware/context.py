@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
 from langgraph.runtime import Runtime
+from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext
 
 
-@dataclass
-class AgentContext:
+class AgentContext(BaseModel):
     """Runtime context shared across subagents."""
 
-    project_context: ProjectContext
+    project_context: ProjectContext = Field(description="Shared ProjectContext for subagents.")
 
 
 class ContextInjectionMiddleware(AgentMiddleware[AgentState, AgentContext]):

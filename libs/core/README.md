@@ -93,7 +93,7 @@ Runtime project state:
 
 ```
 context/
-  project.py      # ProjectContext dataclass
+  project.py      # ProjectContext model
 ```
 
 **Design principles**:
@@ -268,7 +268,7 @@ async def main():
 1. Create Pydantic model in `model/`
 2. Add `*_origin` fields for trackable content
 3. Create async loader in `io/loader.py`
-4. Add to `ProjectContext` dataclass
+4. Add to `ProjectContext` model
 5. Update `load_project_context()` to load it
 6. Add save method if needed
 7. Document in [SCHEMAS.md](../../SCHEMAS.md)

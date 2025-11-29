@@ -271,6 +271,7 @@ Review and retry if your update is still needed."""
 ✅ **Do** check provenance in tools before updating and return approval requests when needed
 ✅ **Do** configure `interrupt_on` for update tools when HITL is desired
 ✅ **Do** expose per-phase stats for CLI/TUI dashboards
+✅ **Do** prefer `pydantic.BaseModel` + `Field(...)` (with descriptions) over dataclasses for shared state/config
 
 ---
 

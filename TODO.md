@@ -3,7 +3,7 @@
 This document tracks all tasks required to reach v1.0 of the Rentl translation pipeline.
 
 **Target**: Complete core translation pipeline with Context → Translate → Edit phases (Pretranslation in v1.1)
-**Current Status**: ~75% complete (CLI UX/resume, retries/progress surface, and testing still needed)
+**Current Status**: ~80% complete (CLI UX/resume, retries/progress surface, and testing still needed)
 
 **Direction update**: Top-level DeepAgents coordinators are being retired in favor of deterministic, phase-first pipelines that schedule LangChain subagents directly. HITL will rely on LangChain middleware + provenance-aware tools. UX will emphasize a Textual TUI (plus CLI) with per-phase dashboards and a HITL inbox.
 
@@ -24,12 +24,16 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 ### Phase pipelines & execution
 - [ ] Polish deterministic runners (context/translate/edit) and add pretranslate when ready
 - [x] Add queue-based execution with bounded concurrency and resumable thread IDs (HITL middleware + thread_id + SQLite checkpointer now wired)
-- [ ] Support modes: overwrite, gap-fill, new-only; per-scene targeting complete, route targeting/resume UX improved (CLI route filters added; resume UX still pending)
+- [ ] Support modes: overwrite, gap-fill, new-only; per-scene targeting complete, route targeting/resume UX improved (CLI route filters added; route-level resume UX still pending)
+- [x] Editor pipeline skips already QA'd or untranslated scenes based on mode (overwrite/gap-fill/new-only)
+- [x] Skip transparency across phases (context/translate/edit) with reasons surfaced in CLI/report payloads
 - [x] Add retry/backoff and failure surfacing in pipelines (error collection + backoff added; progress callbacks wired)
 - [ ] Surface status/resume/failure details to CLI/TUI (status now includes translation/editing % and route breakdown + thread id hints; resume UX still needed)
 
 ### CLI UX (TUI later)
-- [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring present; status command added; resume UX pending)
+- [x] Add explicit resume flags for context/translate/edit and error when thread id missing
+- [x] Resume convenience: `--resume-latest` to reuse latest checkpoint thread id for context/translate/edit
+- [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring present; status command added; richer resume UX pending)
 - [ ] Onboarding/smoke test for model config; `status` command for phase stats (status exists with public snapshot JSON + --public; onboarding pending)
 - [ ] Plan Textual TUI (phase dashboards, job queue, HITL inbox) after CLI parity
 - [x] Add `--no-checkpoint` toggle for quick local runs
@@ -106,10 +110,10 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [x] Write unit tests for loaders
   - [x] Async loader tests
   - [x] Error case handling
-- [ ] Write integration tests for subagents
-  - [ ] Mock LLM responses
-  - [ ] Tool execution tests
-  - [ ] HITL approval tests
+- [x] Write integration tests for subagents
+  - [x] Mock LLM responses
+  - [x] Tool execution tests
+  - [x] HITL approval tests
 - [ ] Write E2E tests for pipelines
   - [ ] Full workflow tests with real LLMs
   - [ ] agentevals-based testing

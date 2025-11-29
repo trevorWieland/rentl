@@ -12,9 +12,21 @@ from rentl_agents.subagents.glossary_curator import GlossaryDetailResult
 from rentl_agents.subagents.style_checks import StyleCheckResult
 from rentl_agents.subagents.translate_scene import SceneTranslationResult
 from rentl_agents.subagents.translation_reviewer import TranslationReviewResult
+from rentl_core.context.project import load_project_context
+from rentl_core.model.line import TranslatedLine
 from rentl_pipelines.flows.context_builder import ContextBuilderResult, _run_context_builder_async
 from rentl_pipelines.flows.editor import EditorResult, _run_editor_async
 from rentl_pipelines.flows.translator import TranslatorResult, _run_translator_async
+
+
+async def _seed_translations(project_path: Path) -> None:
+    """Write simple translations for all scenes to enable editing tests."""
+    context = await load_project_context(project_path)
+    for sid, scene in context.scenes.items():
+        lines = await context.load_scene_lines(sid)
+        for line in lines:
+            translation = TranslatedLine.from_source(line, f"tgt-{line.id}", text_tgt_origin="agent:test")
+            await context.record_translation(scene.id, translation, allow_overwrite=True)
 
 
 @pytest.mark.anyio
@@ -97,6 +109,7 @@ async def test_translator_records_errors_without_stopping(monkeypatch: pytest.Mo
 async def test_editor_records_errors_without_stopping(monkeypatch: pytest.MonkeyPatch, tiny_vn_tmp: Path) -> None:
     """Editor should continue other scenes and capture errors."""
     project_path = tiny_vn_tmp
+    await _seed_translations(project_path)
 
     async def style_ok(context: object, scene_id: str, **kwargs: object) -> StyleCheckResult:
         await anyio.sleep(0.001)
@@ -127,6 +140,7 @@ async def test_editor_records_errors_without_stopping(monkeypatch: pytest.Monkey
     assert "scene_r_01" in failed_ids
     # Scenes counted as checked even if later QA stage fails for one scene.
     assert result.scenes_checked == 4
+    assert result.scenes_skipped == 0
     assert result.translation_progress >= 0.0
     assert result.editing_progress >= 0.0
     assert isinstance(result.route_issue_counts, dict)

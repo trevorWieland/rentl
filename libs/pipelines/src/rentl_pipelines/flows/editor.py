@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from functools import partial
 from pathlib import Path
-from typing import Literal, TypeVar
+from typing import Literal, Protocol, TypeVar
 
 import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -21,13 +21,10 @@ from rentl_agents.subagents.translation_reviewer import (
     run_translation_review,
 )
 from rentl_core.context.project import ProjectContext, load_project_context
+from rentl_core.model.line import TranslatedLine
 from rentl_core.util.logging import get_logger
 
-from rentl_pipelines.flows.utils import (
-    PIPELINE_FAILURE_EXCEPTIONS,
-    PipelineError,
-    run_with_retries,
-)
+from rentl_pipelines.flows.utils import PIPELINE_FAILURE_EXCEPTIONS, PipelineError, SkippedItem, run_with_retries
 
 logger = get_logger(__name__)
 REPORT_FILENAME = "editor_report.json"
@@ -37,6 +34,8 @@ class EditorResult(BaseModel):
     """Results from the Editor pipeline."""
 
     scenes_checked: int = Field(description="Number of scenes QA'd.")
+    scenes_skipped: int = Field(description="Number of scenes skipped based on mode or missing translations.")
+    skipped: list[SkippedItem] = Field(default_factory=list, description="Skipped scenes with reasons.")
     translation_progress: float = Field(description="Percent of lines translated across all processed scenes.")
     editing_progress: float = Field(description="Percent of translated lines with at least one recorded check.")
     report_path: str | None = Field(default=None, description="Path to the written report, if any.")
@@ -47,6 +46,16 @@ class EditorResult(BaseModel):
 
 
 _T = TypeVar("_T")
+
+
+class EditingContext(Protocol):
+    """Protocol for editing context used in filtering utilities."""
+
+    async def _load_translations(self, scene_id: str) -> None:
+        """Load translations for a scene if they are not already cached."""
+
+    async def get_translations(self, scene_id: str) -> list[TranslatedLine]:
+        """Return translated lines for a scene."""
 
 
 async def _run_editor_async(
@@ -109,7 +118,34 @@ async def _run_editor_async(
     else:
         target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())
     if not target_scene_ids:
-        return EditorResult(scenes_checked=0, translation_progress=0.0, editing_progress=0.0, report_path=None)
+        return EditorResult(
+            scenes_checked=0,
+            scenes_skipped=0,
+            skipped=[],
+            translation_progress=0.0,
+            editing_progress=0.0,
+            report_path=None,
+        )
+
+    scenes_to_run, skipped_scenes = await _filter_scenes_to_edit(context, target_scene_ids, mode)
+    if not scenes_to_run:
+        report_payload, translation_progress, editing_progress, route_issue_counts = await _build_editor_report(
+            context, target_scene_ids, report_path
+        )
+        await _write_editor_report(report_path, report_payload)
+        result = EditorResult(
+            scenes_checked=0,
+            scenes_skipped=len(skipped_scenes),
+            skipped=skipped_scenes,
+            translation_progress=translation_progress,
+            editing_progress=editing_progress,
+            report_path=str(report_path),
+            route_issue_counts=route_issue_counts,
+            errors=[],
+        )
+        if created_checkpointer and effective_checkpointer is not None:
+            await maybe_close_checkpointer(effective_checkpointer)
+        return result
 
     _ = (decision_handler, thread_id)
     semaphore = anyio.Semaphore(max(1, concurrency))
@@ -142,7 +178,7 @@ async def _run_editor_async(
                 _record_error(stage, scene_id, exc)
 
     async with anyio.create_task_group() as tg:
-        for sid in target_scene_ids:
+        for sid in scenes_to_run:
             if progress_cb:
                 progress_cb("edit_style_start", sid)
             tg.start_soon(
@@ -155,7 +191,7 @@ async def _run_editor_async(
             )
 
     async with anyio.create_task_group() as tg:
-        for sid in target_scene_ids:
+        for sid in scenes_to_run:
             if progress_cb:
                 progress_cb("edit_consistency_start", sid)
             tg.start_soon(
@@ -168,7 +204,7 @@ async def _run_editor_async(
             )
 
     async with anyio.create_task_group() as tg:
-        for sid in target_scene_ids:
+        for sid in scenes_to_run:
             if progress_cb:
                 progress_cb("edit_review_start", sid)
             tg.start_soon(
@@ -185,6 +221,8 @@ async def _run_editor_async(
     )
     result = EditorResult(
         scenes_checked=len(set(completed_scene_ids)),
+        scenes_skipped=len(skipped_scenes),
+        skipped=skipped_scenes,
         translation_progress=translation_progress,
         editing_progress=editing_progress,
         report_path=str(report_path),
@@ -272,11 +310,13 @@ async def _build_editor_report(
     scenes_payload: list[dict[str, object]] = []
     top_issues: list[dict[str, object]] = []
 
+    translations_by_scene: dict[str, list[TranslatedLine]] = {}
     for sid in scene_ids:
         lines = await context.load_scene_lines(sid)
         total_lines += len(lines)
         await context._load_translations(sid)
         translations = await context.get_translations(sid)
+        translations_by_scene[sid] = translations
         translated_lines += len(translations)
         line_findings: list[dict[str, object]] = []
         scene_checked_lines = 0
@@ -365,6 +405,17 @@ async def _build_editor_report(
         "top_issues": top_issues[:10],
         "route_top_issues": {rid: issues[:5] for rid, issues in route_issue_map.items()},
         "report_path": str(report_path),
+        "skipped_scenes": [
+            {
+                "scene_id": sid,
+                "reason": "No translations found; run translate first."
+                if not translations_by_scene.get(sid)
+                else "Already fully QA'd",
+            }
+            for sid in scene_ids
+            if not translations_by_scene.get(sid)
+            or all(line.meta.checks for line in translations_by_scene.get(sid, []))
+        ],
     }
     route_issue_counts = {rid: len(issues) for rid, issues in route_issue_map.items()}
     return payload, translation_progress, editing_progress, route_issue_counts
@@ -377,3 +428,46 @@ async def _write_editor_report(path: Path, payload: dict[str, object]) -> None:
     await anyio.Path(path.parent).mkdir(parents=True, exist_ok=True)
     async with await anyio.open_file(path, "wb") as stream:
         await stream.write(orjson.dumps(payload, option=orjson.OPT_INDENT_2))
+
+
+async def _filter_scenes_to_edit(
+    context: EditingContext, scene_ids: list[str], mode: Literal["overwrite", "gap-fill", "new-only"]
+) -> tuple[list[str], list[SkippedItem]]:
+    """Return scenes that still need editing based on mode and QA coverage.
+
+    Returns:
+        tuple[list[str], list[SkippedItem]]: (scenes_to_run, skipped_scenes_with_reasons)
+    """
+    remaining: list[str] = []
+    skipped: list[SkippedItem] = []
+    for sid in scene_ids:
+        await context._load_translations(sid)
+        translations = await context.get_translations(sid)
+        if not translations:
+            skipped.append(SkippedItem(entity_id=sid, reason="No translations found; run translate first."))
+            continue
+
+        translated = len(translations)
+        checked = sum(1 for line in translations if line.meta.checks)
+
+        if mode == "overwrite":
+            remaining.append(sid)
+            continue
+
+        if mode == "new-only":
+            if checked == 0:
+                remaining.append(sid)
+            else:
+                skipped.append(
+                    SkippedItem(entity_id=sid, reason="Already has QA checks; use gap-fill or overwrite to re-run.")
+                )
+            continue
+
+        if mode == "gap-fill" and checked < translated:
+            remaining.append(sid)
+            continue
+
+        if mode in {"gap-fill", "new-only"} and checked >= translated:
+            skipped.append(SkippedItem(entity_id=sid, reason="Already fully QA'd for this mode."))
+
+    return remaining, skipped
