@@ -102,7 +102,7 @@ async def _run_translator_async(
         context, target_scene_ids, mode, allow_overwrite
     )
 
-    base_thread = thread_id or "translate"
+    base_thread = thread_id or ("translate:routes:" + ",".join(sorted(route_ids)) if route_ids else "translate")
 
     semaphore = anyio.Semaphore(max(1, concurrency))
     errors: list[PipelineError] = []

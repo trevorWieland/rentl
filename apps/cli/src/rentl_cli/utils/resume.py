@@ -18,6 +18,8 @@ def choose_thread_id(
     thread_id: str | None,
     no_checkpoint: bool,
     checkpoint_path: Path,
+    project_path: Path | None = None,
+    route_ids: list[str] | None = None,
 ) -> str:
     """Resolve the thread id to use for a pipeline run.
 
@@ -28,6 +30,8 @@ def choose_thread_id(
         thread_id: User-provided thread id, if any.
         no_checkpoint: Whether checkpoint persistence is disabled.
         checkpoint_path: Path to the checkpoint database.
+        project_path: Optional project path to read last-run status for resume hints.
+        route_ids: Optional route ids used to derive a deterministic thread id when starting new runs.
 
     Returns:
         str: Resolved thread id for the run.
@@ -52,6 +56,22 @@ def choose_thread_id(
         raise typer.Exit(code=1)
 
     if resume_latest:
+        if project_path:
+            from rentl_cli.utils.status_snapshot import _get_phase_snapshot, load_phase_status
+
+            status = load_phase_status(project_path)
+            snapshot = _get_phase_snapshot(status, prefix) if status else None
+            if snapshot and route_ids:
+                if snapshot.route_scope and snapshot.route_scope == sorted(route_ids):
+                    return snapshot.thread_id
+                if snapshot.route_scope and snapshot.route_scope != sorted(route_ids):
+                    typer.secho(
+                        "Latest run used different route filters; specify --thread-id or rerun without --resume-latest.",
+                        fg=typer.colors.RED,
+                    )
+                    raise typer.Exit(code=1)
+            if snapshot and not route_ids:
+                return snapshot.thread_id
         latest = _read_latest_thread_id(checkpoint_path)
         if latest is None:
             typer.secho("No checkpoint found to resume from. Run without --resume-latest first.", fg=typer.colors.RED)
@@ -60,6 +80,9 @@ def choose_thread_id(
 
     if thread_id:
         return thread_id
+
+    if route_ids:
+        return f"{prefix}-routes-{','.join(sorted(route_ids))}"
 
     return f"{prefix}-{uuid4()}"
 

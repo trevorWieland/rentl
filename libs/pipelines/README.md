@@ -371,28 +371,6 @@ async def main():
         print(f"{result.scene_id}: {result.summary}")
 ```
 
-### Handling Errors Gracefully
-
-```python
-async def run_pipeline_with_error_handling(context, scenes):
-    results = []
-    errors = []
-
-    for scene_id in scenes:
-        try:
-            result = await run_scene_pipeline(context, scene_id)
-            results.append(result)
-        except ConfigurationError as e:
-            # Fatal error—stop processing
-            raise
-        except Exception as e:
-            # Log and continue with other scenes
-            errors.append((scene_id, str(e)))
-            continue
-
-    return results, errors
-```
-
 ---
 
 ## Future Patterns (v1.1+)

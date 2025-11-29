@@ -8,6 +8,7 @@ from pathlib import Path
 from shutil import rmtree
 from typing import Annotated, Literal
 
+import orjson
 import typer
 from pydantic import BaseModel, Field
 from rentl_core.context.project import ProjectContext, load_project_context
@@ -21,11 +22,18 @@ from rentl_pipelines.flows.context_builder import (
 )
 from rentl_pipelines.flows.editor import run_editor
 from rentl_pipelines.flows.translator import run_translator
-from rentl_pipelines.flows.utils import SkippedItem
+from rentl_pipelines.flows.utils import PipelineError, SkippedItem
 
 from rentl_cli.cli_types import ProjectPathOption
 from rentl_cli.utils.baseline import write_baseline
 from rentl_cli.utils.resume import choose_thread_id
+from rentl_cli.utils.status_snapshot import (
+    PhaseFailure,
+    PhaseProgress,
+    load_phase_status,
+    record_phase_snapshot,
+    record_phase_start,
+)
 
 
 def _prompt_decisions(requests: list[str]) -> list[str | dict[str, str]]:
@@ -105,6 +113,22 @@ def _progress_printer(verbose: bool) -> Callable[[str, str], None] | None:
         typer.echo(f"[progress] {event} :: {entity}")
 
     return _cb
+
+
+def _format_errors(errors: list[PipelineError]) -> list[str]:
+    """Render pipeline errors for snapshot persistence.
+
+    Returns:
+        list[str]: Flattened error strings for status snapshots.
+    """
+    return [f"{err.stage}:{err.entity_id}:{err.error}" for err in errors]
+
+
+def _resolve_log_file(project_path: Path, log_file: Path | None) -> Path:
+    """Return the log file path, defaulting under .rentl/logs."""
+    if log_file:
+        return log_file
+    return project_path / ".rentl" / "logs" / "rentl.log"
 
 
 async def _collect_progress_snapshot(context: ProjectContext) -> SnapshotProgress:
@@ -195,12 +219,7 @@ async def _collect_progress_snapshot(context: ProjectContext) -> SnapshotProgres
 
 def _print_top_issues(report_path: str) -> None:
     """Pretty-print top issues from the editor report if present."""
-    try:
-        import orjson
-
-        data = orjson.loads(Path(report_path).read_bytes())
-    except Exception:
-        return
+    data = orjson.loads(Path(report_path).read_bytes())
 
     top_issues = data.get("top_issues") or []
     if not top_issues:
@@ -229,6 +248,7 @@ def status(
     async def _status_async(path: Path) -> None:
         context = await load_project_context(path)
         progress = await _collect_progress_snapshot(context)
+        phase_status = load_phase_status(path)
         scenes = context.scenes.values()
         characters = context.characters.values()
         locations = context.locations.values()
@@ -238,6 +258,13 @@ def status(
         characters_incomplete = _filter_characters(characters, "gap-fill")
         locations_incomplete = _filter_locations(locations, "gap-fill")
         routes_incomplete = _filter_routes(routes, "gap-fill")
+        hints: list[str] = []
+        if phase_status:
+            hints = [
+                snap.thread_id
+                for snap in (phase_status.context, phase_status.translate, phase_status.edit)
+                if snap is not None
+            ]
 
         if not public_only:
             typer.secho("Status", fg=typer.colors.CYAN, bold=True)
@@ -254,6 +281,44 @@ def status(
                 f"({progress.checked_lines}/{progress.translated_lines} translated lines)"
             )
             typer.echo(f"  Failing Checks: {progress.failing_checks}")
+
+        if phase_status and not public_only:
+            typer.secho("\n  Last runs:", fg=typer.colors.CYAN, bold=True)
+            for key, label in (("context", "Context"), ("translate", "Translate"), ("edit", "Edit")):
+                snap = (
+                    phase_status.context
+                    if key == "context"
+                    else phase_status.translate
+                    if key == "translate"
+                    else phase_status.edit
+                )
+                if not snap:
+                    continue
+                ts = snap.updated_at.isoformat(timespec="seconds")
+                err_count = len(snap.errors)
+                detail_str = ""
+                if snap.details:
+                    detail_str = "; ".join(f"{k}={v}" for k, v in snap.details.items())
+                    if detail_str:
+                        detail_str = f" [{detail_str}]"
+                progress_str = ""
+                if snap.progress and snap.progress.progress_pct is not None:
+                    progress_str = f" progress={snap.progress.progress_pct:.1f}%"
+                if snap.progress and snap.progress.elapsed_seconds is not None:
+                    progress_str += f" elapsed={snap.progress.elapsed_seconds:.1f}s"
+                if snap.route_scope:
+                    progress_str += f" routes={','.join(snap.route_scope)}"
+                typer.echo(
+                    f"    {label}: thread {snap.thread_id} mode={snap.mode or 'n/a'} "
+                    f"status={snap.status} errors={err_count} at {ts}{detail_str}{progress_str}"
+                )
+                if snap.errors:
+                    for err in snap.errors[:5]:
+                        typer.echo(f"      - {err}")
+                    if err_count > 5:
+                        typer.echo(f"      ... ({err_count - 5} more)")
+        if hints:
+            progress.thread_id_hints = hints
 
         if by_route and not public_only:
             typer.secho("\n  By Route:", fg=typer.colors.CYAN, bold=True)
@@ -332,10 +397,16 @@ def context(
         bool, typer.Option(help="Resume the most recent checkpoint thread id (ignores --thread-id).")
     ] = False,
     no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
-    verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
+    verbosity: Annotated[
+        Literal["info", "verbose", "debug"], typer.Option("--verbosity", "-v", help="Console verbosity level.")
+    ] = "info",
+    log_file: Annotated[
+        Path | None,
+        typer.Option("--log-file", help="Write detailed logs to this file (default: .rentl/logs/rentl.log)."),
+    ] = None,
 ) -> None:
     """Run the Context Builder pipeline to enrich all game metadata."""
-    configure_logging(verbose)
+    configure_logging(verbosity, _resolve_log_file(project_path, log_file))
     typer.secho("Starting Context Builder pipeline...", fg=typer.colors.CYAN, bold=True)
 
     thread_id = choose_thread_id(
@@ -345,7 +416,10 @@ def context(
         thread_id=thread_id,
         no_checkpoint=no_checkpoint,
         checkpoint_path=project_path / ".rentl" / "checkpoints.db",
+        project_path=project_path,
+        route_ids=route_ids,
     )
+    record_phase_start(project_path, "context", thread_id=thread_id, mode=mode, route_ids=route_ids)
     result = run_context_builder(
         project_path,
         allow_overwrite=overwrite,
@@ -355,8 +429,58 @@ def context(
         concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
-        progress_cb=_progress_printer(verbose),
+        progress_cb=_progress_printer(verbosity != "info"),
         checkpoint_enabled=not no_checkpoint,
+    )
+
+    start_snapshot = load_phase_status(project_path)
+    started_at = start_snapshot.context.started_at if start_snapshot and start_snapshot.context else None
+    elapsed_seconds = (datetime.now(UTC) - started_at).total_seconds() if started_at else None
+    completed_items = (
+        result.scenes_detailed
+        + result.characters_detailed
+        + result.locations_detailed
+        + result.routes_detailed
+        + result.glossary_entries_added
+        + result.glossary_entries_updated
+    )
+    total_items = completed_items + result.scenes_skipped
+    progress_pct = (completed_items / total_items * 100) if total_items else None
+    estimated_total_seconds = (
+        (elapsed_seconds / completed_items * total_items) if elapsed_seconds and completed_items else elapsed_seconds
+    )
+    estimated_remaining_seconds = (
+        max(estimated_total_seconds - elapsed_seconds, 0) if estimated_total_seconds and elapsed_seconds else None
+    )
+    progress = PhaseProgress(
+        total_items=total_items,
+        completed_items=completed_items,
+        skipped_items=result.scenes_skipped,
+        progress_pct=progress_pct,
+        elapsed_seconds=elapsed_seconds,
+        estimated_total_seconds=estimated_total_seconds,
+        estimated_remaining_seconds=estimated_remaining_seconds,
+    )
+    failures = [PhaseFailure(stage=err.stage, entity_id=err.entity_id, error=err.error) for err in result.errors]
+    record_phase_snapshot(
+        project_path,
+        "context",
+        thread_id=thread_id,
+        mode=mode,
+        details={
+            "scenes_detailed": result.scenes_detailed,
+            "characters_detailed": result.characters_detailed,
+            "locations_detailed": result.locations_detailed,
+            "routes_detailed": result.routes_detailed,
+            "skipped_scenes": result.scenes_skipped,
+            "glossary_entries_added": result.glossary_entries_added,
+            "glossary_entries_updated": result.glossary_entries_updated,
+        },
+        errors=_format_errors(result.errors),
+        failures=failures,
+        started_at=started_at,
+        progress=progress,
+        route_ids=route_ids,
     )
 
     # Display results
@@ -394,10 +518,16 @@ def translate(
         bool, typer.Option(help="Resume the most recent checkpoint thread id (ignores --thread-id).")
     ] = False,
     no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
-    verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
+    verbosity: Annotated[
+        Literal["info", "verbose", "debug"], typer.Option("--verbosity", "-v", help="Console verbosity level.")
+    ] = "info",
+    log_file: Annotated[
+        Path | None,
+        typer.Option("--log-file", help="Write detailed logs to this file (default: .rentl/logs/rentl.log)."),
+    ] = None,
 ) -> None:
     """Run the Translator pipeline to translate scenes."""
-    configure_logging(verbose)
+    configure_logging(verbosity, _resolve_log_file(project_path, log_file))
     typer.secho("Starting Translator pipeline...", fg=typer.colors.CYAN, bold=True)
 
     thread_id = choose_thread_id(
@@ -407,7 +537,10 @@ def translate(
         thread_id=thread_id,
         no_checkpoint=no_checkpoint,
         checkpoint_path=project_path / ".rentl" / "checkpoints.db",
+        project_path=project_path,
+        route_ids=route_ids,
     )
+    record_phase_start(project_path, "translate", thread_id=thread_id, mode=mode, route_ids=route_ids)
     result = run_translator(
         project_path,
         scene_ids=scene_ids or None,
@@ -417,8 +550,47 @@ def translate(
         concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
-        progress_cb=_progress_printer(verbose),
+        progress_cb=_progress_printer(verbosity != "info"),
         checkpoint_enabled=not no_checkpoint,
+    )
+
+    start_snapshot = load_phase_status(project_path)
+    started_at = start_snapshot.translate.started_at if start_snapshot and start_snapshot.translate else None
+    elapsed_seconds = (datetime.now(UTC) - started_at).total_seconds() if started_at else None
+    completed_items = result.scenes_translated
+    total_items = result.scenes_translated + result.scenes_skipped
+    progress_pct = (completed_items / total_items * 100) if total_items else None
+    estimated_total_seconds = (
+        (elapsed_seconds / completed_items * total_items) if elapsed_seconds and completed_items else elapsed_seconds
+    )
+    estimated_remaining_seconds = (
+        max(estimated_total_seconds - elapsed_seconds, 0) if estimated_total_seconds and elapsed_seconds else None
+    )
+    progress = PhaseProgress(
+        total_items=total_items,
+        completed_items=completed_items,
+        skipped_items=result.scenes_skipped,
+        progress_pct=progress_pct,
+        elapsed_seconds=elapsed_seconds,
+        estimated_total_seconds=estimated_total_seconds,
+        estimated_remaining_seconds=estimated_remaining_seconds,
+    )
+    failures = [PhaseFailure(stage=err.stage, entity_id=err.entity_id, error=err.error) for err in result.errors]
+    record_phase_snapshot(
+        project_path,
+        "translate",
+        thread_id=thread_id,
+        mode=mode,
+        details={
+            "scenes_translated": result.scenes_translated,
+            "lines_translated": result.lines_translated,
+            "scenes_skipped": result.scenes_skipped,
+        },
+        errors=_format_errors(result.errors),
+        failures=failures,
+        started_at=started_at,
+        progress=progress,
+        route_ids=route_ids,
     )
 
     # Display results
@@ -451,10 +623,16 @@ def edit(
         bool, typer.Option(help="Resume the most recent checkpoint thread id (ignores --thread-id).")
     ] = False,
     no_checkpoint: Annotated[bool, typer.Option("--no-checkpoint", help="Disable checkpoint persistence.")] = False,
-    verbose: Annotated[bool, typer.Option("--verbose", help="Enable verbose logging.")] = False,
+    verbosity: Annotated[
+        Literal["info", "verbose", "debug"], typer.Option("--verbosity", "-v", help="Console verbosity level.")
+    ] = "info",
+    log_file: Annotated[
+        Path | None,
+        typer.Option("--log-file", help="Write detailed logs to this file (default: .rentl/logs/rentl.log)."),
+    ] = None,
 ) -> None:
     """Run the Editor pipeline to perform QA on translations."""
-    configure_logging(verbose)
+    configure_logging(verbosity, _resolve_log_file(project_path, log_file))
     typer.secho("Starting Editor pipeline...", fg=typer.colors.CYAN, bold=True)
 
     thread_id = choose_thread_id(
@@ -464,7 +642,10 @@ def edit(
         thread_id=thread_id,
         no_checkpoint=no_checkpoint,
         checkpoint_path=project_path / ".rentl" / "checkpoints.db",
+        project_path=project_path,
+        route_ids=route_ids,
     )
+    record_phase_start(project_path, "edit", thread_id=thread_id, mode=mode, route_ids=route_ids)
     result = run_editor(
         project_path,
         scene_ids=scene_ids or None,
@@ -473,8 +654,48 @@ def edit(
         concurrency=concurrency,
         decision_handler=_prompt_decisions,
         thread_id=thread_id,
-        progress_cb=_progress_printer(verbose),
+        progress_cb=_progress_printer(verbosity != "info"),
         checkpoint_enabled=not no_checkpoint,
+    )
+
+    start_snapshot = load_phase_status(project_path)
+    started_at = start_snapshot.edit.started_at if start_snapshot and start_snapshot.edit else None
+    elapsed_seconds = (datetime.now(UTC) - started_at).total_seconds() if started_at else None
+    completed_items = result.scenes_checked
+    total_items = result.scenes_checked + result.scenes_skipped
+    progress_pct = (completed_items / total_items * 100) if total_items else None
+    estimated_total_seconds = (
+        (elapsed_seconds / completed_items * total_items) if elapsed_seconds and completed_items else elapsed_seconds
+    )
+    estimated_remaining_seconds = (
+        max(estimated_total_seconds - elapsed_seconds, 0) if estimated_total_seconds and elapsed_seconds else None
+    )
+    progress = PhaseProgress(
+        total_items=total_items,
+        completed_items=completed_items,
+        skipped_items=result.scenes_skipped,
+        progress_pct=progress_pct,
+        elapsed_seconds=elapsed_seconds,
+        estimated_total_seconds=estimated_total_seconds,
+        estimated_remaining_seconds=estimated_remaining_seconds,
+    )
+    failures = [PhaseFailure(stage=err.stage, entity_id=err.entity_id, error=err.error) for err in result.errors]
+    record_phase_snapshot(
+        project_path,
+        "edit",
+        thread_id=thread_id,
+        mode=mode,
+        details={
+            "scenes_checked": result.scenes_checked,
+            "scenes_skipped": result.scenes_skipped,
+            "translation_progress_pct": result.translation_progress,
+            "editing_progress_pct": result.editing_progress,
+        },
+        errors=_format_errors(result.errors),
+        failures=failures,
+        started_at=started_at,
+        progress=progress,
+        route_ids=route_ids,
     )
 
     typer.secho("\nEditor Complete!", fg=typer.colors.GREEN, bold=True)

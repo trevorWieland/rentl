@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated, Literal
 
 import anyio
 import typer
@@ -69,18 +70,30 @@ async def _validate_async(project_path: Path) -> None:
 
 def validate(
     project_path: ProjectPathOption = Path("."),
-    verbose: bool = typer.Option(False, "--verbose", help="Enable verbose logging."),
+    verbosity: Annotated[
+        Literal["info", "verbose", "debug"], typer.Option("--verbosity", "-v", help="Console verbosity level.")
+    ] = "info",
+    log_file: Annotated[
+        Path | None,
+        typer.Option("--log-file", help="Write detailed logs to this file (default: .rentl/logs/rentl.log)."),
+    ] = None,
 ) -> None:
     """Run validation and exit with status 0 on success.
 
     Raises:
         typer.Exit: If validation encounters errors.
     """
-    configure_logging(verbose)
+    configure_logging(verbosity, log_file or project_path / ".rentl" / "logs" / "rentl.log")
     try:
         anyio.run(_validate_async, project_path)
-    except Exception as exc:
+    except FileNotFoundError as exc:
         typer.secho(f"Validation failed: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        typer.secho(f"Validation failed: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        typer.secho(f"Validation failed with an unexpected error: {exc}", fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
     typer.secho("Validation successful.", fg=typer.colors.GREEN)

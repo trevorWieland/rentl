@@ -2,6 +2,7 @@
 
 import typer
 
+from rentl_cli.commands.doctor import doctor
 from rentl_cli.commands.run import context, edit, reset_example, status, translate
 from rentl_cli.commands.validate import validate
 
@@ -20,6 +21,7 @@ app.command()(context)
 app.command()(translate)
 app.command()(edit)
 app.command()(status)
+app.command()(doctor)
 app.command("reset-example")(reset_example)
 
 

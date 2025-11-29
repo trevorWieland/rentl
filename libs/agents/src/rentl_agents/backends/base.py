@@ -13,5 +13,4 @@ def get_default_chat_model() -> ChatOpenAI:
         model=settings.llm_model,  # type: ignore[arg-type]
         api_key=settings.openai_api_key,
         base_url=settings.openai_url,  # type: ignore[arg-type]
-        temperature=0,
     )

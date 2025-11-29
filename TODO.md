@@ -24,17 +24,17 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 ### Phase pipelines & execution
 - [ ] Polish deterministic runners (context/translate/edit) and add pretranslate when ready
 - [x] Add queue-based execution with bounded concurrency and resumable thread IDs (HITL middleware + thread_id + SQLite checkpointer now wired)
-- [ ] Support modes: overwrite, gap-fill, new-only; per-scene targeting complete, route targeting/resume UX improved (CLI route filters added; route-level resume UX still pending)
+- [x] Support modes: overwrite, gap-fill, new-only; per-scene targeting complete, route targeting/resume UX improved (CLI route filters added; route-level thread ids/snapshots deterministic with scope-aware resume)
 - [x] Editor pipeline skips already QA'd or untranslated scenes based on mode (overwrite/gap-fill/new-only)
 - [x] Skip transparency across phases (context/translate/edit) with reasons surfaced in CLI/report payloads
 - [x] Add retry/backoff and failure surfacing in pipelines (error collection + backoff added; progress callbacks wired)
-- [ ] Surface status/resume/failure details to CLI/TUI (status now includes translation/editing % and route breakdown + thread id hints; resume UX still needed)
+- [x] Surface status/resume/failure details to CLI/TUI (status now includes translation/editing %, route breakdown, thread id hints, per-entity failures, time/estimate)
 
 ### CLI UX (TUI later)
 - [x] Add explicit resume flags for context/translate/edit and error when thread id missing
 - [x] Resume convenience: `--resume-latest` to reuse latest checkpoint thread id for context/translate/edit
-- [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring present; status command added; richer resume UX pending)
-- [ ] Onboarding/smoke test for model config; `status` command for phase stats (status exists with public snapshot JSON + --public; onboarding pending)
+- [x] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring present; status command added; richer resume UX improved)
+- [x] Onboarding/smoke test for model config; `status` command for phase stats (status exists with public snapshot JSON + --public; onboarding added via doctor command)
 - [ ] Plan Textual TUI (phase dashboards, job queue, HITL inbox) after CLI parity
 - [x] Add `--no-checkpoint` toggle for quick local runs
 
@@ -84,14 +84,14 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
   - [ ] Graceful degradation
   - [ ] User-friendly error messages
   - [ ] Recovery mechanisms
-- [ ] Add progress reporting callbacks
+- [x] Add progress reporting callbacks
   - [x] Scene-level progress (callbacks + CLI verbose printing)
-  - [ ] Pipeline-level progress/state and resume UX
-  - [ ] Time estimates
-- [ ] CLI verbosity tiers
-  - [ ] Default: high-level progress/stats + subagent task starts/finishes (no LLM dumps)
-  - [ ] Verbose: add tool call summaries and failures
-  - [ ] Debug/log: full trace to log file only (LLM reasoning/tokens kept out of stdout)
+  - [x] Pipeline-level progress/state and resume UX
+  - [x] Time estimates
+- [x] CLI verbosity tiers
+  - [x] Default: high-level progress/stats + subagent task starts/finishes (no LLM dumps)
+  - [x] Verbose: add tool call summaries and failures
+  - [x] Debug/log: full trace to log file only (LLM reasoning/tokens kept out of stdout)
 - [x] Add pytest fixtures/utilities to reset tiny_vn baseline before/after integration tests for repeatability
 - [ ] Stats/report helpers (structured progress for CLI/agents)
 - [x] Surface route issue counts and top issues in CLI/status snapshots

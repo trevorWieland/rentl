@@ -124,7 +124,7 @@ async def _run_context_builder_async(
     locations_completed = 0
     routes_completed = 0
 
-    base_thread = thread_id or "context"
+    base_thread = thread_id or ("context:routes:" + ",".join(sorted(route_ids)) if route_ids else "context")
 
     def _record_error(stage: str, entity_id: str, exc: BaseException) -> None:
         errors.append(PipelineError(stage=stage, entity_id=entity_id, error=str(exc)))

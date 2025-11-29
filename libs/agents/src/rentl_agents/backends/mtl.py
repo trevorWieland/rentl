@@ -48,14 +48,11 @@ def get_mtl_chat_model() -> ChatOpenAI | None:
     if not settings.mtl_url or not settings.mtl_model:
         return None
 
-    # Use api_key if provided, otherwise use a default value
-    api_key = settings.mtl_api_key if settings.mtl_api_key else "not-needed"
-
+    # langchain-openai stubs lag runtime kwargs; skip type check for constructor call.
     return ChatOpenAI(
         model=settings.mtl_model,  # type: ignore[arg-type]
-        api_key=api_key,  # type: ignore[arg-type]
+        api_key=settings.mtl_api_key,
         base_url=settings.mtl_url,  # type: ignore[arg-type]
-        temperature=0,
     )
 
 

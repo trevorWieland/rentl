@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import typer
 from rentl_cli.utils.resume import _read_latest_thread_id, choose_thread_id
+from rentl_cli.utils.status_snapshot import record_phase_snapshot
 
 
 def _seed_checkpoint(db_path: Path, thread_ids: list[str]) -> None:
@@ -101,3 +102,67 @@ def test_choose_thread_id_generates_when_no_resume(tmp_path: Path) -> None:
         checkpoint_path=tmp_path / "checkpoints.db",
     )
     assert tid.startswith("translate-")
+
+
+def test_choose_thread_id_uses_routes_when_provided(tmp_path: Path) -> None:
+    """When route ids are provided, thread id should be deterministic."""
+    tid = choose_thread_id(
+        prefix="translate",
+        resume=False,
+        resume_latest=False,
+        thread_id=None,
+        no_checkpoint=False,
+        checkpoint_path=tmp_path / "checkpoints.db",
+        route_ids=["b", "a"],
+    )
+    assert tid == "translate-routes-a,b"
+
+
+def test_choose_thread_id_prefers_status_snapshot(tmp_path: Path) -> None:
+    """When --resume-latest is used, prefer status snapshot thread ids."""
+    record_phase_snapshot(
+        tmp_path,
+        "translate",
+        thread_id="tid-from-status",
+        mode="gap-fill",
+        details=None,
+        errors=[],
+        route_ids=["r1", "r2"],
+    )
+
+    tid = choose_thread_id(
+        prefix="translate",
+        resume=False,
+        resume_latest=True,
+        thread_id=None,
+        no_checkpoint=False,
+        checkpoint_path=tmp_path / "checkpoints.db",
+        project_path=tmp_path,
+        route_ids=["r1", "r2"],
+    )
+    assert tid == "tid-from-status"
+
+
+def test_choose_thread_id_route_mismatch_errors(tmp_path: Path) -> None:
+    """Route mismatch with resume-latest should raise."""
+    record_phase_snapshot(
+        tmp_path,
+        "translate",
+        thread_id="tid-from-status",
+        mode="gap-fill",
+        details=None,
+        errors=[],
+        route_ids=["r1", "r2"],
+    )
+
+    with pytest.raises(typer.Exit):
+        choose_thread_id(
+            prefix="translate",
+            resume=False,
+            resume_latest=True,
+            thread_id=None,
+            no_checkpoint=False,
+            checkpoint_path=tmp_path / "checkpoints.db",
+            project_path=tmp_path,
+            route_ids=["r3"],
+        )

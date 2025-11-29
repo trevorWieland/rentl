@@ -151,7 +151,7 @@ async def _run_editor_async(
     semaphore = anyio.Semaphore(max(1, concurrency))
     errors: list[PipelineError] = []
     completed_scene_ids: list[str] = []
-    base_thread = thread_id or "edit"
+    base_thread = thread_id or ("edit:routes:" + ",".join(sorted(route_ids)) if route_ids else "edit")
     style_runner = style_runner or run_style_checks
     consistency_runner = consistency_runner or run_consistency_checks
     review_runner = review_runner or run_translation_review

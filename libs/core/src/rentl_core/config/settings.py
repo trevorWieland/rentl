@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV_PATH = Path(".env")
@@ -18,12 +18,12 @@ class _Settings(BaseSettings):
 
     # Primary LLM (agentic reasoning and orchestration)
     openai_url: str = Field(..., alias="OPENAI_URL")
-    openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
+    openai_api_key: SecretStr = Field(..., alias="OPENAI_API_KEY")
     llm_model: str = Field(..., alias="LLM_MODEL")
 
     # Machine Translation (MTL) backend (optional, for specialized translation)
     mtl_url: str | None = Field(default=None, alias="MTL_URL")
-    mtl_api_key: str | None = Field(default=None, alias="MTL_API_KEY")
+    mtl_api_key: SecretStr | None = Field(default=None, alias="MTL_API_KEY")
     mtl_model: str | None = Field(default=None, alias="MTL_MODEL")
     mtl_system_prompt: str | None = Field(default=None, alias="MTL_SYSTEM_PROMPT")
 
