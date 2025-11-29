@@ -20,7 +20,7 @@ from rentl_agents.subagents.translation_reviewer import (
     TranslationReviewResult,
     run_translation_review,
 )
-from rentl_core.context.project import load_project_context
+from rentl_core.context.project import ProjectContext, load_project_context
 from rentl_core.util.logging import get_logger
 
 from rentl_pipelines.flows.utils import (
@@ -37,6 +37,12 @@ class EditorResult(BaseModel):
     """Results from the Editor pipeline."""
 
     scenes_checked: int = Field(description="Number of scenes QA'd.")
+    translation_progress: float = Field(description="Percent of lines translated across all processed scenes.")
+    editing_progress: float = Field(description="Percent of translated lines with at least one recorded check.")
+    report_path: str | None = Field(default=None, description="Path to the written report, if any.")
+    route_issue_counts: dict[str, int] = Field(
+        default_factory=dict, description="Map of route_id to count of failing checks."
+    )
     errors: list[PipelineError] = Field(default_factory=list, description="Errors encountered during QA.")
 
 
@@ -47,6 +53,7 @@ async def _run_editor_async(
     project_path: Path,
     *,
     scene_ids: list[str] | None = None,
+    route_ids: list[str] | None = None,
     mode: Literal["overwrite", "gap-fill", "new-only"] = "gap-fill",
     concurrency: int = 4,
     decision_handler: Callable[[list[str]], list[str | dict[str, str]]] | None = None,
@@ -64,6 +71,7 @@ async def _run_editor_async(
     Args:
         project_path: Path to the game project.
         scene_ids: Optional list of specific scene IDs to QA.
+        route_ids: Optional list of route IDs whose scenes should be QA'd.
         mode: Processing mode (overwrite, gap-fill, new-only).
         concurrency: Maximum concurrent QA runs.
         decision_handler: Callback to collect HITL decisions when interrupts fire.
@@ -93,9 +101,15 @@ async def _run_editor_async(
     if report_path is None:
         report_path = output_reports_dir / REPORT_FILENAME
 
-    target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())
+    if route_ids:
+        route_set = set(route_ids)
+        target_scene_ids = sorted(
+            {sid for sid, scene in context.scenes.items() if any(rid in route_set for rid in scene.route_ids)}
+        )
+    else:
+        target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())
     if not target_scene_ids:
-        return EditorResult(scenes_checked=0)
+        return EditorResult(scenes_checked=0, translation_progress=0.0, editing_progress=0.0, report_path=None)
 
     _ = (decision_handler, thread_id)
     semaphore = anyio.Semaphore(max(1, concurrency))
@@ -166,8 +180,18 @@ async def _run_editor_async(
                 ),
             )
 
-    result = EditorResult(scenes_checked=len(set(completed_scene_ids)), errors=errors)
-    await _write_editor_report(report_path, result)
+    report_payload, translation_progress, editing_progress, route_issue_counts = await _build_editor_report(
+        context, target_scene_ids, report_path
+    )
+    result = EditorResult(
+        scenes_checked=len(set(completed_scene_ids)),
+        translation_progress=translation_progress,
+        editing_progress=editing_progress,
+        report_path=str(report_path),
+        route_issue_counts=route_issue_counts,
+        errors=errors,
+    )
+    await _write_editor_report(report_path, report_payload)
     logger.info("Editor pipeline complete: %s", result)
     if created_checkpointer and effective_checkpointer is not None:
         await maybe_close_checkpointer(effective_checkpointer)
@@ -178,6 +202,7 @@ def run_editor(
     project_path: Path,
     *,
     scene_ids: list[str] | None = None,
+    route_ids: list[str] | None = None,
     mode: Literal["overwrite", "gap-fill", "new-only"] = "gap-fill",
     concurrency: int = 4,
     decision_handler: Callable[[list[str]], list[str | dict[str, str]]] | None = None,
@@ -195,6 +220,7 @@ def run_editor(
     Args:
         project_path: Path to the game project.
         scene_ids: Optional list of specific scene IDs to QA.
+        route_ids: Optional list of route IDs whose scenes should be QA'd.
         mode: Processing mode (overwrite, gap-fill, new-only).
         concurrency: Maximum concurrent QA runs.
         decision_handler: Callback to collect HITL decisions when interrupts fire.
@@ -215,6 +241,7 @@ def run_editor(
             _run_editor_async,
             project_path,
             scene_ids=scene_ids,
+            route_ids=route_ids,
             mode=mode,
             concurrency=concurrency,
             decision_handler=decision_handler,
@@ -230,11 +257,123 @@ def run_editor(
     )
 
 
-async def _write_editor_report(path: Path, result: EditorResult) -> None:
-    """Persist a simple JSON report summarizing editor results."""
+async def _build_editor_report(
+    context: ProjectContext, scene_ids: list[str], report_path: Path
+) -> tuple[dict[str, object], float, float, dict[str, int]]:
+    """Aggregate translation/editing progress and findings for a report.
+
+    Returns:
+        tuple[dict[str, object], float, float, dict[str, int]]:
+        (payload, translation_progress_pct, editing_progress_pct, route_issue_counts)
+    """
+    total_lines = 0
+    translated_lines = 0
+    checked_lines = 0
+    scenes_payload: list[dict[str, object]] = []
+    top_issues: list[dict[str, object]] = []
+
+    for sid in scene_ids:
+        lines = await context.load_scene_lines(sid)
+        total_lines += len(lines)
+        await context._load_translations(sid)
+        translations = await context.get_translations(sid)
+        translated_lines += len(translations)
+        line_findings: list[dict[str, object]] = []
+        scene_checked_lines = 0
+        for t in translations:
+            if t.meta.checks:
+                scene_checked_lines += 1
+                check_payload = {
+                    name: {"passed": bool(passed), "note": note} for name, (passed, note) in t.meta.checks.items()
+                }
+                line_findings.append(
+                    {
+                        "line_id": t.id,
+                        "checks": check_payload,
+                    }
+                )
+                failing = {name: meta for name, meta in check_payload.items() if not meta["passed"]}
+                if failing:
+                    top_issues.append(
+                        {
+                            "scene_id": sid,
+                            "line_id": t.id,
+                            "checks": failing,
+                        }
+                    )
+        checked_lines += scene_checked_lines
+        scene_translation_progress = (len(translations) / len(lines) * 100) if lines else 0.0
+        scene_editing_progress = (scene_checked_lines / len(translations) * 100) if translations else 0.0
+        scenes_payload.append(
+            {
+                "scene_id": sid,
+                "translation_progress_pct": round(scene_translation_progress, 1),
+                "editing_progress_pct": round(scene_editing_progress, 1),
+                "findings": line_findings,
+            }
+        )
+
+    routes_payload: list[dict[str, object]] = []
+    route_issue_map: dict[str, list[dict[str, object]]] = {}
+    for route in context.routes.values():
+        relevant_scene_ids = [sid for sid in route.scene_ids if sid in scene_ids]
+        if not relevant_scene_ids:
+            continue
+        route_lines = 0
+        route_translated = 0
+        route_checked = 0
+        route_issues: list[dict[str, object]] = []
+        for sid in relevant_scene_ids:
+            lines = await context.load_scene_lines(sid)
+            route_lines += len(lines)
+            await context._load_translations(sid)
+            translations = await context.get_translations(sid)
+            route_translated += len(translations)
+            for t in translations:
+                if t.meta.checks:
+                    route_checked += 1
+                    failing = {name: meta for name, meta in t.meta.checks.items() if not meta[0]}
+                    if failing:
+                        route_issues.append(
+                            {
+                                "scene_id": sid,
+                                "line_id": t.id,
+                                "checks": {k: {"passed": v[0], "note": v[1]} for k, v in failing.items()},
+                            }
+                        )
+        route_issue_map[route.id] = route_issues
+        routes_payload.append(
+            {
+                "route_id": route.id,
+                "translation_progress_pct": round((route_translated / route_lines * 100) if route_lines else 0.0, 1),
+                "editing_progress_pct": round((route_checked / route_translated * 100) if route_translated else 0.0, 1),
+                "issues": route_issues[:5],
+            }
+        )
+
+    translation_progress = (translated_lines / total_lines * 100) if total_lines else 0.0
+    editing_progress = (checked_lines / translated_lines * 100) if translated_lines else 0.0
+
+    payload = {
+        "summary": {
+            "scenes": len(scene_ids),
+            "translation_progress_pct": round(translation_progress, 1),
+            "editing_progress_pct": round(editing_progress, 1),
+        },
+        "routes": routes_payload,
+        "scenes": scenes_payload,
+        "top_issues": top_issues[:10],
+        "route_top_issues": {rid: issues[:5] for rid, issues in route_issue_map.items()},
+        "report_path": str(report_path),
+    }
+    route_issue_counts = {rid: len(issues) for rid, issues in route_issue_map.items()}
+    return payload, translation_progress, editing_progress, route_issue_counts
+
+
+async def _write_editor_report(path: Path, payload: dict[str, object]) -> None:
+    """Persist a JSON report summarizing editor results."""
     import orjson
 
     await anyio.Path(path.parent).mkdir(parents=True, exist_ok=True)
-    payload = result.model_dump()
     async with await anyio.open_file(path, "wb") as stream:
         await stream.write(orjson.dumps(payload, option=orjson.OPT_INDENT_2))

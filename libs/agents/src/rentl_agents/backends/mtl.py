@@ -3,7 +3,7 @@
 This module provides access to specialized translation models via OpenAI-compatible API endpoints.
 
 The default configuration is optimized for Sugoi-14B-Ultra (JP→EN), but can be adapted for
-other specialized translation models by modifying the system prompt and model configuration.
+other language pairs by modifying the system prompt and model configuration.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from rentl_core.config.settings import get_settings
 
 # Default system prompt for Sugoi-14B-Ultra (JP→EN translation)
 # This prompt is required for Sugoi models as specified in the Sugoi Toolkit documentation.
-# Can be overridden via MTL_SYSTEM_PROMPT environment variable.
+# Can be overridden via MTL_SYSTEM_PROMPT environment variable when using other pairs.
 DEFAULT_MTL_SYSTEM_PROMPT = (
     "You are a professional localizer whose primary goal is to translate Japanese to English. "
     "You should use colloquial or slang or hentai vocabulary if it makes the translation more accurate. "

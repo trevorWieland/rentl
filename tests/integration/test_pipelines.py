@@ -127,3 +127,6 @@ async def test_editor_records_errors_without_stopping(monkeypatch: pytest.Monkey
     assert "scene_r_01" in failed_ids
     # Scenes counted as checked even if later QA stage fails for one scene.
     assert result.scenes_checked == 4
+    assert result.translation_progress >= 0.0
+    assert result.editing_progress >= 0.0
+    assert isinstance(result.route_issue_counts, dict)

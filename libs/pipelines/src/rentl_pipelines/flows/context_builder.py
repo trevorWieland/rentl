@@ -60,6 +60,8 @@ async def _run_context_builder_async(
     *,
     allow_overwrite: bool = False,
     mode: Literal["overwrite", "gap-fill", "new-only"] = "gap-fill",
+    scene_ids: list[str] | None = None,
+    route_ids: list[str] | None = None,
     concurrency: int = 4,
     decision_handler: Callable[[list[str]], list[str | dict[str, str]]] | None = None,
     thread_id: str | None = None,
@@ -73,6 +75,8 @@ async def _run_context_builder_async(
         project_path: Path to the game project.
         allow_overwrite: Allow overwriting existing metadata.
         mode: Processing mode (overwrite, gap-fill, new-only).
+        scene_ids: Optional list of specific scene IDs to process.
+        route_ids: Optional list of route IDs to limit processing.
         concurrency: Maximum concurrent subagent runs.
         decision_handler: Callback to collect HITL decisions when interrupts fire.
         thread_id: Optional thread id for checkpointer continuity.
@@ -95,10 +99,25 @@ async def _run_context_builder_async(
         else None
     )
     allow_overwrite = mode == "overwrite"
-    scenes_to_run = _filter_scenes(context.scenes.values(), mode)
+    selected_scenes = (
+        [sid for sid in scene_ids if sid in context.scenes]
+        if scene_ids
+        else [scene.id for scene in context.scenes.values()]
+    )
+    if route_ids:
+        route_set = set(route_ids)
+        selected_scenes = [
+            sid for sid in selected_scenes if any(rid in route_set for rid in context.get_scene(sid).route_ids)
+        ]
+
+    scenes_to_run = _filter_scenes((context.scenes[sid] for sid in selected_scenes), mode)
     characters_to_run = _filter_characters(context.characters.values(), mode)
     locations_to_run = _filter_locations(context.locations.values(), mode)
-    routes_to_run = _filter_routes(context.routes.values(), mode)
+    routes_to_run = (
+        _filter_routes((context.routes[rid] for rid in route_ids if rid in context.routes), mode)
+        if route_ids
+        else _filter_routes(context.routes.values(), mode)
+    )
 
     semaphore = anyio.Semaphore(max(1, concurrency))
     errors: list[PipelineError] = []
@@ -243,6 +262,8 @@ def run_context_builder(
     *,
     allow_overwrite: bool = False,
     mode: Literal["overwrite", "gap-fill", "new-only"] = "gap-fill",
+    scene_ids: list[str] | None = None,
+    route_ids: list[str] | None = None,
     concurrency: int = 4,
     decision_handler: Callable[[list[str]], list[str | dict[str, str]]] | None = None,
     thread_id: str | None = None,
@@ -256,6 +277,8 @@ def run_context_builder(
         project_path: Path to the game project.
         allow_overwrite: Allow overwriting existing metadata.
         mode: Processing mode (overwrite, gap-fill, new-only).
+        scene_ids: Optional list of specific scene IDs to process.
+        route_ids: Optional list of route IDs to limit processing.
         concurrency: Maximum concurrent subagent runs.
         decision_handler: Callback to collect HITL decisions when interrupts fire.
         thread_id: Optional thread id for checkpointer continuity.
@@ -272,6 +295,8 @@ def run_context_builder(
             project_path,
             allow_overwrite=allow_overwrite,
             mode=mode,
+            scene_ids=scene_ids,
+            route_ids=route_ids,
             concurrency=concurrency,
             decision_handler=decision_handler,
             thread_id=thread_id,

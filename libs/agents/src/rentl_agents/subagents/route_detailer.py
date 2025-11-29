@@ -49,7 +49,7 @@ Your task is to analyze route information and enhance their metadata for transla
 
 **Important:**
 - Focus on narrative arc, key plot points, and character relationships
-- Keep synopsis concise but informative (1-3 sentences)
+- Keep synopsis concise but informative (1-3 sentences) and write it in the source language
 - List only primary characters (not every character who appears)
 - Respect existing human-authored data (you may be asked for approval before overwriting)
 - Each update tool should only be called once per session
@@ -84,14 +84,17 @@ async def detail_route(
         context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
     )
 
+    source_lang = context.game.source_lang.upper()
+
     user_prompt = f"""Enrich metadata for this route.
 
 Route ID: {route_id}
+Source Language: {source_lang}
 
 Instructions:
 1. Read the route's current metadata (including scene list)
 2. Only read context documents returned by list_context_docs if they look relevant
-3. Update synopsis with a concise narrative summary (1-3 sentences covering the route's arc) using update_route_synopsis(route_id, synopsis)
+3. Update synopsis in {source_lang} with a concise narrative summary (1-3 sentences covering the route's arc) using update_route_synopsis(route_id, synopsis)
 4. Update primary_characters with key character IDs featured in this route using update_route_characters(route_id, ids)
 5. End conversation when all updates are complete
 

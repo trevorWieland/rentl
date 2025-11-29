@@ -42,7 +42,7 @@ Your task is to analyze character information and enhance their metadata for tra
 
 1. **Target Name**: Provide or refine the localized name in the target language
 2. **Pronouns**: Specify pronoun preferences (e.g., "she/her", "he/him", "they/them")
-3. **Notes**: Capture personality traits, speech patterns, tone, or translation guidance
+3. **Notes**: Capture personality traits, speech patterns, tone, or translation guidance (in the source language)
 
 **Workflow:**
 1. Read the character's current metadata
@@ -90,18 +90,20 @@ async def detail_character(
     )
 
     target_lang = context.game.target_lang.upper()
+    source_lang = context.game.source_lang.upper()
 
     user_prompt = f"""Enrich metadata for this character.
 
 Character ID: {character_id}
 Target Language: {target_lang}
+Source Language: {source_lang}
 
 Instructions:
 1. Read the character's current metadata
 2. Review any context documents that mention this character
-3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_character_name_tgt(character_id, name)
-4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them") using update_character_pronouns(character_id, pronouns)
-5. Update notes with personality, speech patterns, tone, translation guidance using update_character_notes(character_id, notes)
+3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_character_name_tgt(character_id, name) in {target_lang}
+4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them") using update_character_pronouns(character_id, pronouns) and describe in {source_lang}
+5. Update notes with personality, speech patterns, tone, translation guidance using update_character_notes(character_id, notes) in {source_lang}
 6. End conversation when all updates are complete
 
 Begin analysis now."""

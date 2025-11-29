@@ -1,7 +1,8 @@
 """Translator pipeline for scene-by-scene translation.
 
-This pipeline orchestrates the scene translator to produce aligned JP→EN translations
-using enriched context from the Context Builder phase.
+This pipeline orchestrates the scene translator to produce aligned translations
+for the configured source→target language pair using enriched context from the
+Context Builder phase.
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ async def _run_translator_async(
     project_path: Path,
     *,
     scene_ids: list[str] | None = None,
+    route_ids: list[str] | None = None,
     allow_overwrite: bool = False,
     mode: Literal["overwrite", "gap-fill", "new-only"] = "gap-fill",
     concurrency: int = 4,
@@ -59,6 +61,7 @@ async def _run_translator_async(
     Args:
         project_path: Path to the game project.
         scene_ids: Optional list of specific scene IDs to translate (default: all scenes).
+        route_ids: Optional list of route IDs to translate (derives scenes from routes).
         allow_overwrite: Allow overwriting existing translations.
         mode: Processing mode (overwrite, gap-fill, new-only).
         concurrency: Maximum concurrent scene translations.
@@ -83,7 +86,13 @@ async def _run_translator_async(
     )
 
     # Determine which scenes to translate
-    target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())
+    if route_ids:
+        route_set = set(route_ids)
+        target_scene_ids = sorted(
+            {sid for sid, scene in context.scenes.items() if any(rid in route_set for rid in scene.route_ids)}
+        )
+    else:
+        target_scene_ids = scene_ids if scene_ids else sorted(context.scenes.keys())
     logger.info("Target scenes: %d", len(target_scene_ids))
 
     allow_overwrite = mode == "overwrite"
@@ -156,6 +165,7 @@ def run_translator(
     project_path: Path,
     *,
     scene_ids: list[str] | None = None,
+    route_ids: list[str] | None = None,
     allow_overwrite: bool = False,
     mode: Literal["overwrite", "gap-fill", "new-only"] = "gap-fill",
     concurrency: int = 4,
@@ -170,6 +180,7 @@ def run_translator(
     Args:
         project_path: Path to the game project.
         scene_ids: Optional list of specific scene IDs to translate (default: all scenes).
+        route_ids: Optional list of route IDs to translate (derives scenes from routes).
         allow_overwrite: Allow overwriting existing translations.
         mode: Overwrite, gap-fill (default), or new-only behavior.
         concurrency: Maximum concurrent scene translations.
@@ -187,6 +198,7 @@ def run_translator(
             _run_translator_async,
             project_path,
             scene_ids=scene_ids,
+            route_ids=route_ids,
             allow_overwrite=allow_overwrite,
             mode=mode,
             concurrency=concurrency,

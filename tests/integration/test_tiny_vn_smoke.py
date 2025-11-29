@@ -89,6 +89,9 @@ async def test_tiny_vn_full_pipeline_smoke(monkeypatch: pytest.MonkeyPatch, tiny
     assert context_result.scenes_detailed == 4
     assert translator_result.scenes_translated == 4
     assert editor_result.scenes_checked == 4
+    assert editor_result.translation_progress >= 0.0
+    assert editor_result.editing_progress >= 0.0
+    assert isinstance(editor_result.route_issue_counts, dict)
 
     context = await load_project_context(project_path)
     translations = await context.get_translations("scene_a_00")

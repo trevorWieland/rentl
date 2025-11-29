@@ -38,7 +38,7 @@ SYSTEM_PROMPT = """You are a localization assistant enriching location metadata.
 Your task is to analyze location information and enhance their metadata for translation quality:
 
 1. **Target Name**: Provide or refine the localized name in the target language
-2. **Description**: Capture the location's appearance, mood, atmosphere, and contextual details
+2. **Description**: Capture the location's appearance, mood, atmosphere, and contextual details (write descriptions in the source language)
 
 **Workflow:**
 1. Read the location's current metadata
@@ -85,17 +85,19 @@ async def detail_location(
     )
 
     target_lang = context.game.target_lang.upper()
+    source_lang = context.game.source_lang.upper()
 
     user_prompt = f"""Enrich metadata for this location.
 
 Location ID: {location_id}
 Target Language: {target_lang}
+Source Language: {source_lang}
 
 Instructions:
 1. Read the location's current metadata
 2. Review any context documents that mention this location
-3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_location_name_tgt(location_id, name)
-4. Update description with vivid details (appearance, mood, atmosphere, sensory details) using update_location_description(location_id, description)
+3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_location_name_tgt(location_id, name) in {target_lang}
+4. Update description with vivid details (appearance, mood, atmosphere, sensory details) using update_location_description(location_id, description) in the source language
 5. End conversation when all updates are complete
 
 Begin analysis now."""

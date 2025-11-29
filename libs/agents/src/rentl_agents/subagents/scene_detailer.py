@@ -53,7 +53,7 @@ Your task is to read scene transcripts and generate comprehensive metadata:
 7. End the conversation once all metadata is recorded
 
 **Important:**
-- Write summaries in the source language (same as scene text)
+- Write summaries, tags, and location names in the source language (same as scene text)
 - Use lowercase IDs for characters/locations (e.g., "mc", "aya", "school_rooftop")
 - Be thorough but concise - capture essence without unnecessary detail
 - Each write tool can only be called once per session
@@ -102,9 +102,9 @@ Instructions:
 1. Read the scene overview (shows existing metadata if any)
 2. Analyze the full transcript
 3. Write summary in {source_lang} (1-2 sentences covering mood, key events, outcomes) using write_scene_summary(scene_id, summary)
-4. Write tags (3-6 quick descriptive tags)
+4. Write tags in {source_lang} (3-6 quick descriptive tags)
 5. Write primary_characters (character IDs from speakers and context) using write_primary_characters(scene_id, ids)
-6. Write scene_locations (location IDs inferred from setting/context) using write_scene_locations(scene_id, ids)
+6. Write scene_locations (location IDs inferred from setting/context) using write_scene_locations(scene_id, ids) and keep names in {source_lang}
 7. End conversation when all 4 metadata types are recorded
 
 Begin analysis now."""

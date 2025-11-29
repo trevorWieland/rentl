@@ -39,17 +39,18 @@ def build_translation_tools(
     async def mtl_translate(line_id: str, source_text: str, context_lines: list[str] | None = None) -> str:
         """Call specialized MTL model for translation.
 
-        This tool sends source text to a specialized translation model (e.g., Sugoi-14B-Ultra)
-        optimized for JP→EN translation. The model is fine-tuned for visual novel translation
-        and can handle colloquial language, slang, and specialized vocabulary.
+        This tool sends source text to an optional specialized translation model (e.g., Sugoi-14B-Ultra).
+        The default configuration is JP→EN, but any OpenAI-compatible MTL endpoint can be used. It is
+        fine-tuned for visual novel translation and can handle colloquial language, slang, and specialized
+        vocabulary.
 
         Args:
             line_id: Line identifier for logging/tracking.
-            source_text: Japanese source text to translate.
+            source_text: Source text to translate.
             context_lines: Optional list of preceding lines for context (recommended: ~10 lines).
 
         Returns:
-            str: Translated English text from the MTL model.
+            str: Translated text from the MTL model.
 
         Notes:
             - The MTL model may require post-processing or refinement

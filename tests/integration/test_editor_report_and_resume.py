@@ -57,3 +57,18 @@ async def test_editor_writes_report_and_uses_sqlite_checkpointer(tmp_path: Path)
 
         assert report_path.exists(), "Report file should be written."
         assert result.scenes_checked > 0
+        assert result.translation_progress >= 0.0
+        assert result.editing_progress >= 0.0
+        assert result.report_path == str(report_path)
+        assert isinstance(result.route_issue_counts, dict)
+
+        # Report should contain summary and per-scene findings.
+        import orjson
+
+        payload = orjson.loads(report_path.read_bytes())
+        assert "summary" in payload
+        assert payload["summary"]["translation_progress_pct"] >= 0.0
+        assert payload["summary"]["editing_progress_pct"] >= 0.0
+        assert payload["scenes"], "Report should include per-scene findings"
+        assert "top_issues" in payload
+        assert "route_top_issues" in payload

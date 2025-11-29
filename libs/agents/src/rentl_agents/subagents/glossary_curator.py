@@ -47,7 +47,7 @@ Your task is to curate terminology for consistent translation.
 
 **Important:**
 - Focus on terms needing consistent translation (honorifics, character names, locations, cultural terms)
-- Provide clear target language renderings and translator guidance in notes
+- Provide clear target language renderings and translator guidance in notes (notes should be in the source language)
 - Be selective - not every word needs a glossary entry
 - Respect existing human-authored data (you may be asked for approval before overwriting)
 """
@@ -123,8 +123,8 @@ Current Glossary Entries: {initial_count}
 Instructions:
 1. Review context documents to understand key terminology
 2. Search for existing glossary entries that may need refinement
-3. Add new entries for important untranslated terms (honorifics, names, cultural terms)
-4. Update existing entries if they need better target translations or notes
+3. Add new entries for important untranslated terms (honorifics, names, cultural terms) with term_tgt in {target_lang} and notes in {source_lang}
+4. Update existing entries if they need better target translations or notes (keep notes in {source_lang})
 5. End conversation when glossary curation is complete
 
 Begin curation now."""

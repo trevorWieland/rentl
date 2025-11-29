@@ -24,13 +24,13 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 ### Phase pipelines & execution
 - [ ] Polish deterministic runners (context/translate/edit) and add pretranslate when ready
 - [x] Add queue-based execution with bounded concurrency and resumable thread IDs (HITL middleware + thread_id + SQLite checkpointer now wired)
-- [x] Support modes: overwrite, gap-fill, new-only; per-scene/route targeting
+- [ ] Support modes: overwrite, gap-fill, new-only; per-scene targeting complete, route targeting/resume UX improved (CLI route filters added; resume UX still pending)
 - [x] Add retry/backoff and failure surfacing in pipelines (error collection + backoff added; progress callbacks wired)
-- [ ] Surface status/resume/failure details to CLI/TUI (status command added; resume UX still needed)
+- [ ] Surface status/resume/failure details to CLI/TUI (status now includes translation/editing % and route breakdown + thread id hints; resume UX still needed)
 
 ### CLI UX (TUI later)
 - [ ] Update CLI commands to expose status/resume + HITL decisions (thread_id wiring present; status command added; resume UX pending)
-- [ ] Onboarding/smoke test for model config; `status` command for phase stats (status exists; onboarding pending)
+- [ ] Onboarding/smoke test for model config; `status` command for phase stats (status exists with public snapshot JSON + --public; onboarding pending)
 - [ ] Plan Textual TUI (phase dashboards, job queue, HITL inbox) after CLI parity
 - [x] Add `--no-checkpoint` toggle for quick local runs
 
@@ -43,6 +43,12 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [x] HITL interrupt/resume integration test to validate middleware + runner loop
 - [x] Basic model/loader validation tests (provenance requirements, missing/invalid files)
 - [x] HITL interrupt formatting tests (action_requests parsing, decision normalization)
+- [x] HITL decision flow integration test with mocked subagent/resume
+- [x] Route filter integration tests for pipelines
+- [x] HITL reject decision test to ensure decisions propagate
+- [x] Source-language metadata preservation test
+- [x] HITL tool provenance tests for approve/reject paths
+- [x] Source-language write tests for context detailers with human-authored data (no overwrite)
 
 ### Completed foundations (for reference)
 - Data models with provenance; async loaders/writers
@@ -82,8 +88,10 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
   - [ ] Default: high-level progress/stats + subagent task starts/finishes (no LLM dumps)
   - [ ] Verbose: add tool call summaries and failures
   - [ ] Debug/log: full trace to log file only (LLM reasoning/tokens kept out of stdout)
-- [ ] Add pytest fixtures/utilities to reset tiny_vn baseline before/after integration tests for repeatability
+- [x] Add pytest fixtures/utilities to reset tiny_vn baseline before/after integration tests for repeatability
 - [ ] Stats/report helpers (structured progress for CLI/agents)
+- [x] Surface route issue counts and top issues in CLI/status snapshots
+- [x] Add phase timestamp/thread-id hints in progress snapshots
 
 ### Documentation
 - [ ] Add Google-style docstrings to all public functions
@@ -92,12 +100,12 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [ ] Add usage examples to README
 
 ### Testing
-- [ ] Write unit tests for data models
-  - [ ] Model validation tests
-  - [ ] Provenance tracking tests
-- [ ] Write unit tests for loaders
-  - [ ] Async loader tests
-  - [ ] Error case handling
+- [x] Write unit tests for data models
+  - [x] Model validation tests
+  - [x] Provenance tracking tests
+- [x] Write unit tests for loaders
+  - [x] Async loader tests
+  - [x] Error case handling
 - [ ] Write integration tests for subagents
   - [ ] Mock LLM responses
   - [ ] Tool execution tests
@@ -105,7 +113,7 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [ ] Write E2E tests for pipelines
   - [ ] Full workflow tests with real LLMs
   - [ ] agentevals-based testing
-  - [ ] tiny_vn example validation
+  - [x] tiny_vn example validation
 
 ---
 

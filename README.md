@@ -1,6 +1,6 @@
 # rentl
 
-A multi-agent, context-aware translation pipeline for visual novels—turning raw scene text and metadata into high-quality, consistent JP→EN localizations. Phases are driven by deterministic pipelines (no LLM top-level coordinators), with LangChain subagents, provenance-aware tools, and human-in-the-loop controls.
+A multi-agent, context-aware translation pipeline for visual novels—turning raw scene text and metadata into high-quality, consistent localizations for any source→target language pair. Phases are driven by deterministic pipelines (no LLM top-level coordinators), with LangChain subagents, provenance-aware tools, and human-in-the-loop controls.
 
 ---
 
@@ -9,7 +9,7 @@ A multi-agent, context-aware translation pipeline for visual novels—turning ra
 rentl mirrors how human teams localize VNs today with distinct phases:
 
 1. **Context Builder (v1.0)** – operates entirely in the source language to enrich metadata: scene summaries, character/location bios, glossary entries, and route context.
-2. **Translator (v1.0)** – consumes the curated context via read-only tools and produces aligned JP→EN translations.
+2. **Translator (v1.0)** – consumes the curated context via read-only tools and produces aligned translations in the configured target language.
 3. **Editor (v1.0)** – reviews source/target pairs, enforces style guides, and flags issues for retranslation or human review.
 
 Each phase is orchestrated by code-driven pipelines that schedule LangChain subagents (scene detailers, translators, QA checkers). Human-in-the-loop is handled with LangChain HITL middleware and provenance-aware tools. A modern TUI (Textual) is planned for non-technical users, alongside the CLI. Git serves as the version control mechanism for all metadata and translations.
@@ -55,10 +55,10 @@ OPENAI_URL=http://localhost:1234/v1        # or https://api.openai.com/v1
 OPENAI_API_KEY=your-api-key-here
 LLM_MODEL=gpt-4o                           # or local model name
 
-# Machine Translation (MTL) backend (optional, for specialized translation)
+# Machine Translation (MTL) backend (optional, for specialized translation; current model is JP→EN only)
 MTL_URL=http://localhost:1234/v1           # OpenAI-compatible endpoint
 MTL_API_KEY=your-api-key-here
-MTL_MODEL=sugoi-14b-ultra                  # Specialized JP→EN model
+MTL_MODEL=sugoi-14b-ultra                  # Specialized JP→EN model (optional)
 
 # Optional services
 TAVILY_API_KEY=optional-for-web-search
@@ -67,10 +67,10 @@ LANGSMITH_API_KEY=optional-for-observability
 
 ### Suggested Models
 
-| Purpose              | Model                                      | Notes                          |
-|----------------------|--------------------------------------------|--------------------------------|
-| Agentic reasoning    | `gpt-oss:20b` (LM Studio)                  | Local, tested                  |
-| JP→EN translation    | `sugoi-14b-ultra` (Sugoi-14B-Ultra-GGUF)   | Via MTL backend (v1.0)         |
+| Purpose              | Model                                      | Notes                                   |
+|----------------------|--------------------------------------------|-----------------------------------------|
+| Agentic reasoning    | `gpt-oss:20b` (LM Studio)                  | Local, tested                           |
+| Example JP→EN MTL    | `sugoi-14b-ultra` (Sugoi-14B-Ultra-GGUF)   | Optional MTL backend (currently JP→EN)  |
 
 ---
 
@@ -156,7 +156,7 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 | Agent            | Responsibilities                                                                  | Status              |
 |------------------|-----------------------------------------------------------------------------------|---------------------|
 | Context Builder  | Scene, character, location, glossary, and route metadata enrichment               | **Implemented**     |
-| Translator       | Consume context, produce aligned JP→EN translations                               | **Implemented**     |
+| Translator       | Consume context, produce aligned translations in the configured target language   | **Implemented**     |
 | Editor           | QA checks (style, consistency, translation quality), flag issues for retranslation | **Implemented**     |
 
 ---
@@ -299,7 +299,7 @@ Integration coverage includes pipeline retry handling and a mocked tiny_vn end-t
 
 **Features**:
 - Plugin system for custom subagents and tools
-- Additional language pairs beyond JP→EN
+- Additional MTL models/language-specific shortcuts (current MTL example is JP→EN; core pipeline is language-agnostic)
 - Community-contributed subagent library
 - Advanced observability and analytics
 

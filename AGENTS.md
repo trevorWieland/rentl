@@ -6,7 +6,7 @@ This document provides guidance for AI coding agents (like Claude Code, GitHub C
 
 ## Project Purpose and Summary
 
-rentl is a Python 3.13, multi-agent translation pipeline for visual novels (initially JP→EN). It turns cleaned, pre-extracted scene text plus metadata into aligned `(source, translation, metadata)` corpora.
+rentl is a Python 3.13, multi-agent translation pipeline for visual novels (initially seeded with JP→EN examples but designed to be language-agnostic). It turns cleaned, pre-extracted scene text plus metadata into aligned `(source, translation, metadata)` corpora.
 
 **Core principles**:
 - Context-first (scene/game metadata, style guides, glossaries)
