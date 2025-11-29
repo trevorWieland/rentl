@@ -53,6 +53,14 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
 - [x] Source-language metadata preservation test
 - [x] HITL tool provenance tests for approve/reject paths
 - [x] Source-language write tests for context detailers with human-authored data (no overwrite)
+- [x] Context pipeline end-to-end test with mocked LLMs (real flow on tiny_vn, HITL pause/resume, status snapshot)
+- [x] Translator pipeline end-to-end test with mocked LLMs (real flow on tiny_vn, overwrite/gap-fill coverage, progress)
+- [x] Editor pipeline end-to-end test with mocked LLMs (real flow on tiny_vn, report contents, route issue counts)
+- [x] HITL approval/interrupt edge coverage (rentl_agents/hitl/approval.py, invoke.py)
+- [x] Tool coverage across scene/character/location/glossary/route/qa/stats/translation (provenance, conflicts, delete)
+- [ ] ProjectContext persistence/conflict branches (routes/characters/locations/glossary delete, translation writer)
+- [ ] Loader error/empty-line coverage (JSON/JSONL parsing edges)
+- [ ] Backend stubs coverage (mtl prompt override/availability, graph/engine placeholders)
 
 ### Completed foundations (for reference)
 - Data models with provenance; async loaders/writers

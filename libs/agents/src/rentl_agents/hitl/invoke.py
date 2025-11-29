@@ -62,7 +62,7 @@ def _extract_interrupt_messages(interrupts: Sequence[Interrupt | JSONLike]) -> l
                         name = name_val if isinstance(name_val, str) else "<unknown>"
                         args = req_map.get("args", {})
                         desc = req_map.get("description", "")
-                        reason = desc.splitlines()[0] if isinstance(desc, str) else ""
+                        reason = desc.splitlines()[0] if isinstance(desc, str) and desc else ""
                         messages.append(f"{name} args={args} reason={reason}")
                         parsed_any = True
                     else:

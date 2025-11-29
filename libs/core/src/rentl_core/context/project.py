@@ -79,6 +79,10 @@ class ProjectContext:
         self._location_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self._route_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self._glossary_lock = asyncio.Lock()
+        self._scenes_file_lock = asyncio.Lock()
+        self._characters_file_lock = asyncio.Lock()
+        self._locations_file_lock = asyncio.Lock()
+        self._routes_file_lock = asyncio.Lock()
 
         # Track recent updates for conflict detection: (entity_type, entity_id, field_name) -> timestamp
         self._recent_updates: dict[tuple[str, str, str], float] = {}
@@ -394,9 +398,10 @@ Review and retry if your update is still needed."""
     async def _write_scenes(self) -> None:
         """Persist the current scene metadata to disk."""
         path = self.metadata_dir / "scenes.jsonl"
-        lines = [orjson.dumps(self.scenes[key].model_dump()).decode("utf-8") for key in sorted(self.scenes)]
-        async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
-            await stream.write("\n".join(lines) + "\n")
+        async with self._scenes_file_lock:
+            lines = [orjson.dumps(self.scenes[key].model_dump()).decode("utf-8") for key in sorted(self.scenes)]
+            async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
+                await stream.write("\n".join(lines) + "\n")
 
     async def update_character_name_tgt(
         self,
@@ -530,9 +535,10 @@ Review and retry if your update is still needed."""
     async def _write_characters(self) -> None:
         """Persist the current character metadata to disk."""
         path = self.metadata_dir / "characters.jsonl"
-        lines = [orjson.dumps(self.characters[key].model_dump()).decode("utf-8") for key in sorted(self.characters)]
-        async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
-            await stream.write("\n".join(lines) + "\n")
+        async with self._characters_file_lock:
+            lines = [orjson.dumps(self.characters[key].model_dump()).decode("utf-8") for key in sorted(self.characters)]
+            async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
+                await stream.write("\n".join(lines) + "\n")
 
     async def add_character(
         self,
@@ -664,9 +670,10 @@ Review and retry if your update is still needed."""
     async def _write_locations(self) -> None:
         """Persist the current location metadata to disk."""
         path = self.metadata_dir / "locations.jsonl"
-        lines = [orjson.dumps(self.locations[key].model_dump()).decode("utf-8") for key in sorted(self.locations)]
-        async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
-            await stream.write("\n".join(lines) + "\n")
+        async with self._locations_file_lock:
+            lines = [orjson.dumps(self.locations[key].model_dump()).decode("utf-8") for key in sorted(self.locations)]
+            async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
+                await stream.write("\n".join(lines) + "\n")
 
     async def add_location(
         self,
@@ -926,9 +933,10 @@ Review and retry if your update is still needed."""
     async def _write_routes(self) -> None:
         """Persist the current route metadata to disk."""
         path = self.metadata_dir / "routes.jsonl"
-        lines = [orjson.dumps(self.routes[key].model_dump()).decode("utf-8") for key in sorted(self.routes)]
-        async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
-            await stream.write("\n".join(lines) + "\n")
+        async with self._routes_file_lock:
+            lines = [orjson.dumps(self.routes[key].model_dump()).decode("utf-8") for key in sorted(self.routes)]
+            async with await anyio.open_file(path, "w", encoding="utf-8") as stream:
+                await stream.write("\n".join(lines) + "\n")
 
     async def _load_translations(self, scene_id: str) -> None:
         """Load translations for a scene into memory if not already loaded."""
