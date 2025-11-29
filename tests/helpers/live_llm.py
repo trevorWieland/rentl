@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from langchain_core.runnables import Runnable
 from langgraph.graph.state import CompiledStateGraph
@@ -42,3 +43,18 @@ async def run_agent_with_auto_approve(
     if isinstance(result, dict):
         return result
     return {"result": result}
+
+
+def flatten_messages(messages: list[Any]) -> list[dict[str, str]]:
+    """Convert LangChain messages to simple role/content dicts for LLM judging.
+
+    Returns:
+        list[dict[str, str]]: Flattened messages with role and content only.
+    """
+    flat: list[dict[str, str]] = []
+    for msg in messages:
+        role = getattr(msg, "type", msg.__class__.__name__)
+        content_val = getattr(msg, "content", "")
+        content = content_val if isinstance(content_val, str) else str(content_val)
+        flat.append({"role": str(role), "content": content})
+    return flat

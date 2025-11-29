@@ -84,21 +84,7 @@ async def detail_route(
         context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
     )
 
-    source_lang = context.game.source_lang.upper()
-
-    user_prompt = f"""Enrich metadata for this route.
-
-Route ID: {route_id}
-Source Language: {source_lang}
-
-Instructions:
-1. Read the route's current metadata (including scene list)
-2. Only read context documents returned by list_context_docs if they look relevant
-3. Update synopsis in {source_lang} with a concise narrative summary (1-3 sentences covering the route's arc) using update_route_synopsis(route_id, synopsis)
-4. Update primary_characters with key character IDs featured in this route using update_route_characters(route_id, ids)
-5. End conversation when all updates are complete
-
-Begin analysis now."""
+    user_prompt = build_route_detailer_user_prompt(context, route_id)
 
     await run_with_human_loop(
         subagent,
@@ -152,3 +138,30 @@ def create_route_detailer_subagent(
     )
 
     return graph
+
+
+def build_route_detailer_user_prompt(context: ProjectContext, route_id: str) -> str:
+    """Construct the user prompt for the route detailer.
+
+    Returns:
+        str: User prompt content to send to the route detailer agent.
+    """
+    source_lang = context.game.source_lang.upper()
+    route = context.routes.get(route_id)
+    scene_ids = ", ".join(sorted(route.scene_ids)) if route else ""
+    character_ids = ", ".join(sorted(context.characters.keys()))
+    return f"""Enrich metadata for this route.
+
+Route ID: {route_id}
+Scenes: {scene_ids}
+Source Language: {source_lang}
+Available Characters: {character_ids}
+
+Instructions:
+1. Read the route's current metadata (including scene list)
+2. Only read context documents returned by list_context_docs if they look relevant
+3. Update synopsis in {source_lang} with a concise narrative summary (1-3 sentences covering the route's arc) using update_route_synopsis(route_id, synopsis)
+4. Update primary_characters with key character IDs featured in this route using update_route_characters(route_id, ids)
+5. End conversation when all updates are complete
+
+Begin analysis now."""

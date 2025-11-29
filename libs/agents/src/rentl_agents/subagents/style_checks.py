@@ -68,7 +68,7 @@ async def run_style_checks(
     """
     subagent = create_style_checker_subagent(context, checkpointer=checkpointer)
     await subagent.ainvoke(
-        {"messages": [{"role": "user", "content": f"Check style for {scene_id}."}]},
+        {"messages": [{"role": "user", "content": build_style_checker_user_prompt(scene_id)}]},
         config={"configurable": {"thread_id": thread_id or f"edit-style:{scene_id}"}},
     )
     translations = await context.get_translations(scene_id)
@@ -79,3 +79,12 @@ async def run_style_checks(
             recorded += 1
 
     return StyleCheckResult(scene_id=scene_id, checks_recorded=recorded)
+
+
+def build_style_checker_user_prompt(scene_id: str) -> str:
+    """Construct the user prompt for style checks.
+
+    Returns:
+        str: User prompt content to send to the style checker agent.
+    """
+    return f"Check style for {scene_id}."

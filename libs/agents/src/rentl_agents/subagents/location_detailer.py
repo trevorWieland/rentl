@@ -84,23 +84,7 @@ async def detail_location(
         context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
     )
 
-    target_lang = context.game.target_lang.upper()
-    source_lang = context.game.source_lang.upper()
-
-    user_prompt = f"""Enrich metadata for this location.
-
-Location ID: {location_id}
-Target Language: {target_lang}
-Source Language: {source_lang}
-
-Instructions:
-1. Read the location's current metadata
-2. Review any context documents that mention this location
-3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_location_name_tgt(location_id, name) in {target_lang}
-4. Update description with vivid details (appearance, mood, atmosphere, sensory details) using update_location_description(location_id, description) in the source language
-5. End conversation when all updates are complete
-
-Begin analysis now."""
+    user_prompt = build_location_detailer_user_prompt(context, location_id)
 
     logger.debug("Location detailer prompt for %s:\n%s", location_id, user_prompt)
     await run_with_human_loop(
@@ -155,3 +139,29 @@ def create_location_detailer_subagent(
     )
 
     return graph
+
+
+def build_location_detailer_user_prompt(context: ProjectContext, location_id: str) -> str:
+    """Construct the user prompt for the location detailer.
+
+    Returns:
+        str: User prompt content to send to the location detailer agent.
+    """
+    target_lang = context.game.target_lang.upper()
+    source_lang = context.game.source_lang.upper()
+    available_locations = ", ".join(sorted(context.locations.keys()))
+    return f"""Enrich metadata for this location.
+
+Location ID: {location_id}
+Target Language: {target_lang}
+Source Language: {source_lang}
+Available Locations: {available_locations}
+
+Instructions:
+1. Read the location's current metadata
+2. Review any context documents that mention this location
+3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_location_name_tgt(location_id, name) in {target_lang}
+4. Update description with vivid details (appearance, mood, atmosphere, sensory details) using update_location_description(location_id, description) in the source language
+5. End conversation when all updates are complete
+
+Begin analysis now."""

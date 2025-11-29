@@ -83,6 +83,30 @@ def create_glossary_curator_subagent(
     return graph
 
 
+def build_glossary_curator_user_prompt(context: ProjectContext, *, current_entries: int) -> str:
+    """Construct the user prompt for the glossary curator.
+
+    Returns:
+        str: User prompt content to send to the glossary curator agent.
+    """
+    source_lang = context.game.source_lang.upper()
+    target_lang = context.game.target_lang.upper()
+    return f"""Curate the glossary for this game project.
+
+Source Language: {source_lang}
+Target Language: {target_lang}
+Current Glossary Entries: {current_entries}
+
+Instructions:
+1. Review context documents to understand key terminology
+2. Search for existing glossary entries that may need refinement
+3. Add new entries for important untranslated terms (honorifics, names, cultural terms) with term_tgt in {target_lang} and notes in {source_lang}
+4. Update existing entries if they need better target translations or notes (keep notes in {source_lang})
+5. End conversation when glossary curation is complete
+
+Begin curation now."""
+
+
 async def detail_glossary(
     context: ProjectContext,
     *,
@@ -111,23 +135,7 @@ async def detail_glossary(
         context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
     )
 
-    source_lang = context.game.source_lang.upper()
-    target_lang = context.game.target_lang.upper()
-
-    user_prompt = f"""Curate the glossary for this game project.
-
-Source Language: {source_lang}
-Target Language: {target_lang}
-Current Glossary Entries: {initial_count}
-
-Instructions:
-1. Review context documents to understand key terminology
-2. Search for existing glossary entries that may need refinement
-3. Add new entries for important untranslated terms (honorifics, names, cultural terms) with term_tgt in {target_lang} and notes in {source_lang}
-4. Update existing entries if they need better target translations or notes (keep notes in {source_lang})
-5. End conversation when glossary curation is complete
-
-Begin curation now."""
+    user_prompt = build_glossary_curator_user_prompt(context, current_entries=initial_count)
 
     # Invoke the subagent directly (for flow usage)
     logger.debug("Glossary curator prompt:\n%s", user_prompt)

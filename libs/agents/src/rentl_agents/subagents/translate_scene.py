@@ -108,12 +108,10 @@ async def translate_scene(
     """
     logger.info("Translating scene %s", scene_id)
 
-    # Get language pair from game metadata
-    target_lang = context.game.target_lang
-
     lines = await context.load_scene_lines(scene_id)
     await context._load_translations(scene_id)
     pre_count = context.get_translated_line_count(scene_id)
+    line_count = len(lines)
 
     effective_checkpointer: BaseCheckpointSaver = checkpointer or await get_default_checkpointer()
     subagent = create_scene_translator_subagent(
@@ -121,33 +119,7 @@ async def translate_scene(
     )
 
     # Check MTL availability
-    mtl_status = "MTL backend is available" if is_mtl_available() else "MTL backend not configured"
-
-    # Build user prompt with line information
-    line_count = len(lines)
-    scene_meta = context.get_scene(scene_id)
-    characters = (
-        ", ".join(scene_meta.annotations.primary_characters) if scene_meta.annotations.primary_characters else "unknown"
-    )
-
-    user_prompt = f"""Translate this scene to {target_lang.upper()}.
-
-Scene: {scene_id}
-Title: {scene_meta.title or "Untitled"}
-Characters: {characters}
-Lines to translate: {line_count}
-{mtl_status}
-
-Instructions:
-1. Read the scene overview to understand context
-2. Translate each line maintaining speaker personality and tone
-3. You may use mtl_translate for assistance, but review and refine the output
-4. Call read_style_guide and get_ui_settings if you need format/style constraints
-5. Call write_translation(scene_id, line_id, source_text, target_text) for each line with your final translation
-6. Ensure all {line_count} lines are translated
-7. End the conversation when complete
-
-Begin translation now."""
+    user_prompt = build_scene_translator_user_prompt(context, scene_id, lines=lines)
 
     logger.debug("Scene translator prompt for %s:\n%s", scene_id, user_prompt)
     await run_with_human_loop(
@@ -196,3 +168,41 @@ def create_scene_translator_subagent(
     )
 
     return graph
+
+
+def build_scene_translator_user_prompt(context: ProjectContext, scene_id: str, *, lines: list | None = None) -> str:
+    """Construct the user prompt for the scene translator using live context.
+
+    Returns:
+        str: User prompt content to send to the translator subagent.
+    """
+    target_lang = context.game.target_lang
+    src_lang = context.game.source_lang
+    scene_meta = context.get_scene(scene_id)
+    line_list = lines if lines is not None else []
+    line_count = len(line_list)
+    characters = (
+        ", ".join(scene_meta.annotations.primary_characters) if scene_meta.annotations.primary_characters else "unknown"
+    )
+    mtl_status = "MTL backend is available" if is_mtl_available() else "MTL backend not configured"
+
+    return f"""Translate this scene to {target_lang.upper()}.
+
+Scene: {scene_id}
+Title: {scene_meta.title or "Untitled"}
+Characters: {characters}
+Lines to translate: {line_count}
+Source Language: {src_lang.upper()}
+Target Language: {target_lang.upper()}
+{mtl_status}
+
+Instructions:
+1. Read the scene overview to understand context
+2. Translate each line maintaining speaker personality and tone
+3. You may use mtl_translate for assistance, but review and refine the output
+4. Call read_style_guide and get_ui_settings if you need format/style constraints
+5. Call write_translation(scene_id, line_id, source_text, target_text) for each line with your final translation
+6. Ensure all {line_count} lines are translated
+7. End the conversation when complete
+
+Begin translation now."""

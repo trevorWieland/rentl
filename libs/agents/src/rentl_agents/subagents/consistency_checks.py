@@ -67,9 +67,18 @@ async def run_consistency_checks(
     """
     subagent = create_consistency_checker_subagent(context, checkpointer=checkpointer)
     await subagent.ainvoke(
-        {"messages": [{"role": "user", "content": f"Check consistency for {scene_id}."}]},
+        {"messages": [{"role": "user", "content": build_consistency_checker_user_prompt(scene_id)}]},
         config={"configurable": {"thread_id": thread_id or f"edit-consistency:{scene_id}"}},
     )
     translations = await context.get_translations(scene_id)
     recorded = sum(1 for line in translations if "consistency_check" in line.meta.checks)
     return ConsistencyCheckResult(scene_id=scene_id, checks_recorded=recorded)
+
+
+def build_consistency_checker_user_prompt(scene_id: str) -> str:
+    """Construct the user prompt for consistency checks.
+
+    Returns:
+        str: User prompt content to send to the consistency checker agent.
+    """
+    return f"Check consistency for {scene_id}."

@@ -127,8 +127,8 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
   - [x] Shared helper to run subagents with MemorySaver + auto-approve decisions and return trajectories
   - [x] Makefile target `check-full` that runs `make check` + `pytest -m llm_live`
 - [ ] Live agentevals coverage (per-subagent)
-  - [ ] Scene detailer: trajectory match (superset) requires write_* tools; LLM judge for source-language summary/tags/locations
-  - [ ] Character detailer: trajectory match uses write_* character tools; judge checks source-language notes + target names/pronouns
+  - [x] Scene detailer: trajectory match (superset) requires write_* tools; LLM judge for source-language summary/tags/locations
+  - [x] Character detailer: trajectory match uses write_* character tools; judge checks source-language notes + target names/pronouns
   - [ ] Location detailer: trajectory match uses write_* location tools; judge checks source-language descriptions
   - [ ] Route detailer: trajectory match uses write_* route tools; judge checks source-language synopses
   - [ ] Glossary curator: trajectory match uses add/update/delete glossary tools; judge checks source/target language fields

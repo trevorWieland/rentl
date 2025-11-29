@@ -89,24 +89,7 @@ async def detail_character(
         context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
     )
 
-    target_lang = context.game.target_lang.upper()
-    source_lang = context.game.source_lang.upper()
-
-    user_prompt = f"""Enrich metadata for this character.
-
-Character ID: {character_id}
-Target Language: {target_lang}
-Source Language: {source_lang}
-
-Instructions:
-1. Read the character's current metadata
-2. Review any context documents that mention this character
-3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_character_name_tgt(character_id, name) in {target_lang}
-4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them") using update_character_pronouns(character_id, pronouns) and describe in {source_lang}
-5. Update notes with personality, speech patterns, tone, translation guidance using update_character_notes(character_id, notes) in {source_lang}
-6. End conversation when all updates are complete
-
-Begin analysis now."""
+    user_prompt = build_character_detailer_user_prompt(context, character_id)
 
     logger.debug("Character detailer prompt for %s:\n%s", character_id, user_prompt)
     await run_with_human_loop(
@@ -164,3 +147,30 @@ def create_character_detailer_subagent(
     )
 
     return graph
+
+
+def build_character_detailer_user_prompt(context: ProjectContext, character_id: str) -> str:
+    """Construct the user prompt for the character detailer.
+
+    Returns:
+        str: User prompt content to send to the character detailer agent.
+    """
+    target_lang = context.game.target_lang.upper()
+    source_lang = context.game.source_lang.upper()
+    available_ids = ", ".join(sorted(context.characters.keys()))
+    return f"""Enrich metadata for this character.
+
+Character ID: {character_id}
+Target Language: {target_lang}
+Source Language: {source_lang}
+Available Characters: {available_ids}
+
+Instructions:
+1. Read the character's current metadata
+2. Review any context documents that mention this character
+3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_character_name_tgt(character_id, name) in {target_lang}
+4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them") using update_character_pronouns(character_id, pronouns) and describe in {source_lang}
+5. Update notes with personality, speech patterns, tone, translation guidance using update_character_notes(character_id, notes) in {source_lang}
+6. End conversation when all updates are complete
+
+Begin analysis now."""

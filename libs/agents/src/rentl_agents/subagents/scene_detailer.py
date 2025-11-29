@@ -89,25 +89,7 @@ async def detail_scene(
         context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
     )
 
-    source_lang = context.game.source_lang.upper()
-    line_count = len(lines)
-
-    user_prompt = f"""Analyze this scene and generate complete metadata.
-
-Scene ID: {scene_id}
-Lines: {line_count}
-Source Language: {source_lang}
-
-Instructions:
-1. Read the scene overview (shows existing metadata if any)
-2. Analyze the full transcript
-3. Write summary in {source_lang} (1-2 sentences covering mood, key events, outcomes) using write_scene_summary(scene_id, summary)
-4. Write tags in {source_lang} (3-6 quick descriptive tags)
-5. Write primary_characters (character IDs from speakers and context) using write_primary_characters(scene_id, ids)
-6. Write scene_locations (location IDs inferred from setting/context) using write_scene_locations(scene_id, ids) and keep names in {source_lang}
-7. End conversation when all 4 metadata types are recorded
-
-Begin analysis now."""
+    user_prompt = build_scene_detailer_user_prompt(context, scene_id, line_count=len(lines))
 
     logger.debug("Scene detailer prompt for %s:\n%s", scene_id, user_prompt)
     await run_with_human_loop(
@@ -168,3 +150,37 @@ def create_scene_detailer_subagent(
     )
 
     return graph
+
+
+def build_scene_detailer_user_prompt(context: ProjectContext, scene_id: str, *, line_count: int | None = None) -> str:
+    """Construct the user prompt for the scene detailer using live project context.
+
+    Args:
+        context: Shared project context.
+        scene_id: Target scene identifier.
+        line_count: Optional precomputed line count (falls back to loaded scene length).
+
+    Returns:
+        str: The user prompt supplied to the scene detailer agent.
+    """
+    line_total: int | str = line_count if line_count is not None else "unknown"
+    source_lang = context.game.source_lang.upper()
+    location_ids = ", ".join(sorted(context.locations.keys()))
+    character_ids = ", ".join(sorted(context.characters.keys()))
+
+    return f"""Analyze this scene and generate complete metadata.
+
+Scene ID: {scene_id}
+Lines: {line_total}
+Source Language: {source_lang}
+
+Instructions:
+1. Read the scene overview (shows existing metadata if any)
+2. Analyze the full transcript
+3. Write summary in {source_lang} (1-2 sentences covering mood, key events, outcomes) using write_scene_summary(scene_id, summary)
+4. Write tags in {source_lang} (3-6 quick descriptive tags)
+5. Write primary_characters (character IDs from speakers and context) using write_primary_characters(scene_id, ids). Available characters: {character_ids}
+6. Write scene_locations (location IDs inferred from setting/context) using write_scene_locations(scene_id, ids) and keep names in {source_lang}. Available locations: {location_ids}
+7. End conversation when all 4 metadata types are recorded
+
+Begin analysis now."""

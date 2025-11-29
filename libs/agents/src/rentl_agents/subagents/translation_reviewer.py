@@ -68,9 +68,18 @@ async def run_translation_review(
     """
     subagent = create_translation_reviewer_subagent(context, checkpointer=checkpointer)
     await subagent.ainvoke(
-        {"messages": [{"role": "user", "content": f"Review translation for {scene_id}."}]},
+        {"messages": [{"role": "user", "content": build_translation_reviewer_user_prompt(scene_id)}]},
         config={"configurable": {"thread_id": thread_id or f"edit-review:{scene_id}"}},
     )
     translations = await context.get_translations(scene_id)
     recorded = sum(1 for line in translations if "translation_review" in line.meta.checks)
     return TranslationReviewResult(scene_id=scene_id, checks_recorded=recorded)
+
+
+def build_translation_reviewer_user_prompt(scene_id: str) -> str:
+    """Construct the user prompt for translation review.
+
+    Returns:
+        str: User prompt content to send to the translation reviewer agent.
+    """
+    return f"Review translation for {scene_id}."
