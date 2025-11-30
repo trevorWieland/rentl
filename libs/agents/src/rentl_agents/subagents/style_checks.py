@@ -10,7 +10,7 @@ from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.tools.qa import get_ui_settings, read_style_guide, read_translations, record_style_check
+from rentl_agents.tools.qa import build_style_check_tools
 
 logger = get_logger(__name__)
 
@@ -40,7 +40,7 @@ def create_style_checker_subagent(
     Returns:
         CompiledStateGraph: Runnable agent graph for style checks.
     """
-    tools = [read_translations, read_style_guide, get_ui_settings, record_style_check]
+    tools = build_style_check_tools(context)
     model = get_default_chat_model()
     tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
     logger.info("Launching style-checker with tools: %s", ", ".join(tool_names))

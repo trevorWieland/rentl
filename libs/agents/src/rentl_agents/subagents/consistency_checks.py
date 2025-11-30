@@ -10,7 +10,7 @@ from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.tools.qa import read_translations, record_consistency_check
+from rentl_agents.tools.qa import build_consistency_check_tools
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,7 @@ def create_consistency_checker_subagent(
     Returns:
         CompiledStateGraph: Runnable agent graph for consistency checks.
     """
-    tools = [read_translations, record_consistency_check]
+    tools = build_consistency_check_tools(context)
     model = get_default_chat_model()
     tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
     logger.info("Launching consistency-checker with tools: %s", ", ".join(tool_names))

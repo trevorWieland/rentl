@@ -11,7 +11,7 @@ from langchain_core.tools import BaseTool
 from rentl_agents.tools.character import build_character_tools
 from rentl_agents.tools.glossary import build_glossary_tools
 from rentl_agents.tools.location import build_location_tools
-from rentl_agents.tools.qa import read_translations
+from rentl_agents.tools.qa import build_qa_tools
 from rentl_agents.tools.route import build_route_tools
 from rentl_agents.tools.scene import build_scene_tools
 from rentl_agents.tools.stats import build_stats_tools
@@ -135,6 +135,8 @@ async def test_translation_tools_mtl_unavailable_and_ui_style(
 async def test_stats_and_qa_read_translations(tiny_vn_tmp: Path) -> None:
     """Stats tools and QA read behavior."""
     context = await load_project_context(tiny_vn_tmp)
+    qa_tools = build_qa_tools(context)
+    read_translations = _tool(qa_tools, "read_translations")
 
     stats_tools = build_stats_tools(context)
     ctx_status = _tool(stats_tools, "get_context_status")
@@ -155,7 +157,7 @@ async def test_stats_and_qa_read_translations(tiny_vn_tmp: Path) -> None:
 
     # read_translations should handle missing then present
     missing_msg = await read_translations.coroutine(  # type: ignore[attr-defined]
-        context=context, scene_id="scene_a_00"
+        scene_id="scene_a_00"
     )
     assert "No translations" in missing_msg or "not found" in missing_msg
     # Add translation to exercise positive path
@@ -163,7 +165,7 @@ async def test_stats_and_qa_read_translations(tiny_vn_tmp: Path) -> None:
     translated = TranslatedLine.from_source(line, f"{line.text}-tgt", text_tgt_origin=f"agent:test:{date.today()}")
     await context.record_translation("scene_a_00", translated, allow_overwrite=True)
     present_msg = await read_translations.coroutine(  # type: ignore[attr-defined]
-        context=context, scene_id="scene_a_00"
+        scene_id="scene_a_00"
     )
     assert "SRC" in present_msg
     assert "TGT" in present_msg

@@ -5,13 +5,14 @@ from __future__ import annotations
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
 from langgraph.runtime import Runtime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from rentl_core.context.project import ProjectContext
 
 
 class AgentContext(BaseModel):
     """Runtime context shared across subagents."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     project_context: ProjectContext = Field(description="Shared ProjectContext for subagents.")
 
 

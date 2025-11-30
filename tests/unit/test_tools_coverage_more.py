@@ -9,11 +9,7 @@ from langchain_core.tools import BaseTool
 from rentl_agents.tools.character import build_character_tools
 from rentl_agents.tools.glossary import build_glossary_tools
 from rentl_agents.tools.location import build_location_tools
-from rentl_agents.tools.qa import (
-    record_consistency_check,
-    record_style_check,
-    record_translation_review,
-)
+from rentl_agents.tools.qa import build_qa_tools
 from rentl_agents.tools.route import build_route_tools
 from rentl_agents.tools.scene import build_scene_tools
 from rentl_agents.tools.stats import build_stats_tools
@@ -109,14 +105,12 @@ async def test_translation_and_stats_tools(tiny_vn_tmp: Path) -> None:
     translations = await context.get_translations(scene_id)
     assert translations, "Expected translation to be recorded"
     tline: TranslatedLine = translations[0]
-    await record_style_check.coroutine(  # type: ignore[attr-defined]
-        context, scene_id, tline.id, True, "ok"
-    )
-    await record_consistency_check.coroutine(  # type: ignore[attr-defined]
-        context, scene_id, tline.id, True, "ok"
-    )
-    await record_translation_review.coroutine(  # type: ignore[attr-defined]
-        context, scene_id, tline.id, True, "ok"
-    )
+    qa_tools = build_qa_tools(context)
+    record_style_check = _find_tool(qa_tools, "record_style_check")
+    record_consistency_check = _find_tool(qa_tools, "record_consistency_check")
+    record_translation_review = _find_tool(qa_tools, "record_translation_review")
+    await record_style_check.coroutine(scene_id=scene_id, line_id=tline.id, passed=True, note="ok")  # type: ignore[attr-defined]
+    await record_consistency_check.coroutine(scene_id=scene_id, line_id=tline.id, passed=True, note="ok")  # type: ignore[attr-defined]
+    await record_translation_review.coroutine(scene_id=scene_id, line_id=tline.id, passed=True, note="ok")  # type: ignore[attr-defined]
     updated = await context.get_translations(scene_id)
     assert updated[0].meta.checks, "Expected QA checks to be stored"
