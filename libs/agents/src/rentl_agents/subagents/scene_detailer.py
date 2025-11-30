@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
@@ -19,7 +20,15 @@ from rentl_core.util.logging import get_logger
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.scene import build_scene_tools
+from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
+from rentl_agents.tools.scene import (
+    read_scene,
+    read_scene_overview,
+    write_primary_characters,
+    write_scene_locations,
+    write_scene_summary,
+    write_scene_tags,
+)
 
 
 class SceneDetailResult(BaseModel):
@@ -133,7 +142,7 @@ def create_scene_detailer_subagent(
     Returns:
         CompiledStateGraph: Runnable agent graph for scene detailing.
     """
-    tools = build_scene_tools(context, allow_overwrite=allow_overwrite)
+    tools = _build_scene_detailer_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     interrupt_on = {
         "write_scene_summary": True,
@@ -184,3 +193,84 @@ Instructions:
 7. End conversation when all 4 metadata types are recorded
 
 Begin analysis now."""
+
+
+def _build_scene_detailer_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
+    """Return tools for the scene detailer subagent bound to the shared context."""
+    written_summary: set[str] = set()
+    written_tags: set[str] = set()
+    written_characters: set[str] = set()
+    written_locations: set[str] = set()
+    context_doc_tools = _build_context_doc_tools(context)
+
+    @tool("read_scene")
+    async def read_scene_tool(scene_id: str) -> str:
+        """Return metadata and transcript for the scene (no redactions)."""
+        return await read_scene(context, scene_id)
+
+    @tool("read_scene_overview")
+    async def read_scene_overview_tool(scene_id: str) -> str:
+        """Return metadata and transcript for the scene (with existing summary if allowed)."""
+        return await read_scene_overview(context, scene_id, allow_overwrite=allow_overwrite)
+
+    @tool("write_scene_summary")
+    async def write_scene_summary_tool(scene_id: str, summary: str) -> str:
+        """Store the final summary for this scene.
+
+        Returns:
+            str: Confirmation or approval message.
+        """
+        return await write_scene_summary(context, scene_id, summary, written_summary=written_summary)
+
+    @tool("write_scene_tags")
+    async def write_scene_tags_tool(scene_id: str, tags: list[str]) -> str:
+        """Store tags for this scene.
+
+        Returns:
+            str: Confirmation or approval message.
+        """
+        return await write_scene_tags(context, scene_id, tags, written_tags=written_tags)
+
+    @tool("write_primary_characters")
+    async def write_primary_characters_tool(scene_id: str, character_ids: list[str]) -> str:
+        """Store primary characters identified in this scene.
+
+        Returns:
+            str: Confirmation or approval message.
+        """
+        return await write_primary_characters(context, scene_id, character_ids, written_characters=written_characters)
+
+    @tool("write_scene_locations")
+    async def write_scene_locations_tool(scene_id: str, location_ids: list[str]) -> str:
+        """Store locations identified in this scene.
+
+        Returns:
+            str: Confirmation or approval message.
+        """
+        return await write_scene_locations(context, scene_id, location_ids, written_locations=written_locations)
+
+    return [
+        read_scene_tool,
+        read_scene_overview_tool,
+        *context_doc_tools,
+        write_scene_summary_tool,
+        write_scene_tags_tool,
+        write_primary_characters_tool,
+        write_scene_locations_tool,
+    ]
+
+
+def _build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
+    """Return context doc tools for subagent use."""
+
+    @tool("list_context_docs")
+    async def list_context_docs_tool() -> str:
+        """Return the available context document names."""
+        return await list_context_docs(context)
+
+    @tool("read_context_doc")
+    async def read_context_doc_tool(filename: str) -> str:
+        """Return the contents of a context document."""
+        return await read_context_doc(context, filename)
+
+    return [list_context_docs_tool, read_context_doc_tool]

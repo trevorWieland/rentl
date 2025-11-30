@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
@@ -16,7 +17,14 @@ from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.backends.mtl import is_mtl_available
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.translation import build_translation_tools
+from rentl_agents.tools.scene import read_scene
+from rentl_agents.tools.translation import (
+    check_mtl_available,
+    get_ui_settings,
+    mtl_translate,
+    read_style_guide,
+    write_translation,
+)
 
 logger = get_logger(__name__)
 
@@ -152,7 +160,7 @@ def create_scene_translator_subagent(
     Returns:
         CompiledStateGraph: Runnable agent graph for scene translation.
     """
-    tools = build_translation_tools(context, agent_name="scene_translator", allow_overwrite=allow_overwrite)
+    tools = _build_scene_translator_tools(context, allow_overwrite=allow_overwrite, agent_name="scene_translator")
     model = get_default_chat_model()
     system_prompt = build_translator_system_prompt(context.game.source_lang, context.game.target_lang)
 
@@ -206,3 +214,68 @@ Instructions:
 7. End the conversation when complete
 
 Begin translation now."""
+
+
+def _build_scene_translator_tools(context: ProjectContext, *, allow_overwrite: bool, agent_name: str) -> list[BaseTool]:
+    """Return tools for the scene translator subagent bound to the shared context."""
+    written_line_ids: set[str] = set()
+
+    @tool("read_scene")
+    async def read_scene_tool(scene_id: str) -> str:
+        """Return scene metadata and transcript for translation context."""
+        return await read_scene(context, scene_id)
+
+    @tool("mtl_translate")
+    async def mtl_translate_tool(line_id: str, source_text: str, context_lines: list[str] | None = None) -> str:
+        """Call specialized MTL model for translation.
+
+        Returns:
+            str: Translated text or an error message.
+        """
+        return await mtl_translate(line_id, source_text, context_lines)
+
+    @tool("write_translation")
+    async def write_translation_tool(scene_id: str, line_id: str, source_text: str, target_text: str) -> str:
+        """Write a translation for a line with provenance tracking.
+
+        Returns:
+            str: Confirmation message or approval request.
+        """
+        return await write_translation(
+            context,
+            scene_id,
+            line_id,
+            source_text,
+            target_text,
+            agent_name=agent_name,
+            allow_overwrite=allow_overwrite,
+            written_line_ids=written_line_ids,
+        )
+
+    @tool("read_style_guide")
+    async def read_style_guide_tool() -> str:
+        """Return the project style guide content."""
+        return await read_style_guide(context)
+
+    @tool("get_ui_settings")
+    def get_ui_settings_tool() -> str:
+        """Return UI constraints from game metadata."""
+        return get_ui_settings(context)
+
+    @tool("check_mtl_available")
+    def check_mtl_available_tool() -> str:
+        """Check if MTL backend is configured and available.
+
+        Returns:
+            str: Status message indicating MTL availability.
+        """
+        return check_mtl_available()
+
+    return [
+        read_scene_tool,
+        mtl_translate_tool,
+        write_translation_tool,
+        read_style_guide_tool,
+        get_ui_settings_tool,
+        check_mtl_available_tool,
+    ]

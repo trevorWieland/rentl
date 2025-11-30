@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
@@ -19,7 +20,14 @@ from rentl_core.util.logging import get_logger
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.glossary import build_glossary_tools
+from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
+from rentl_agents.tools.glossary import (
+    add_glossary_entry,
+    delete_glossary_entry,
+    read_glossary_entry,
+    search_glossary,
+    update_glossary_entry,
+)
 
 
 class GlossaryDetailResult(BaseModel):
@@ -64,7 +72,7 @@ def create_glossary_curator_subagent(
     Returns:
         CompiledStateGraph: Runnable agent graph for glossary curation.
     """
-    tools = build_glossary_tools(context, allow_overwrite=allow_overwrite)
+    tools = _build_glossary_curator_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
 
     interrupt_on = {
@@ -165,3 +173,74 @@ async def detail_glossary(
     )
 
     return result
+
+
+def _build_glossary_curator_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
+    """Return tools for the glossary curator subagent bound to the shared context."""
+    context_doc_tools = _build_context_doc_tools(context)
+
+    @tool("search_glossary")
+    def search_glossary_tool(term_src: str) -> str:
+        """Search for a glossary entry by source term.
+
+        Returns:
+            str: Glossary entry details or 'not found'.
+        """
+        return search_glossary(context, term_src)
+
+    @tool("read_glossary_entry")
+    def read_glossary_entry_tool(term_src: str) -> str:
+        """Return a specific glossary entry if present."""
+        return read_glossary_entry(context, term_src)
+
+    @tool("add_glossary_entry")
+    async def add_glossary_entry_tool(term_src: str, term_tgt: str, notes: str | None = None) -> str:
+        """Add a new glossary entry.
+
+        Returns:
+            str: Confirmation message after persistence.
+        """
+        return await add_glossary_entry(context, term_src, term_tgt, notes)
+
+    @tool("update_glossary_entry")
+    async def update_glossary_entry_tool(term_src: str, term_tgt: str | None = None, notes: str | None = None) -> str:
+        """Update an existing glossary entry.
+
+        Returns:
+            str: Confirmation message after persistence.
+        """
+        return await update_glossary_entry(context, term_src, term_tgt, notes)
+
+    @tool("delete_glossary_entry")
+    async def delete_glossary_entry_tool(term_src: str) -> str:
+        """Delete a glossary entry if it exists.
+
+        Returns:
+            str: Status message indicating deletion or not-found.
+        """
+        return await delete_glossary_entry(context, term_src)
+
+    return [
+        search_glossary_tool,
+        read_glossary_entry_tool,
+        *context_doc_tools,
+        add_glossary_entry_tool,
+        update_glossary_entry_tool,
+        delete_glossary_entry_tool,
+    ]
+
+
+def _build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
+    """Return context doc tools for subagent use."""
+
+    @tool("list_context_docs")
+    async def list_context_docs_tool() -> str:
+        """Return the available context document names."""
+        return await list_context_docs(context)
+
+    @tool("read_context_doc")
+    async def read_context_doc_tool(filename: str) -> str:
+        """Return the contents of a context document."""
+        return await read_context_doc(context, filename)
+
+    return [list_context_docs_tool, read_context_doc_tool]

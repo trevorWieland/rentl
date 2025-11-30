@@ -1,12 +1,10 @@
-"""Tools for glossary-aware agents."""
+"""Shared glossary tool implementations."""
 
 from __future__ import annotations
 
-from langchain_core.tools import BaseTool, tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
-from rentl_agents.tools.context_docs import build_context_doc_tools
 from rentl_agents.tools.hitl import request_if_human_authored
 
 logger = get_logger(__name__)
@@ -105,66 +103,3 @@ async def delete_glossary_entry(context: ProjectContext, term_src: str) -> str:
     """
     logger.info("Tool call: delete_glossary_entry(term_src=%s)", term_src)
     return await context.delete_glossary_entry(term_src)
-
-
-def build_glossary_tools(
-    context: ProjectContext,
-    *,
-    allow_overwrite: bool = False,
-) -> list[BaseTool]:
-    """Construct tools for glossary curation.
-
-    Returns:
-        list[BaseTool]: Tool callables ready to supply to ``create_deep_agent``.
-    """
-    context_doc_tools = build_context_doc_tools(context)
-
-    @tool("search_glossary")
-    def search_glossary_tool(term_src: str) -> str:
-        """Search for a glossary entry by source term.
-
-        Returns:
-            str: Glossary entry details or "not found" message.
-        """
-        return search_glossary(context, term_src)
-
-    @tool("read_glossary_entry")
-    def read_glossary_entry_tool(term_src: str) -> str:
-        """Return a specific glossary entry if present."""
-        return read_glossary_entry(context, term_src)
-
-    @tool("add_glossary_entry")
-    async def add_glossary_entry_tool(term_src: str, term_tgt: str, notes: str | None = None) -> str:
-        """Add a new glossary entry.
-
-        Returns:
-            str: Confirmation message after persistence.
-        """
-        return await add_glossary_entry(context, term_src, term_tgt, notes)
-
-    @tool("update_glossary_entry")
-    async def update_glossary_entry_tool(term_src: str, term_tgt: str | None = None, notes: str | None = None) -> str:
-        """Update an existing glossary entry.
-
-        Returns:
-            str: Confirmation message after persistence.
-        """
-        return await update_glossary_entry(context, term_src, term_tgt, notes)
-
-    @tool("delete_glossary_entry")
-    async def delete_glossary_entry_tool(term_src: str) -> str:
-        """Delete a glossary entry if it exists.
-
-        Returns:
-            str: Status message indicating deletion or not-found.
-        """
-        return await delete_glossary_entry(context, term_src)
-
-    return [
-        search_glossary_tool,
-        read_glossary_entry_tool,
-        *context_doc_tools,
-        add_glossary_entry_tool,
-        update_glossary_entry_tool,
-        delete_glossary_entry_tool,
-    ]

@@ -7,10 +7,11 @@ from pathlib import Path
 
 import anyio
 import pytest
-from rentl_agents.tools.scene import build_scene_tools
 from rentl_core.context.project import ProjectContext
 from rentl_core.model.game import GameMetadata, UIConstraints
 from rentl_core.model.scene import SceneAnnotations, SceneMetadata
+
+from tests.helpers.tool_builders import build_scene_tools
 
 
 @pytest.mark.anyio

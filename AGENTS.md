@@ -52,12 +52,13 @@ from langgraph.checkpoint.memory import MemorySaver
 
 scene_detailer = create_agent(
     model=model,
-    tools=build_scene_tools(context, allow_overwrite=False),
+    tools=_build_scene_detailer_tools(context, allow_overwrite=False),
     system_prompt="You enrich scene metadata...",
     middleware=[HumanInTheLoopMiddleware(interrupt_on={"write_scene_summary": True})],
     checkpointer=MemorySaver(),
 )
 ```
+Each subagent defines its own `_build_*_tools` helper, wrapping the shared tool functions from `rentl_agents.tools.*` and capturing the shared `ProjectContext` via closures.
 
 ### Human-in-the-Loop (HITL)
 

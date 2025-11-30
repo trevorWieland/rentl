@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from langchain.agents import create_agent
+from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
@@ -10,7 +11,7 @@ from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.tools.qa import build_translation_review_tools
+from rentl_agents.tools.qa import get_ui_settings, read_style_guide, read_translations, record_translation_check
 
 logger = get_logger(__name__)
 
@@ -40,7 +41,7 @@ def create_translation_reviewer_subagent(
     Returns:
         CompiledStateGraph: Runnable agent graph for translation review.
     """
-    tools = build_translation_review_tools(context)
+    tools = _build_translation_reviewer_tools(context)
     model = get_default_chat_model()
     tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
     logger.info("Launching translation-reviewer with tools: %s", ", ".join(tool_names))
@@ -83,3 +84,46 @@ def build_translation_reviewer_user_prompt(scene_id: str) -> str:
         str: User prompt content to send to the translation reviewer agent.
     """
     return f"Review translation for {scene_id}."
+
+
+def _build_translation_reviewer_tools(context: ProjectContext) -> list[BaseTool]:
+    """Return tools for the translation reviewer subagent bound to the shared context."""
+
+    @tool("read_translations")
+    async def read_translations_tool(scene_id: str) -> str:
+        """Return translated lines for a scene."""
+        return await read_translations(context, scene_id)
+
+    @tool("read_style_guide")
+    async def read_style_guide_tool() -> str:
+        """Return the project style guide content."""
+        return await read_style_guide(context)
+
+    @tool("get_ui_settings")
+    def get_ui_settings_tool() -> str:
+        """Return UI constraints from game metadata."""
+        return get_ui_settings(context)
+
+    @tool("record_translation_review")
+    async def record_translation_review_tool(scene_id: str, line_id: str, passed: bool, note: str | None = None) -> str:
+        """Record a translation review result for a translated line.
+
+        Returns:
+            str: Confirmation message after recording the check.
+        """
+        return await record_translation_check(
+            context,
+            scene_id,
+            line_id,
+            passed,
+            note,
+            check_type="translation_review",
+            origin="agent:translation_reviewer",
+        )
+
+    return [
+        read_translations_tool,
+        read_style_guide_tool,
+        get_ui_settings_tool,
+        record_translation_review_tool,
+    ]

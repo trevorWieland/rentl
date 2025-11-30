@@ -5,11 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from rentl_agents.tools.glossary import build_glossary_tools
-from rentl_agents.tools.location import build_location_tools
-from rentl_agents.tools.route import build_route_tools
-from rentl_agents.tools.scene import build_scene_tools
-from rentl_agents.tools.translation import build_translation_tools
 from rentl_core.context.project import ProjectContext
 from rentl_core.model.game import GameMetadata, UIConstraints
 from rentl_core.model.glossary import GlossaryEntry
@@ -17,6 +12,14 @@ from rentl_core.model.line import SourceLine, SourceLineMeta
 from rentl_core.model.location import LocationMetadata
 from rentl_core.model.route import RouteMetadata
 from rentl_core.model.scene import SceneAnnotations, SceneMetadata
+
+from tests.helpers.tool_builders import (
+    build_glossary_tools,
+    build_location_tools,
+    build_route_tools,
+    build_scene_tools,
+    build_translation_tools,
+)
 
 
 def _base_context(tmp_path: Path) -> ProjectContext:

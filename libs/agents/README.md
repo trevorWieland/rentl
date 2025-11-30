@@ -24,13 +24,37 @@ libs/agents/src/rentl_agents/
   subagents/
     *.py              # Individual subagent implementations (context, translation, QA)
   tools/
-    scene.py          # Scene-related tools
-    character.py      # Character tools
-    glossary.py       # Glossary tools
-    route.py          # Route tools
-    translation.py    # Translation tools (MTL + write_translation)
-    qa.py             # QA tools (style/consistency/review)
+    scene.py          # Scene-related tool implementations
+    character.py      # Character tool implementations
+    glossary.py       # Glossary tool implementations
+    route.py          # Route tool implementations
+    translation.py    # Translation tool implementations (MTL + write_translation)
+    qa.py             # QA tool implementations (style/consistency/review)
 ```
+
+---
+
+## Tool design (shared implementations + subagent selection)
+
+- Tool modules now expose **context-accepting functions only** (e.g., `read_scene(context, scene_id)`, `update_route_synopsis(context, ...)`). They no longer export `build_*` functions.
+- Each subagent file owns its own `_build_tools(...)` that:
+  - wraps only the needed shared functions in `@tool` wrappers,
+  - holds per-run state (e.g., single-use guards) local to the subagent,
+  - defines the exact toolbox that subagent is allowed to use.
+- HITL/provenance checks remain inside the shared implementations; interrupts still key off tool names (keep names stable).
+
+**Naming convention**
+
+- `scene_*` subagents operate on a single scene (e.g., `scene_translator`, `scene_detailer`, `scene_style_checker`, `scene_translation_reviewer`).
+- `route_*` subagents span related scenes (e.g., `route_consistency_checker`).
+- `curate_*` subagents are game-level polish/dedupe (e.g., `curate_glossary`, `curate_characters`, `curate_locations`).
+- Subagent toolboxes may include shared tools outside their primary entity when justified (e.g., a scene detailer may call `add_glossary_entry` but not `delete_glossary_entry`).
+
+**Why this structure**
+
+- Single source of truth for tool behavior, provenance, and HITL checks.
+- Clear visibility into which subagent can call which tools (tool selection lives beside the subagent).
+- Avoids duplication of tool logic across subagents while keeping fine-grained permissions.
 
 ---
 
@@ -46,11 +70,12 @@ Subagents are created using `create_agent` from `langchain.agents`; pipelines ca
 
 ```python
 from langchain.agents import create_agent
+from langchain_core.tools import BaseTool, tool
 
 # Step 1: Build LangChain agent graph
 scene_detailer_graph = create_agent(
     model=model,
-    tools=build_scene_tools(context, scene_id),
+    tools=_build_scene_detailer_tools(context, allow_overwrite=False),
     system_prompt=SYSTEM_PROMPT
     # No middleware parameter = no default tools
 )
@@ -74,7 +99,14 @@ from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.tools.scene import build_scene_tools
+from rentl_agents.tools.scene import (
+    read_scene,
+    read_scene_overview,
+    write_primary_characters,
+    write_scene_locations,
+    write_scene_summary,
+    write_scene_tags,
+)
 
 
 class SceneDetailResult(BaseModel):
@@ -107,7 +139,7 @@ def create_scene_detailer_subagent(
     allow_overwrite: bool = False
 ):
     """Create scene detailer subagent for a specific scene and return the runnable graph."""
-    tools = build_scene_tools(context, scene_id, allow_overwrite=allow_overwrite)
+    tools = _build_scene_detailer_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
 
     # Create LangChain agent graph
@@ -116,6 +148,52 @@ def create_scene_detailer_subagent(
         tools=tools,
         system_prompt=SYSTEM_PROMPT
     )
+
+
+def _build_scene_detailer_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
+    """Local tool selection capturing the shared ProjectContext."""
+    written_summary: set[str] = set()
+    written_tags: set[str] = set()
+    written_characters: set[str] = set()
+    written_locations: set[str] = set()
+
+    @tool("read_scene")
+    async def read_scene_tool(scene_id: str) -> str:
+        return await read_scene(context, scene_id)
+
+    @tool("read_scene_overview")
+    async def read_scene_overview_tool(scene_id: str) -> str:
+        return await read_scene_overview(context, scene_id, allow_overwrite=allow_overwrite)
+
+    @tool("write_scene_summary")
+    async def write_scene_summary_tool(scene_id: str, summary: str) -> str:
+        return await write_scene_summary(context, scene_id, summary, written_summary=written_summary)
+
+    @tool("write_scene_tags")
+    async def write_scene_tags_tool(scene_id: str, tags: list[str]) -> str:
+        return await write_scene_tags(context, scene_id, tags, written_tags=written_tags)
+
+    @tool("write_primary_characters")
+    async def write_primary_characters_tool(scene_id: str, character_ids: list[str]) -> str:
+        return await write_primary_characters(
+            context,
+            scene_id,
+            character_ids,
+            written_characters=written_characters,
+        )
+
+    @tool("write_scene_locations")
+    async def write_scene_locations_tool(scene_id: str, location_ids: list[str]) -> str:
+        return await write_scene_locations(context, scene_id, location_ids, written_locations=written_locations)
+
+    return [
+        read_scene_tool,
+        read_scene_overview_tool,
+        write_scene_summary_tool,
+        write_scene_tags_tool,
+        write_primary_characters_tool,
+        write_scene_locations_tool,
+    ]
 ```
 
 ### Subagent characteristics
@@ -240,33 +318,12 @@ Each entity type needs comprehensive tool coverage:
 - `list_context_docs()` - List available documents
 - `read_context_doc(filename)` - Get document contents
 
-### Context Injection via Middleware
+### Context Injection
 
-Tools access the shared `ProjectContext` via `ToolRuntime`, which is injected by middleware:
-
-```python
-# Subagent factory
-def create_scene_detailer_subagent(context: ProjectContext):
-    """Create scene detailer with context injection."""
-    tools = build_scene_tools()  # Generic tools, NOT scene-specific
-
-    # Middleware injects shared context into runtime
-    class ContextInjectionMiddleware:
-        async def before_agent(self, state, runtime):
-            # All tools can now access via runtime.context.project_context
-            runtime.context.project_context = context
-            return {}
-
-    return create_agent(
-        model=get_default_chat_model(),
-        tools=tools,
-        middleware=[ContextInjectionMiddleware()]
-    )
-```
+Tools capture the shared `ProjectContext` via closures inside each `_build_*_tools` helper. No middleware is required for context injection; middleware is reserved for HITL and planning behaviors.
 
 **Key points:**
-- Context is passed to subagent factory (captured via closure)
-- Middleware injects same instance into `runtime.context`
+- Context is passed to the subagent factory and captured when building tools
 - All concurrent subagents share the same `ProjectContext` instance
 - Updates are immediately visible to all agents
 

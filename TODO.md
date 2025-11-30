@@ -20,6 +20,7 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
   - [x] `delete_glossary_entry(term_src, runtime)`
   - [x] Context docs tools: `list_context_docs`, `read_context_doc` (centralized)
 - [x] Stats coverage: `get_character_completion`, `get_route_progress`
+- [ ] Tool refactor: shared implementations in tools/*.py; per-subagent `_build_tools` wrappers (scene_/route_/curate_ naming); remove builder functions from tool modules
 
 ### Phase pipelines & execution
 - [ ] Polish deterministic runners (context/translate/edit) and add pretranslate when ready

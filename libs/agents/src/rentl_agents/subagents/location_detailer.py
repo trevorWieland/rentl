@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
@@ -19,7 +20,13 @@ from rentl_core.util.logging import get_logger
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.location import build_location_tools
+from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
+from rentl_agents.tools.location import (
+    add_location,
+    read_location,
+    update_location_description,
+    update_location_name_tgt,
+)
 
 
 class LocationDetailResult(BaseModel):
@@ -124,7 +131,7 @@ def create_location_detailer_subagent(
     Returns:
         CompiledStateGraph: Runnable agent graph for location detailing.
     """
-    tools = build_location_tools(context, allow_overwrite=allow_overwrite)
+    tools = _build_location_detailer_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     interrupt_on = {
         "update_location_name_tgt": True,
@@ -165,3 +172,79 @@ Instructions:
 5. End conversation when all updates are complete
 
 Begin analysis now."""
+
+
+def _build_location_detailer_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
+    """Return tools for the location detailer subagent bound to the shared context."""
+    updated_name_tgt: set[str] = set()
+    updated_description: set[str] = set()
+    context_doc_tools = _build_context_doc_tools(context)
+
+    @tool("read_location")
+    def read_location_tool(location_id: str) -> str:
+        """Return current metadata for this location."""
+        return read_location(context, location_id)
+
+    @tool("add_location")
+    async def add_location_tool(
+        location_id: str,
+        name_src: str,
+        name_tgt: str | None = None,
+        description: str | None = None,
+    ) -> str:
+        """Add a new location entry with provenance tracking.
+
+        Returns:
+            str: Status message after attempting creation.
+        """
+        return await add_location(
+            context,
+            location_id,
+            name_src,
+            name_tgt=name_tgt,
+            description=description,
+        )
+
+    @tool("update_location_name_tgt")
+    async def update_location_name_tgt_tool(location_id: str, name_tgt: str) -> str:
+        """Update the target language name for this location.
+
+        Returns:
+            str: Confirmation message after persistence.
+        """
+        return await update_location_name_tgt(context, location_id, name_tgt, updated_name_tgt=updated_name_tgt)
+
+    @tool("update_location_description")
+    async def update_location_description_tool(location_id: str, description: str) -> str:
+        """Update the description for this location.
+
+        Returns:
+            str: Confirmation message after persistence.
+        """
+        return await update_location_description(
+            context, location_id, description, updated_description=updated_description
+        )
+
+    return [
+        read_location_tool,
+        add_location_tool,
+        *context_doc_tools,
+        update_location_name_tgt_tool,
+        update_location_description_tool,
+    ]
+
+
+def _build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
+    """Return context doc tools for subagent use."""
+
+    @tool("list_context_docs")
+    async def list_context_docs_tool() -> str:
+        """Return the available context document names."""
+        return await list_context_docs(context)
+
+    @tool("read_context_doc")
+    async def read_context_doc_tool(filename: str) -> str:
+        """Return the contents of a context document."""
+        return await read_context_doc(context, filename)
+
+    return [list_context_docs_tool, read_context_doc_tool]

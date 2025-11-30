@@ -1,13 +1,13 @@
-"""Tools for scene-aware agents."""
+"""Shared scene tool implementations."""
 
 from __future__ import annotations
 
-from langchain_core.tools import BaseTool, tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
-from rentl_agents.tools.context_docs import build_context_doc_tools
 from rentl_agents.tools.hitl import request_if_human_authored
+
+logger = get_logger(__name__)
 
 
 async def read_scene(context: ProjectContext, scene_id: str) -> str:
@@ -196,86 +196,3 @@ async def write_scene_locations(
     result = await context.set_scene_locations(scene_id, location_ids, origin)
     written_locations.add(scene_id)
     return result
-
-
-def build_scene_read_tools(context: ProjectContext, *, allow_overwrite: bool = False) -> list[BaseTool]:
-    """Return read-only scene tools bound to the provided context."""
-
-    @tool("read_scene")
-    async def read_scene_tool(scene_id: str) -> str:
-        """Return metadata and transcript for the scene (no redactions).
-
-        Returns:
-            str: Scene metadata and transcript.
-        """
-        return await read_scene(context, scene_id)
-
-    @tool("read_scene_overview")
-    async def read_scene_overview_tool(scene_id: str) -> str:
-        """Return metadata and transcript for the scene."""
-        return await read_scene_overview(context, scene_id, allow_overwrite=allow_overwrite)
-
-    return [read_scene_tool, read_scene_overview_tool]
-
-
-def build_scene_tools(context: ProjectContext, *, allow_overwrite: bool = False) -> list[BaseTool]:
-    """Construct scene tools usable across scenes.
-
-    Returns:
-        list[BaseTool]: Bound read and write scene tools.
-    """
-    written_summary: set[str] = set()
-    written_tags: set[str] = set()
-    written_characters: set[str] = set()
-    written_locations: set[str] = set()
-    context_doc_tools = build_context_doc_tools(context)
-
-    read_tools = build_scene_read_tools(context, allow_overwrite=allow_overwrite)
-
-    @tool("write_scene_summary")
-    async def write_scene_summary_tool(scene_id: str, summary: str) -> str:
-        """Store the final summary for this scene.
-
-        Returns:
-            str: Confirmation or approval message.
-        """
-        return await write_scene_summary(context, scene_id, summary, written_summary=written_summary)
-
-    @tool("write_scene_tags")
-    async def write_scene_tags_tool(scene_id: str, tags: list[str]) -> str:
-        """Store tags for this scene.
-
-        Returns:
-            str: Confirmation or approval message.
-        """
-        return await write_scene_tags(context, scene_id, tags, written_tags=written_tags)
-
-    @tool("write_primary_characters")
-    async def write_primary_characters_tool(scene_id: str, character_ids: list[str]) -> str:
-        """Store primary characters identified in this scene.
-
-        Returns:
-            str: Confirmation or approval message.
-        """
-        return await write_primary_characters(context, scene_id, character_ids, written_characters=written_characters)
-
-    @tool("write_scene_locations")
-    async def write_scene_locations_tool(scene_id: str, location_ids: list[str]) -> str:
-        """Store locations identified in this scene.
-
-        Returns:
-            str: Confirmation or approval message.
-        """
-        return await write_scene_locations(context, scene_id, location_ids, written_locations=written_locations)
-
-    return [
-        *read_tools,
-        *context_doc_tools,
-        write_scene_summary_tool,
-        write_scene_tags_tool,
-        write_primary_characters_tool,
-        write_scene_locations_tool,
-    ]
-
-
-logger = get_logger(__name__)

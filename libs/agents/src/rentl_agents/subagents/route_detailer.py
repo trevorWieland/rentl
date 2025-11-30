@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langchain_core.tools import BaseTool, tool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
@@ -19,7 +20,8 @@ from rentl_core.util.logging import get_logger
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.route import build_route_tools
+from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
+from rentl_agents.tools.route import read_route, update_route_characters, update_route_synopsis
 
 
 class RouteDetailResult(BaseModel):
@@ -123,7 +125,7 @@ def create_route_detailer_subagent(
     Returns:
         CompiledStateGraph: Runnable agent graph for route detailing.
     """
-    tools = build_route_tools(context, allow_overwrite=allow_overwrite)
+    tools = _build_route_detailer_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     interrupt_on = {
         "update_route_synopsis": True,
@@ -165,3 +167,56 @@ Instructions:
 5. End conversation when all updates are complete
 
 Begin analysis now."""
+
+
+def _build_route_detailer_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
+    """Return tools for the route detailer subagent bound to the shared context."""
+    updated_synopsis: set[str] = set()
+    updated_characters: set[str] = set()
+    context_doc_tools = _build_context_doc_tools(context)
+
+    @tool("read_route")
+    def read_route_tool(route_id: str) -> str:
+        """Return current metadata for this route."""
+        return read_route(context, route_id)
+
+    @tool("update_route_synopsis")
+    async def update_route_synopsis_tool(route_id: str, synopsis: str) -> str:
+        """Update the synopsis for this route.
+
+        Returns:
+            str: Confirmation message after persistence.
+        """
+        return await update_route_synopsis(context, route_id, synopsis, updated_synopsis=updated_synopsis)
+
+    @tool("update_route_characters")
+    async def update_route_characters_tool(route_id: str, character_ids: list[str]) -> str:
+        """Update the primary characters for this route.
+
+        Returns:
+            str: Confirmation message after persistence.
+        """
+        return await update_route_characters(context, route_id, character_ids, updated_characters=updated_characters)
+
+    return [
+        read_route_tool,
+        *context_doc_tools,
+        update_route_synopsis_tool,
+        update_route_characters_tool,
+    ]
+
+
+def _build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
+    """Return context doc tools for subagent use."""
+
+    @tool("list_context_docs")
+    async def list_context_docs_tool() -> str:
+        """Return the available context document names."""
+        return await list_context_docs(context)
+
+    @tool("read_context_doc")
+    async def read_context_doc_tool(filename: str) -> str:
+        """Return the contents of a context document."""
+        return await read_context_doc(context, filename)
+
+    return [list_context_docs_tool, read_context_doc_tool]

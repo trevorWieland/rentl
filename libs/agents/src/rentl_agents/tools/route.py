@@ -1,19 +1,21 @@
-"""Tools for route-aware agents."""
+"""Shared route tool implementations."""
 
 from __future__ import annotations
 
-from langchain_core.tools import BaseTool, tool
 from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
-from rentl_agents.tools.context_docs import build_context_doc_tools
 from rentl_agents.tools.hitl import request_if_human_authored
 
 logger = get_logger(__name__)
 
 
 def read_route(context: ProjectContext, route_id: str) -> str:
-    """Return current metadata for this route."""
+    """Return current metadata for this route.
+
+    Returns:
+        str: Route metadata string.
+    """
     logger.info("Tool call: read_route(route_id=%s)", route_id)
     route = context.get_route(route_id)
     parts = [
@@ -90,48 +92,3 @@ async def update_route_characters(
     result = await context.update_route_characters(route_id, character_ids, origin)
     updated_characters.add(route_id)
     return result
-
-
-def build_route_tools(
-    context: ProjectContext,
-    *,
-    allow_overwrite: bool = False,
-) -> list[BaseTool]:
-    """Construct tools usable across routes.
-
-    Returns:
-        list[BaseTool]: Tool callables ready to supply to ``create_agent``.
-    """
-    updated_synopsis: set[str] = set()
-    updated_characters: set[str] = set()
-    context_doc_tools = build_context_doc_tools(context)
-
-    @tool("read_route")
-    def read_route_tool(route_id: str) -> str:
-        """Return current metadata for this route."""
-        return read_route(context, route_id)
-
-    @tool("update_route_synopsis")
-    async def update_route_synopsis_tool(route_id: str, synopsis: str) -> str:
-        """Update the synopsis for this route.
-
-        Returns:
-            str: Confirmation message after persistence.
-        """
-        return await update_route_synopsis(context, route_id, synopsis, updated_synopsis=updated_synopsis)
-
-    @tool("update_route_characters")
-    async def update_route_characters_tool(route_id: str, character_ids: list[str]) -> str:
-        """Update the primary characters for this route.
-
-        Returns:
-            str: Confirmation message after persistence.
-        """
-        return await update_route_characters(context, route_id, character_ids, updated_characters=updated_characters)
-
-    return [
-        read_route_tool,
-        *context_doc_tools,
-        update_route_synopsis_tool,
-        update_route_characters_tool,
-    ]

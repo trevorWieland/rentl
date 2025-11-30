@@ -1,8 +1,7 @@
-"""Progress and completion tools for top-level agents."""
+"""Shared stats tool implementations."""
 
 from __future__ import annotations
 
-from langchain_core.tools import BaseTool, tool
 from rentl_core.context.project import ProjectContext
 
 
@@ -105,56 +104,3 @@ def get_route_progress(context: ProjectContext, route_id: str) -> str:
         f"- Scenes: {len(route.scene_ids)} linked",
     ]
     return "\n".join(parts)
-
-
-def build_stats_tools(context: ProjectContext) -> list[BaseTool]:
-    """Return stats/progress tools bound to a specific project context.
-
-    Returns:
-        list[BaseTool]: Bound stats tools.
-    """
-
-    @tool("get_context_status")
-    def get_context_status_tool() -> str:
-        """Summarize context completion across scenes, characters, locations, and routes.
-
-        Returns:
-            str: Completion summary suitable for quick progress checks.
-        """
-        return get_context_status(context)
-
-    @tool("get_scene_completion")
-    def get_scene_completion_tool(scene_id: str) -> str:
-        """Return detailed completion for a specific scene."""
-        return get_scene_completion(context, scene_id)
-
-    @tool("get_character_completion")
-    def get_character_completion_tool(character_id: str) -> str:
-        """Return completion for a specific character."""
-        return get_character_completion(context, character_id)
-
-    @tool("get_translation_progress")
-    async def get_translation_progress_tool(scene_id: str) -> str:
-        """Report translation progress for a scene.
-
-        Returns:
-            str: Translation progress summary.
-        """
-        return await get_translation_progress(context, scene_id)
-
-    @tool("get_route_progress")
-    def get_route_progress_tool(route_id: str) -> str:
-        """Report route metadata completion.
-
-        Returns:
-            str: Route completion summary.
-        """
-        return get_route_progress(context, route_id)
-
-    return [
-        get_context_status_tool,
-        get_scene_completion_tool,
-        get_character_completion_tool,
-        get_translation_progress_tool,
-        get_route_progress_tool,
-    ]

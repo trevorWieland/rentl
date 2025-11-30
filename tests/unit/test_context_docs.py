@@ -5,10 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from rentl_agents.tools.context_docs import build_context_doc_tools
 from rentl_core.context.project import ProjectContext
 from rentl_core.model.game import GameMetadata, UIConstraints
 from rentl_core.model.scene import SceneAnnotations, SceneMetadata
+
+from tests.helpers.tool_builders import build_context_doc_tools
 
 
 def _base_context(tmp_path: Path) -> ProjectContext:
