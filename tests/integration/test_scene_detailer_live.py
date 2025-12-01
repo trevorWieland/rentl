@@ -59,10 +59,10 @@ async def test_scene_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_jud
     msg_list = cast(list[BaseMessage], messages)
     tool_names = _extract_tool_call_names(msg_list)
     required_tools = {
-        "write_scene_summary",
-        "write_scene_tags",
-        "write_primary_characters",
-        "write_scene_locations",
+        "scene_update_summary",
+        "scene_update_tags",
+        "scene_update_primary_characters",
+        "scene_update_locations",
     }
     missing = required_tools - tool_names
     assert not missing, f"Missing expected tool calls: {', '.join(sorted(missing))}"

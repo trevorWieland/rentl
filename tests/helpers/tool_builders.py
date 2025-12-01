@@ -15,14 +15,22 @@ from rentl_agents.subagents.location_detailer import _build_location_detailer_to
 from rentl_agents.subagents.route_detailer import _build_route_detailer_tools
 from rentl_agents.subagents.scene_detailer import _build_scene_detailer_tools
 from rentl_agents.subagents.translate_scene import _build_scene_translator_tools
-from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
-from rentl_agents.tools.qa import get_ui_settings, read_style_guide, read_translations, record_translation_check
+from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read_doc
+from rentl_agents.tools.qa import (
+    styleguide_read_full,
+    translation_create_check,
+    translation_create_consistency_check,
+    translation_create_review_check,
+    translation_create_style_check,
+    translation_read_scene,
+    ui_read_settings,
+)
 from rentl_agents.tools.stats import (
-    get_character_completion,
-    get_context_status,
-    get_route_progress,
-    get_scene_completion,
-    get_translation_progress,
+    character_read_progress,
+    context_read_status,
+    route_read_progress,
+    scene_read_progress,
+    translation_read_progress,
 )
 from rentl_core.context.project import ProjectContext
 
@@ -65,22 +73,22 @@ def build_translation_tools(
 def build_qa_tools(context: ProjectContext) -> list[BaseTool]:
     """Return QA tools for reading translations and config."""
 
-    @tool("read_translations")
+    @tool("translation_read_scene")
     async def read_translations_tool(scene_id: str) -> str:
         """Return translated lines for a scene."""
-        return await read_translations(context, scene_id)
+        return await translation_read_scene(context, scene_id)
 
-    @tool("read_style_guide")
+    @tool("styleguide_read_full")
     async def read_style_guide_tool() -> str:
         """Return the project style guide content."""
-        return await read_style_guide(context)
+        return await styleguide_read_full(context)
 
-    @tool("get_ui_settings")
+    @tool("ui_read_settings")
     def get_ui_settings_tool() -> str:
         """Return UI constraints from game metadata."""
-        return get_ui_settings(context)
+        return ui_read_settings(context)
 
-    @tool("record_translation_check")
+    @tool("translation_create_check")
     async def record_translation_check_tool(
         scene_id: str,
         line_id: str,
@@ -93,7 +101,7 @@ def build_qa_tools(context: ProjectContext) -> list[BaseTool]:
             str: Confirmation message after storing the check.
         """
         origin = f"agent:test:{date.today().isoformat()}"
-        return await record_translation_check(
+        return await translation_create_check(
             context,
             scene_id,
             line_id,
@@ -103,7 +111,7 @@ def build_qa_tools(context: ProjectContext) -> list[BaseTool]:
             origin=origin,
         )
 
-    @tool("record_style_check")
+    @tool("translation_create_style_check")
     async def record_style_check_tool(
         scene_id: str,
         line_id: str,
@@ -116,17 +124,16 @@ def build_qa_tools(context: ProjectContext) -> list[BaseTool]:
             str: Confirmation message after storing the check.
         """
         origin = f"agent:test:{date.today().isoformat()}"
-        return await record_translation_check(
+        return await translation_create_style_check(
             context,
             scene_id,
             line_id,
             passed,
             note,
-            check_type="style_check",
             origin=origin,
         )
 
-    @tool("record_consistency_check")
+    @tool("translation_create_consistency_check")
     async def record_consistency_check_tool(
         scene_id: str,
         line_id: str,
@@ -139,17 +146,16 @@ def build_qa_tools(context: ProjectContext) -> list[BaseTool]:
             str: Confirmation message after storing the check.
         """
         origin = f"agent:test:{date.today().isoformat()}"
-        return await record_translation_check(
+        return await translation_create_consistency_check(
             context,
             scene_id,
             line_id,
             passed,
             note,
-            check_type="consistency_check",
             origin=origin,
         )
 
-    @tool("record_translation_review")
+    @tool("translation_create_review_check")
     async def record_translation_review_tool(
         scene_id: str,
         line_id: str,
@@ -162,13 +168,12 @@ def build_qa_tools(context: ProjectContext) -> list[BaseTool]:
             str: Confirmation message after storing the check.
         """
         origin = f"agent:test:{date.today().isoformat()}"
-        return await record_translation_check(
+        return await translation_create_review_check(
             context,
             scene_id,
             line_id,
             passed,
             note,
-            check_type="translation_review",
             origin=origin,
         )
 
@@ -186,34 +191,34 @@ def build_qa_tools(context: ProjectContext) -> list[BaseTool]:
 def build_stats_tools(context: ProjectContext) -> list[BaseTool]:
     """Return stats tools wrapping shared implementations."""
 
-    @tool("get_context_status")
+    @tool("context_read_status")
     def get_context_status_tool() -> str:
         """Summarize context completion counts.
 
         Returns:
             str: Status summary text.
         """
-        return get_context_status(context)
+        return context_read_status(context)
 
-    @tool("get_scene_completion")
+    @tool("scene_read_progress")
     def get_scene_completion_tool(scene_id: str) -> str:
         """Return completion status for a scene."""
-        return get_scene_completion(context, scene_id)
+        return scene_read_progress(context, scene_id)
 
-    @tool("get_character_completion")
+    @tool("character_read_progress")
     def get_character_completion_tool(character_id: str) -> str:
         """Return completion status for a character."""
-        return get_character_completion(context, character_id)
+        return character_read_progress(context, character_id)
 
-    @tool("get_translation_progress")
+    @tool("translation_read_progress")
     async def get_translation_progress_tool(scene_id: str) -> str:
         """Return overall translation progress."""
-        return await get_translation_progress(context, scene_id)
+        return await translation_read_progress(context, scene_id)
 
-    @tool("get_route_progress")
+    @tool("route_read_progress")
     def get_route_progress_tool(route_id: str) -> str:
         """Return progress summary for a route."""
-        return get_route_progress(context, route_id)
+        return route_read_progress(context, route_id)
 
     return [
         get_context_status_tool,
@@ -227,14 +232,14 @@ def build_stats_tools(context: ProjectContext) -> list[BaseTool]:
 def build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
     """Return context document tools for tests."""
 
-    @tool("list_context_docs")
+    @tool("contextdoc_list_all")
     async def list_context_docs_tool() -> str:
         """Return the available context document names."""
-        return await list_context_docs(context)
+        return await contextdoc_list_all(context)
 
-    @tool("read_context_doc")
+    @tool("contextdoc_read_doc")
     async def read_context_doc_tool(filename: str) -> str:
         """Return the contents of a context document."""
-        return await read_context_doc(context, filename)
+        return await contextdoc_read_doc(context, filename)
 
     return [list_context_docs_tool, read_context_doc_tool]

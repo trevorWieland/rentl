@@ -10,13 +10,13 @@ from rentl_agents.tools.hitl import request_if_human_authored
 logger = get_logger(__name__)
 
 
-def read_route(context: ProjectContext, route_id: str) -> str:
+def route_read_entry(context: ProjectContext, route_id: str) -> str:
     """Return current metadata for this route.
 
     Returns:
         str: Route metadata string.
     """
-    logger.info("Tool call: read_route(route_id=%s)", route_id)
+    logger.info("Tool call: route_read_entry(route_id=%s)", route_id)
     route = context.get_route(route_id)
     parts = [
         f"Route ID: {route.id}",
@@ -28,7 +28,7 @@ def read_route(context: ProjectContext, route_id: str) -> str:
     return "\n".join(parts)
 
 
-async def update_route_synopsis(
+async def route_update_synopsis(
     context: ProjectContext, route_id: str, synopsis: str, *, updated_synopsis: set[str]
 ) -> str:
     """Update the synopsis for this route.
@@ -41,7 +41,7 @@ async def update_route_synopsis(
     if route_id in updated_synopsis:
         return "Synopsis already updated. Provide a final assistant response."
 
-    logger.info("Tool call: update_route_synopsis(route_id=%s)", route_id)
+    logger.info("Tool call: route_update_synopsis(route_id=%s)", route_id)
     route = context.get_route(route_id)
     approval = request_if_human_authored(
         operation="update",
@@ -61,7 +61,7 @@ async def update_route_synopsis(
     return result
 
 
-async def update_route_characters(
+async def route_update_primary_characters(
     context: ProjectContext, route_id: str, character_ids: list[str], *, updated_characters: set[str]
 ) -> str:
     """Update the primary characters for this route.
@@ -74,7 +74,7 @@ async def update_route_characters(
     if route_id in updated_characters:
         return "Primary characters already updated. Provide a final assistant response."
 
-    logger.info("Tool call: update_route_characters(route_id=%s)", route_id)
+    logger.info("Tool call: route_update_primary_characters(route_id=%s)", route_id)
     route = context.get_route(route_id)
     approval = request_if_human_authored(
         operation="update",

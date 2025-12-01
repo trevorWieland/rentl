@@ -34,7 +34,7 @@ async def test_character_location_route_glossary_tools_request_approval(tiny_vn_
     context.characters["mc"].pronouns = "they/them"
     context.characters["mc"].pronouns_origin = "human"
     char_tools = build_character_tools(context)
-    update_pronouns = _find_tool(char_tools, "update_character_pronouns")
+    update_pronouns = _find_tool(char_tools, "character_update_pronouns")
     msg = await update_pronouns.coroutine(character_id="mc", pronouns="he/him")  # type: ignore[attr-defined]
     assert "APPROVAL REQUIRED" in msg
 
@@ -42,7 +42,7 @@ async def test_character_location_route_glossary_tools_request_approval(tiny_vn_
     context.locations["classroom"].description = "desc"
     context.locations["classroom"].description_origin = "human"
     loc_tools = build_location_tools(context)
-    update_desc = _find_tool(loc_tools, "update_location_description")
+    update_desc = _find_tool(loc_tools, "location_update_description")
     loc_msg = await update_desc.coroutine(location_id="classroom", description="new desc")  # type: ignore[attr-defined]
     assert "APPROVAL REQUIRED" in loc_msg
 
@@ -50,19 +50,19 @@ async def test_character_location_route_glossary_tools_request_approval(tiny_vn_
     context.routes["common"].synopsis = "syn"
     context.routes["common"].synopsis_origin = "human"
     route_tools = build_route_tools(context)
-    update_synopsis = _find_tool(route_tools, "update_route_synopsis")
+    update_synopsis = _find_tool(route_tools, "route_update_synopsis")
     route_msg = await update_synopsis.coroutine(route_id="common", synopsis="updated")  # type: ignore[attr-defined]
     assert "APPROVAL REQUIRED" in route_msg
 
     # Glossary update with human origin -> approval required
     await context.add_glossary_entry("term", "tgt", "notes", "human")
     glossary_tools = build_glossary_tools(context)
-    update_glossary = _find_tool(glossary_tools, "update_glossary_entry")
+    update_glossary = _find_tool(glossary_tools, "glossary_update_entry")
     gloss_msg = await update_glossary.coroutine(term_src="term", term_tgt="new", notes="n")  # type: ignore[attr-defined]
     assert "APPROVAL REQUIRED" in gloss_msg
 
     # Glossary delete should remove entry
-    delete_glossary = _find_tool(glossary_tools, "delete_glossary_entry")
+    delete_glossary = _find_tool(glossary_tools, "glossary_delete_entry")
     delete_msg = await delete_glossary.coroutine(term_src="term")  # type: ignore[attr-defined]
     assert "Deleted glossary entry" in delete_msg
 
@@ -71,7 +71,7 @@ async def test_character_location_route_glossary_tools_request_approval(tiny_vn_
     scene_id = "scene_a_00"
     context.scenes[scene_id].annotations.summary = "human summary"
     context.scenes[scene_id].annotations.summary_origin = "human"
-    write_summary = _find_tool(scene_tools, "write_scene_summary")
+    write_summary = _find_tool(scene_tools, "scene_update_summary")
     approval_msg = await write_summary.coroutine(scene_id=scene_id, summary="new summary")  # type: ignore[attr-defined]
     assert "APPROVAL REQUIRED" in approval_msg
 
@@ -92,7 +92,7 @@ async def test_translation_and_stats_tools(tiny_vn_tmp: Path) -> None:
 
     # Translation tool writes without approval when empty
     trans_tools = build_translation_tools(context, agent_name="unit_test", allow_overwrite=False)
-    write_translation = _find_tool(trans_tools, "write_translation")
+    write_translation = _find_tool(trans_tools, "translation_create_line")
     write_msg = await write_translation.coroutine(  # type: ignore[attr-defined]
         scene_id=scene_id, line_id=line.id, source_text=line.text, target_text="translated"
     )
@@ -100,7 +100,7 @@ async def test_translation_and_stats_tools(tiny_vn_tmp: Path) -> None:
 
     # Stats tool should reflect translated lines
     stats_tools = build_stats_tools(context)
-    get_progress = _find_tool(stats_tools, "get_translation_progress")
+    get_progress = _find_tool(stats_tools, "translation_read_progress")
     progress = await get_progress.coroutine(scene_id=scene_id)  # type: ignore[attr-defined]
     assert "lines translated" in progress
 
@@ -109,9 +109,9 @@ async def test_translation_and_stats_tools(tiny_vn_tmp: Path) -> None:
     assert translations, "Expected translation to be recorded"
     tline: TranslatedLine = translations[0]
     qa_tools = build_qa_tools(context)
-    record_style_check = _find_tool(qa_tools, "record_style_check")
-    record_consistency_check = _find_tool(qa_tools, "record_consistency_check")
-    record_translation_review = _find_tool(qa_tools, "record_translation_review")
+    record_style_check = _find_tool(qa_tools, "translation_create_style_check")
+    record_consistency_check = _find_tool(qa_tools, "translation_create_consistency_check")
+    record_translation_review = _find_tool(qa_tools, "translation_create_review_check")
     await record_style_check.coroutine(scene_id=scene_id, line_id=tline.id, passed=True, note="ok")  # type: ignore[attr-defined]
     await record_consistency_check.coroutine(scene_id=scene_id, line_id=tline.id, passed=True, note="ok")  # type: ignore[attr-defined]
     await record_translation_review.coroutine(scene_id=scene_id, line_id=tline.id, passed=True, note="ok")  # type: ignore[attr-defined]

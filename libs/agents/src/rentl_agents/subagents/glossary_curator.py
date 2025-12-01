@@ -20,13 +20,13 @@ from rentl_core.util.logging import get_logger
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
+from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read_doc
 from rentl_agents.tools.glossary import (
-    add_glossary_entry,
-    delete_glossary_entry,
-    read_glossary_entry,
-    search_glossary,
-    update_glossary_entry,
+    glossary_create_entry,
+    glossary_delete_entry,
+    glossary_read_entry,
+    glossary_search_term,
+    glossary_update_entry,
 )
 
 
@@ -46,11 +46,11 @@ SYSTEM_PROMPT = """You are a localization assistant managing glossary entries.
 Your task is to curate terminology for consistent translation.
 
 **Workflow:**
-1. Call `list_context_docs()` to see available context documents
-2. Call `read_context_doc(filename)` to review each document for terminology
-3. Call `search_glossary(term)` to check for existing entries
-4. Call `add_glossary_entry(term_src, term_tgt, notes)` for new important terms
-5. Call `update_glossary_entry(term_src, term_tgt, notes)` to refine existing entries
+1. Call `contextdoc_list_all()` to see available context documents
+2. Call `contextdoc_read_doc(filename)` to review each document for terminology
+3. Call `glossary_search_term(term)` to check for existing entries
+4. Call `glossary_create_entry(term_src, term_tgt, notes)` for new important terms
+5. Call `glossary_update_entry(term_src, term_tgt, notes)` to refine existing entries
 6. End the conversation once curation is complete
 
 **Important:**
@@ -76,9 +76,9 @@ def create_glossary_curator_subagent(
     model = get_default_chat_model()
 
     interrupt_on = {
-        "add_glossary_entry": True,
-        "update_glossary_entry": True,
-        "delete_glossary_entry": True,
+        "glossary_create_entry": True,
+        "glossary_update_entry": True,
+        "glossary_delete_entry": True,
     }
 
     graph = create_agent(
@@ -179,46 +179,46 @@ def _build_glossary_curator_tools(context: ProjectContext, *, allow_overwrite: b
     """Return tools for the glossary curator subagent bound to the shared context."""
     context_doc_tools = _build_context_doc_tools(context)
 
-    @tool("search_glossary")
+    @tool("glossary_search_term")
     def search_glossary_tool(term_src: str) -> str:
         """Search for a glossary entry by source term.
 
         Returns:
             str: Glossary entry details or 'not found'.
         """
-        return search_glossary(context, term_src)
+        return glossary_search_term(context, term_src)
 
-    @tool("read_glossary_entry")
+    @tool("glossary_read_entry")
     def read_glossary_entry_tool(term_src: str) -> str:
         """Return a specific glossary entry if present."""
-        return read_glossary_entry(context, term_src)
+        return glossary_read_entry(context, term_src)
 
-    @tool("add_glossary_entry")
+    @tool("glossary_create_entry")
     async def add_glossary_entry_tool(term_src: str, term_tgt: str, notes: str | None = None) -> str:
         """Add a new glossary entry.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        return await add_glossary_entry(context, term_src, term_tgt, notes)
+        return await glossary_create_entry(context, term_src, term_tgt, notes)
 
-    @tool("update_glossary_entry")
+    @tool("glossary_update_entry")
     async def update_glossary_entry_tool(term_src: str, term_tgt: str | None = None, notes: str | None = None) -> str:
         """Update an existing glossary entry.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        return await update_glossary_entry(context, term_src, term_tgt, notes)
+        return await glossary_update_entry(context, term_src, term_tgt, notes)
 
-    @tool("delete_glossary_entry")
+    @tool("glossary_delete_entry")
     async def delete_glossary_entry_tool(term_src: str) -> str:
         """Delete a glossary entry if it exists.
 
         Returns:
             str: Status message indicating deletion or not-found.
         """
-        return await delete_glossary_entry(context, term_src)
+        return await glossary_delete_entry(context, term_src)
 
     return [
         search_glossary_tool,
@@ -233,14 +233,14 @@ def _build_glossary_curator_tools(context: ProjectContext, *, allow_overwrite: b
 def _build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
     """Return context doc tools for subagent use."""
 
-    @tool("list_context_docs")
+    @tool("contextdoc_list_all")
     async def list_context_docs_tool() -> str:
         """Return the available context document names."""
-        return await list_context_docs(context)
+        return await contextdoc_list_all(context)
 
-    @tool("read_context_doc")
+    @tool("contextdoc_read_doc")
     async def read_context_doc_tool(filename: str) -> str:
         """Return the contents of a context document."""
-        return await read_context_doc(context, filename)
+        return await contextdoc_read_doc(context, filename)
 
     return [list_context_docs_tool, read_context_doc_tool]

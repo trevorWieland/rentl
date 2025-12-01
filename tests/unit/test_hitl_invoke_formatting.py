@@ -14,7 +14,7 @@ def test_extract_interrupt_messages_action_requests() -> None:
                     "__interrupt__": "unused",
                     "action_requests": [
                         {
-                            "name": "write_scene_summary",
+                            "name": "scene_update_summary",
                             "args": {"scene_id": "s1"},
                             "description": "overwrite human data",
                         },
@@ -23,7 +23,7 @@ def test_extract_interrupt_messages_action_requests() -> None:
             }
         ]
     )
-    assert messages == ["write_scene_summary args={'scene_id': 's1'} reason=overwrite human data"]
+    assert messages == ["scene_update_summary args={'scene_id': 's1'} reason=overwrite human data"]
 
 
 def test_extract_interrupt_messages_strings() -> None:

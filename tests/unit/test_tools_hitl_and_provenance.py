@@ -128,14 +128,14 @@ async def test_glossary_update_noop_and_conflict(tmp_path: Path) -> None:
     """Glossary tools should surface conflicts and no-op paths."""
     context = _context(tmp_path)
     tools = build_glossary_tools(context, allow_overwrite=False)
-    update = next(t for t in tools if t.name == "update_glossary_entry")
+    update = next(t for t in tools if t.name == "glossary_update_entry")
 
     # Human-authored -> approval request
     approval = await update.coroutine(term_src="term", term_tgt="new")  # type: ignore[attr-defined]
     assert "approval required" in approval.lower()
 
     # Add a new entry then conflict with recent update
-    add = next(t for t in tools if t.name == "add_glossary_entry")
+    add = next(t for t in tools if t.name == "glossary_create_entry")
     added = await add.coroutine(term_src="term2", term_tgt="tgt2")  # type: ignore[attr-defined]
     assert "successfully added" in added.lower()
     # Rapid update should return conflict message via ProjectContext timing
@@ -148,14 +148,14 @@ async def test_location_update_conflict_and_noop(tmp_path: Path) -> None:
     """Location tool should request approval on human data and handle conflicts."""
     context = _context(tmp_path)
     tools = build_location_tools(context, allow_overwrite=False)
-    update_desc = next(t for t in tools if t.name == "update_location_description")
+    update_desc = next(t for t in tools if t.name == "location_update_description")
 
     approval = await update_desc.coroutine(location_id="loc_1", description="new desc")  # type: ignore[attr-defined]
     assert "approval required" in approval.lower()
 
     # After approval, allow_overwrite=True should bypass
     tools_overwrite = build_location_tools(context, allow_overwrite=True)
-    update_desc_overwrite = next(t for t in tools_overwrite if t.name == "update_location_description")
+    update_desc_overwrite = next(t for t in tools_overwrite if t.name == "location_update_description")
     ok = await update_desc_overwrite.coroutine(location_id="loc_1", description="agent desc")  # type: ignore[attr-defined]
     assert "Successfully updated" in ok or "CONCURRENT" in ok or "approval required" in ok.lower()
 
@@ -165,8 +165,8 @@ async def test_route_update_conflict_and_noop(tmp_path: Path) -> None:
     """Route tool updates should detect conflicts and allow agent-owned updates."""
     context = _context(tmp_path)
     tools = build_route_tools(context, allow_overwrite=False)
-    update_synopsis = next(t for t in tools if t.name == "update_route_synopsis")
-    update_chars = next(t for t in tools if t.name == "update_route_characters")
+    update_synopsis = next(t for t in tools if t.name == "route_update_synopsis")
+    update_chars = next(t for t in tools if t.name == "route_update_primary_characters")
 
     # existing synopsis has agent origin -> should proceed without approval
     ok = await update_synopsis.coroutine(route_id="route_1", synopsis="new")  # type: ignore[attr-defined]

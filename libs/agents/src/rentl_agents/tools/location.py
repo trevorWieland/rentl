@@ -10,13 +10,13 @@ from rentl_agents.tools.hitl import request_if_human_authored
 logger = get_logger(__name__)
 
 
-def read_location(context: ProjectContext, location_id: str) -> str:
+def location_read_entry(context: ProjectContext, location_id: str) -> str:
     """Return current metadata for this location.
 
     Returns:
         str: Location metadata string.
     """
-    logger.info("Tool call: read_location(location_id=%s)", location_id)
+    logger.info("Tool call: location_read_entry(location_id=%s)", location_id)
     location = context.get_location(location_id)
     parts = [
         f"Location ID: {location.id}",
@@ -27,7 +27,7 @@ def read_location(context: ProjectContext, location_id: str) -> str:
     return "\n".join(parts)
 
 
-async def add_location(
+async def location_create_entry(
     context: ProjectContext,
     location_id: str,
     name_src: str,
@@ -41,7 +41,7 @@ async def add_location(
     """
     from datetime import date
 
-    logger.info("Tool call: add_location(location_id=%s)", location_id)
+    logger.info("Tool call: location_create_entry(location_id=%s)", location_id)
     origin = f"agent:location_detailer:{date.today().isoformat()}"
     return await context.add_location(
         location_id,
@@ -52,7 +52,7 @@ async def add_location(
     )
 
 
-async def update_location_name_tgt(
+async def location_update_name_tgt(
     context: ProjectContext, location_id: str, name_tgt: str, *, updated_name_tgt: set[str]
 ) -> str:
     """Update the target language name for this location.
@@ -65,7 +65,7 @@ async def update_location_name_tgt(
     if location_id in updated_name_tgt:
         return "Target name already updated. Provide a final assistant response."
 
-    logger.info("Tool call: update_location_name_tgt(location_id=%s)", location_id)
+    logger.info("Tool call: location_update_name_tgt(location_id=%s)", location_id)
     location = context.get_location(location_id)
     approval = request_if_human_authored(
         operation="update",
@@ -83,7 +83,7 @@ async def update_location_name_tgt(
     return result
 
 
-async def update_location_description(
+async def location_update_description(
     context: ProjectContext, location_id: str, description: str, *, updated_description: set[str]
 ) -> str:
     """Update the description for this location.
@@ -96,7 +96,7 @@ async def update_location_description(
     if location_id in updated_description:
         return "Description already updated. Provide a final assistant response."
 
-    logger.info("Tool call: update_location_description(location_id=%s)", location_id)
+    logger.info("Tool call: location_update_description(location_id=%s)", location_id)
     location = context.get_location(location_id)
     approval = request_if_human_authored(
         operation="update",

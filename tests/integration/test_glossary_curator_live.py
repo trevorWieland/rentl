@@ -58,7 +58,7 @@ async def test_glossary_curator_live_calls_and_language(tiny_vn_tmp: Path, llm_j
     assert messages, "Expected non-empty messages from glossary curator run"
     msg_list = cast(list[BaseMessage], messages)
     tool_names = _extract_tool_call_names(msg_list)
-    expected_tools = {"add_glossary_entry", "update_glossary_entry"}
+    expected_tools = {"glossary_create_entry", "glossary_update_entry"}
     if not (tool_names & expected_tools):
         pytest.fail(f"Expected at least one glossary add/update tool call; seen: {sorted(tool_names)}")
 

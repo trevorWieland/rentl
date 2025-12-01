@@ -15,7 +15,9 @@ from rentl_agents.tools.hitl import request_if_human_authored
 logger = get_logger(__name__)
 
 
-async def mtl_translate(line_id: str, source_text: str, context_lines: list[str] | None = None) -> str:
+async def translation_create_mtl_suggestion(
+    line_id: str, source_text: str, context_lines: list[str] | None = None
+) -> str:
     """Call specialized MTL model for translation.
 
     Returns:
@@ -45,7 +47,7 @@ async def mtl_translate(line_id: str, source_text: str, context_lines: list[str]
     return translation
 
 
-async def write_translation(
+async def translation_create_line(
     context: ProjectContext,
     scene_id: str,
     line_id: str,
@@ -78,7 +80,7 @@ async def write_translation(
         if approval:
             return approval
 
-    logger.info("Tool call: write_translation(scene_id=%s, line_id=%s)", scene_id, line_id)
+    logger.info("Tool call: translation_create_line(scene_id=%s, line_id=%s)", scene_id, line_id)
     translated_line = TranslatedLine(
         id=line_id,
         text_src=source_text,
@@ -95,7 +97,34 @@ async def write_translation(
     return result
 
 
-async def read_style_guide(context: ProjectContext) -> str:
+async def translation_update_line(
+    context: ProjectContext,
+    scene_id: str,
+    line_id: str,
+    source_text: str,
+    target_text: str,
+    *,
+    agent_name: str,
+    written_line_ids: set[str],
+) -> str:
+    """Overwrite a translation for a line with provenance tracking.
+
+    Returns:
+        str: Confirmation message or approval request.
+    """
+    return await translation_create_line(
+        context,
+        scene_id,
+        line_id,
+        source_text,
+        target_text,
+        agent_name=agent_name,
+        allow_overwrite=True,
+        written_line_ids=written_line_ids,
+    )
+
+
+async def styleguide_read_full(context: ProjectContext) -> str:
     """Return the project style guide content.
 
     Returns:
@@ -104,7 +133,7 @@ async def read_style_guide(context: ProjectContext) -> str:
     return await context.read_style_guide()
 
 
-def get_ui_settings(context: ProjectContext) -> str:
+def ui_read_settings(context: ProjectContext) -> str:
     """Return UI constraints from game metadata.
 
     Returns:
@@ -116,7 +145,7 @@ def get_ui_settings(context: ProjectContext) -> str:
     return "\n".join(f"{k}: {v}" for k, v in ui.items())
 
 
-def check_mtl_available() -> str:
+def translation_check_mtl_available() -> str:
     """Check if MTL backend is configured and available.
 
     Returns:

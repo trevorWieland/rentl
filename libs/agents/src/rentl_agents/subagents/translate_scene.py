@@ -17,13 +17,13 @@ from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.backends.mtl import is_mtl_available
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.scene import read_scene
+from rentl_agents.tools.scene import scene_read_overview
 from rentl_agents.tools.translation import (
-    check_mtl_available,
-    get_ui_settings,
-    mtl_translate,
-    read_style_guide,
-    write_translation,
+    styleguide_read_full,
+    translation_check_mtl_available,
+    translation_create_line,
+    translation_create_mtl_suggestion,
+    ui_read_settings,
 )
 
 logger = get_logger(__name__)
@@ -59,7 +59,7 @@ def build_translator_system_prompt(source_lang: str, target_lang: str) -> str:
 
     You also have access to two translation approaches:
 
-1. **MTL Translation Tool (mtl_translate)**: A specialized translation model fine-tuned for
+1. **MTL Translation Tool (translation_create_mtl_suggestion)**: A specialized translation model fine-tuned for
    visual novel translation. Use this for initial translations or when you want assistance
    with difficult phrases. The MTL output should be reviewed and may need refinement.
 
@@ -70,10 +70,10 @@ def build_translator_system_prompt(source_lang: str, target_lang: str) -> str:
 1. Read scene overview to understand context, characters, and mood
 2. For each line:
    - Consider speaker, emotional tone, and context
-   - Optionally call mtl_translate for assistance
+   - Optionally call translation_create_mtl_suggestion for assistance
    - Review and refine the translation as needed
-   - Call read_style_guide and get_ui_settings if you need guidance on style/length
-   - Call write_translation with your final translation
+   - Call styleguide_read_full and ui_read_settings if you need guidance on style/length
+   - Call translation_create_line with your final translation
 3. Maintain consistency with glossary and character voices
 4. Follow style guide preferences (honorifics, idioms, references)
 
@@ -165,7 +165,7 @@ def create_scene_translator_subagent(
     system_prompt = build_translator_system_prompt(context.game.source_lang, context.game.target_lang)
 
     interrupt_on = {
-        "write_translation": True,
+        "translation_create_line": True,
     }
     graph = create_agent(
         model=model,
@@ -207,9 +207,9 @@ Target Language: {target_lang.upper()}
 Instructions:
 1. Read the scene overview to understand context
 2. Translate each line maintaining speaker personality and tone
-3. You may use mtl_translate for assistance, but review and refine the output
-4. Call read_style_guide and get_ui_settings if you need format/style constraints
-5. Call write_translation(scene_id, line_id, source_text, target_text) for each line with your final translation
+3. You may use translation_create_mtl_suggestion for assistance, but review and refine the output
+4. Call styleguide_read_full and ui_read_settings if you need format/style constraints
+5. Call translation_create_line(scene_id, line_id, source_text, target_text) for each line with your final translation
 6. Ensure all {line_count} lines are translated
 7. End the conversation when complete
 
@@ -220,28 +220,28 @@ def _build_scene_translator_tools(context: ProjectContext, *, allow_overwrite: b
     """Return tools for the scene translator subagent bound to the shared context."""
     written_line_ids: set[str] = set()
 
-    @tool("read_scene")
+    @tool("scene_read_overview")
     async def read_scene_tool(scene_id: str) -> str:
         """Return scene metadata and transcript for translation context."""
-        return await read_scene(context, scene_id)
+        return await scene_read_overview(context, scene_id)
 
-    @tool("mtl_translate")
+    @tool("translation_create_mtl_suggestion")
     async def mtl_translate_tool(line_id: str, source_text: str, context_lines: list[str] | None = None) -> str:
         """Call specialized MTL model for translation.
 
         Returns:
             str: Translated text or an error message.
         """
-        return await mtl_translate(line_id, source_text, context_lines)
+        return await translation_create_mtl_suggestion(line_id, source_text, context_lines)
 
-    @tool("write_translation")
+    @tool("translation_create_line")
     async def write_translation_tool(scene_id: str, line_id: str, source_text: str, target_text: str) -> str:
         """Write a translation for a line with provenance tracking.
 
         Returns:
             str: Confirmation message or approval request.
         """
-        return await write_translation(
+        return await translation_create_line(
             context,
             scene_id,
             line_id,
@@ -252,24 +252,24 @@ def _build_scene_translator_tools(context: ProjectContext, *, allow_overwrite: b
             written_line_ids=written_line_ids,
         )
 
-    @tool("read_style_guide")
+    @tool("styleguide_read_full")
     async def read_style_guide_tool() -> str:
         """Return the project style guide content."""
-        return await read_style_guide(context)
+        return await styleguide_read_full(context)
 
-    @tool("get_ui_settings")
+    @tool("ui_read_settings")
     def get_ui_settings_tool() -> str:
         """Return UI constraints from game metadata."""
-        return get_ui_settings(context)
+        return ui_read_settings(context)
 
-    @tool("check_mtl_available")
+    @tool("translation_check_mtl_available")
     def check_mtl_available_tool() -> str:
         """Check if MTL backend is configured and available.
 
         Returns:
             str: Status message indicating MTL availability.
         """
-        return check_mtl_available()
+        return translation_check_mtl_available()
 
     return [
         read_scene_tool,

@@ -11,7 +11,10 @@ from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.tools.qa import read_translations, record_translation_check
+from rentl_agents.tools.qa import (
+    translation_create_consistency_check,
+    translation_read_scene,
+)
 
 logger = get_logger(__name__)
 
@@ -26,9 +29,9 @@ class ConsistencyCheckResult(BaseModel):
 SYSTEM_PROMPT = """You are a consistency checker ensuring terminology and pronouns match glossary/metadata.
 
 Workflow:
-1) Call read_translations(scene_id) to see translated lines.
+1) Call translation_read_scene(scene_id) to see translated lines.
 2) Verify character names/pronouns and glossary terms are consistent.
-3) Call record_consistency_check(scene_id, line_id, passed, note) for each line reviewed.
+3) Call translation_create_consistency_check(scene_id, line_id, passed, note) for each line reviewed.
 4) Be concise and avoid restating text. End when checks are recorded."""
 
 
@@ -57,25 +60,24 @@ def create_consistency_checker_subagent(
 def _build_consistency_checker_tools(context: ProjectContext) -> list[BaseTool]:
     """Return tools for the consistency checker subagent bound to the shared context."""
 
-    @tool("read_translations")
+    @tool("translation_read_scene")
     async def read_translations_tool(scene_id: str) -> str:
         """Return translated lines for a scene."""
-        return await read_translations(context, scene_id)
+        return await translation_read_scene(context, scene_id)
 
-    @tool("record_consistency_check")
+    @tool("translation_create_consistency_check")
     async def record_consistency_check_tool(scene_id: str, line_id: str, passed: bool, note: str | None = None) -> str:
         """Record a consistency check result for a translated line.
 
         Returns:
             str: Confirmation message after recording the check.
         """
-        return await record_translation_check(
+        return await translation_create_consistency_check(
             context,
             scene_id,
             line_id,
             passed,
             note,
-            check_type="consistency_check",
             origin="agent:consistency_checker",
         )
 

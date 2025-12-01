@@ -21,13 +21,13 @@ from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
 from rentl_agents.tools.character import (
-    add_character,
-    read_character,
-    update_character_name_tgt,
-    update_character_notes,
-    update_character_pronouns,
+    character_create_entry,
+    character_read_entry,
+    character_update_name_tgt,
+    character_update_notes,
+    character_update_pronouns,
 )
-from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
+from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read_doc
 
 
 class CharacterDetailResult(BaseModel):
@@ -142,9 +142,9 @@ def create_character_detailer_subagent(
     tools = _build_character_detailer_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     interrupt_on = {
-        "update_character_name_tgt": True,
-        "update_character_pronouns": True,
-        "update_character_notes": True,
+        "character_update_name_tgt": True,
+        "character_update_pronouns": True,
+        "character_update_notes": True,
     }
     graph = create_agent(
         model=model,
@@ -176,9 +176,9 @@ Available Characters: {available_ids}
 Instructions:
 1. Read the character's current metadata
 2. Review any context documents that mention this character
-3. Update name_tgt with appropriate localized name (if empty or needs refinement) using update_character_name_tgt(character_id, name) in {target_lang}
-4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them") using update_character_pronouns(character_id, pronouns) and describe in {source_lang}
-5. Update notes with personality, speech patterns, tone, translation guidance using update_character_notes(character_id, notes) in {source_lang}
+3. Update name_tgt with appropriate localized name (if empty or needs refinement) using character_update_name_tgt(character_id, name) in {target_lang}
+4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them") using character_update_pronouns(character_id, pronouns) and describe in {source_lang}
+5. Update notes with personality, speech patterns, tone, translation guidance using character_update_notes(character_id, notes) in {source_lang}
 6. End conversation when all updates are complete
 
 Begin analysis now."""
@@ -191,12 +191,12 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
     updated_notes: set[str] = set()
     context_doc_tools = _build_context_doc_tools(context)
 
-    @tool("read_character")
+    @tool("character_read_entry")
     def read_character_tool(character_id: str) -> str:
         """Return current metadata for this character."""
-        return read_character(context, character_id)
+        return character_read_entry(context, character_id)
 
-    @tool("add_character")
+    @tool("character_create_entry")
     async def add_character_tool(
         character_id: str,
         name_src: str,
@@ -209,7 +209,7 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
         Returns:
             str: Status message after attempting creation.
         """
-        return await add_character(
+        return await character_create_entry(
             context,
             character_id,
             name_src,
@@ -218,32 +218,32 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
             notes=notes,
         )
 
-    @tool("update_character_name_tgt")
+    @tool("character_update_name_tgt")
     async def update_character_name_tgt_tool(character_id: str, name_tgt: str) -> str:
         """Update the target language name for this character.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        return await update_character_name_tgt(context, character_id, name_tgt, updated_name_tgt=updated_name_tgt)
+        return await character_update_name_tgt(context, character_id, name_tgt, updated_name_tgt=updated_name_tgt)
 
-    @tool("update_character_pronouns")
+    @tool("character_update_pronouns")
     async def update_character_pronouns_tool(character_id: str, pronouns: str) -> str:
         """Update pronoun preferences for this character.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        return await update_character_pronouns(context, character_id, pronouns, updated_pronouns=updated_pronouns)
+        return await character_update_pronouns(context, character_id, pronouns, updated_pronouns=updated_pronouns)
 
-    @tool("update_character_notes")
+    @tool("character_update_notes")
     async def update_character_notes_tool(character_id: str, notes: str) -> str:
         """Update character notes (personality, speech patterns, translation guidance).
 
         Returns:
             str: Confirmation message after persistence.
         """
-        return await update_character_notes(context, character_id, notes, updated_notes=updated_notes)
+        return await character_update_notes(context, character_id, notes, updated_notes=updated_notes)
 
     return [
         read_character_tool,
@@ -258,14 +258,14 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
 def _build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
     """Return context doc tools for subagent use."""
 
-    @tool("list_context_docs")
+    @tool("contextdoc_list_all")
     async def list_context_docs_tool() -> str:
         """Return the available context document names."""
-        return await list_context_docs(context)
+        return await contextdoc_list_all(context)
 
-    @tool("read_context_doc")
+    @tool("contextdoc_read_doc")
     async def read_context_doc_tool(filename: str) -> str:
         """Return the contents of a context document."""
-        return await read_context_doc(context, filename)
+        return await contextdoc_read_doc(context, filename)
 
     return [list_context_docs_tool, read_context_doc_tool]

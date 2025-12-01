@@ -61,8 +61,8 @@ async def test_location_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_
     msg_list = cast(list[BaseMessage], messages)
     tool_names = _extract_tool_call_names(msg_list)
     required_tools = {
-        "update_location_name_tgt",
-        "update_location_description",
+        "location_update_name_tgt",
+        "location_update_description",
     }
     missing = required_tools - tool_names
     assert not missing, f"Missing expected tool calls: {', '.join(sorted(missing))}"

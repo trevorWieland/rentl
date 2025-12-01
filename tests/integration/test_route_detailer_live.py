@@ -38,7 +38,7 @@ def _extract_tool_call_names(messages: Iterable[BaseMessage]) -> set[str]:
 @pytest.mark.anyio
 @pytest.mark.llm_live
 async def test_route_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
-    """Route detailer should call write_* tools and keep synopsis in source language."""
+    """Route detailer should call route_update_* tools and keep synopsis in source language."""
     context = await load_project_context(tiny_vn_tmp)
     route_id = "route_aya"
 
@@ -61,8 +61,8 @@ async def test_route_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_jud
     msg_list = cast(list[BaseMessage], messages)
     tool_names = _extract_tool_call_names(msg_list)
     required_tools = {
-        "update_route_synopsis",
-        "update_route_characters",
+        "route_update_synopsis",
+        "route_update_primary_characters",
     }
     missing = required_tools - tool_names
     assert not missing, f"Missing expected tool calls: {', '.join(sorted(missing))}"

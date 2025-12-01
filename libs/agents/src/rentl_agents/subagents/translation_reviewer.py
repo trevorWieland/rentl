@@ -11,7 +11,12 @@ from rentl_core.context.project import ProjectContext
 from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.tools.qa import get_ui_settings, read_style_guide, read_translations, record_translation_check
+from rentl_agents.tools.qa import (
+    styleguide_read_full,
+    translation_create_review_check,
+    translation_read_scene,
+    ui_read_settings,
+)
 
 logger = get_logger(__name__)
 
@@ -26,10 +31,10 @@ class TranslationReviewResult(BaseModel):
 SYSTEM_PROMPT = """You are a translation reviewer assessing fidelity and fluency.
 
 Workflow:
-1) Call read_translations(scene_id) to see translated lines.
+1) Call translation_read_scene(scene_id) to see translated lines.
 2) Evaluate faithfulness to source, tone, and readability.
-3) Reference style guide and UI settings when relevant by calling read_style_guide and get_ui_settings.
-4) Call record_translation_review(scene_id, line_id, passed, note) for each line reviewed.
+3) Reference style guide and UI settings when relevant by calling styleguide_read_full and ui_read_settings.
+4) Call translation_create_review_check(scene_id, line_id, passed, note) for each line reviewed.
 5) Be concise and avoid restating text. End when checks are recorded."""
 
 
@@ -89,35 +94,34 @@ def build_translation_reviewer_user_prompt(scene_id: str) -> str:
 def _build_translation_reviewer_tools(context: ProjectContext) -> list[BaseTool]:
     """Return tools for the translation reviewer subagent bound to the shared context."""
 
-    @tool("read_translations")
+    @tool("translation_read_scene")
     async def read_translations_tool(scene_id: str) -> str:
         """Return translated lines for a scene."""
-        return await read_translations(context, scene_id)
+        return await translation_read_scene(context, scene_id)
 
-    @tool("read_style_guide")
+    @tool("styleguide_read_full")
     async def read_style_guide_tool() -> str:
         """Return the project style guide content."""
-        return await read_style_guide(context)
+        return await styleguide_read_full(context)
 
-    @tool("get_ui_settings")
+    @tool("ui_read_settings")
     def get_ui_settings_tool() -> str:
         """Return UI constraints from game metadata."""
-        return get_ui_settings(context)
+        return ui_read_settings(context)
 
-    @tool("record_translation_review")
+    @tool("translation_create_review_check")
     async def record_translation_review_tool(scene_id: str, line_id: str, passed: bool, note: str | None = None) -> str:
         """Record a translation review result for a translated line.
 
         Returns:
             str: Confirmation message after recording the check.
         """
-        return await record_translation_check(
+        return await translation_create_review_check(
             context,
             scene_id,
             line_id,
             passed,
             note,
-            check_type="translation_review",
             origin="agent:translation_reviewer",
         )
 

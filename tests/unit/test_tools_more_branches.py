@@ -119,7 +119,7 @@ async def test_scene_tools_single_use_guards(tmp_path: Path) -> None:
     """Scene write tools should guard against multiple writes in one session."""
     context = _base_context(tmp_path)
     tools = build_scene_tools(context, allow_overwrite=False)
-    write_summary = next(t for t in tools if t.name == "write_scene_summary")
+    write_summary = next(t for t in tools if t.name == "scene_update_summary")
 
     msg = await write_summary.coroutine(scene_id="scene_1", summary="new")  # type: ignore[attr-defined]
     assert "Successfully updated" in msg or "CONCURRENT" in msg
@@ -132,21 +132,21 @@ async def test_route_tools_duplicate_add_and_approval(tmp_path: Path) -> None:
     """Route updates should respect approval and duplicate guards."""
     context = _base_context(tmp_path)
     tools = build_route_tools(context, allow_overwrite=False)
-    update_syn = next(t for t in tools if t.name == "update_route_synopsis")
+    update_syn = next(t for t in tools if t.name == "route_update_synopsis")
 
     # Agent-origin data should update without approval prompt
     msg = await update_syn.coroutine(route_id="route_1", synopsis="new syn")  # type: ignore[attr-defined]
     assert "Successfully updated" in msg or "CONCURRENT" in msg
 
     # Duplicate add_route should note existence
-    add_route = next((t for t in tools if t.name == "add_route"), None)
+    add_route = next((t for t in tools if t.name == "route_create_entry"), None)
     if add_route:
         dup = await add_route.coroutine(route_id="route_1", name="dup", scene_ids=[])  # type: ignore[attr-defined]
         assert "already exists" in dup
 
     # primary characters already agent-origin; allow overwrite=True bypasses approvals
     tools_overwrite = build_route_tools(context, allow_overwrite=True)
-    update_chars_overwrite = next(t for t in tools_overwrite if t.name == "update_route_characters")
+    update_chars_overwrite = next(t for t in tools_overwrite if t.name == "route_update_primary_characters")
     ok = await update_chars_overwrite.coroutine(route_id="route_1", character_ids=["mc", "x"])  # type: ignore[attr-defined]
     assert "Successfully updated" in ok or "CONCURRENT" in ok
 
@@ -156,13 +156,13 @@ async def test_location_tools_duplicate_add_and_overwrite(tmp_path: Path) -> Non
     """Location tools should handle duplicate adds and overwrite paths."""
     context = _base_context(tmp_path)
     tools = build_location_tools(context, allow_overwrite=False)
-    add_loc = next(t for t in tools if t.name == "add_location")
+    add_loc = next(t for t in tools if t.name == "location_create_entry")
     dup = await add_loc.coroutine(location_id="loc_1", name_src="x")  # type: ignore[attr-defined]
     assert "already exists" in dup
 
     # allow_overwrite should skip approval on human-owned fields
     tools_overwrite = build_location_tools(context, allow_overwrite=True)
-    update_name = next(t for t in tools_overwrite if t.name == "update_location_name_tgt")
+    update_name = next(t for t in tools_overwrite if t.name == "location_update_name_tgt")
     ok = await update_name.coroutine(location_id="loc_1", name_tgt="New Place")  # type: ignore[attr-defined]
     assert "Successfully updated" in ok or "CONCURRENT" in ok
 
@@ -172,11 +172,11 @@ async def test_glossary_tools_duplicates_and_human_protection(tmp_path: Path) ->
     """Glossary tools should detect duplicates and human-owned data."""
     context = _base_context(tmp_path)
     tools = build_glossary_tools(context, allow_overwrite=False)
-    add = next(t for t in tools if t.name == "add_glossary_entry")
+    add = next(t for t in tools if t.name == "glossary_create_entry")
     dup = await add.coroutine(term_src="term", term_tgt="dup")  # type: ignore[attr-defined]
     assert "already exists" in dup
 
-    update = next(t for t in tools if t.name == "update_glossary_entry")
+    update = next(t for t in tools if t.name == "glossary_update_entry")
     approval = await update.coroutine(term_src="term", term_tgt="new")  # type: ignore[attr-defined]
     assert "approval required" in approval.lower() or "successfully updated" in approval.lower()
 
@@ -188,7 +188,7 @@ async def test_translation_tools_overwrite_and_mtl_available(tmp_path: Path, mon
     tools = build_translation_tools(context, agent_name="tester", allow_overwrite=False)
 
     # First write succeeds
-    write_translation = next(t for t in tools if t.name == "write_translation")
+    write_translation = next(t for t in tools if t.name == "translation_create_line")
     msg = await write_translation.coroutine(  # type: ignore[attr-defined]
         scene_id="scene_1", line_id="s1", source_text="hi", target_text="HI"
     )
@@ -201,7 +201,7 @@ async def test_translation_tools_overwrite_and_mtl_available(tmp_path: Path, mon
 
     # allow_overwrite=True should pass
     tools_overwrite = build_translation_tools(context, agent_name="tester", allow_overwrite=True)
-    write_translation_overwrite = next(t for t in tools_overwrite if t.name == "write_translation")
+    write_translation_overwrite = next(t for t in tools_overwrite if t.name == "translation_create_line")
     ok = await write_translation_overwrite.coroutine(  # type: ignore[attr-defined]
         scene_id="scene_1", line_id="s1", source_text="hi", target_text="HI-OVER"
     )
@@ -215,6 +215,6 @@ async def test_translation_tools_overwrite_and_mtl_available(tmp_path: Path, mon
     monkeypatch.setenv("OPENAI_API_KEY", "y")
     monkeypatch.setenv("LLM_MODEL", "llm")
     trans_tools = build_translation_tools(context, agent_name="tester", allow_overwrite=True)
-    check_mtl = next(t for t in trans_tools if t.name == "check_mtl_available")
+    check_mtl = next(t for t in trans_tools if t.name == "translation_check_mtl_available")
     status = check_mtl.invoke({})  # type: ignore[arg-type]
     assert "available" in status.lower()

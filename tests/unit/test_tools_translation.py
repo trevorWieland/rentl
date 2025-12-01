@@ -16,7 +16,7 @@ from tests.helpers.tool_builders import build_translation_tools
 
 @pytest.mark.anyio
 async def test_write_translation_respects_existing_human_origin(tmp_path: Path) -> None:
-    """write_translation should request approval when overwriting human-authored translations."""
+    """translation_create_line should request approval when overwriting human-authored translations."""
     metadata_dir = tmp_path / "metadata"
     scenes_dir = tmp_path / "input" / "scenes"
     context_docs_dir = metadata_dir / "context_docs"
@@ -74,7 +74,7 @@ async def test_write_translation_respects_existing_human_origin(tmp_path: Path) 
     await context.record_translation(scene.id, existing)
 
     tools = build_translation_tools(context, allow_overwrite=False)
-    write_translation = next(tool for tool in tools if getattr(tool, "name", "") == "write_translation")
+    write_translation = next(tool for tool in tools if getattr(tool, "name", "") == "translation_create_line")
 
     result = await write_translation.ainvoke(
         {"scene_id": scene.id, "line_id": line.id, "source_text": line.text, "target_text": "Hi"}
@@ -84,7 +84,7 @@ async def test_write_translation_respects_existing_human_origin(tmp_path: Path) 
 
 @pytest.mark.anyio
 async def test_read_scene_returns_transcript(tmp_path: Path) -> None:
-    """read_scene should surface line ids and speakers for translators."""
+    """scene_read_overview should surface line ids and speakers for translators."""
     metadata_dir = tmp_path / "metadata"
     scenes_dir = tmp_path / "input" / "scenes"
     context_docs_dir = metadata_dir / "context_docs"
@@ -133,7 +133,7 @@ async def test_read_scene_returns_transcript(tmp_path: Path) -> None:
     )
 
     tools = build_translation_tools(context, allow_overwrite=False)
-    read_scene = next(tool for tool in tools if getattr(tool, "name", "") == "read_scene")
+    read_scene = next(tool for tool in tools if getattr(tool, "name", "") == "scene_read_overview")
     transcript = await read_scene.ainvoke({"scene_id": scene.id})
     assert "scene_1_0001" in transcript
     assert "MC" in transcript

@@ -15,7 +15,7 @@ from tests.helpers.tool_builders import build_scene_tools
 
 
 @pytest.mark.anyio
-async def test_write_scene_summary_requests_approval_for_human(tmp_path: Path) -> None:
+async def test_scene_update_summary_requests_approval_for_human(tmp_path: Path) -> None:
     """Overwriting human-authored summary should request approval and not change data."""
     metadata_dir = tmp_path / "metadata"
     scenes_dir = tmp_path / "input" / "scenes"
@@ -55,7 +55,7 @@ async def test_write_scene_summary_requests_approval_for_human(tmp_path: Path) -
     )
 
     tools = build_scene_tools(context, allow_overwrite=False)
-    write_summary = next(tool for tool in tools if getattr(tool, "name", "") == "write_scene_summary")
+    write_summary = next(tool for tool in tools if getattr(tool, "name", "") == "scene_update_summary")
 
     result = await write_summary.ainvoke({"scene_id": scene.id, "summary": "nueva"})
     assert "APPROVAL REQUIRED" in result
@@ -63,7 +63,7 @@ async def test_write_scene_summary_requests_approval_for_human(tmp_path: Path) -
 
 
 @pytest.mark.anyio
-async def test_write_scene_summary_allows_agent_origin(tmp_path: Path) -> None:
+async def test_scene_update_summary_allows_agent_origin(tmp_path: Path) -> None:
     """Non-human origin can be overwritten without approval."""
     metadata_dir = tmp_path / "metadata"
     scenes_dir = tmp_path / "input" / "scenes"
@@ -103,7 +103,7 @@ async def test_write_scene_summary_allows_agent_origin(tmp_path: Path) -> None:
     )
 
     tools = build_scene_tools(context, allow_overwrite=False)
-    write_summary = next(tool for tool in tools if getattr(tool, "name", "") == "write_scene_summary")
+    write_summary = next(tool for tool in tools if getattr(tool, "name", "") == "scene_update_summary")
 
     new_summary = f"actualizado {date.today().isoformat()}"
     result = await write_summary.ainvoke({"scene_id": scene.id, "summary": new_summary})

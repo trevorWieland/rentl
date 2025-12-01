@@ -10,7 +10,7 @@ def _get_completion_ratio(completed: int, total: int) -> float:
     return round(completed / total, 3) if total else 0.0
 
 
-def get_context_status(context: ProjectContext) -> str:
+def context_read_status(context: ProjectContext) -> str:
     """Summarize context completion across scenes, characters, locations, and routes.
 
     Returns:
@@ -38,7 +38,7 @@ def get_context_status(context: ProjectContext) -> str:
     )
 
 
-def get_scene_completion(context: ProjectContext, scene_id: str) -> str:
+def scene_read_progress(context: ProjectContext, scene_id: str) -> str:
     """Return detailed completion for a specific scene.
 
     Returns:
@@ -56,7 +56,7 @@ def get_scene_completion(context: ProjectContext, scene_id: str) -> str:
     return "\n".join(parts)
 
 
-def get_character_completion(context: ProjectContext, character_id: str) -> str:
+def character_read_progress(context: ProjectContext, character_id: str) -> str:
     """Return completion for a specific character.
 
     Returns:
@@ -73,7 +73,7 @@ def get_character_completion(context: ProjectContext, character_id: str) -> str:
     return "\n".join(parts)
 
 
-async def get_translation_progress(context: ProjectContext, scene_id: str) -> str:
+async def translation_read_progress(context: ProjectContext, scene_id: str) -> str:
     """Report translation progress for a scene.
 
     Returns:
@@ -88,7 +88,7 @@ async def get_translation_progress(context: ProjectContext, scene_id: str) -> st
     )
 
 
-def get_route_progress(context: ProjectContext, route_id: str) -> str:
+def route_read_progress(context: ProjectContext, route_id: str) -> str:
     """Report route metadata completion.
 
     Returns:

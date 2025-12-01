@@ -12,10 +12,10 @@ from rentl_core.util.logging import get_logger
 
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.tools.qa import (
-    get_ui_settings,
-    read_style_guide,
-    read_translations,
-    record_translation_check,
+    styleguide_read_full,
+    translation_create_style_check,
+    translation_read_scene,
+    ui_read_settings,
 )
 
 logger = get_logger(__name__)
@@ -31,10 +31,10 @@ class StyleCheckResult(BaseModel):
 SYSTEM_PROMPT = """You are a style checker enforcing VN formatting.
 
 Workflow:
-1) Call read_translations(scene_id) to see translated lines.
-2) Call read_style_guide and get_ui_settings to understand style constraints (line length, honorifics, etc.).
+1) Call translation_read_scene(scene_id) to see translated lines.
+2) Call styleguide_read_full and ui_read_settings to understand style constraints (line length, honorifics, etc.).
 3) For each line, decide pass/fail for style. Use max line length from UI settings; defer to style guide for tone choices.
-4) Call record_style_check(scene_id, line_id, passed, note) for each line you review.
+4) Call translation_create_style_check(scene_id, line_id, passed, note) for each line you review.
 5) Be concise and avoid restating the text. End when checks are recorded."""
 
 
@@ -63,35 +63,34 @@ def create_style_checker_subagent(
 def _build_style_checker_tools(context: ProjectContext) -> list[BaseTool]:
     """Return tools for the style checker subagent bound to the shared context."""
 
-    @tool("read_translations")
+    @tool("translation_read_scene")
     async def read_translations_tool(scene_id: str) -> str:
         """Return translated lines for a scene."""
-        return await read_translations(context, scene_id)
+        return await translation_read_scene(context, scene_id)
 
-    @tool("read_style_guide")
+    @tool("styleguide_read_full")
     async def read_style_guide_tool() -> str:
         """Return the project style guide content."""
-        return await read_style_guide(context)
+        return await styleguide_read_full(context)
 
-    @tool("get_ui_settings")
+    @tool("ui_read_settings")
     def get_ui_settings_tool() -> str:
         """Return UI constraints from game metadata."""
-        return get_ui_settings(context)
+        return ui_read_settings(context)
 
-    @tool("record_style_check")
+    @tool("translation_create_style_check")
     async def record_style_check_tool(scene_id: str, line_id: str, passed: bool, note: str | None = None) -> str:
         """Record a style check result for a translated line.
 
         Returns:
             str: Confirmation message after recording the check.
         """
-        return await record_translation_check(
+        return await translation_create_style_check(
             context,
             scene_id,
             line_id,
             passed,
             note,
-            check_type="style_check",
             origin="agent:style_checker",
         )
 

@@ -68,11 +68,11 @@ def _base_context(tmp_path: Path) -> ProjectContext:
 
 @pytest.mark.anyio
 async def test_context_docs_list_and_read(tmp_path: Path) -> None:
-    """list_context_docs/read_context_doc should handle missing and present files."""
+    """contextdoc_list_all/contextdoc_read_doc should handle missing and present files."""
     context = _base_context(tmp_path)
     tools = build_context_doc_tools(context)
-    list_docs = next(t for t in tools if t.name == "list_context_docs")
-    read_doc = next(t for t in tools if t.name == "read_context_doc")
+    list_docs = next(t for t in tools if t.name == "contextdoc_list_all")
+    read_doc = next(t for t in tools if t.name == "contextdoc_read_doc")
 
     # Missing yields placeholder
     missing = await read_doc.coroutine(filename="missing.md")  # type: ignore[attr-defined]

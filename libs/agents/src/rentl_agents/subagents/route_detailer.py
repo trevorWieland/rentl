@@ -20,8 +20,8 @@ from rentl_core.util.logging import get_logger
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
-from rentl_agents.tools.route import read_route, update_route_characters, update_route_synopsis
+from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read_doc
+from rentl_agents.tools.route import route_read_entry, route_update_primary_characters, route_update_synopsis
 
 
 class RouteDetailResult(BaseModel):
@@ -128,8 +128,8 @@ def create_route_detailer_subagent(
     tools = _build_route_detailer_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     interrupt_on = {
-        "update_route_synopsis": True,
-        "update_route_characters": True,
+        "route_update_synopsis": True,
+        "route_update_primary_characters": True,
     }
     graph = create_agent(
         model=model,
@@ -161,9 +161,9 @@ Available Characters: {character_ids}
 
 Instructions:
 1. Read the route's current metadata (including scene list)
-2. Only read context documents returned by list_context_docs if they look relevant
-3. Update synopsis in {source_lang} with a concise narrative summary (1-3 sentences covering the route's arc) using update_route_synopsis(route_id, synopsis)
-4. Update primary_characters with key character IDs featured in this route using update_route_characters(route_id, ids)
+2. Only read context documents returned by contextdoc_list_all if they look relevant
+3. Update synopsis in {source_lang} with a concise narrative summary (1-3 sentences covering the route's arc) using route_update_synopsis(route_id, synopsis)
+4. Update primary_characters with key character IDs featured in this route using route_update_primary_characters(route_id, ids)
 5. End conversation when all updates are complete
 
 Begin analysis now."""
@@ -175,28 +175,30 @@ def _build_route_detailer_tools(context: ProjectContext, *, allow_overwrite: boo
     updated_characters: set[str] = set()
     context_doc_tools = _build_context_doc_tools(context)
 
-    @tool("read_route")
+    @tool("route_read_entry")
     def read_route_tool(route_id: str) -> str:
         """Return current metadata for this route."""
-        return read_route(context, route_id)
+        return route_read_entry(context, route_id)
 
-    @tool("update_route_synopsis")
+    @tool("route_update_synopsis")
     async def update_route_synopsis_tool(route_id: str, synopsis: str) -> str:
         """Update the synopsis for this route.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        return await update_route_synopsis(context, route_id, synopsis, updated_synopsis=updated_synopsis)
+        return await route_update_synopsis(context, route_id, synopsis, updated_synopsis=updated_synopsis)
 
-    @tool("update_route_characters")
+    @tool("route_update_primary_characters")
     async def update_route_characters_tool(route_id: str, character_ids: list[str]) -> str:
         """Update the primary characters for this route.
 
         Returns:
             str: Confirmation message after persistence.
         """
-        return await update_route_characters(context, route_id, character_ids, updated_characters=updated_characters)
+        return await route_update_primary_characters(
+            context, route_id, character_ids, updated_characters=updated_characters
+        )
 
     return [
         read_route_tool,
@@ -209,14 +211,14 @@ def _build_route_detailer_tools(context: ProjectContext, *, allow_overwrite: boo
 def _build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
     """Return context doc tools for subagent use."""
 
-    @tool("list_context_docs")
+    @tool("contextdoc_list_all")
     async def list_context_docs_tool() -> str:
         """Return the available context document names."""
-        return await list_context_docs(context)
+        return await contextdoc_list_all(context)
 
-    @tool("read_context_doc")
+    @tool("contextdoc_read_doc")
     async def read_context_doc_tool(filename: str) -> str:
         """Return the contents of a context document."""
-        return await read_context_doc(context, filename)
+        return await contextdoc_read_doc(context, filename)
 
     return [list_context_docs_tool, read_context_doc_tool]

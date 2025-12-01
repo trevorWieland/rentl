@@ -20,14 +20,14 @@ from rentl_core.util.logging import get_logger
 from rentl_agents.backends.base import get_default_chat_model
 from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
-from rentl_agents.tools.context_docs import list_context_docs, read_context_doc
+from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read_doc
 from rentl_agents.tools.scene import (
-    read_scene,
-    read_scene_overview,
-    write_primary_characters,
-    write_scene_locations,
-    write_scene_summary,
-    write_scene_tags,
+    scene_read_overview,
+    scene_read_redacted,
+    scene_update_locations,
+    scene_update_primary_characters,
+    scene_update_summary,
+    scene_update_tags,
 )
 
 
@@ -55,10 +55,10 @@ Your task is to read scene transcripts and generate comprehensive metadata:
 **Workflow:**
 1. Read the scene overview to see existing metadata
 2. Analyze the transcript carefully
-3. Call write_scene_summary with your summary
-4. Call write_scene_tags with appropriate tags (3-6 tags recommended)
-5. Call write_primary_characters with character IDs (use speaker labels and context)
-6. Call write_scene_locations with location IDs (infer from context if not explicit)
+3. Call scene_update_summary with your summary
+4. Call scene_update_tags with appropriate tags (3-6 tags recommended)
+5. Call scene_update_primary_characters with character IDs (use speaker labels and context)
+6. Call scene_update_locations with location IDs (infer from context if not explicit)
 7. End the conversation once all metadata is recorded
 
 **Important:**
@@ -145,10 +145,10 @@ def create_scene_detailer_subagent(
     tools = _build_scene_detailer_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     interrupt_on = {
-        "write_scene_summary": True,
-        "write_scene_tags": True,
-        "write_primary_characters": True,
-        "write_scene_locations": True,
+        "scene_update_summary": True,
+        "scene_update_tags": True,
+        "scene_update_primary_characters": True,
+        "scene_update_locations": True,
     }
     graph = create_agent(
         model=model,
@@ -186,10 +186,10 @@ Source Language: {source_lang}
 Instructions:
 1. Read the scene overview (shows existing metadata if any)
 2. Analyze the full transcript
-3. Write summary in {source_lang} (1-2 sentences covering mood, key events, outcomes) using write_scene_summary(scene_id, summary)
-4. Write tags in {source_lang} (3-6 quick descriptive tags)
-5. Write primary_characters (character IDs from speakers and context) using write_primary_characters(scene_id, ids). Available characters: {character_ids}
-6. Write scene_locations (location IDs inferred from setting/context) using write_scene_locations(scene_id, ids) and keep names in {source_lang}. Available locations: {location_ids}
+3. Write summary in {source_lang} (1-2 sentences covering mood, key events, outcomes) using scene_update_summary(scene_id, summary)
+4. Write tags in {source_lang} (3-6 quick descriptive tags) using scene_update_tags(scene_id, tags)
+5. Write primary_characters (character IDs from speakers and context) using scene_update_primary_characters(scene_id, ids). Available characters: {character_ids}
+6. Write scene_locations (location IDs inferred from setting/context) using scene_update_locations(scene_id, ids) and keep names in {source_lang}. Available locations: {location_ids}
 7. End conversation when all 4 metadata types are recorded
 
 Begin analysis now."""
@@ -203,54 +203,52 @@ def _build_scene_detailer_tools(context: ProjectContext, *, allow_overwrite: boo
     written_locations: set[str] = set()
     context_doc_tools = _build_context_doc_tools(context)
 
-    @tool("read_scene")
-    async def read_scene_tool(scene_id: str) -> str:
-        """Return metadata and transcript for the scene (no redactions)."""
-        return await read_scene(context, scene_id)
-
-    @tool("read_scene_overview")
+    @tool("scene_read_overview")
     async def read_scene_overview_tool(scene_id: str) -> str:
-        """Return metadata and transcript for the scene (with existing summary if allowed)."""
-        return await read_scene_overview(context, scene_id, allow_overwrite=allow_overwrite)
+        """Return metadata and transcript for the scene (with existing summary if present)."""
+        if allow_overwrite:
+            return await scene_read_redacted(context, scene_id)
+        return await scene_read_overview(context, scene_id)
 
-    @tool("write_scene_summary")
+    @tool("scene_update_summary")
     async def write_scene_summary_tool(scene_id: str, summary: str) -> str:
         """Store the final summary for this scene.
 
         Returns:
             str: Confirmation or approval message.
         """
-        return await write_scene_summary(context, scene_id, summary, written_summary=written_summary)
+        return await scene_update_summary(context, scene_id, summary, written_summary=written_summary)
 
-    @tool("write_scene_tags")
+    @tool("scene_update_tags")
     async def write_scene_tags_tool(scene_id: str, tags: list[str]) -> str:
         """Store tags for this scene.
 
         Returns:
             str: Confirmation or approval message.
         """
-        return await write_scene_tags(context, scene_id, tags, written_tags=written_tags)
+        return await scene_update_tags(context, scene_id, tags, written_tags=written_tags)
 
-    @tool("write_primary_characters")
+    @tool("scene_update_primary_characters")
     async def write_primary_characters_tool(scene_id: str, character_ids: list[str]) -> str:
         """Store primary characters identified in this scene.
 
         Returns:
             str: Confirmation or approval message.
         """
-        return await write_primary_characters(context, scene_id, character_ids, written_characters=written_characters)
+        return await scene_update_primary_characters(
+            context, scene_id, character_ids, written_characters=written_characters
+        )
 
-    @tool("write_scene_locations")
+    @tool("scene_update_locations")
     async def write_scene_locations_tool(scene_id: str, location_ids: list[str]) -> str:
         """Store locations identified in this scene.
 
         Returns:
             str: Confirmation or approval message.
         """
-        return await write_scene_locations(context, scene_id, location_ids, written_locations=written_locations)
+        return await scene_update_locations(context, scene_id, location_ids, written_locations=written_locations)
 
     return [
-        read_scene_tool,
         read_scene_overview_tool,
         *context_doc_tools,
         write_scene_summary_tool,
@@ -263,14 +261,14 @@ def _build_scene_detailer_tools(context: ProjectContext, *, allow_overwrite: boo
 def _build_context_doc_tools(context: ProjectContext) -> list[BaseTool]:
     """Return context doc tools for subagent use."""
 
-    @tool("list_context_docs")
+    @tool("contextdoc_list_all")
     async def list_context_docs_tool() -> str:
         """Return the available context document names."""
-        return await list_context_docs(context)
+        return await contextdoc_list_all(context)
 
-    @tool("read_context_doc")
+    @tool("contextdoc_read_doc")
     async def read_context_doc_tool(filename: str) -> str:
         """Return the contents of a context document."""
-        return await read_context_doc(context, filename)
+        return await contextdoc_read_doc(context, filename)
 
     return [list_context_docs_tool, read_context_doc_tool]

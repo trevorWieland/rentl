@@ -10,13 +10,13 @@ from rentl_agents.tools.hitl import request_if_human_authored
 logger = get_logger(__name__)
 
 
-def search_glossary(context: ProjectContext, term_src: str) -> str:
+def glossary_search_term(context: ProjectContext, term_src: str) -> str:
     """Search for a glossary entry by source term.
 
     Returns:
         str: Glossary entry details or "not found" message.
     """
-    logger.info("Tool call: search_glossary(term_src=%s)", term_src)
+    logger.info("Tool call: glossary_search_term(term_src=%s)", term_src)
     for entry in context.glossary:
         if entry.term_src == term_src:
             parts = [
@@ -28,9 +28,9 @@ def search_glossary(context: ProjectContext, term_src: str) -> str:
     return f"No glossary entry found for '{term_src}'"
 
 
-def read_glossary_entry(context: ProjectContext, term_src: str) -> str:
+def glossary_read_entry(context: ProjectContext, term_src: str) -> str:
     """Return a specific glossary entry if present."""
-    logger.info("Tool call: read_glossary_entry(term_src=%s)", term_src)
+    logger.info("Tool call: glossary_read_entry(term_src=%s)", term_src)
     for entry in context.glossary:
         if entry.term_src == term_src:
             parts = [
@@ -42,7 +42,7 @@ def read_glossary_entry(context: ProjectContext, term_src: str) -> str:
     return f"No glossary entry found for '{term_src}'"
 
 
-async def add_glossary_entry(context: ProjectContext, term_src: str, term_tgt: str, notes: str | None = None) -> str:
+async def glossary_create_entry(context: ProjectContext, term_src: str, term_tgt: str, notes: str | None = None) -> str:
     """Add a new glossary entry.
 
     Returns:
@@ -50,13 +50,13 @@ async def add_glossary_entry(context: ProjectContext, term_src: str, term_tgt: s
     """
     from datetime import date
 
-    logger.info("Tool call: add_glossary_entry(term_src=%s)", term_src)
+    logger.info("Tool call: glossary_create_entry(term_src=%s)", term_src)
     origin = f"agent:glossary_curator:{date.today().isoformat()}"
     result = await context.add_glossary_entry(term_src=term_src, term_tgt=term_tgt, notes=notes, origin=origin)
     return result
 
 
-async def update_glossary_entry(
+async def glossary_update_entry(
     context: ProjectContext, term_src: str, term_tgt: str | None = None, notes: str | None = None
 ) -> str:
     """Update an existing glossary entry.
@@ -66,7 +66,7 @@ async def update_glossary_entry(
     """
     from datetime import date
 
-    logger.info("Tool call: update_glossary_entry(term_src=%s)", term_src)
+    logger.info("Tool call: glossary_update_entry(term_src=%s)", term_src)
     existing_entry = next((entry for entry in context.glossary if entry.term_src == term_src), None)
     if existing_entry:
         if term_tgt is not None:
@@ -95,11 +95,11 @@ async def update_glossary_entry(
     return result
 
 
-async def delete_glossary_entry(context: ProjectContext, term_src: str) -> str:
+async def glossary_delete_entry(context: ProjectContext, term_src: str) -> str:
     """Delete a glossary entry if it exists.
 
     Returns:
         str: Status message indicating deletion or not-found.
     """
-    logger.info("Tool call: delete_glossary_entry(term_src=%s)", term_src)
+    logger.info("Tool call: glossary_delete_entry(term_src=%s)", term_src)
     return await context.delete_glossary_entry(term_src)

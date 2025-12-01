@@ -10,9 +10,9 @@ from rentl_agents.tools.hitl import request_if_human_authored
 logger = get_logger(__name__)
 
 
-def read_character(context: ProjectContext, character_id: str) -> str:
+def character_read_entry(context: ProjectContext, character_id: str) -> str:
     """Return current metadata for this character."""
-    logger.info("Tool call: read_character(character_id=%s)", character_id)
+    logger.info("Tool call: character_read_entry(character_id=%s)", character_id)
     character = context.get_character(character_id)
     parts = [
         f"Character ID: {character.id}",
@@ -24,7 +24,7 @@ def read_character(context: ProjectContext, character_id: str) -> str:
     return "\n".join(parts)
 
 
-async def add_character(
+async def character_create_entry(
     context: ProjectContext,
     character_id: str,
     name_src: str,
@@ -39,7 +39,7 @@ async def add_character(
     """
     from datetime import date
 
-    logger.info("Tool call: add_character(character_id=%s)", character_id)
+    logger.info("Tool call: character_create_entry(character_id=%s)", character_id)
     origin = f"agent:character_detailer:{date.today().isoformat()}"
     return await context.add_character(
         character_id,
@@ -51,7 +51,7 @@ async def add_character(
     )
 
 
-async def update_character_name_tgt(
+async def character_update_name_tgt(
     context: ProjectContext, character_id: str, name_tgt: str, *, updated_name_tgt: set[str]
 ) -> str:
     """Update the target language name for this character.
@@ -64,7 +64,7 @@ async def update_character_name_tgt(
     if character_id in updated_name_tgt:
         return "Target name already updated. Provide a final assistant response."
 
-    logger.info("Tool call: update_character_name_tgt(character_id=%s)", character_id)
+    logger.info("Tool call: character_update_name_tgt(character_id=%s)", character_id)
     character = context.get_character(character_id)
     approval = request_if_human_authored(
         operation="update",
@@ -82,7 +82,7 @@ async def update_character_name_tgt(
     return result
 
 
-async def update_character_pronouns(
+async def character_update_pronouns(
     context: ProjectContext, character_id: str, pronouns: str, *, updated_pronouns: set[str]
 ) -> str:
     """Update pronoun preferences for this character.
@@ -95,7 +95,7 @@ async def update_character_pronouns(
     if character_id in updated_pronouns:
         return "Pronouns already updated. Provide a final assistant response."
 
-    logger.info("Tool call: update_character_pronouns(character_id=%s)", character_id)
+    logger.info("Tool call: character_update_pronouns(character_id=%s)", character_id)
     character = context.get_character(character_id)
     approval = request_if_human_authored(
         operation="update",
@@ -113,7 +113,7 @@ async def update_character_pronouns(
     return result
 
 
-async def update_character_notes(
+async def character_update_notes(
     context: ProjectContext, character_id: str, notes: str, *, updated_notes: set[str]
 ) -> str:
     """Update character notes (personality, speech patterns, translation guidance).
@@ -126,7 +126,7 @@ async def update_character_notes(
     if character_id in updated_notes:
         return "Notes already updated. Provide a final assistant response."
 
-    logger.info("Tool call: update_character_notes(character_id=%s)", character_id)
+    logger.info("Tool call: character_update_notes(character_id=%s)", character_id)
     character = context.get_character(character_id)
     approval = request_if_human_authored(
         operation="update",

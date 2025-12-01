@@ -38,7 +38,7 @@ def _extract_tool_call_names(messages: Iterable[BaseMessage]) -> set[str]:
 @pytest.mark.anyio
 @pytest.mark.llm_live
 async def test_translator_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
-    """Translator should call write_translation for each line and produce target-language output."""
+    """Translator should call translation_create_line for each line and produce target-language output."""
     context = await load_project_context(tiny_vn_tmp)
     scene_id = "scene_a_00"
     lines = await context.load_scene_lines(scene_id)
@@ -61,7 +61,7 @@ async def test_translator_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_m
     assert messages, "Expected non-empty messages from translator run"
     msg_list = cast(list[BaseMessage], messages)
     tool_names = _extract_tool_call_names(msg_list)
-    assert "write_translation" in tool_names, "Expected write_translation to be called"
+    assert "translation_create_line" in tool_names, "Expected translation_create_line to be called"
 
     translations = await context.get_translations(scene_id)
     assert len(translations) == len(lines), "Expected one translation per source line"

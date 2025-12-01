@@ -28,27 +28,110 @@ libs/agents/src/rentl_agents/
     character.py      # Character tool implementations
     glossary.py       # Glossary tool implementations
     route.py          # Route tool implementations
-    translation.py    # Translation tool implementations (MTL + write_translation)
-    qa.py             # QA tool implementations (style/consistency/review)
+  translation.py    # Translation tool implementations (MTL + write_translation)
+  qa.py             # QA tool implementations (style/consistency/review)
 ```
+
+---
+
+## Standardized tool naming and subagent catalog
+
+Use `{DATA}_{CRUD}_{THING}` for tool names (data domain, operation, specificity). The lists below are the canonical tool
+and subagent map.
+
+### Tool catalog
+- Scenes: `scene_read_metadata`, `scene_read_overview`, `scene_read_redacted`, `scene_read_translations`,
+  `scene_read_progress`, `scene_update_summary`, `scene_update_tags`, `scene_update_primary_characters`,
+  `scene_update_locations`
+- Characters: `character_read_entry`, `character_create_entry`, `character_update_name_tgt`,
+  `character_update_pronouns`, `character_update_notes`, `character_delete_entry`
+- Locations: `location_read_entry`, `location_create_entry`, `location_update_name_tgt`,
+  `location_update_description`, `location_delete_entry`
+- Routes: `route_read_entry`, `route_update_synopsis`, `route_update_primary_characters`, `route_delete_entry`
+- Glossary: `glossary_search_term`, `glossary_read_entry`, `glossary_create_entry`, `glossary_update_entry`,
+  `glossary_merge_entries`, `glossary_delete_entry`
+- Style/UI: `styleguide_read_full`, `ui_read_settings`
+- Translation: `translation_check_mtl_available`, `translation_create_mtl_suggestion`, `translation_create_line`,
+  `translation_update_line`, `translation_read_scene`
+- QA records: `translation_create_style_check`, `translation_create_consistency_check`,
+  `translation_create_review_check`
+- Context docs: `contextdoc_list_all`, `contextdoc_read_doc`
+- Status: `context_read_status`
+
+### Subagent catalog (single-purpose)
+
+**Context phase**
+- `scene_summary_detailer`: Write the summary for one scene. Tools: scene_read_overview, scene_read_metadata,
+  scene_read_redacted, character_read_entry, location_read_entry, glossary_search_term/read_entry,
+  contextdoc_list_all/read_doc, scene_update_summary.
+- `scene_tag_detailer`: Assign tags for one scene. Tools: scene_read_overview, scene_read_metadata,
+  character_read_entry, location_read_entry, glossary_search_term/read_entry, contextdoc_list_all/read_doc,
+  scene_update_tags.
+- `scene_primary_character_detailer`: Set primary characters for one scene (and stub missing ones). Tools:
+  scene_read_overview, scene_read_metadata, character_read_entry, character_create_entry,
+  glossary_search_term/read_entry, contextdoc_list_all/read_doc, scene_update_primary_characters.
+- `scene_location_detailer`: Set location IDs for one scene and enrich those locations. Tools: scene_read_overview,
+  scene_read_metadata, location_read_entry, location_create_entry, location_update_name_tgt,
+  location_update_description, glossary_search_term/read_entry, contextdoc_list_all/read_doc, scene_update_locations.
+- `scene_glossary_detailer`: Add or update glossary terms discovered in a scene. Tools: scene_read_overview,
+  glossary_search_term, glossary_read_entry, glossary_create_entry, glossary_update_entry,
+  contextdoc_list_all/read_doc.
+- `route_outline_builder`: Write synopsis and primary cast for one route. Tools: route_read_entry,
+  scene_read_overview (for route scenes), character_read_entry, contextdoc_list_all/read_doc,
+  route_update_synopsis, route_update_primary_characters.
+- `meta_character_curator`: Polish/merge/delete characters globally. Tools: character_read_entry,
+  character_update_name_tgt, character_update_pronouns, character_update_notes, character_create_entry,
+  character_delete_entry, glossary_search_term/read_entry, contextdoc_list_all/read_doc.
+- `meta_location_curator`: Polish/merge/delete locations globally. Tools: location_read_entry,
+  location_update_name_tgt, location_update_description, location_create_entry, location_delete_entry,
+  contextdoc_list_all/read_doc.
+- `meta_glossary_curator`: Deduplicate/prune/polish glossary entries. Tools: glossary_search_term,
+  glossary_read_entry, glossary_create_entry, glossary_update_entry, glossary_merge_entries,
+  glossary_delete_entry, contextdoc_list_all/read_doc.
+- `meta_route_curator`: Refine routes after scene work. Tools: route_read_entry, route_update_synopsis,
+  route_update_primary_characters, route_delete_entry, contextdoc_list_all/read_doc.
+
+**Translation phase**
+- `scene_translator`: Translate one scene end-to-end (direct). Tools: scene_read_overview, styleguide_read_full,
+  ui_read_settings, glossary_read_entry/search_term, character_read_entry, location_read_entry,
+  translation_create_line (or translation_update_line when overwrite is allowed).
+- `scene_mtl_translator`: Same as above but allowed to call MTL. Tools: scene_read_overview,
+  translation_check_mtl_available, translation_create_mtl_suggestion, styleguide_read_full, ui_read_settings,
+  glossary_read_entry/search_term, character_read_entry, location_read_entry,
+  translation_create_line/translation_update_line.
+
+**Editing phase**
+- `scene_style_checker`: Style/UI compliance for one scene. Tools: translation_read_scene, styleguide_read_full,
+  ui_read_settings, translation_create_style_check.
+- `scene_translation_reviewer`: Fidelity/fluency review for one scene. Tools: translation_read_scene,
+  scene_read_overview, styleguide_read_full, translation_create_review_check.
+- `route_consistency_checker`: Cross-scene consistency within one route. Tools: route_read_entry,
+  translation_read_scene (per route scene), scene_read_overview (read-only context),
+  glossary_read_entry/search_term, character_read_entry, translation_create_consistency_check.
+
+These names supersede older examples in this file; keep them stable so HITL `interrupt_on` wiring remains predictable.
 
 ---
 
 ## Tool design (shared implementations + subagent selection)
 
-- Tool modules now expose **context-accepting functions only** (e.g., `read_scene(context, scene_id)`, `update_route_synopsis(context, ...)`). They no longer export `build_*` functions.
+- Tool modules now expose **context-accepting functions only** (e.g., `read_scene(context, scene_id)`,
+  `update_route_synopsis(context, ...)`). They no longer export `build_*` functions.
 - Each subagent file owns its own `_build_tools(...)` that:
   - wraps only the needed shared functions in `@tool` wrappers,
   - holds per-run state (e.g., single-use guards) local to the subagent,
   - defines the exact toolbox that subagent is allowed to use.
-- HITL/provenance checks remain inside the shared implementations; interrupts still key off tool names (keep names stable).
+- HITL/provenance checks remain inside the shared implementations; interrupts still key off tool names (keep names
+  stable).
 
 **Naming convention**
 
-- `scene_*` subagents operate on a single scene (e.g., `scene_translator`, `scene_detailer`, `scene_style_checker`, `scene_translation_reviewer`).
+- `scene_*` subagents operate on a single scene (e.g., `scene_translator`, `scene_detailer`,
+  `scene_style_checker`, `scene_translation_reviewer`).
 - `route_*` subagents span related scenes (e.g., `route_consistency_checker`).
 - `curate_*` subagents are game-level polish/dedupe (e.g., `curate_glossary`, `curate_characters`, `curate_locations`).
-- Subagent toolboxes may include shared tools outside their primary entity when justified (e.g., a scene detailer may call `add_glossary_entry` but not `delete_glossary_entry`).
+- Subagent toolboxes may include shared tools outside their primary entity when justified (e.g., a scene detailer may
+  call `add_glossary_entry` but not `delete_glossary_entry`).
 
 **Why this structure**
 
@@ -61,7 +144,8 @@ libs/agents/src/rentl_agents/
 ## Subagent Architecture
 
 <Warning>
-**Critical distinction:** rentl uses **LangChain agents** for subagents, orchestrated by deterministic pipelines. There are no LLM “coordinator” agents at the top level.
+**Critical distinction:** rentl uses **LangChain agents** for subagents, orchestrated by deterministic pipelines. There
+are no LLM “coordinator” agents at the top level.
 </Warning>
 
 ### Creating Subagents
@@ -261,7 +345,8 @@ graph = create_agent(
 
 ## Subagent Tool-Only Access
 
-**Critical rule:** Subagents interact with metadata ONLY via tools—never through direct file operations or context document reads.
+**Critical rule:** Subagents interact with metadata ONLY via tools—never through direct file operations or context
+document reads.
 
 **Why:**
 1. **Provenance enforcement**: All writes must go through tools that track `*_origin` fields
@@ -320,7 +405,8 @@ Each entity type needs comprehensive tool coverage:
 
 ### Context Injection
 
-Tools capture the shared `ProjectContext` via closures inside each `_build_*_tools` helper. No middleware is required for context injection; middleware is reserved for HITL and planning behaviors.
+Tools capture the shared `ProjectContext` via closures inside each `_build_*_tools` helper. No middleware is required
+for context injection; middleware is reserved for HITL and planning behaviors.
 
 **Key points:**
 - Context is passed to the subagent factory and captured when building tools
@@ -331,7 +417,8 @@ Tools capture the shared `ProjectContext` via closures inside each `_build_*_too
 
 ## Tool Categories and Approval Policies
 
-Tools are categorized by their operation type. Each category has default approval policies based on risk and provenance tracking.
+Tools are categorized by their operation type. Each category has default approval policies based on risk and provenance
+tracking.
 
 ### read_* Tools
 
@@ -499,7 +586,8 @@ async def update_character_bio(
 
 #### Conflict Detection in update_* Tools
 
-When multiple subagents run concurrently, they might try to update the same field. `ProjectContext` implements **feedback-providing locks** to handle this intelligently:
+When multiple subagents run concurrently, they might try to update the same field. `ProjectContext` implements
+**feedback-providing locks** to handle this intelligently:
 
 ```python
 @tool
@@ -722,7 +810,8 @@ async def update_field(context, value):
 
 ## HITL Integration (LangChain)
 
-Use LangChain `HumanInTheLoopMiddleware` on subagents when you need approvals for overwriting human-authored data. Pair it with a checkpointer so runs can pause and resume.
+Use LangChain `HumanInTheLoopMiddleware` on subagents when you need approvals for overwriting human-authored data. Pair
+it with a checkpointer so runs can pause and resume.
 
 ```python
 from langchain.agents.middleware import HumanInTheLoopMiddleware
@@ -967,4 +1056,5 @@ async def test_update_location_description_not_found():
 - **update_* tools**: Standard (provenance check) by default
 - **delete_* tools**: Standard or strict (safer)
 
-See [AGENTS.md](../../AGENTS.md) for general coding guidelines and [SCHEMAS.md](../../SCHEMAS.md) for data format documentation.
+See [AGENTS.md](../../AGENTS.md) for general coding guidelines and
+[SCHEMAS.md](../../SCHEMAS.md) for data format documentation.

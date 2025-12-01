@@ -35,22 +35,22 @@ async def test_scene_read_and_write_paths(tiny_vn_tmp: Path) -> None:
     scene_tools = build_scene_tools(context, allow_overwrite=False)
     scene_id = "scene_a_00"
 
-    read_scene = _tool(scene_tools, "read_scene")
+    read_scene = _tool(scene_tools, "scene_read_overview")
     transcript = await read_scene.coroutine(scene_id=scene_id)  # type: ignore[attr-defined]
     assert "Transcript" in transcript
     assert scene_id.replace("_", " ") or scene_id in transcript
 
-    write_tags = _tool(scene_tools, "write_scene_tags")
+    write_tags = _tool(scene_tools, "scene_update_tags")
     msg = await write_tags.coroutine(scene_id=scene_id, tags=["alpha"])  # type: ignore[attr-defined]
     assert "Successfully updated" in msg
     dup = await write_tags.coroutine(scene_id=scene_id, tags=["alpha"])  # type: ignore[attr-defined]
     assert "already stored" in dup
 
-    write_chars = _tool(scene_tools, "write_primary_characters")
+    write_chars = _tool(scene_tools, "scene_update_primary_characters")
     msg_chars = await write_chars.coroutine(scene_id=scene_id, character_ids=["mc"])  # type: ignore[attr-defined]
     assert "Successfully updated" in msg_chars
 
-    write_locs = _tool(scene_tools, "write_scene_locations")
+    write_locs = _tool(scene_tools, "scene_update_locations")
     msg_locs = await write_locs.coroutine(scene_id=scene_id, location_ids=["classroom"])  # type: ignore[attr-defined]
     assert "Successfully updated" in msg_locs
 
@@ -62,29 +62,29 @@ async def test_character_location_route_add_and_read(tiny_vn_tmp: Path) -> None:
 
     # Character add and read
     char_tools = build_character_tools(context)
-    add_char = _tool(char_tools, "add_character")
+    add_char = _tool(char_tools, "character_create_entry")
     add_msg = await add_char.coroutine(  # type: ignore[attr-defined]
         character_id="newbie", name_src="新", name_tgt="Newbie", pronouns="they", notes="note"
     )
     assert "Added" in add_msg or "already exists" in add_msg
-    read_char = _tool(char_tools, "read_character")
+    read_char = _tool(char_tools, "character_read_entry")
     char_info = read_char.invoke({"character_id": "newbie"})  # type: ignore[arg-type]
     assert "Newbie" in char_info
 
     # Location add and read
     loc_tools = build_location_tools(context)
-    add_loc = _tool(loc_tools, "add_location")
+    add_loc = _tool(loc_tools, "location_create_entry")
     add_loc_msg = await add_loc.coroutine(  # type: ignore[attr-defined]
         location_id="cafe", name_src="喫茶店", name_tgt="Cafe", description="quiet"
     )
     assert "Added" in add_loc_msg or "already exists" in add_loc_msg
-    read_loc = _tool(loc_tools, "read_location")
+    read_loc = _tool(loc_tools, "location_read_entry")
     loc_info = read_loc.invoke({"location_id": "cafe"})  # type: ignore[arg-type]
     assert "Cafe" in loc_info
 
     # Route read
     route_tools = build_route_tools(context)
-    read_route = _tool(route_tools, "read_route")
+    read_route = _tool(route_tools, "route_read_entry")
     route_info = read_route.invoke({"route_id": "common"})  # type: ignore[arg-type]
     assert "Route ID: common" in route_info
 
@@ -94,15 +94,15 @@ async def test_glossary_search_read_delete_missing(tiny_vn_tmp: Path) -> None:
     """Glossary tools for search/read missing entries and delete missing."""
     context = await load_project_context(tiny_vn_tmp)
     glossary_tools = build_glossary_tools(context)
-    search = _tool(glossary_tools, "search_glossary")
+    search = _tool(glossary_tools, "glossary_search_term")
     search_msg = search.invoke({"term_src": "missing-term"})  # type: ignore[arg-type]
     assert "not found" in search_msg or "No glossary entry found" in search_msg
 
-    read_entry = _tool(glossary_tools, "read_glossary_entry")
+    read_entry = _tool(glossary_tools, "glossary_read_entry")
     read_msg = read_entry.invoke({"term_src": "missing-term"})  # type: ignore[arg-type]
     assert "not found" in read_msg or "No glossary entry found" in read_msg
 
-    delete = _tool(glossary_tools, "delete_glossary_entry")
+    delete = _tool(glossary_tools, "glossary_delete_entry")
     delete_msg = await delete.coroutine(term_src="missing-term")  # type: ignore[attr-defined]
     assert "not found" in delete_msg
 
@@ -117,19 +117,19 @@ async def test_translation_tools_mtl_unavailable_and_ui_style(
 
     # Force MTL unavailable
     monkeypatch.setattr("rentl_agents.tools.translation.is_mtl_available", lambda: False)
-    mtl_tool = _tool(trans_tools, "mtl_translate")
+    mtl_tool = _tool(trans_tools, "translation_create_mtl_suggestion")
     err = await mtl_tool.coroutine(line_id="x", source_text="hi", context_lines=None)  # type: ignore[attr-defined]
     assert "MTL backend not configured" in err
 
-    read_style = _tool(trans_tools, "read_style_guide")
+    read_style = _tool(trans_tools, "styleguide_read_full")
     style = await read_style.coroutine()  # type: ignore[attr-defined]
     assert "Style Guide" in style or style
 
-    get_ui = _tool(trans_tools, "get_ui_settings")
+    get_ui = _tool(trans_tools, "ui_read_settings")
     ui_msg = get_ui.invoke({})  # type: ignore[arg-type]
     assert "charset" in ui_msg or ui_msg
 
-    check_mtl = _tool(trans_tools, "check_mtl_available")
+    check_mtl = _tool(trans_tools, "translation_check_mtl_available")
     status = check_mtl.invoke({})  # type: ignore[arg-type]
     assert "not configured" in status or "available" in status
 
@@ -139,22 +139,22 @@ async def test_stats_and_qa_read_translations(tiny_vn_tmp: Path) -> None:
     """Stats tools and QA read behavior."""
     context = await load_project_context(tiny_vn_tmp)
     qa_tools = build_qa_tools(context)
-    read_translations = _tool(qa_tools, "read_translations")
+    read_translations = _tool(qa_tools, "translation_read_scene")
 
     stats_tools = build_stats_tools(context)
-    ctx_status = _tool(stats_tools, "get_context_status")
+    ctx_status = _tool(stats_tools, "context_read_status")
     status_msg = ctx_status.invoke({})  # type: ignore[arg-type]
     assert "Scenes" in status_msg
 
-    scene_completion = _tool(stats_tools, "get_scene_completion")
+    scene_completion = _tool(stats_tools, "scene_read_progress")
     scene_msg = scene_completion.invoke({"scene_id": "scene_a_00"})  # type: ignore[arg-type]
     assert "Scene scene_a_00" in scene_msg
 
-    char_completion = _tool(stats_tools, "get_character_completion")
+    char_completion = _tool(stats_tools, "character_read_progress")
     char_msg = char_completion.invoke({"character_id": "mc"})  # type: ignore[arg-type]
     assert "Character mc" in char_msg
 
-    route_progress = _tool(stats_tools, "get_route_progress")
+    route_progress = _tool(stats_tools, "route_read_progress")
     route_msg = route_progress.invoke({"route_id": "common"})  # type: ignore[arg-type]
     assert "Route common" in route_msg
 
