@@ -1,8 +1,4 @@
-"""Location detailer subagent.
-
-This subagent enriches location metadata with descriptions, mood cues, and atmospheric details
-by analyzing scenes set in those locations.
-"""
+"""Location curator subagent (global metadata)."""
 
 from __future__ import annotations
 
@@ -23,16 +19,17 @@ from rentl_agents.hitl.invoke import Decision, run_with_human_loop
 from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read_doc
 from rentl_agents.tools.location import (
     location_create_entry,
+    location_delete_entry,
     location_read_entry,
     location_update_description,
     location_update_name_tgt,
 )
 
 
-class LocationDetailResult(BaseModel):
-    """Result structure from location detailer subagent."""
+class LocationCurateResult(BaseModel):
+    """Result structure from location curator subagent."""
 
-    location_id: str = Field(description="Location identifier that was detailed.")
+    location_id: str = Field(description="Location identifier that was curated.")
     name_tgt: str | None = Field(description="Localized location name in target language.")
     description: str | None = Field(description="Location description with mood cues and atmospheric details.")
 
@@ -40,30 +37,17 @@ class LocationDetailResult(BaseModel):
 logger = get_logger(__name__)
 
 
-SYSTEM_PROMPT = """You are a localization assistant enriching location metadata.
+SYSTEM_PROMPT = """You are a localization assistant curating location metadata. Write descriptions in the source language and localized names in the target language.
 
-Your task is to analyze location information and enhance their metadata for translation quality:
-
-1. **Target Name**: Provide or refine the localized name in the target language
-2. **Description**: Capture the location's appearance, mood, atmosphere, and contextual details (write descriptions in the source language)
-
-**Workflow:**
-1. Read the location's current metadata
-2. Read relevant context documents if available
-3. Update the target name if needed (or propose one if empty)
-4. Update description with vivid, useful details (physical appearance, lighting, mood, atmosphere)
-5. End the conversation once metadata is updated
-
-**Important:**
-- Focus on information useful for translators and consistent scene setting
-- Capture atmosphere, mood, time of day, weather, architectural details, ambient sounds
-- Be concise but evocative
-- Respect existing human-authored data (you may be asked for approval before overwriting)
-- Each update tool should only be called once per session
-"""
+Workflow:
+1. Read the location's current metadata.
+2. Update name_tgt and description as needed for translation quality.
+3. If the location is missing, create it with location_create_entry.
+4. Use location_delete_entry only if a location is clearly invalid (requires approval).
+5. Call each update tool at most once. End when updates are recorded."""
 
 
-async def detail_location(
+async def curate_location(
     context: ProjectContext,
     location_id: str,
     *,
@@ -71,73 +55,53 @@ async def detail_location(
     decision_handler: Callable[[list[str]], list[Decision]] | None = None,
     thread_id: str | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
-) -> LocationDetailResult:
-    """Run the location detailer agent for *location_id* and return metadata.
-
-    Args:
-        context: Project context with metadata.
-        location_id: Location identifier to detail.
-        allow_overwrite: Allow overwriting existing human-authored metadata.
-        decision_handler: Optional callback to resolve HITL interrupts.
-        thread_id: Optional thread identifier for resumable runs.
-        checkpointer: Optional LangGraph checkpointer (defaults to SQLite if configured).
+) -> LocationCurateResult:
+    """Run the location curator for *location_id* and return metadata.
 
     Returns:
-        LocationDetailResult: Updated location metadata.
+        LocationCurateResult: Updated location metadata.
     """
-    logger.info("Detailing location %s", location_id)
+    logger.info("Curating location %s", location_id)
     effective_checkpointer: BaseCheckpointSaver = checkpointer or await get_default_checkpointer()
-    subagent = create_location_detailer_subagent(
+    subagent = create_location_curator_subagent(
         context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
     )
 
-    user_prompt = build_location_detailer_user_prompt(context, location_id)
-
-    logger.debug("Location detailer prompt for %s:\n%s", location_id, user_prompt)
+    user_prompt = build_location_curator_user_prompt(context, location_id)
     await run_with_human_loop(
         subagent,
         {"messages": [{"role": "user", "content": user_prompt}]},
         decision_handler=decision_handler,
-        thread_id=f"{thread_id or 'location-detail'}:{location_id}",
+        thread_id=f"{thread_id or 'location-curate'}:{location_id}",
     )
 
-    # Retrieve updated location metadata
     updated_location = context.get_location(location_id)
-
-    result = LocationDetailResult(
+    return LocationCurateResult(
         location_id=location_id,
         name_tgt=updated_location.name_tgt,
         description=updated_location.description,
     )
 
-    logger.info(
-        "Location %s metadata: name_tgt=%s, description=%d chars",
-        location_id,
-        result.name_tgt or "(empty)",
-        len(result.description) if result.description else 0,
-    )
 
-    return result
-
-
-def create_location_detailer_subagent(
+def create_location_curator_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
     checkpointer: BaseCheckpointSaver,
 ) -> CompiledStateGraph:
-    """Create location detailer LangChain subagent and return the runnable graph.
+    """Create location curator LangChain subagent.
 
     Returns:
-        CompiledStateGraph: Runnable agent graph for location detailing.
+        CompiledStateGraph: Runnable agent graph.
     """
-    tools = _build_location_detailer_tools(context, allow_overwrite=allow_overwrite)
+    tools = _build_location_curator_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     interrupt_on = {
         "location_update_name_tgt": True,
         "location_update_description": True,
+        "location_delete_entry": True,
     }
-    graph = create_agent(
+    return create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
@@ -145,19 +109,17 @@ def create_location_detailer_subagent(
         checkpointer=checkpointer,
     )
 
-    return graph
 
-
-def build_location_detailer_user_prompt(context: ProjectContext, location_id: str) -> str:
-    """Construct the user prompt for the location detailer.
+def build_location_curator_user_prompt(context: ProjectContext, location_id: str) -> str:
+    """Construct the user prompt for the location curator.
 
     Returns:
-        str: User prompt content to send to the location detailer agent.
+        str: User prompt text.
     """
     target_lang = context.game.target_lang.upper()
     source_lang = context.game.source_lang.upper()
     available_locations = ", ".join(sorted(context.locations.keys()))
-    return f"""Enrich metadata for this location.
+    return f"""Curate metadata for this location.
 
 Location ID: {location_id}
 Target Language: {target_lang}
@@ -165,17 +127,15 @@ Source Language: {source_lang}
 Available Locations: {available_locations}
 
 Instructions:
-1. Read the location's current metadata
-2. Review any context documents that mention this location
-3. Update name_tgt with appropriate localized name (if empty or needs refinement) using location_update_name_tgt(location_id, name) in {target_lang}
-4. Update description with vivid details (appearance, mood, atmosphere, sensory details) using location_update_description(location_id, description) in the source language
-5. End conversation when all updates are complete
-
-Begin analysis now."""
+1. Read the location's current metadata.
+2. Update name_tgt using location_update_name_tgt(location_id, name) in {target_lang} if missing or weak.
+3. Update description using location_update_description(location_id, description) in {source_lang}.
+4. If location is invalid, you may call location_delete_entry (will require approval).
+5. End when updates are complete."""
 
 
-def _build_location_detailer_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
-    """Return tools for the location detailer subagent bound to the shared context."""
+def _build_location_curator_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
+    """Return tools for the location curator subagent bound to the shared context."""
     updated_name_tgt: set[str] = set()
     updated_description: set[str] = set()
     context_doc_tools = _build_context_doc_tools(context)
@@ -195,7 +155,7 @@ def _build_location_detailer_tools(context: ProjectContext, *, allow_overwrite: 
         """Add a new location entry with provenance tracking.
 
         Returns:
-            str: Status message after attempting creation.
+            str: Status message.
         """
         return await location_create_entry(
             context,
@@ -210,7 +170,7 @@ def _build_location_detailer_tools(context: ProjectContext, *, allow_overwrite: 
         """Update the target language name for this location.
 
         Returns:
-            str: Confirmation message after persistence.
+            str: Status message.
         """
         return await location_update_name_tgt(context, location_id, name_tgt, updated_name_tgt=updated_name_tgt)
 
@@ -219,11 +179,20 @@ def _build_location_detailer_tools(context: ProjectContext, *, allow_overwrite: 
         """Update the description for this location.
 
         Returns:
-            str: Confirmation message after persistence.
+            str: Status message.
         """
         return await location_update_description(
             context, location_id, description, updated_description=updated_description
         )
+
+    @tool("location_delete_entry")
+    async def delete_location_tool(location_id: str) -> str:
+        """Delete a location entry.
+
+        Returns:
+            str: Status message.
+        """
+        return await location_delete_entry(context, location_id)
 
     return [
         read_location_tool,
@@ -231,6 +200,7 @@ def _build_location_detailer_tools(context: ProjectContext, *, allow_overwrite: 
         *context_doc_tools,
         update_location_name_tgt_tool,
         update_location_description_tool,
+        delete_location_tool,
     ]
 
 

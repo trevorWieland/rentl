@@ -40,9 +40,8 @@ Use `{DATA}_{CRUD}_{THING}` for tool names (data domain, operation, specificity)
 and subagent map.
 
 ### Tool catalog
-- Scenes: `scene_read_metadata`, `scene_read_overview`, `scene_read_redacted`, `scene_read_translations`,
-  `scene_read_progress`, `scene_update_summary`, `scene_update_tags`, `scene_update_primary_characters`,
-  `scene_update_locations`
+- Scenes: `scene_read_metadata`, `scene_read_overview`, `scene_read_redacted`, `scene_update_summary`,
+  `scene_update_tags`, `scene_update_primary_characters`, `scene_update_locations`
 - Characters: `character_read_entry`, `character_create_entry`, `character_update_name_tgt`,
   `character_update_pronouns`, `character_update_notes`, `character_delete_entry`
 - Locations: `location_read_entry`, `location_create_entry`, `location_update_name_tgt`,
@@ -89,26 +88,19 @@ and subagent map.
 - `meta_glossary_curator`: Deduplicate/prune/polish glossary entries. Tools: glossary_search_term,
   glossary_read_entry, glossary_create_entry, glossary_update_entry, glossary_merge_entries,
   glossary_delete_entry, contextdoc_list_all/read_doc.
-- `meta_route_curator`: Refine routes after scene work. Tools: route_read_entry, route_update_synopsis,
-  route_update_primary_characters, route_delete_entry, contextdoc_list_all/read_doc.
 
 **Translation phase**
 - `scene_translator`: Translate one scene end-to-end (direct). Tools: scene_read_overview, styleguide_read_full,
   ui_read_settings, glossary_read_entry/search_term, character_read_entry, location_read_entry,
   translation_create_line (or translation_update_line when overwrite is allowed).
-- `scene_mtl_translator`: Same as above but allowed to call MTL. Tools: scene_read_overview,
-  translation_check_mtl_available, translation_create_mtl_suggestion, styleguide_read_full, ui_read_settings,
-  glossary_read_entry/search_term, character_read_entry, location_read_entry,
-  translation_create_line/translation_update_line.
 
 **Editing phase**
 - `scene_style_checker`: Style/UI compliance for one scene. Tools: translation_read_scene, styleguide_read_full,
   ui_read_settings, translation_create_style_check.
 - `scene_translation_reviewer`: Fidelity/fluency review for one scene. Tools: translation_read_scene,
   scene_read_overview, styleguide_read_full, translation_create_review_check.
-- `route_consistency_checker`: Cross-scene consistency within one route. Tools: route_read_entry,
-  translation_read_scene (per route scene), scene_read_overview (read-only context),
-  glossary_read_entry/search_term, character_read_entry, translation_create_consistency_check.
+- `consistency_checker`: Per-scene consistency pass. Tools: translation_read_scene,
+  translation_create_consistency_check.
 
 These names supersede older examples in this file; keep them stable so HITL `interrupt_on` wiring remains predictable.
 
@@ -127,7 +119,7 @@ These names supersede older examples in this file; keep them stable so HITL `int
 
 **Naming convention**
 
-- `scene_*` subagents operate on a single scene (e.g., `scene_translator`, `scene_detailer`,
+- `scene_*` subagents operate on a single scene (e.g., `scene_summary_detailer`, `scene_tag_detailer`,
   `scene_style_checker`, `scene_translation_reviewer`).
 - `route_*` subagents span related scenes (e.g., `route_consistency_checker`).
 - `curate_*` subagents are game-level polish/dedupe (e.g., `curate_glossary`, `curate_characters`, `curate_locations`).
@@ -151,177 +143,94 @@ are no LLM “coordinator” agents at the top level.
 
 ### Creating Subagents
 
-Subagents are created using `create_agent` from `langchain.agents`; pipelines call the returned runnable graph directly:
+Subagents are created with `create_agent`; pipelines invoke the returned runnable graph directly. Each file owns a single
+subagent. Example: a single-purpose scene summary detailer.
 
 ```python
 from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langchain_core.tools import BaseTool, tool
-
-# Step 1: Build LangChain agent graph
-scene_detailer_graph = create_agent(
-    model=model,
-    tools=_build_scene_detailer_tools(context, allow_overwrite=False),
-    system_prompt=SYSTEM_PROMPT
-    # No middleware parameter = no default tools
-)
-
-scene_detailer = scene_detailer_graph  # Pipelines invoke this runnable with shared context
-```
-
-### Subagent Implementation Pattern
-
-Each subagent file should follow this pattern:
-
-```python
-"""Scene detailer subagent.
-
-This subagent enriches scene metadata with summaries, tags, characters, and locations.
-"""
-
-from langchain.agents import create_agent
-from pydantic import BaseModel, Field
+from langgraph.graph.state import CompiledStateGraph
 from rentl_core.context.project import ProjectContext
-from rentl_core.util.logging import get_logger
-
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.tools.scene import (
-    read_scene,
-    read_scene_overview,
-    write_primary_characters,
-    write_scene_locations,
-    write_scene_summary,
-    write_scene_tags,
-)
+from rentl_agents.tools.scene import scene_read_overview, scene_update_summary
+from rentl_agents.tools.character import character_read_entry
+from rentl_agents.tools.location import location_read_entry
+from rentl_agents.tools.glossary import glossary_read_entry, glossary_search_term
+from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read_doc
 
 
-class SceneDetailResult(BaseModel):
-    """Result structure from scene detailer subagent."""
-    scene_id: str = Field(description="Scene identifier that was detailed.")
-    summary: str | None = Field(description="Scene summary.")
-    tags: list[str] = Field(description="Scene tags.")
-    primary_characters: list[str] = Field(description="Primary character IDs.")
-    locations: list[str] = Field(description="Location IDs.")
+SYSTEM_PROMPT = """You are a scene summary specialist. Produce a concise summary in the source language using the
+provided tools. Do not write tags or other metadata."""
 
 
-logger = get_logger(__name__)
-
-SYSTEM_PROMPT = """You are a scene analysis assistant.
-
-Your task is to enrich scene metadata by:
-1. Reading the scene transcript
-2. Writing a concise summary (2-3 sentences)
-3. Identifying tags that describe the scene
-4. Identifying primary characters (who speak or are mentioned)
-5. Identifying locations where the scene takes place
-
-Use the provided tools to read scene data and update metadata."""
-
-
-def create_scene_detailer_subagent(
-    context: ProjectContext,
-    scene_id: str,
-    *,
-    allow_overwrite: bool = False
-):
-    """Create scene detailer subagent for a specific scene and return the runnable graph."""
-    tools = _build_scene_detailer_tools(context, allow_overwrite=allow_overwrite)
+def create_scene_summary_detailer_subagent(context: ProjectContext, *, allow_overwrite: bool, checkpointer) -> CompiledStateGraph:
+    tools = _build_scene_summary_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
-
-    # Create LangChain agent graph
     return create_agent(
         model=model,
         tools=tools,
-        system_prompt=SYSTEM_PROMPT
+        system_prompt=SYSTEM_PROMPT,
+        middleware=[HumanInTheLoopMiddleware(interrupt_on={"scene_update_summary": True})],
+        checkpointer=checkpointer,
     )
 
 
-def _build_scene_detailer_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
+def _build_scene_summary_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
     """Local tool selection capturing the shared ProjectContext."""
-    written_summary: set[str] = set()
-    written_tags: set[str] = set()
-    written_characters: set[str] = set()
-    written_locations: set[str] = set()
+    written: set[str] = set()
 
-    @tool("read_scene")
-    async def read_scene_tool(scene_id: str) -> str:
-        return await read_scene(context, scene_id)
+    @tool("scene_read_overview")
+    async def read_overview(scene_id: str) -> str:
+        return await scene_read_overview(context, scene_id)
 
-    @tool("read_scene_overview")
-    async def read_scene_overview_tool(scene_id: str) -> str:
-        return await read_scene_overview(context, scene_id, allow_overwrite=allow_overwrite)
+    @tool("scene_update_summary")
+    async def update_summary(scene_id: str, summary: str) -> str:
+        return await scene_update_summary(context, scene_id, summary, written_summary=written)
 
-    @tool("write_scene_summary")
-    async def write_scene_summary_tool(scene_id: str, summary: str) -> str:
-        return await write_scene_summary(context, scene_id, summary, written_summary=written_summary)
+    @tool("character_read_entry")
+    def read_character(character_id: str) -> str:
+        return character_read_entry(context, character_id)
 
-    @tool("write_scene_tags")
-    async def write_scene_tags_tool(scene_id: str, tags: list[str]) -> str:
-        return await write_scene_tags(context, scene_id, tags, written_tags=written_tags)
+    @tool("location_read_entry")
+    def read_location(location_id: str) -> str:
+        return location_read_entry(context, location_id)
 
-    @tool("write_primary_characters")
-    async def write_primary_characters_tool(scene_id: str, character_ids: list[str]) -> str:
-        return await write_primary_characters(
-            context,
-            scene_id,
-            character_ids,
-            written_characters=written_characters,
-        )
+    @tool("glossary_search_term")
+    async def search_glossary(query: str) -> str:
+        return await glossary_search_term(context, query)
 
-    @tool("write_scene_locations")
-    async def write_scene_locations_tool(scene_id: str, location_ids: list[str]) -> str:
-        return await write_scene_locations(context, scene_id, location_ids, written_locations=written_locations)
+    @tool("glossary_read_entry")
+    async def read_glossary(term_src: str) -> str:
+        return await glossary_read_entry(context, term_src)
+
+    @tool("contextdoc_list_all")
+    async def list_docs() -> str:
+        return await contextdoc_list_all(context)
+
+    @tool("contextdoc_read_doc")
+    async def read_doc(filename: str) -> str:
+        return await contextdoc_read_doc(context, filename)
 
     return [
-        read_scene_tool,
-        read_scene_overview_tool,
-        write_scene_summary_tool,
-        write_scene_tags_tool,
-        write_primary_characters_tool,
-        write_scene_locations_tool,
+        read_overview,
+        update_summary,
+        read_character,
+        read_location,
+        search_glossary,
+        read_glossary,
+        list_docs,
+        read_doc,
     ]
 ```
 
 ### Subagent characteristics
 
-- Created with `create_agent` (runnable graph)
-- Use specialized tools only; no filesystem access
-- Optional middleware: `HumanInTheLoopMiddleware` (approvals), `TodoListMiddleware` (self-planning)
-- Context is injected via middleware; pipelines pass the shared `ProjectContext`
-
-### Tool Access with ToolRuntime
-
-Subagent tools should use `ToolRuntime` to access state, context, and store:
-
-```python
-from langchain.tools import tool, ToolRuntime
-
-@tool
-async def update_scene_summary(
-    scene_id: str,
-    summary: str,
-    runtime: ToolRuntime
-) -> str:
-    """Update scene summary with provenance checking."""
-    # Access project context from runtime
-    context = runtime.context.project_context
-    scene = context.get_scene(scene_id)
-
-    # Check provenance for HITL
-    if scene.annotations.summary_origin == "human":
-        return "Requesting approval to overwrite human-authored summary"
-
-    # Update with agent origin
-    await context.update_scene_summary(scene_id, summary)
-    return f"Updated summary for {scene_id}"
-```
-
-**Available via ToolRuntime:**
-- `runtime.state` - Agent state (messages, custom fields)
-- `runtime.context` - Immutable configuration (user IDs, project context)
-- `runtime.store` - Persistent long-term memory
-- `runtime.stream_writer` - Stream custom updates
-- `runtime.config` - RunnableConfig for execution
-- `runtime.tool_call_id` - ID of current tool call
+- Single-purpose scope with a clear definition of done (e.g., write only the scene summary).
+- Created with `create_agent`; tools are injected via local `@tool` wrappers that capture the shared
+  `ProjectContext`.
+- Optional middleware: `HumanInTheLoopMiddleware` for approvals and `TodoListMiddleware` for self-planning.
+- No direct filesystem access or direct `ProjectContext` writes; all mutations go through tools.
 
 ### Middleware for Subagents
 
@@ -428,36 +337,24 @@ tracking.
 **Approval policy**: Always `permissive` (never require human approval)
 
 **Examples**:
-- `read_scene_overview`: Get scene metadata + transcript
-- `read_character`: Get character bio/pronouns
-- `read_glossary`: Search glossary entries
-- `list_context_docs`: List available context documents
+- `scene_read_overview`: Get scene metadata + transcript
+- `character_read_entry`: Get character bio/pronouns
+- `glossary_read_entry` or `glossary_search_term`: Read or search glossary entries
+- `contextdoc_list_all`: List available context documents
 
 **Implementation**:
 
 ```python
 from langchain_core.tools import tool
+from rentl_agents.tools.character import character_read_entry
 
-@tool
-async def read_character(
-    context: ProjectContext,
-    character_id: str
-) -> str:
-    """Retrieves character metadata.
+def _build_tools(context: ProjectContext) -> list[BaseTool]:
+    @tool("character_read_entry")
+    def read_character(character_id: str) -> str:
+        """Return character metadata."""
+        return character_read_entry(context, character_id)
 
-    Args:
-        context: Project context.
-        character_id: Character identifier.
-
-    Returns:
-        Character metadata as formatted string.
-    """
-    char = context.get_character(character_id)
-    return f"""
-Character: {char.name_tgt or char.name_src}
-Pronouns: {char.pronouns}
-Notes: {char.notes}
-"""
+    return [read_character]
 ```
 
 **Guidelines**:
@@ -476,45 +373,22 @@ Notes: {char.notes}
 - `strict`: For structural changes (new characters, new routes)
 
 **Examples**:
-- `add_glossary_entry`: Propose new glossary term (permissive)
-- `add_character`: Create new character entry (strict)
-- `add_route`: Create new route (strict)
+- `glossary_create_entry`: Propose new glossary term (permissive)
+- `character_create_entry`: Create new character entry (strict)
+- `route_create_entry`: Create new route (strict)
 
 **Implementation**:
 
 ```python
-@tool(approval_policy="permissive")  # Low-risk, agent can add freely
-async def add_glossary_entry(
-    context: ProjectContext,
-    term_src: str,
-    term_tgt: str,
-    notes: str
-) -> str:
-    """Adds a new glossary entry with provenance tracking.
+from rentl_agents.tools.glossary import glossary_create_entry
 
-    Args:
-        context: Project context.
-        term_src: Term in source language.
-        term_tgt: Preferred target language rendering.
-        notes: Translation guidance.
+def _build_glossary_tools(context: ProjectContext) -> list[BaseTool]:
+    @tool("glossary_create_entry")
+    async def create_glossary(term_src: str, term_tgt: str, notes: str | None = None) -> str:
+        """Add a glossary entry with provenance tracking."""
+        return await glossary_create_entry(context, term_src, term_tgt, notes=notes)
 
-    Returns:
-        Success message.
-    """
-    from datetime import date
-
-    entry = GlossaryEntry(
-        term_src=term_src,
-        term_src_origin=f"agent:glossary_detailer:{date.today()}",
-        term_tgt=term_tgt,
-        term_tgt_origin=f"agent:glossary_detailer:{date.today()}",
-        notes=notes,
-        notes_origin=f"agent:glossary_detailer:{date.today()}"
-    )
-
-    context.glossary.append(entry)
-    await context.save_glossary()
-    return f"Added glossary entry: {term_src} → {term_tgt}"
+    return [create_glossary]
 ```
 
 **Guidelines**:
@@ -536,47 +410,22 @@ async def add_glossary_entry(
 3. If `field_origin == "human"` → **require approval** (protecting human data)
 
 **Examples**:
-- `update_character_bio`: Update character notes
-- `update_scene_summary`: Revise scene summary
-- `update_glossary_notes`: Improve glossary guidance
+- `character_update_notes`: Update character notes
+- `scene_update_summary`: Revise scene summary
+- `glossary_update_entry`: Improve glossary guidance
 
 **Implementation**:
 
 ```python
-@tool(approval_policy="standard")  # Provenance-based HITL
-async def update_character_bio(
-    context: ProjectContext,
-    character_id: str,
-    new_bio: str
-) -> str:
-    """Updates character biographical notes with provenance check.
+from rentl_agents.tools.character import character_update_notes
 
-    Args:
-        context: Project context.
-        character_id: Character identifier.
-        new_bio: New biographical notes.
+def _build_character_tools(context: ProjectContext) -> list[BaseTool]:
+    @tool("character_update_notes")
+    async def update_notes(character_id: str, notes: str) -> str:
+        """Update character notes with provenance/HITL checks."""
+        return await character_update_notes(context, character_id, notes, updated_notes=set())
 
-    Returns:
-        Success message.
-
-    Raises:
-        ValueError: If character not found.
-    """
-    from datetime import date
-
-    char = context.get_character(character_id)
-    if char is None:
-        raise ValueError(f"Character '{character_id}' not found")
-
-    # Provenance check happens in LangChain HITL middleware via interrupt_on
-    # If char.notes_origin == "human", execution pauses for approval
-    # If char.notes_origin is None or "agent:*", proceeds automatically
-
-    char.notes = new_bio
-    char.notes_origin = f"agent:character_detailer:{date.today()}"
-
-    await context.save_characters()
-    return f"Updated bio for {char.name_tgt or char.name_src}"
+    return [update_notes]
 ```
 
 **Guidelines**:
@@ -675,387 +524,65 @@ class ProjectContext:
 
 ### delete_* Tools
 
-**Purpose**: Remove entries from JSONL files
+**Purpose**: Remove entries from JSONL files.
 
 **Approval policy**:
-- `standard`: Check entry-level provenance (if **any** field is human-authored, require approval)
-- `strict`: Always require approval (safer default)
+- `standard`: Require approval when any tracked field is human-authored.
+- `strict`: Always require approval.
 
 **Examples**:
-- `delete_glossary_entry`: Remove a glossary term
-- `delete_tag`: Remove a scene tag
+- `glossary_delete_entry`: Remove a glossary term.
+- `character_delete_entry`: Remove a character (after provenance check).
 
 **Implementation**:
 
 ```python
-@tool(approval_policy="standard")  # Check if any field is human-authored
-async def delete_glossary_entry(
-    context: ProjectContext,
-    term_src: str
-) -> str:
-    """Deletes a glossary entry after provenance check.
+from rentl_agents.tools.glossary import glossary_delete_entry
 
-    Args:
-        context: Project context.
-        term_src: Source language term to delete.
+def _build_glossary_delete_tool(context: ProjectContext) -> list[BaseTool]:
+    @tool("glossary_delete_entry")
+    async def delete_glossary(term_src: str) -> str:
+        """Delete a glossary entry, honoring HITL for human-authored fields."""
+        return await glossary_delete_entry(context, term_src)
 
-    Returns:
-        Success message.
-
-    Raises:
-        ValueError: If term not found.
-    """
-    entry = next(
-        (e for e in context.glossary if e.term_src == term_src),
-        None
-    )
-    if entry is None:
-        raise ValueError(f"Glossary term '{term_src}' not found")
-
-    # Check if ANY field has human origin
-    has_human_origin = any([
-        entry.term_src_origin == "human",
-        entry.term_tgt_origin == "human",
-        entry.notes_origin == "human"
-    ])
-
-    # If has_human_origin, LangChain HITL middleware pauses for approval
-    # Otherwise, proceeds automatically
-
-    context.glossary.remove(entry)
-    await context.save_glossary()
-    return f"Deleted glossary entry: {term_src}"
+    return [delete_glossary]
 ```
-
-**Guidelines**:
-- Check **all** `*_origin` fields in the entry
-- If **any** field is `"human"`, require approval
-- For `strict` policy, approval is always required regardless of provenance
-- Validate that the entry exists before attempting deletion
 
 ---
 
 ## Provenance Tracking Best Practices
 
-### Setting Origin on Creation
-
-When creating new entries, always set `*_origin` for tracked fields:
-
-```python
-character = CharacterMetadata(
-    id="new_char",
-    name_src="新キャラ",
-    name_src_origin="agent:character_detailer:2024-11-22",  # ✅ Set origin
-    name_tgt="New Character",
-    name_tgt_origin="agent:character_detailer:2024-11-22",  # ✅ Set origin
-    pronouns="they/them",
-    pronouns_origin="agent:character_detailer:2024-11-22",  # ✅ Set origin
-    notes="Mysterious figure introduced in Chapter 3.",
-    notes_origin="agent:character_detailer:2024-11-22"      # ✅ Set origin
-)
-```
-
-### Updating Origin on Modification
-
-When updating fields, always update the corresponding `*_origin`:
+- Always set `*_origin` when creating or updating fields using the format `agent:<subagent_name>:YYYY-MM-DD`.
+- Preserve human-authored data: tools should return approval requests when `*_origin == "human"`.
+- Update origin alongside the field:
 
 ```python
-# ✅ Good: Update both field and origin
+origin = f"agent:scene_summary_detailer:{date.today()}"
 scene.annotations.summary = new_summary
-scene.annotations.summary_origin = f"agent:scene_detailer:{date.today()}"
-
-# ❌ Bad: Update field without origin
-scene.annotations.summary = new_summary
-# Missing: summary_origin update!
-```
-
-### Origin String Format
-
-Use consistent format: `"agent:<subagent_name>:<YYYY-MM-DD>"`
-
-```python
-from datetime import date
-
-origin = f"agent:scene_detailer:{date.today()}"
-# Example output: "agent:scene_detailer:2024-11-22"
-```
-
-**For human-set values** (rare in agent code):
-```python
-origin = "human"
-```
-
-### Checking Provenance for HITL
-
-```python
-@tool(approval_policy="standard")
-async def update_field(context, value):
-    entity = context.get_entity()
-
-    # Check provenance
-    if entity.field_origin == "human":
-        # LangChain HITL middleware will pause here via interrupt_on
-        # Human approves/rejects/edits the change
-        pass
-    elif entity.field_origin is None or entity.field_origin.startswith("agent:"):
-        # Empty or agent-authored: proceed without approval
-        pass
-
-    # Update both field and origin
-    entity.field = value
-    entity.field_origin = f"agent:my_subagent:{date.today()}"
-    await context.save()
+scene.annotations.summary_origin = origin
 ```
 
 ---
 
 ## HITL Integration (LangChain)
 
-Use LangChain `HumanInTheLoopMiddleware` on subagents when you need approvals for overwriting human-authored data. Pair
-it with a checkpointer so runs can pause and resume.
+Use `HumanInTheLoopMiddleware` with `interrupt_on` matching the write tools that should pause when provenance requires
+approval. Prefer the shared helper `run_with_human_loop` so CLI/TUI frontends can resume via thread IDs.
 
 ```python
-from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langgraph.checkpoint.memory import MemorySaver
-
-graph = create_agent(
-    model=model,
-    tools=[
-        read_character,
-        update_character_bio,
-    ],
-    middleware=[
-        HumanInTheLoopMiddleware(
-            interrupt_on={
-                "update_character_bio": {"allowed_decisions": ["approve", "edit", "reject"]},
-                "read_character": False,
-            }
-        )
-    ],
-    checkpointer=MemorySaver(),
+await run_with_human_loop(
+    scene_agent,
+    {"messages": [{"role": "user", "content": user_prompt}]},
+    decision_handler=my_decision_fn,
+    thread_id="context:scene_a_00",
 )
 ```
-
-**How it works**:
-1. Subagent proposes a tool call (e.g., `update_character_bio`).
-2. Middleware checks `interrupt_on` and pauses if configured.
-3. CLI/TUI collects decisions (approve/edit/reject) and resumes with the same thread_id.
-4. Approved or edited actions execute; rejected actions produce tool feedback.
 
 ---
 
 ## Tool Access Control
 
-Different subagents receive different tool subsets based on their role:
-
-### Context Builder Tools
-
-```python
-context_builder_tools = [
-    # Read tools (always available)
-    read_scene_overview,
-    read_character,
-    read_location,
-    read_glossary,
-    read_route,
-    list_context_docs,
-    read_context_doc,
-
-    # Write tools (context enrichment)
-    write_scene_summary,
-    update_character_bio,
-    update_location_description,
-    add_glossary_entry,
-    update_glossary_entry,
-    update_route_synopsis,
-]
-```
-
-### Translator Tools
-
-```python
-translator_tools = [
-    # Read tools only (translator consumes context, doesn't modify it)
-    read_scene_overview,
-    read_character,
-    read_location,
-    read_glossary,
-    read_context_doc,
-
-    # Write tool (translation output)
-    write_translation,
-]
-```
-
-### Editor Tools
-
-```python
-editor_tools = [
-    # Read tools
-    read_scene_overview,
-    read_translation,
-    read_glossary,
-    read_style_guide,
-
-    # QA tools
-    record_style_check,
-    record_consistency_check,
-    record_quality_check,
-    flag_for_retranslation,
-]
-```
-
-**Principle**: Give subagents only the tools they need for their specific role.
-
----
-
-## Example: Complete Tool Implementation
-
-Here's a complete example of a well-designed tool with provenance tracking and HITL approval:
-
-```python
-from datetime import date
-from langchain_core.tools import tool
-from rentl_core.context import ProjectContext
-from rentl_core.model.location import LocationMetadata
-
-
-@tool(approval_policy="standard")
-async def update_location_description(
-    context: ProjectContext,
-    location_id: str,
-    new_description: str
-) -> str:
-    """Updates location description with provenance tracking and HITL approval.
-
-    This tool allows the location_detailer subagent to enrich location metadata
-    with atmospheric details, mood cues, and visual descriptions. Human-authored
-    descriptions are protected via provenance checking.
-
-    Args:
-        context: Project context containing location metadata.
-        location_id: Location identifier (e.g., "school_rooftop").
-        new_description: New description text.
-
-    Returns:
-        Success message with location name.
-
-    Raises:
-        ValueError: If location_id not found in metadata.
-
-    Examples:
-        >>> await update_location_description(
-        ...     context,
-        ...     "school_rooftop",
-        ...     "Windy rooftop with panoramic city view. Sunset glow."
-        ... )
-        "Updated description for Rooftop"
-    """
-    # Validate input
-    if not new_description or not new_description.strip():
-        raise ValueError("Description cannot be empty")
-
-    # Get location (raises KeyError if not found)
-    try:
-        location = context.get_location(location_id)
-    except KeyError:
-        raise ValueError(
-            f"Location '{location_id}' not found. "
-            f"Available locations: {', '.join(context.locations.keys())}"
-        )
-
-    # Provenance check (LangChain HITL middleware handles approval pause)
-    # If description_origin == "human", execution pauses for approval
-    # If description_origin is None or "agent:*", proceeds automatically
-
-    # Update field and origin
-    location.description = new_description
-    location.description_origin = f"agent:location_detailer:{date.today()}"
-
-    # Persist changes
-    await context.save_locations()
-
-    # Return clear success message
-    return f"Updated description for {location.name_tgt or location.name_src}"
-```
-
-**What makes this good**:
-1. ✅ Clear docstring with examples
-2. ✅ Input validation before processing
-3. ✅ Helpful error messages with suggestions
-4. ✅ Provenance tracking (updates both field and `*_origin`)
-5. ✅ Async persistence (`await context.save_locations()`)
-6. ✅ Clear return message for agent feedback
-
----
-
-## Testing Tools
-
-### Unit Test with Mock Context
-
-```python
-import pytest
-from unittest.mock import AsyncMock
-from rentl_core.context import ProjectContext
-from rentl_core.model.location import LocationMetadata
-from rentl_agents.tools.metadata import update_location_description
-
-
-@pytest.mark.asyncio
-async def test_update_location_description():
-    # Create mock context
-    context = AsyncMock(spec=ProjectContext)
-    location = LocationMetadata(
-        id="classroom",
-        name_src="教室",
-        name_tgt="Classroom",
-        description="Old description",
-        description_origin="agent:old_agent:2024-01-01"
-    )
-    context.get_location.return_value = location
-    context.save_locations = AsyncMock()
-
-    # Call tool
-    result = await update_location_description(
-        context,
-        "classroom",
-        "Bright classroom with afternoon sun streaming through windows."
-    )
-
-    # Assertions
-    assert "Updated description for Classroom" in result
-    assert location.description == "Bright classroom with afternoon sun streaming through windows."
-    assert location.description_origin.startswith("agent:location_detailer:")
-    context.save_locations.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_update_location_description_not_found():
-    context = AsyncMock(spec=ProjectContext)
-    context.get_location.side_effect = KeyError("classroom")
-
-    with pytest.raises(ValueError, match="Location 'classroom' not found"):
-        await update_location_description(context, "classroom", "New desc")
-```
-
----
-
-## Summary
-
-**Tool design checklist**:
-- ✅ Choose correct category (read/add/update/delete)
-- ✅ Set appropriate approval policy (permissive/standard/strict)
-- ✅ Always update `*_origin` fields when modifying data
-- ✅ Validate inputs and provide clear error messages
-- ✅ Use async/await for I/O operations
-- ✅ Write unit tests with mocked context
-- ✅ Document with examples and clear docstrings
-
-**Remember**:
-- **read_* tools**: Always permissive
-- **add_* tools**: Permissive for low-risk, strict for structural
-- **update_* tools**: Standard (provenance check) by default
-- **delete_* tools**: Standard or strict (safer)
-
-See [AGENTS.md](../../AGENTS.md) for general coding guidelines and
-[SCHEMAS.md](../../SCHEMAS.md) for data format documentation.
+Use the catalog above as the source of truth for tool selection. Context subagents get only the tools they need for a
+single task (summary, tags, characters, locations, glossary); translation subagents stay read-heavy plus translation
+write tools; editing subagents read translations/context and record QA checks. Keep toolboxes minimal to avoid scope
+creep.

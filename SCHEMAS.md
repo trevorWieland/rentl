@@ -241,7 +241,7 @@ Tools check provenance to determine if approval is needed:
 | `notes` | string | No | **Yes** | Translation guidance, context, usage notes |
 
 **Usage**:
-- `glossary_curator` subagents may propose new entries or updates via HITL tools
+- `meta_glossary_curator` subagents may propose new entries or updates via HITL tools
 - Translators reference this glossary for consistent terminology
 
 ---

@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from rentl_agents.subagents.glossary_curator import GlossaryDetailResult
+from rentl_agents.subagents.meta_glossary_curator import GlossaryDetailResult
 from rentl_core.context.project import ProjectContext, load_project_context
 from rentl_core.model.line import TranslatedLine
 from rentl_pipelines.flows.context_builder import ContextBuilderResult, _run_context_builder_async
@@ -38,7 +38,9 @@ async def test_tiny_vn_full_pipeline_smoke(monkeypatch: pytest.MonkeyPatch, tiny
         await context.update_route_synopsis(route_id, f"Synopsis for {route_id}", "agent:route_detailer")
         await context.update_route_characters(route_id, ["mc"], "agent:route_detailer")
 
-    async def detail_glossary_stub(context: ProjectContext, **_: object) -> GlossaryDetailResult:
+    async def detail_glossary_stub(
+        context: ProjectContext, scene_id: str | None = None, **_: object
+    ) -> GlossaryDetailResult:
         await context.add_glossary_entry("term", "translation", "notes", "agent:glossary")
         return GlossaryDetailResult(entries_added=1, entries_updated=0, total_entries=1)
 
@@ -72,10 +74,14 @@ async def test_tiny_vn_full_pipeline_smoke(monkeypatch: pytest.MonkeyPatch, tiny
                 scene_id, translations[0].id, "translation_review", True, None, "agent:review"
             )
 
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene", detail_scene_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_character", detail_character_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_location", detail_location_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_route", detail_route_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_summary", detail_scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_tags", detail_scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_primary_characters", detail_scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_locations", detail_scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_glossary", detail_glossary_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_character", detail_character_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_location", detail_location_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.build_route_outline", detail_route_stub)
     monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_glossary", detail_glossary_stub)
     monkeypatch.setattr("rentl_pipelines.flows.translator.translate_scene", translate_scene_stub)
     monkeypatch.setattr("rentl_pipelines.flows.editor.run_style_checks", style_check_stub)

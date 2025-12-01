@@ -24,11 +24,15 @@ async def test_context_builder_filters_by_route(monkeypatch: pytest.MonkeyPatch,
     async def noop(*args: object, **kwargs: object) -> None:
         await checkpoint()
 
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene", record_scene)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_character", noop)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_location", noop)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_route", noop)
-    from rentl_agents.subagents.glossary_curator import GlossaryDetailResult
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_summary", record_scene)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_tags", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_primary_characters", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_locations", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_glossary", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_character", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_location", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.build_route_outline", noop)
+    from rentl_agents.subagents.meta_glossary_curator import GlossaryDetailResult
 
     async def glossary_stub(*args: object, **kwargs: object) -> GlossaryDetailResult:
         await checkpoint()

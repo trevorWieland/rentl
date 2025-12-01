@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
-from rentl_agents.subagents.scene_detailer import detail_scene
+from rentl_agents.subagents.scene_summary_detailer import detail_scene_summary
 from rentl_core.context.project import ProjectContext, load_project_context
 
 
@@ -27,9 +27,6 @@ class InterruptingDetailer:
         if isinstance(input, Command):
             scene_id = thread_id.split(":")[-1]
             await self.context.set_scene_summary(scene_id, "SOURCE SUMMARY", "agent:test")
-            await self.context.set_scene_tags(scene_id, ["tag1"], "agent:test")
-            await self.context.set_scene_characters(scene_id, ["mc"], "agent:test")
-            await self.context.set_scene_locations(scene_id, ["school"], "agent:test")
             return {"done": True}
         self.calls += 1
         return {
@@ -38,8 +35,8 @@ class InterruptingDetailer:
 
 
 @pytest.mark.anyio
-async def test_scene_detailer_hitl_flow(monkeypatch: pytest.MonkeyPatch, tiny_vn_tmp: Path) -> None:
-    """Scene detailer should request approval and apply updates after approval."""
+async def test_scene_summary_detailer_hitl_flow(monkeypatch: pytest.MonkeyPatch, tiny_vn_tmp: Path) -> None:
+    """Scene summary detailer should request approval and apply updates after approval."""
     context = await load_project_context(tiny_vn_tmp)
     decisions: list[str] = []
 
@@ -53,9 +50,11 @@ async def test_scene_detailer_hitl_flow(monkeypatch: pytest.MonkeyPatch, tiny_vn
         _ = (allow_overwrite, checkpointer)
         return InterruptingDetailer(context)
 
-    monkeypatch.setattr("rentl_agents.subagents.scene_detailer.create_scene_detailer_subagent", stub_creator)
+    monkeypatch.setattr(
+        "rentl_agents.subagents.scene_summary_detailer.create_scene_summary_detailer_subagent", stub_creator
+    )
 
-    result = await detail_scene(
+    result = await detail_scene_summary(
         context,
         "scene_a_00",
         allow_overwrite=False,
@@ -66,13 +65,11 @@ async def test_scene_detailer_hitl_flow(monkeypatch: pytest.MonkeyPatch, tiny_vn
 
     assert decisions, "Expected HITL decision requests to be surfaced"
     assert result.summary == "SOURCE SUMMARY"
-    assert result.tags == ["tag1"]
-    assert result.primary_characters == ["mc"]
-    assert result.locations == ["school"]
+    assert result.summary == "SOURCE SUMMARY"
 
 
 @pytest.mark.anyio
-async def test_scene_detailer_reject_keeps_existing(monkeypatch: pytest.MonkeyPatch, tiny_vn_tmp: Path) -> None:
+async def test_scene_summary_detailer_reject_keeps_existing(monkeypatch: pytest.MonkeyPatch, tiny_vn_tmp: Path) -> None:
     """Reject decisions should result in no metadata updates."""
     context = await load_project_context(tiny_vn_tmp)
     decisions: list[str] = []
@@ -93,9 +90,11 @@ async def test_scene_detailer_reject_keeps_existing(monkeypatch: pytest.MonkeyPa
         decisions.extend(requests)
         return ["reject"]
 
-    monkeypatch.setattr("rentl_agents.subagents.scene_detailer.create_scene_detailer_subagent", reject_creator)
+    monkeypatch.setattr(
+        "rentl_agents.subagents.scene_summary_detailer.create_scene_summary_detailer_subagent", reject_creator
+    )
 
-    await detail_scene(
+    await detail_scene_summary(
         context,
         "scene_a_00",
         allow_overwrite=False,
@@ -106,7 +105,5 @@ async def test_scene_detailer_reject_keeps_existing(monkeypatch: pytest.MonkeyPa
 
     scene = context.get_scene("scene_a_00")
     assert not scene.annotations.summary
-    assert not scene.annotations.tags
-    assert not scene.annotations.primary_characters
-    assert not scene.annotations.locations
+    assert not scene.annotations.summary
     assert decisions, "Expected a decision request to be surfaced"

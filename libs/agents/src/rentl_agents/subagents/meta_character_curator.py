@@ -1,8 +1,4 @@
-"""Character detailer subagent.
-
-This subagent enriches character metadata with bios, pronouns, and speech pattern notes
-by analyzing scenes where characters appear.
-"""
+"""Character curator subagent (global metadata)."""
 
 from __future__ import annotations
 
@@ -22,6 +18,7 @@ from rentl_agents.hitl.checkpoints import get_default_checkpointer
 from rentl_agents.hitl.invoke import Decision, run_with_human_loop
 from rentl_agents.tools.character import (
     character_create_entry,
+    character_delete_entry,
     character_read_entry,
     character_update_name_tgt,
     character_update_notes,
@@ -30,46 +27,29 @@ from rentl_agents.tools.character import (
 from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read_doc
 
 
-class CharacterDetailResult(BaseModel):
-    """Result structure from character detailer subagent."""
+class CharacterCurateResult(BaseModel):
+    """Result structure from character curator subagent."""
 
-    character_id: str = Field(description="Character identifier that was detailed.")
+    character_id: str = Field(description="Character identifier that was curated.")
     name_tgt: str | None = Field(description="Localized character name in target language.")
     pronouns: str | None = Field(description="Pronoun preferences or notes (e.g., 'she/her', 'they/them').")
-    notes: str | None = Field(
-        description="Speech patterns, personality notes, or translation guidance for the character."
-    )
+    notes: str | None = Field(description="Speech patterns, personality notes, or translation guidance.")
 
 
 logger = get_logger(__name__)
 
 
-SYSTEM_PROMPT = """You are a localization assistant enriching character metadata.
+SYSTEM_PROMPT = """You are a localization assistant curating character metadata.
 
-Your task is to analyze character information and enhance their metadata for translation quality:
-
-1. **Target Name**: Provide or refine the localized name in the target language
-2. **Pronouns**: Specify pronoun preferences (e.g., "she/her", "he/him", "they/them")
-3. **Notes**: Capture personality traits, speech patterns, tone, or translation guidance (in the source language)
-
-**Workflow:**
-1. Read the character's current metadata
-2. Read relevant context documents if available
-3. Update the target name if needed (or propose one if empty)
-4. Update pronouns if needed (or propose them if empty)
-5. Update notes with character insights (personality, speech style, tone, quirks)
-6. End the conversation once metadata is updated
-
-**Important:**
-- Focus on information useful for translators
-- Capture speech patterns, formality level, catchphrases, personality traits
-- Be concise but informative
-- Respect existing human-authored data (you may be asked for approval before overwriting)
-- Each update tool should only be called once per session
-"""
+Workflow:
+1. Read the character's current metadata.
+2. Update name_tgt (in the TARGET language), pronouns, or notes as needed for translation quality.
+3. If the character is missing, create it with character_create_entry.
+4. Use character_delete_entry only if a character is clearly invalid (requires approval).
+5. Capture pronouns and notes in the SOURCE language. Call each update tool at most once. End when updates are recorded."""
 
 
-async def detail_character(
+async def curate_character(
     context: ProjectContext,
     character_id: str,
     *,
@@ -77,76 +57,55 @@ async def detail_character(
     decision_handler: Callable[[list[str]], list[Decision]] | None = None,
     thread_id: str | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
-) -> CharacterDetailResult:
-    """Run the character detailer agent for *character_id* and return metadata.
-
-    Args:
-        context: Project context with metadata.
-        character_id: Character identifier to detail.
-        allow_overwrite: Allow overwriting existing human-authored metadata.
-        decision_handler: Optional callback to resolve HITL interrupts.
-        thread_id: Optional thread identifier for resumable runs.
-        checkpointer: Optional LangGraph checkpointer (defaults to SQLite if configured).
+) -> CharacterCurateResult:
+    """Run the character curator for *character_id* and return metadata.
 
     Returns:
-        CharacterDetailResult: Updated character metadata.
+        CharacterCurateResult: Updated character metadata.
     """
-    logger.info("Detailing character %s", character_id)
+    logger.info("Curating character %s", character_id)
     effective_checkpointer: BaseCheckpointSaver = checkpointer or await get_default_checkpointer()
-    subagent = create_character_detailer_subagent(
+    subagent = create_character_curator_subagent(
         context, allow_overwrite=allow_overwrite, checkpointer=effective_checkpointer
     )
 
-    user_prompt = build_character_detailer_user_prompt(context, character_id)
-
-    logger.debug("Character detailer prompt for %s:\n%s", character_id, user_prompt)
+    user_prompt = build_character_curator_user_prompt(context, character_id)
     await run_with_human_loop(
         subagent,
         {"messages": [{"role": "user", "content": user_prompt}]},
         decision_handler=decision_handler,
-        thread_id=f"{thread_id or 'character-detail'}:{character_id}",
+        thread_id=f"{thread_id or 'character-curate'}:{character_id}",
     )
 
-    # Retrieve updated character metadata
     updated_character = context.get_character(character_id)
-
-    result = CharacterDetailResult(
+    return CharacterCurateResult(
         character_id=character_id,
         name_tgt=updated_character.name_tgt,
         pronouns=updated_character.pronouns,
         notes=updated_character.notes,
     )
 
-    logger.info(
-        "Character %s metadata: name_tgt=%s, pronouns=%s, notes=%d chars",
-        character_id,
-        result.name_tgt or "(empty)",
-        result.pronouns or "(empty)",
-        len(result.notes) if result.notes else 0,
-    )
 
-    return result
-
-
-def create_character_detailer_subagent(
+def create_character_curator_subagent(
     context: ProjectContext,
     *,
     allow_overwrite: bool = False,
     checkpointer: BaseCheckpointSaver,
 ) -> CompiledStateGraph:
-    """Create character detailer LangChain subagent and return the runnable graph.
+    """Create character curator LangChain subagent.
 
     Returns:
-        CompiledStateGraph: Runnable agent graph for character detailing.
+        CompiledStateGraph: Runnable agent graph.
     """
-    tools = _build_character_detailer_tools(context, allow_overwrite=allow_overwrite)
+    tools = _build_character_curator_tools(context, allow_overwrite=allow_overwrite)
     model = get_default_chat_model()
     interrupt_on = {
         "character_update_name_tgt": True,
         "character_update_pronouns": True,
         "character_update_notes": True,
+        "character_delete_entry": True,
     }
-    graph = create_agent(
+    return create_agent(
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
@@ -154,19 +113,17 @@ def create_character_detailer_subagent(
         checkpointer=checkpointer,
     )
 
-    return graph
 
-
-def build_character_detailer_user_prompt(context: ProjectContext, character_id: str) -> str:
-    """Construct the user prompt for the character detailer.
+def build_character_curator_user_prompt(context: ProjectContext, character_id: str) -> str:
+    """Construct the user prompt for the character curator.
 
     Returns:
-        str: User prompt content to send to the character detailer agent.
+        str: User prompt text.
     """
     target_lang = context.game.target_lang.upper()
     source_lang = context.game.source_lang.upper()
     available_ids = ", ".join(sorted(context.characters.keys()))
-    return f"""Enrich metadata for this character.
+    return f"""Curate metadata for this character.
 
 Character ID: {character_id}
 Target Language: {target_lang}
@@ -174,18 +131,16 @@ Source Language: {source_lang}
 Available Characters: {available_ids}
 
 Instructions:
-1. Read the character's current metadata
-2. Review any context documents that mention this character
-3. Update name_tgt with appropriate localized name (if empty or needs refinement) using character_update_name_tgt(character_id, name) in {target_lang}
-4. Update pronouns with pronoun preferences (e.g., "she/her", "he/him", "they/them") using character_update_pronouns(character_id, pronouns) and describe in {source_lang}
-5. Update notes with personality, speech patterns, tone, translation guidance using character_update_notes(character_id, notes) in {source_lang}
-6. End conversation when all updates are complete
-
-Begin analysis now."""
+1. Read the character's current metadata.
+2. Update name_tgt using character_update_name_tgt(character_id, name) in {target_lang} if missing or weak.
+3. Update pronouns with character_update_pronouns(character_id, pronouns) and describe in {source_lang}.
+4. Update notes with character_update_notes(character_id, notes) in {source_lang}.
+5. If character is invalid, you may call character_delete_entry (will require approval).
+6. End when updates are complete."""
 
 
-def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
-    """Return tools for the character detailer subagent bound to the shared context."""
+def _build_character_curator_tools(context: ProjectContext, *, allow_overwrite: bool) -> list[BaseTool]:
+    """Return tools for the character curator subagent bound to the shared context."""
     updated_name_tgt: set[str] = set()
     updated_pronouns: set[str] = set()
     updated_notes: set[str] = set()
@@ -207,7 +162,7 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
         """Add a new character entry with provenance tracking.
 
         Returns:
-            str: Status message after attempting creation.
+            str: Status message.
         """
         return await character_create_entry(
             context,
@@ -223,7 +178,7 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
         """Update the target language name for this character.
 
         Returns:
-            str: Confirmation message after persistence.
+            str: Status message.
         """
         return await character_update_name_tgt(context, character_id, name_tgt, updated_name_tgt=updated_name_tgt)
 
@@ -232,7 +187,7 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
         """Update pronoun preferences for this character.
 
         Returns:
-            str: Confirmation message after persistence.
+            str: Status message.
         """
         return await character_update_pronouns(context, character_id, pronouns, updated_pronouns=updated_pronouns)
 
@@ -241,9 +196,18 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
         """Update character notes (personality, speech patterns, translation guidance).
 
         Returns:
-            str: Confirmation message after persistence.
+            str: Status message.
         """
         return await character_update_notes(context, character_id, notes, updated_notes=updated_notes)
+
+    @tool("character_delete_entry")
+    async def delete_character_tool(character_id: str) -> str:
+        """Delete a character entry.
+
+        Returns:
+            str: Status message.
+        """
+        return await character_delete_entry(context, character_id)
 
     return [
         read_character_tool,
@@ -252,6 +216,7 @@ def _build_character_detailer_tools(context: ProjectContext, *, allow_overwrite:
         update_character_name_tgt_tool,
         update_character_pronouns_tool,
         update_character_notes_tool,
+        delete_character_tool,
     ]
 
 

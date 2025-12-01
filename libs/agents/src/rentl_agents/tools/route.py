@@ -39,7 +39,7 @@ async def route_create_entry(
     from datetime import date
 
     logger.info("Tool call: route_create_entry(route_id=%s)", route_id)
-    origin = f"agent:route_detailer:{date.today().isoformat()}"
+    origin = f"agent:route_outline_builder:{date.today().isoformat()}"
     return await context.add_route(route_id, name, scene_ids or [], origin=origin)
 
 
@@ -70,7 +70,7 @@ async def route_update_synopsis(
             updated_synopsis.add(route_id)
         return approval
 
-    origin = f"agent:route_detailer:{date.today().isoformat()}"
+    origin = f"agent:route_outline_builder:{date.today().isoformat()}"
     result = await context.update_route_synopsis(route_id, synopsis, origin)
     updated_synopsis.add(route_id)
     return result
@@ -103,7 +103,7 @@ async def route_update_primary_characters(
             updated_characters.add(route_id)
         return approval
 
-    origin = f"agent:route_detailer:{date.today().isoformat()}"
+    origin = f"agent:route_outline_builder:{date.today().isoformat()}"
     result = await context.update_route_characters(route_id, character_ids, origin)
     updated_characters.add(route_id)
     return result

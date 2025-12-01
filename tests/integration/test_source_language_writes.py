@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from anyio.lowlevel import checkpoint
 from langgraph.checkpoint.memory import MemorySaver
-from rentl_agents.subagents.glossary_curator import GlossaryDetailResult
+from rentl_agents.subagents.meta_glossary_curator import GlossaryDetailResult
 from rentl_core.context.project import ProjectContext, load_project_context
 from rentl_pipelines.flows.context_builder import _run_context_builder_async
 
@@ -32,10 +32,14 @@ async def test_context_builder_preserves_source_language(monkeypatch: pytest.Mon
         await checkpoint()
         return GlossaryDetailResult(entries_added=0, entries_updated=0, total_entries=0)
 
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene", scene_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_character", noop)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_location", noop)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_route", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_summary", scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_tags", scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_primary_characters", scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_locations", scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_glossary", glossary_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_character", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_location", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.build_route_outline", noop)
     monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_glossary", glossary_stub)
 
     await _run_context_builder_async(

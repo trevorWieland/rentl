@@ -51,7 +51,7 @@ async def glossary_create_entry(context: ProjectContext, term_src: str, term_tgt
     from datetime import date
 
     logger.info("Tool call: glossary_create_entry(term_src=%s)", term_src)
-    origin = f"agent:glossary_curator:{date.today().isoformat()}"
+    origin = f"agent:meta_glossary_curator:{date.today().isoformat()}"
     result = await context.add_glossary_entry(term_src=term_src, term_tgt=term_tgt, notes=notes, origin=origin)
     return result
 
@@ -90,7 +90,7 @@ async def glossary_update_entry(
             if approval:
                 return approval
 
-    origin = f"agent:glossary_curator:{date.today().isoformat()}"
+    origin = f"agent:meta_glossary_curator:{date.today().isoformat()}"
     result = await context.update_glossary_entry(term_src=term_src, term_tgt=term_tgt, notes=notes, origin=origin)
     return result
 

@@ -1,4 +1,4 @@
-"""Live LLM agentevals-style check for the location detailer subagent."""
+"""Live LLM agentevals-style check for the location curator subagent."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_async_t
 from langchain_core.messages import BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.subagents.location_detailer import (
-    build_location_detailer_user_prompt,
-    create_location_detailer_subagent,
+from rentl_agents.subagents.meta_location_curator import (
+    build_location_curator_user_prompt,
+    create_location_curator_subagent,
 )
 from rentl_core.context.project import load_project_context
 from rentl_core.model.location import LocationMetadata
@@ -37,13 +37,13 @@ def _extract_tool_call_names(messages: Iterable[BaseMessage]) -> set[str]:
 
 @pytest.mark.anyio
 @pytest.mark.llm_live
-async def test_location_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
-    """Location detailer should call write_* tools and keep description in source language."""
+async def test_location_curator_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
+    """Location curator should call write_* tools and keep description in source language."""
     context = await load_project_context(tiny_vn_tmp)
     location_id = "classroom"
 
-    prompt = build_location_detailer_user_prompt(context, location_id)
-    subagent = create_location_detailer_subagent(
+    prompt = build_location_curator_user_prompt(context, location_id)
+    subagent = create_location_curator_subagent(
         context,
         allow_overwrite=False,
         checkpointer=MemorySaver(),
@@ -52,7 +52,7 @@ async def test_location_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_
     result = await run_agent_with_auto_approve(
         subagent,
         {"messages": [{"role": "user", "content": prompt}]},
-        thread_id="llm-live:location-detailer:classroom",
+        thread_id="llm-live:meta-location-curator:classroom",
     )
 
     messages = result.get("messages")
@@ -79,4 +79,4 @@ async def test_location_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_
     )
     eval_result = cast(dict[str, object], await judge(outputs=msg_list))
     if not eval_result.get("score"):
-        pytest.fail(f"LLM judge failed location_detailer trajectory: {eval_result}")
+        pytest.fail(f"LLM judge failed meta_location_curator trajectory: {eval_result}")

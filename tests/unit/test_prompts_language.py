@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from rentl_agents.subagents.character_detailer import SYSTEM_PROMPT as CHARACTER_PROMPT
-from rentl_agents.subagents.glossary_curator import SYSTEM_PROMPT as GLOSSARY_PROMPT
-from rentl_agents.subagents.location_detailer import SYSTEM_PROMPT as LOCATION_PROMPT
-from rentl_agents.subagents.route_detailer import SYSTEM_PROMPT as ROUTE_PROMPT
-from rentl_agents.subagents.scene_detailer import SYSTEM_PROMPT as SCENE_PROMPT
+from rentl_agents.subagents.meta_character_curator import SYSTEM_PROMPT as CHARACTER_PROMPT
+from rentl_agents.subagents.meta_glossary_curator import SYSTEM_PROMPT as GLOSSARY_PROMPT
+from rentl_agents.subagents.meta_location_curator import SYSTEM_PROMPT as LOCATION_PROMPT
+from rentl_agents.subagents.route_outline_builder import SYSTEM_PROMPT as ROUTE_PROMPT
+from rentl_agents.subagents.scene_summary_detailer import SYSTEM_PROMPT as SCENE_PROMPT
 
 
 def test_scene_prompt_mentions_source_language() -> None:

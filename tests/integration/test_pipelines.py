@@ -8,7 +8,7 @@ import anyio
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
 from rentl_agents.subagents.consistency_checks import ConsistencyCheckResult
-from rentl_agents.subagents.glossary_curator import GlossaryDetailResult
+from rentl_agents.subagents.meta_glossary_curator import GlossaryDetailResult
 from rentl_agents.subagents.style_checks import StyleCheckResult
 from rentl_agents.subagents.translate_scene import SceneTranslationResult
 from rentl_agents.subagents.translation_reviewer import TranslationReviewResult
@@ -49,10 +49,14 @@ async def test_context_builder_retries_and_records_progress(monkeypatch: pytest.
         await anyio.sleep(0.001)
         return GlossaryDetailResult(entries_added=0, entries_updated=0, total_entries=0)
 
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene", flaky_scene_detail)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_character", noop)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_location", noop)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_route", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_summary", flaky_scene_detail)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_tags", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_primary_characters", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_locations", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_glossary", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_character", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_location", noop)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.build_route_outline", noop)
     monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_glossary", noop_glossary)
 
     progress_events: list[tuple[str, str]] = []

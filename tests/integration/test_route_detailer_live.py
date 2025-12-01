@@ -11,9 +11,9 @@ from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_async_t
 from langchain_core.messages import BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.subagents.route_detailer import (
-    build_route_detailer_user_prompt,
-    create_route_detailer_subagent,
+from rentl_agents.subagents.route_outline_builder import (
+    build_route_outline_user_prompt,
+    create_route_outline_subagent,
 )
 from rentl_core.context.project import load_project_context
 from rentl_core.model.route import RouteMetadata
@@ -37,13 +37,13 @@ def _extract_tool_call_names(messages: Iterable[BaseMessage]) -> set[str]:
 
 @pytest.mark.anyio
 @pytest.mark.llm_live
-async def test_route_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
-    """Route detailer should call route_update_* tools and keep synopsis in source language."""
+async def test_route_outline_builder_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
+    """Route outline builder should call route_update_* tools and keep synopsis in source language."""
     context = await load_project_context(tiny_vn_tmp)
     route_id = "route_aya"
 
-    prompt = build_route_detailer_user_prompt(context, route_id)
-    subagent = create_route_detailer_subagent(
+    prompt = build_route_outline_user_prompt(context, route_id)
+    subagent = create_route_outline_subagent(
         context,
         allow_overwrite=False,
         checkpointer=MemorySaver(),
@@ -52,12 +52,12 @@ async def test_route_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_jud
     result = await run_agent_with_auto_approve(
         subagent,
         {"messages": [{"role": "user", "content": prompt}]},
-        thread_id="llm-live:route-detailer:route_aya",
+        thread_id="llm-live:route-outline-builder:route_aya",
     )
 
     messages = result.get("messages")
-    assert isinstance(messages, list), "Expected messages list from route detailer run"
-    assert messages, "Expected non-empty messages from route detailer run"
+    assert isinstance(messages, list), "Expected messages list from route outline builder run"
+    assert messages, "Expected non-empty messages from route outline builder run"
     msg_list = cast(list[BaseMessage], messages)
     tool_names = _extract_tool_call_names(msg_list)
     required_tools = {
@@ -80,4 +80,4 @@ async def test_route_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_jud
     eval_result = cast(dict[str, object], await judge(outputs=flatten_messages(msg_list)))
     if not eval_result.get("score"):
         reason = eval_result.get("comment") or eval_result
-        pytest.fail(f"LLM judge failed route_detailer trajectory: {reason}")
+        pytest.fail(f"LLM judge failed route_outline_builder trajectory: {reason}")

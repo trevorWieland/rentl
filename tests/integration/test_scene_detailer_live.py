@@ -11,7 +11,10 @@ from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_async_t
 from langchain_core.messages import BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.subagents.scene_detailer import build_scene_detailer_user_prompt, create_scene_detailer_subagent
+from rentl_agents.subagents.scene_summary_detailer import (
+    build_scene_summary_user_prompt,
+    create_scene_summary_detailer_subagent,
+)
 from rentl_core.context.project import load_project_context
 from rentl_core.model.scene import SceneAnnotations
 
@@ -34,14 +37,13 @@ def _extract_tool_call_names(messages: Iterable[BaseMessage]) -> set[str]:
 
 @pytest.mark.anyio
 @pytest.mark.llm_live
-async def test_scene_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
-    """Scene detailer should call all write_* tools and keep metadata in source language."""
+async def test_scene_summary_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
+    """Scene summary detailer should call scene_update_summary and keep metadata in source language."""
     context = await load_project_context(tiny_vn_tmp)
     scene_id = "scene_c_00"  # Includes explicit classroom setting for reliable location inference
-    lines = await context.load_scene_lines(scene_id)
-    prompt = build_scene_detailer_user_prompt(context, scene_id, line_count=len(lines))
+    prompt = build_scene_summary_user_prompt(context, scene_id)
 
-    subagent = create_scene_detailer_subagent(
+    subagent = create_scene_summary_detailer_subagent(
         context,
         allow_overwrite=False,
         checkpointer=MemorySaver(),
@@ -50,20 +52,15 @@ async def test_scene_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_jud
     result = await run_agent_with_auto_approve(
         subagent,
         {"messages": [{"role": "user", "content": prompt}]},
-        thread_id="llm-live:scene-detailer:scene_c_00",
+        thread_id="llm-live:scene-summary-detailer:scene_c_00",
     )
 
     messages = result.get("messages")
-    assert isinstance(messages, list), "Expected messages list from scene detailer run"
-    assert messages, "Expected non-empty messages from scene detailer run"
+    assert isinstance(messages, list), "Expected messages list from scene summary detailer run"
+    assert messages, "Expected non-empty messages from scene summary detailer run"
     msg_list = cast(list[BaseMessage], messages)
     tool_names = _extract_tool_call_names(msg_list)
-    required_tools = {
-        "scene_update_summary",
-        "scene_update_tags",
-        "scene_update_primary_characters",
-        "scene_update_locations",
-    }
+    required_tools = {"scene_update_summary"}
     missing = required_tools - tool_names
     assert not missing, f"Missing expected tool calls: {', '.join(sorted(missing))}"
 
@@ -71,8 +68,7 @@ async def test_scene_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_jud
     updated = context.get_scene(scene_id).annotations
     assert isinstance(updated, SceneAnnotations)
     assert updated.summary, "Expected summary to be recorded"
-    assert updated.tags, "Expected tags to be recorded"
-    assert updated.locations, "Expected locations to be recorded"
+    # Tags/locations/characters are handled by other single-purpose agents.
 
     # LLM judge: verify metadata remains in source language and aligns with scene.
     judge_model = get_default_chat_model()
@@ -83,4 +79,4 @@ async def test_scene_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_jud
     eval_result = cast(dict[str, object], await judge(outputs=flatten_messages(msg_list)))
     if not eval_result.get("score"):
         reason = eval_result.get("comment") or eval_result
-        pytest.fail(f"LLM judge failed scene_detailer trajectory: {reason}")
+        pytest.fail(f"LLM judge failed scene_summary_detailer trajectory: {reason}")

@@ -1,4 +1,4 @@
-"""Live LLM agentevals-style check for the character detailer subagent."""
+"""Live LLM agentevals-style check for the character curator subagent."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_async_t
 from langchain_core.messages import BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.subagents.character_detailer import (
-    build_character_detailer_user_prompt,
-    create_character_detailer_subagent,
+from rentl_agents.subagents.meta_character_curator import (
+    build_character_curator_user_prompt,
+    create_character_curator_subagent,
 )
 from rentl_core.context.project import load_project_context
 from rentl_core.model.character import CharacterMetadata
@@ -37,13 +37,13 @@ def _extract_tool_call_names(messages: Iterable[BaseMessage]) -> set[str]:
 
 @pytest.mark.anyio
 @pytest.mark.llm_live
-async def test_character_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
-    """Character detailer should call write_* tools and keep notes in source language."""
+async def test_character_curator_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
+    """Character curator should call write_* tools and keep notes in source language."""
     context = await load_project_context(tiny_vn_tmp)
     character_id = "aya"
 
-    prompt = build_character_detailer_user_prompt(context, character_id)
-    subagent = create_character_detailer_subagent(
+    prompt = build_character_curator_user_prompt(context, character_id)
+    subagent = create_character_curator_subagent(
         context,
         allow_overwrite=False,
         checkpointer=MemorySaver(),
@@ -52,7 +52,7 @@ async def test_character_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm
     result = await run_agent_with_auto_approve(
         subagent,
         {"messages": [{"role": "user", "content": prompt}]},
-        thread_id="llm-live:character-detailer:aya",
+        thread_id="llm-live:meta-character-curator:aya",
     )
 
     messages = result.get("messages")
@@ -61,9 +61,9 @@ async def test_character_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm
     msg_list = cast(list[BaseMessage], messages)
     tool_names = _extract_tool_call_names(msg_list)
     required_tools = {
-        "update_character_name_tgt",
-        "update_character_pronouns",
-        "update_character_notes",
+        "character_update_name_tgt",
+        "character_update_pronouns",
+        "character_update_notes",
     }
     missing = required_tools - tool_names
     assert not missing, f"Missing expected tool calls: {', '.join(sorted(missing))}"
@@ -82,4 +82,4 @@ async def test_character_detailer_live_calls_and_language(tiny_vn_tmp: Path, llm
     eval_result = cast(dict[str, object], await judge(outputs=flatten_messages(msg_list)))
     if not eval_result.get("score"):
         reason = eval_result.get("comment") or eval_result
-        pytest.fail(f"LLM judge failed character_detailer trajectory: {reason}")
+        pytest.fail(f"LLM judge failed meta_character_curator trajectory: {reason}")

@@ -20,7 +20,11 @@ This document tracks all tasks required to reach v1.0 of the Rentl translation p
   - [x] `delete_glossary_entry(term_src, runtime)`
   - [x] Context docs tools: `list_context_docs`, `read_context_doc` (centralized)
 - [x] Stats coverage: `get_character_completion`, `get_route_progress`
-- [ ] Tool refactor: shared implementations in tools/*.py; per-subagent `_build_tools` wrappers (scene_/route_/curate_ naming); remove builder functions from tool modules
+- [x] Tool refactor: shared implementations in tools/*.py; per-subagent `_build_tools` wrappers (scene_/route_/curate_ naming); remove builder functions from tool modules
+  - [x] Split context subagents into single-purpose files (scene_summary_detailer, scene_tag_detailer, scene_primary_character_detailer, scene_location_detailer, scene_glossary_detailer)
+  - [x] Rename global metadata subagents/files to meta_* (meta_character_curator, meta_location_curator, meta_glossary_curator, route_outline_builder) and rewire pipelines/tests
+  - [x] Update context pipeline to call new single-purpose scene_* subagents sequentially per scene; keep result counters consistent
+  - [x] Refresh integration/unit tests to target new subagents and tool names; retire old scene_detailer live test expectations
 
 ### Phase pipelines & execution
 - [ ] Polish deterministic runners (context/translate/edit) and add pretranslate when ready

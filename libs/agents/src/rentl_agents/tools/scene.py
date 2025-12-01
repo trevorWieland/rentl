@@ -106,7 +106,7 @@ async def scene_update_summary(
         return approval
 
     logger.info("Tool call: scene_update_summary(scene_id=%s)", scene_id)
-    origin = f"agent:scene_detailer:{date.today().isoformat()}"
+    origin = f"agent:scene_summary_detailer:{date.today().isoformat()}"
     result = await context.set_scene_summary(scene_id, summary, origin)
     written_summary.add(scene_id)
     return result
@@ -135,7 +135,7 @@ async def scene_update_tags(context: ProjectContext, scene_id: str, tags: list[s
         return approval
 
     logger.info("Tool call: scene_update_tags(scene_id=%s)", scene_id)
-    origin = f"agent:scene_detailer:{date.today().isoformat()}"
+    origin = f"agent:scene_tag_detailer:{date.today().isoformat()}"
     result = await context.set_scene_tags(scene_id, tags, origin)
     written_tags.add(scene_id)
     return result
@@ -166,7 +166,7 @@ async def scene_update_primary_characters(
         return approval
 
     logger.info("Tool call: scene_update_primary_characters(scene_id=%s)", scene_id)
-    origin = f"agent:scene_detailer:{date.today().isoformat()}"
+    origin = f"agent:scene_primary_character_detailer:{date.today().isoformat()}"
     result = await context.set_scene_characters(scene_id, character_ids, origin)
     written_characters.add(scene_id)
     return result
@@ -197,7 +197,7 @@ async def scene_update_locations(
         return approval
 
     logger.info("Tool call: scene_update_locations(scene_id=%s)", scene_id)
-    origin = f"agent:scene_detailer:{date.today().isoformat()}"
+    origin = f"agent:scene_location_detailer:{date.today().isoformat()}"
     result = await context.set_scene_locations(scene_id, location_ids, origin)
     written_locations.add(scene_id)
     return result

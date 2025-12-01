@@ -19,11 +19,15 @@ import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 from rentl_agents.hitl.checkpoints import get_default_checkpointer, maybe_close_checkpointer
-from rentl_agents.subagents.character_detailer import detail_character
-from rentl_agents.subagents.glossary_curator import GlossaryDetailResult, detail_glossary
-from rentl_agents.subagents.location_detailer import detail_location
-from rentl_agents.subagents.route_detailer import detail_route
-from rentl_agents.subagents.scene_detailer import detail_scene
+from rentl_agents.subagents.meta_character_curator import curate_character
+from rentl_agents.subagents.meta_glossary_curator import GlossaryDetailResult, detail_glossary
+from rentl_agents.subagents.meta_location_curator import curate_location
+from rentl_agents.subagents.route_outline_builder import build_route_outline
+from rentl_agents.subagents.scene_glossary_detailer import detail_scene_glossary
+from rentl_agents.subagents.scene_location_detailer import detail_scene_locations
+from rentl_agents.subagents.scene_primary_character_detailer import detail_scene_primary_characters
+from rentl_agents.subagents.scene_summary_detailer import detail_scene_summary
+from rentl_agents.subagents.scene_tag_detailer import detail_scene_tags
 from rentl_core.context.project import load_project_context
 from rentl_core.model.character import CharacterMetadata
 from rentl_core.model.location import LocationMetadata
@@ -155,6 +159,45 @@ async def _run_context_builder_async(
             except PIPELINE_FAILURE_EXCEPTIONS as exc:
                 _record_error(stage, entity_id, exc)
 
+    async def _run_scene_bundle(scene_id: str) -> None:
+        """Sequentially run scene-level subagents for one scene."""
+        await detail_scene_summary(
+            context,
+            scene_id,
+            allow_overwrite=allow_overwrite,
+            checkpointer=effective_checkpointer,
+            decision_handler=decision_handler,
+            thread_id=f"{base_thread}:scene-summary:{scene_id}",
+        )
+        await detail_scene_tags(
+            context,
+            scene_id,
+            checkpointer=effective_checkpointer,
+            decision_handler=decision_handler,
+            thread_id=f"{base_thread}:scene-tags:{scene_id}",
+        )
+        await detail_scene_primary_characters(
+            context,
+            scene_id,
+            checkpointer=effective_checkpointer,
+            decision_handler=decision_handler,
+            thread_id=f"{base_thread}:scene-characters:{scene_id}",
+        )
+        await detail_scene_locations(
+            context,
+            scene_id,
+            checkpointer=effective_checkpointer,
+            decision_handler=decision_handler,
+            thread_id=f"{base_thread}:scene-locations:{scene_id}",
+        )
+        await detail_scene_glossary(
+            context,
+            scene_id,
+            checkpointer=effective_checkpointer,
+            decision_handler=decision_handler,
+            thread_id=f"{base_thread}:scene-glossary:{scene_id}",
+        )
+
     async with anyio.create_task_group() as tg:
         for sid in scenes_to_run:
             if progress_cb:
@@ -163,14 +206,7 @@ async def _run_context_builder_async(
                 _bounded,
                 "scene_detail",
                 sid,
-                lambda sid=sid: detail_scene(
-                    context,
-                    sid,
-                    allow_overwrite=allow_overwrite,
-                    checkpointer=effective_checkpointer,
-                    decision_handler=decision_handler,
-                    thread_id=f"{base_thread}:scene:{sid}",
-                ),
+                lambda sid=sid: _run_scene_bundle(sid),
             )
 
     async with anyio.create_task_group() as tg:
@@ -181,7 +217,7 @@ async def _run_context_builder_async(
                 _bounded,
                 "character_detail",
                 cid,
-                lambda cid=cid: detail_character(
+                lambda cid=cid: curate_character(
                     context,
                     cid,
                     allow_overwrite=allow_overwrite,
@@ -199,7 +235,7 @@ async def _run_context_builder_async(
                 _bounded,
                 "location_detail",
                 lid,
-                lambda lid=lid: detail_location(
+                lambda lid=lid: curate_location(
                     context,
                     lid,
                     allow_overwrite=allow_overwrite,
@@ -229,7 +265,7 @@ async def _run_context_builder_async(
                 _bounded,
                 "route_detail",
                 rid,
-                lambda rid=rid: detail_route(
+                lambda rid=rid: build_route_outline(
                     context,
                     rid,
                     allow_overwrite=allow_overwrite,

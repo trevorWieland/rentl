@@ -23,6 +23,23 @@ async def _detail_scene_stub(context: ProjectContext, scene_id: str, **_: object
     await context.set_scene_locations(scene_id, ["classroom"], "agent:test")
 
 
+async def _detail_scene_tags_stub(context: ProjectContext, scene_id: str, **_: object) -> None:
+    await context.set_scene_tags(scene_id, ["tag-a", "tag-b"], "agent:test")
+
+
+async def _detail_scene_characters_stub(context: ProjectContext, scene_id: str, **_: object) -> None:
+    await context.set_scene_characters(scene_id, ["mc"], "agent:test")
+
+
+async def _detail_scene_locations_stub(context: ProjectContext, scene_id: str, **_: object) -> None:
+    await context.set_scene_locations(scene_id, ["classroom"], "agent:test")
+
+
+async def _detail_scene_glossary_stub(context: ProjectContext, scene_id: str, **_: object) -> None:
+    origin = f"agent:test:{date.today().isoformat()}"
+    await context.add_glossary_entry("term", "translation", "notes", origin)
+
+
 async def _detail_character_stub(context: ProjectContext, character_id: str, **_: object) -> None:
     """Lightweight character detailer stub."""
     origin = f"agent:test:{date.today().isoformat()}"
@@ -67,10 +84,16 @@ async def test_cli_context_resume_latest(monkeypatch: pytest.MonkeyPatch, tiny_v
     project_path = tiny_vn_tmp
 
     # Patch out agents and HITL prompts
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene", _detail_scene_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_character", _detail_character_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_location", _detail_location_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_route", _detail_route_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_summary", _detail_scene_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_tags", _detail_scene_tags_stub)
+    monkeypatch.setattr(
+        "rentl_pipelines.flows.context_builder.detail_scene_primary_characters", _detail_scene_characters_stub
+    )
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_locations", _detail_scene_locations_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_scene_glossary", _detail_scene_glossary_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_character", _detail_character_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.curate_location", _detail_location_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.context_builder.build_route_outline", _detail_route_stub)
     monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_glossary", _detail_glossary_stub)
     monkeypatch.setattr("rentl_cli.commands.run._prompt_decisions", _approve_decisions)
 
