@@ -379,7 +379,7 @@ Specialized agents for each phase (invoked by pipelines):
   `scene_location_detailer`, `scene_glossary_detailer`, `meta_character_curator`, `meta_location_curator`,
   `meta_glossary_curator`, `route_outline_builder`
 - **Translator**: `scene_translator`
-- **Editor**: `scene_style_checker`, `consistency_checker`, `scene_translation_reviewer`
+- **Editor**: `scene_style_checker`, `route_consistency_checker`, `scene_translation_reviewer`
 
 Each subagent has:
 - A goal description

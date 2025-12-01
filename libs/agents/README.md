@@ -99,7 +99,7 @@ and subagent map.
   ui_read_settings, translation_create_style_check.
 - `scene_translation_reviewer`: Fidelity/fluency review for one scene. Tools: translation_read_scene,
   scene_read_overview, styleguide_read_full, translation_create_review_check.
-- `consistency_checker`: Per-scene consistency pass. Tools: translation_read_scene,
+- `route_consistency_checker`: Per-scene consistency pass. Tools: translation_read_scene,
   translation_create_consistency_check.
 
 These names supersede older examples in this file; keep them stable so HITL `interrupt_on` wiring remains predictable.

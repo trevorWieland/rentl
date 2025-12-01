@@ -11,9 +11,9 @@ from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_async_t
 from langchain_core.messages import BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.subagents.consistency_checker import (
-    build_consistency_checker_user_prompt,
-    create_consistency_checker_subagent,
+from rentl_agents.subagents.route_consistency_checker import (
+    build_route_consistency_checker_user_prompt,
+    create_route_consistency_checker_subagent,
 )
 from rentl_core.context.project import load_project_context
 
@@ -36,13 +36,13 @@ def _extract_tool_call_names(messages: Iterable[BaseMessage]) -> set[str]:
 
 @pytest.mark.anyio
 @pytest.mark.llm_live
-async def test_consistency_checker_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
+async def test_route_consistency_checker_live_calls_and_language(tiny_vn_tmp: Path, llm_judge_model: str) -> None:
     """Consistency checker should read translations and record consistency checks."""
     context = await load_project_context(tiny_vn_tmp)
     scene_id = "scene_a_00"
 
-    prompt = build_consistency_checker_user_prompt(scene_id)
-    subagent = create_consistency_checker_subagent(
+    prompt = build_route_consistency_checker_user_prompt(scene_id)
+    subagent = create_route_consistency_checker_subagent(
         context,
         checkpointer=MemorySaver(),
     )

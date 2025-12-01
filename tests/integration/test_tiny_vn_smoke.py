@@ -85,7 +85,7 @@ async def test_tiny_vn_full_pipeline_smoke(monkeypatch: pytest.MonkeyPatch, tiny
     monkeypatch.setattr("rentl_pipelines.flows.context_builder.detail_glossary", detail_glossary_stub)
     monkeypatch.setattr("rentl_pipelines.flows.translator.translate_scene", translate_scene_stub)
     monkeypatch.setattr("rentl_pipelines.flows.editor.run_style_checks", style_check_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.editor.run_consistency_checks", consistency_check_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.editor.run_route_consistency_checks", consistency_check_stub)
     monkeypatch.setattr("rentl_pipelines.flows.editor.run_translation_review", review_stub)
 
     context_result: ContextBuilderResult = await _run_context_builder_async(project_path, concurrency=1)

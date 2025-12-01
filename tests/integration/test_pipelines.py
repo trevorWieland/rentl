@@ -7,8 +7,8 @@ from pathlib import Path
 import anyio
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
-from rentl_agents.subagents.consistency_checker import ConsistencyCheckResult
 from rentl_agents.subagents.meta_glossary_curator import GlossaryDetailResult
+from rentl_agents.subagents.route_consistency_checker import RouteConsistencyCheckResult
 from rentl_agents.subagents.scene_style_checker import StyleCheckResult
 from rentl_agents.subagents.scene_translation_reviewer import TranslationReviewResult
 from rentl_agents.subagents.scene_translator import SceneTranslationResult
@@ -119,9 +119,9 @@ async def test_editor_records_errors_without_stopping(monkeypatch: pytest.Monkey
         await anyio.sleep(0.001)
         return StyleCheckResult(scene_id=scene_id, checks_recorded=1)
 
-    async def consistency_ok(context: object, scene_id: str, **kwargs: object) -> ConsistencyCheckResult:
+    async def consistency_ok(context: object, scene_id: str, **kwargs: object) -> RouteConsistencyCheckResult:
         await anyio.sleep(0.001)
-        return ConsistencyCheckResult(scene_id=scene_id, checks_recorded=1)
+        return RouteConsistencyCheckResult(scene_id=scene_id, checks_recorded=1)
 
     async def review_or_fail(context: object, scene_id: str, **kwargs: object) -> TranslationReviewResult:
         if scene_id.endswith("01"):
@@ -130,7 +130,7 @@ async def test_editor_records_errors_without_stopping(monkeypatch: pytest.Monkey
         return TranslationReviewResult(scene_id=scene_id, checks_recorded=1)
 
     monkeypatch.setattr("rentl_pipelines.flows.editor.run_style_checks", style_ok)
-    monkeypatch.setattr("rentl_pipelines.flows.editor.run_consistency_checks", consistency_ok)
+    monkeypatch.setattr("rentl_pipelines.flows.editor.run_route_consistency_checks", consistency_ok)
     monkeypatch.setattr("rentl_pipelines.flows.editor.run_translation_review", review_or_fail)
 
     result: EditorResult = await _run_editor_async(

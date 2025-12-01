@@ -1,4 +1,4 @@
-"""Consistency checker subagent."""
+"""Route-level consistency checker subagent."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from rentl_agents.tools.qa import (
 logger = get_logger(__name__)
 
 
-class ConsistencyCheckResult(BaseModel):
-    """Result for consistency checker subagent."""
+class RouteConsistencyCheckResult(BaseModel):
+    """Result for route consistency checker subagent."""
 
     scene_id: str = Field(description="Scene reviewed")
     checks_recorded: int = Field(description="Number of consistency checks recorded.")
@@ -35,18 +35,18 @@ Workflow:
 4) Be concise and avoid restating text. End when checks are recorded."""
 
 
-def create_consistency_checker_subagent(
+def create_route_consistency_checker_subagent(
     context: ProjectContext, *, checkpointer: BaseCheckpointSaver | None = None
 ) -> CompiledStateGraph:
-    """Create consistency checker LangChain subagent and return the runnable graph.
+    """Create route consistency checker LangChain subagent and return the runnable graph.
 
     Returns:
         CompiledStateGraph: Runnable agent graph for consistency checks.
     """
-    tools = _build_consistency_checker_tools(context)
+    tools = _build_route_consistency_checker_tools(context)
     model = get_default_chat_model()
     tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
-    logger.info("Launching consistency-checker with tools: %s", ", ".join(tool_names))
+    logger.info("Launching route-consistency-checker with tools: %s", ", ".join(tool_names))
     graph = create_agent(
         model=model,
         tools=tools,
@@ -57,8 +57,8 @@ def create_consistency_checker_subagent(
     return graph
 
 
-def _build_consistency_checker_tools(context: ProjectContext) -> list[BaseTool]:
-    """Return tools for the consistency checker subagent bound to the shared context."""
+def _build_route_consistency_checker_tools(context: ProjectContext) -> list[BaseTool]:
+    """Return tools for the route consistency checker subagent bound to the shared context."""
 
     @tool("translation_read_scene")
     async def read_translations_tool(scene_id: str) -> str:
@@ -78,35 +78,35 @@ def _build_consistency_checker_tools(context: ProjectContext) -> list[BaseTool]:
             line_id,
             passed,
             note,
-            origin="agent:consistency_checker",
+            origin="agent:route_consistency_checker",
         )
 
     return [read_translations_tool, record_consistency_check_tool]
 
 
-async def run_consistency_checks(
+async def run_route_consistency_checks(
     context: ProjectContext,
     scene_id: str,
     *,
     checkpointer: BaseCheckpointSaver | None = None,
     thread_id: str | None = None,
-) -> ConsistencyCheckResult:
+) -> RouteConsistencyCheckResult:
     """Run consistency checker for a scene.
 
     Returns:
-        ConsistencyCheckResult: Recorded consistency check counts.
+        RouteConsistencyCheckResult: Recorded consistency check counts.
     """
-    subagent = create_consistency_checker_subagent(context, checkpointer=checkpointer)
+    subagent = create_route_consistency_checker_subagent(context, checkpointer=checkpointer)
     await subagent.ainvoke(
-        {"messages": [{"role": "user", "content": build_consistency_checker_user_prompt(scene_id)}]},
+        {"messages": [{"role": "user", "content": build_route_consistency_checker_user_prompt(scene_id)}]},
         config={"configurable": {"thread_id": thread_id or f"edit-consistency:{scene_id}"}},
     )
     translations = await context.get_translations(scene_id)
     recorded = sum(1 for line in translations if "consistency_check" in line.meta.checks)
-    return ConsistencyCheckResult(scene_id=scene_id, checks_recorded=recorded)
+    return RouteConsistencyCheckResult(scene_id=scene_id, checks_recorded=recorded)
 
 
-def build_consistency_checker_user_prompt(scene_id: str) -> str:
+def build_route_consistency_checker_user_prompt(scene_id: str) -> str:
     """Construct the user prompt for consistency checks.
 
     Returns:

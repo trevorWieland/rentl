@@ -11,7 +11,10 @@ import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 from rentl_agents.hitl.checkpoints import get_default_checkpointer, maybe_close_checkpointer
-from rentl_agents.subagents.consistency_checker import ConsistencyCheckResult, run_consistency_checks
+from rentl_agents.subagents.route_consistency_checker import (
+    RouteConsistencyCheckResult,
+    run_route_consistency_checks,
+)
 from rentl_agents.subagents.scene_style_checker import StyleCheckResult, run_style_checks
 from rentl_agents.subagents.scene_translation_reviewer import (
     TranslationReviewResult,
@@ -68,7 +71,7 @@ async def _run_editor_async(
     checkpointer: BaseCheckpointSaver | None = None,
     report_path: Path | None = None,
     style_runner: Callable[..., Awaitable[StyleCheckResult]] | None = None,
-    consistency_runner: Callable[..., Awaitable[ConsistencyCheckResult]] | None = None,
+    consistency_runner: Callable[..., Awaitable[RouteConsistencyCheckResult]] | None = None,
     review_runner: Callable[..., Awaitable[TranslationReviewResult]] | None = None,
     checkpoint_enabled: bool = True,
 ) -> EditorResult:
@@ -150,7 +153,7 @@ async def _run_editor_async(
     completed_scene_ids: list[str] = []
     base_thread = thread_id or ("edit:routes:" + ",".join(sorted(route_ids)) if route_ids else "edit")
     style_runner = style_runner or run_style_checks
-    consistency_runner = consistency_runner or run_consistency_checks
+    consistency_runner = consistency_runner or run_route_consistency_checks
     review_runner = review_runner or run_translation_review
 
     def _record_error(stage: str, entity_id: str, exc: BaseException) -> None:
@@ -246,7 +249,7 @@ def run_editor(
     checkpointer: BaseCheckpointSaver | None = None,
     report_path: Path | None = None,
     style_runner: Callable[..., Awaitable[StyleCheckResult]] | None = None,
-    consistency_runner: Callable[..., Awaitable[ConsistencyCheckResult]] | None = None,
+    consistency_runner: Callable[..., Awaitable[RouteConsistencyCheckResult]] | None = None,
     review_runner: Callable[..., Awaitable[TranslationReviewResult]] | None = None,
     checkpoint_enabled: bool = True,
 ) -> EditorResult:

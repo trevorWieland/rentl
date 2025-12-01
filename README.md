@@ -187,7 +187,7 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 | Subagent                      | Purpose                                                                      | Status          |
 |-------------------------------|------------------------------------------------------------------------------|-----------------|
 | `scene_style_checker`         | Enforces style guide (tone, honorific policies, formatting)                  | **Implemented** |
-| `consistency_checker`         | Records per-line consistency checks on translated scenes                     | **Implemented** |
+| `route_consistency_checker`   | Records per-line consistency checks on translated scenes                     | **Implemented** |
 | `scene_translation_reviewer`  | Reviews translation quality, flags lines for retranslation                   | **Implemented** |
 
 ---

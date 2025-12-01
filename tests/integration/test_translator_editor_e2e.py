@@ -110,7 +110,7 @@ async def test_editor_pipeline_e2e_with_mocks(monkeypatch: pytest.MonkeyPatch, t
 
     # Patch editor QA runners
     monkeypatch.setattr("rentl_pipelines.flows.editor.run_style_checks", _style_check_stub)
-    monkeypatch.setattr("rentl_pipelines.flows.editor.run_consistency_checks", _consistency_check_stub)
+    monkeypatch.setattr("rentl_pipelines.flows.editor.run_route_consistency_checks", _consistency_check_stub)
     monkeypatch.setattr("rentl_pipelines.flows.editor.run_translation_review", _review_stub)
 
     result: EditorResult = await _run_editor_async(

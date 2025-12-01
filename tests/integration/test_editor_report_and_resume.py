@@ -7,7 +7,7 @@ from pathlib import Path
 import anyio
 import pytest
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from rentl_agents.subagents.consistency_checker import ConsistencyCheckResult
+from rentl_agents.subagents.route_consistency_checker import RouteConsistencyCheckResult
 from rentl_agents.subagents.scene_style_checker import StyleCheckResult
 from rentl_agents.subagents.scene_translation_reviewer import TranslationReviewResult
 from rentl_cli.utils.baseline import write_baseline
@@ -50,9 +50,9 @@ async def test_editor_writes_report_and_uses_sqlite_checkpointer(tmp_path: Path)
             await anyio.sleep(0.001)
             return StyleCheckResult(scene_id=scene_id, checks_recorded=1)
 
-        async def consistency_ok(context: object, scene_id: str, **_: object) -> ConsistencyCheckResult:
+        async def consistency_ok(context: object, scene_id: str, **_: object) -> RouteConsistencyCheckResult:
             await anyio.sleep(0.001)
-            return ConsistencyCheckResult(scene_id=scene_id, checks_recorded=1)
+            return RouteConsistencyCheckResult(scene_id=scene_id, checks_recorded=1)
 
         async def review_ok(context: object, scene_id: str, **_: object) -> TranslationReviewResult:
             await anyio.sleep(0.001)
