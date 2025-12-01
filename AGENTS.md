@@ -41,7 +41,8 @@ rentl is moving to deterministic, phase-first pipelines (Context, Translate, Edi
 ### Subagents (LangChain Agents)
 
 - Created with `create_agent` from `langchain.agents`; pipelines call the returned runnable graph directly.
-- Domain-focused (scene_detailer, translate_scene, style_checks, etc.) with specialized tools; no filesystem access.
+- Domain-focused (scene_summary_detailer, scene_translator, scene_style_checker, etc.) with specialized tools; no
+  filesystem access.
 - Optional middleware: `HumanInTheLoopMiddleware` for approvals, `TodoListMiddleware` for self-planning. Do not add filesystem middleware.
 
 **Example:**
@@ -50,11 +51,11 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langgraph.checkpoint.memory import MemorySaver
 
-scene_detailer = create_agent(
+scene_summary_detailer = create_agent(
     model=model,
-    tools=_build_scene_detailer_tools(context, allow_overwrite=False),
-    system_prompt="You enrich scene metadata...",
-    middleware=[HumanInTheLoopMiddleware(interrupt_on={"write_scene_summary": True})],
+    tools=_build_scene_summary_tools(context, allow_overwrite=False),
+    system_prompt="You write concise scene summaries in the source language.",
+    middleware=[HumanInTheLoopMiddleware(interrupt_on={"scene_update_summary": True})],
     checkpointer=MemorySaver(),
 )
 ```
@@ -74,7 +75,7 @@ from rentl_agents.hitl.checkpoints import get_default_checkpointer
 checkpointer = await get_default_checkpointer(project_path / ".rentl" / "checkpoints.db")
 
 await run_with_human_loop(
-    scene_detailer,
+    scene_summary_detailer,
     {"messages": [{"role": "user", "content": user_prompt}]},
     decision_handler=my_decision_fn,  # CLI/TUI/other frontend
     thread_id="context:scene_a_00",   # RunnableConfig thread_id for resume
@@ -164,15 +165,22 @@ async def run_context_pipeline(project_path: Path):
             middleware=[ContextInjectionMiddleware(project_context=context)],
         )
 
-    scene_detailer = create_scene_detailer_subagent(context)
-    character_detailer = create_character_detailer_subagent(context)
+scene_summary_detailer = create_scene_summary_detailer_subagent(context)
+scene_tag_detailer = create_scene_tag_detailer_subagent(context)
+scene_primary_character_detailer = create_scene_primary_character_detailer_subagent(context)
+scene_location_detailer = create_scene_location_detailer_subagent(context)
+scene_glossary_detailer = create_scene_glossary_detailer_subagent(context)
+meta_character_curator = create_character_curator_subagent(context)
+meta_location_curator = create_location_curator_subagent(context)
+meta_glossary_curator = create_glossary_curator_subagent(context)
+route_outline_builder = create_route_outline_subagent(context)
 
     # Queue work from state (e.g., scenes missing summary/tags/locations)
     pending = [sid for sid, scene in context.scenes.items() if not scene.annotations.locations]
 
     async with anyio.create_task_group() as tg:
         for sid in pending:
-            tg.start_soon(scene_detailer.ainvoke, {"messages": [...]})
+            tg.start_soon(scene_summary_detailer.ainvoke, {"messages": [...]})
 ```
 
 **Why single-game-per-repo:**
@@ -367,9 +375,11 @@ Defines data models, loaders, and configuration:
 
 Specialized agents for each phase (invoked by pipelines):
 
-- **Context Builder**: `scene_detailer`, `character_detailer`, `location_detailer`, `glossary_detailer`, `route_detailer`
+- **Context Builder**: `scene_summary_detailer`, `scene_tag_detailer`, `scene_primary_character_detailer`,
+  `scene_location_detailer`, `scene_glossary_detailer`, `meta_character_curator`, `meta_location_curator`,
+  `meta_glossary_curator`, `route_outline_builder`
 - **Translator**: `scene_translator`
-- **Editor**: `scene_style_checker`, `scene_consistency_checker`, `scene_translation_reviewer`
+- **Editor**: `scene_style_checker`, `consistency_checker`, `scene_translation_reviewer`
 
 Each subagent has:
 - A goal description
@@ -576,7 +586,7 @@ async def update_character_bio(
         pass
 
     char.notes = new_bio
-    char.notes_origin = f"agent:character_detailer:{date.today()}"
+    char.notes_origin = f"agent:meta_character_curator:{date.today()}"
     await context.save_characters()
     return f"Updated bio for {character_id}"
 ```
@@ -663,7 +673,7 @@ Mock LLM backends for deterministic tests:
 ```python
 from unittest.mock import AsyncMock
 
-async def test_scene_detailer():
+async def test_scene_summary_detailer():
     mock_llm = AsyncMock(return_value="Scene summary here")
     result = await summarize_scene(mock_llm, scene)
     assert "summary" in result
@@ -702,11 +712,11 @@ When working with human developers:
 
 **Example**:
 
-> I've identified 3 issues with the character_detailer implementation:
+> I've identified 3 issues with the scene_primary_character_detailer implementation:
 >
-> 1. Missing provenance tracking on `pronouns` field (rentl_agents/subagents/character_detailer.py:23)
-> 2. Not checking HITL approval before updating human-authored notes (line 45)
-> 3. No error handling for missing character IDs (line 12)
+> 1. Missing provenance tracking on `primary_characters_origin` field (rentl_agents/tools/scene.py)
+> 2. Not checking HITL approval before updating human-authored characters (scene_update_primary_characters)
+> 3. No error handling for missing character IDs in context
 >
 > Proposed fixes:
 > 1. Add `pronouns_origin` field update

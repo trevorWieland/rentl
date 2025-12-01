@@ -91,7 +91,7 @@ def _build_style_checker_tools(context: ProjectContext) -> list[BaseTool]:
             line_id,
             passed,
             note,
-            origin="agent:style_checker",
+            origin="agent:scene_style_checker",
         )
 
     return [read_translations_tool, read_style_guide_tool, get_ui_settings_tool, record_style_check_tool]

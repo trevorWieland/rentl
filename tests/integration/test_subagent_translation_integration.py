@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from rentl_agents.subagents.translate_scene import translate_scene
-from rentl_agents.subagents.translation_reviewer import run_translation_review
+from rentl_agents.subagents.scene_translation_reviewer import run_translation_review
+from rentl_agents.subagents.scene_translator import translate_scene
 from rentl_core.context.project import ProjectContext, load_project_context
 from rentl_core.model.line import TranslatedLine
 
@@ -34,7 +34,7 @@ async def test_translate_scene_records_translations(monkeypatch: pytest.MonkeyPa
             await context.record_translation(scene_id, translation, allow_overwrite=True)
         return {"done": True}
 
-    monkeypatch.setattr("rentl_agents.subagents.translate_scene.run_with_human_loop", stub_run_with_human_loop)
+    monkeypatch.setattr("rentl_agents.subagents.scene_translator.run_with_human_loop", stub_run_with_human_loop)
 
     result = await translate_scene(context, scene_id, allow_overwrite=True, thread_id="translate-test")
 
@@ -75,7 +75,7 @@ async def test_translation_reviewer_records_checks(monkeypatch: pytest.MonkeyPat
         return StubReviewer(context)
 
     monkeypatch.setattr(
-        "rentl_agents.subagents.translation_reviewer.create_translation_reviewer_subagent", stub_reviewer_factory
+        "rentl_agents.subagents.scene_translation_reviewer.create_translation_reviewer_subagent", stub_reviewer_factory
     )
 
     result = await run_translation_review(context, scene_id, thread_id="review-test")

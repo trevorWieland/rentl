@@ -16,7 +16,7 @@ import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 from rentl_agents.hitl.checkpoints import get_default_checkpointer, maybe_close_checkpointer
-from rentl_agents.subagents.translate_scene import translate_scene
+from rentl_agents.subagents.scene_translator import translate_scene
 from rentl_core.context.project import load_project_context
 from rentl_core.model.line import SourceLine
 from rentl_core.util.logging import get_logger

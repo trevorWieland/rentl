@@ -82,8 +82,7 @@ LANGSMITH_API_KEY=optional-for-observability
 # Validate metadata + scene files
 uv run python -m rentl_cli.main validate --project-path examples/tiny_vn
 
-# Context builder: detail all scenes (generates summary, tags, characters, locations)
-# Context builder: detail scenes (pipeline mode)
+# Context builder: detail scenes (summary, tags, characters, locations, glossary)
 uv run python -m rentl_cli.main context --project-path examples/tiny_vn
 ```
 
@@ -165,13 +164,17 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 
 ### Context Builder Subagents (v1.0)
 
-| Subagent            | Purpose                                                                                  | Status              |
-|---------------------|------------------------------------------------------------------------------------------|---------------------|
-| `scene_detailer`    | Generates scene summaries, tags, primary characters, and locations                       | **Implemented**     |
-| `character_detailer`| Expands character bios, pronoun guidance, speech pattern notes                           | **Implemented**     |
-| `location_detailer` | Captures location descriptions, mood cues, atmospheric details                           | **Implemented**     |
-| `glossary_detailer` | Proposes new glossary entries or updates via HITL approval                               | **Implemented**     |
-| `route_detailer`    | Enriches route metadata (synopsis, primary characters) with human supervision            | **Implemented**     |
+| Subagent                            | Purpose                                                                                  | Status              |
+|-------------------------------------|------------------------------------------------------------------------------------------|---------------------|
+| `scene_summary_detailer`            | Writes scene summary (source language, concise, single-use)                             | **Implemented**     |
+| `scene_tag_detailer`                | Assigns scene tags                                                                       | **Implemented**     |
+| `scene_primary_character_detailer`  | Sets primary character IDs for a scene                                                   | **Implemented**     |
+| `scene_location_detailer`           | Sets scene location IDs and enriches location metadata                                   | **Implemented**     |
+| `scene_glossary_detailer`           | Adds/updates glossary entries discovered in a scene                                      | **Implemented**     |
+| `meta_character_curator`            | Polishes/deduplicates character metadata                                                 | **Implemented**     |
+| `meta_location_curator`             | Polishes/deduplicates location metadata                                                  | **Implemented**     |
+| `meta_glossary_curator`             | Polishes/merges glossary entries                                                         | **Implemented**     |
+| `route_outline_builder`             | Writes route synopsis and primary characters                                             | **Implemented**     |
 
 ### Translator Subagents (v1.0)
 
@@ -184,36 +187,57 @@ See [SCHEMAS.md](SCHEMAS.md) for complete provenance documentation.
 | Subagent                      | Purpose                                                                      | Status          |
 |-------------------------------|------------------------------------------------------------------------------|-----------------|
 | `scene_style_checker`         | Enforces style guide (tone, honorific policies, formatting)                  | **Implemented** |
-| `scene_consistency_checker`   | Cross-scene review for terminology, pronouns, character names                | **Implemented** |
+| `consistency_checker`         | Records per-line consistency checks on translated scenes                     | **Implemented** |
 | `scene_translation_reviewer`  | Reviews translation quality, flags lines for retranslation                   | **Implemented** |
 
 ---
 
 ## Tools (v1.0)
 
-| Tool                      | Description                                                              | Agents/Subagents        | Status            |
-|---------------------------|--------------------------------------------------------------------------|-------------------------|-------------------|
-| `read_scene_overview`     | Scene metadata + transcript + stored summary (hidden when overwriting)   | Context, Translator     | **Implemented**   |
-| `list_context_docs`       | Lists documents under `metadata/context_docs/`                           | All agents              | **Implemented**   |
-| `read_context_doc`        | Returns contents of a context document                                   | All agents              | **Implemented**   |
-| `write_scene_summary`     | Writes scene summary (single-use; overwrite requires flag)               | Context                 | **Implemented**   |
-| `write_scene_tags`        | Writes scene tags (single-use; overwrite requires flag)                  | Context                 | **Implemented**   |
-| `write_primary_characters`| Writes primary character IDs (single-use; overwrite requires flag)       | Context                 | **Implemented**   |
-| `write_scene_locations`   | Writes location IDs (single-use; overwrite requires flag)                | Context                 | **Implemented**   |
-| `read_character`          | Returns character metadata (names, pronouns, bio)                        | Context, Translator     | **Implemented**   |
-| `update_character`        | Updates character fields with HITL approval                              | Context                 | **Implemented**   |
-| `read_location`           | Returns location metadata (names, description)                           | Context, Translator     | **Implemented**   |
-| `update_location`         | Updates location fields with HITL approval                               | Context                 | **Implemented**   |
-| `read_glossary`           | Searches glossary entries by term                                        | Translator, Editor      | **Implemented**   |
-| `add_glossary_entry`      | Proposes new glossary entry with HITL approval                           | Context                 | **Implemented**   |
-| `update_glossary_entry`   | Updates existing glossary entry with HITL approval                       | Context                 | **Implemented**   |
-| `read_route`              | Returns route metadata (synopsis, scene ordering, characters)            | Context                 | **Implemented**   |
-| `update_route`            | Updates route fields with HITL approval                                  | Context                 | **Implemented**   |
-| `mtl_translate`           | Calls specialized MTL backend for translation (e.g., Sugoi-14B)          | Translator              | **Implemented**   |
-| `write_translation`       | Writes translation for a line (provenance tracked)                       | Translator              | **Implemented**   |
-| `record_style_check`      | Records style guide compliance check results                             | Editor                  | **Implemented**   |
-| `record_consistency_check`| Records terminology/pronoun consistency check results                    | Editor                  | **Implemented**   |
-| `record_quality_check`    | Records translation quality review results                               | Editor                  | **Implemented**   |
+| Tool                            | Description                                                              | Agents/Subagents        | Status            |
+|---------------------------------|--------------------------------------------------------------------------|-------------------------|-------------------|
+| `scene_read_overview`           | Scene metadata + transcript + stored summary (hidden when overwriting)   | Context, Translator     | **Implemented**   |
+| `scene_read_metadata`           | Scene metadata without transcript                                        | Context                 | **Implemented**   |
+| `scene_read_redacted`           | Scene metadata + transcript with summary redacted                        | Context                 | **Implemented**   |
+| `scene_update_summary`          | Writes scene summary (single-use guard)                                  | Context                 | **Implemented**   |
+| `scene_update_tags`             | Writes scene tags (single-use guard)                                     | Context                 | **Implemented**   |
+| `scene_update_primary_characters`| Writes primary character IDs (single-use guard)                         | Context                 | **Implemented**   |
+| `scene_update_locations`        | Writes location IDs (single-use guard)                                   | Context                 | **Implemented**   |
+| `character_read_entry`          | Returns character metadata (names, pronouns, notes)                      | Context, Translator     | **Implemented**   |
+| `character_create_entry`        | Creates a character entry                                                | Context                 | **Implemented**   |
+| `character_update_name_tgt`     | Updates character target name with HITL/provenance                       | Context                 | **Implemented**   |
+| `character_update_pronouns`     | Updates character pronouns with HITL/provenance                          | Context                 | **Implemented**   |
+| `character_update_notes`        | Updates character notes with HITL/provenance                             | Context                 | **Implemented**   |
+| `character_delete_entry`        | Deletes a character (approval required for human-authored fields)        | Context                 | **Implemented**   |
+| `location_read_entry`           | Returns location metadata                                                | Context, Translator     | **Implemented**   |
+| `location_create_entry`         | Creates a location entry                                                 | Context                 | **Implemented**   |
+| `location_update_name_tgt`      | Updates location target name with HITL/provenance                        | Context                 | **Implemented**   |
+| `location_update_description`   | Updates location description with HITL/provenance                        | Context                 | **Implemented**   |
+| `location_delete_entry`         | Deletes a location (approval required for human-authored fields)         | Context                 | **Implemented**   |
+| `glossary_search_term`          | Searches glossary entries by source term                                 | Context, Translator, Editor | **Implemented** |
+| `glossary_read_entry`           | Reads a specific glossary entry                                           | Context, Translator, Editor | **Implemented** |
+| `glossary_create_entry`         | Creates a glossary entry                                                  | Context                 | **Implemented**   |
+| `glossary_update_entry`         | Updates a glossary entry                                                  | Context                 | **Implemented**   |
+| `glossary_merge_entries`        | Merges glossary entries                                                   | Context                 | **Implemented**   |
+| `glossary_delete_entry`         | Deletes a glossary entry (approval required for human-authored fields)   | Context                 | **Implemented**   |
+| `route_read_entry`              | Returns route metadata                                                    | Context                 | **Implemented**   |
+| `route_create_entry`            | Creates a route entry                                                     | Context                 | **Implemented**   |
+| `route_update_synopsis`         | Updates route synopsis with HITL/provenance                               | Context                 | **Implemented**   |
+| `route_update_primary_characters`| Updates route primary characters with HITL/provenance                    | Context                 | **Implemented**   |
+| `route_delete_entry`            | Deletes a route (approval required for human-authored fields)             | Context                 | **Implemented**   |
+| `styleguide_read_full`          | Reads the project style guide                                             | Translator, Editor      | **Implemented**   |
+| `ui_read_settings`              | Reads UI constraints                                                      | Translator, Editor      | **Implemented**   |
+| `translation_check_mtl_available`| Checks MTL backend availability                                          | Translator              | **Implemented**   |
+| `translation_create_mtl_suggestion`| Calls specialized MTL backend for translation                           | Translator              | **Implemented**   |
+| `translation_create_line`       | Writes translation for a line (provenance tracked)                        | Translator              | **Implemented**   |
+| `translation_update_line`       | Overwrites translation for a line (provenance tracked)                    | Translator              | **Implemented**   |
+| `translation_read_scene`        | Reads translated lines for a scene                                        | Editor                  | **Implemented**   |
+| `translation_create_style_check`| Records style guide compliance check results                              | Editor                  | **Implemented**   |
+| `translation_create_consistency_check`| Records terminology/pronoun consistency check results               | Editor                  | **Implemented**   |
+| `translation_create_review_check`| Records translation quality review results                               | Editor                  | **Implemented**   |
+| `contextdoc_list_all`           | Lists documents under `metadata/context_docs/`                            | All agents              | **Implemented**   |
+| `contextdoc_read_doc`           | Returns contents of a context document                                    | All agents              | **Implemented**   |
+| `context_read_status`           | Reports pipeline status counters                                          | Pipelines               | **Implemented**   |
 
 ---
 

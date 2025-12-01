@@ -11,7 +11,7 @@ from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_async_t
 from langchain_core.messages import BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.subagents.style_checks import build_style_checker_user_prompt, create_style_checker_subagent
+from rentl_agents.subagents.scene_style_checker import build_style_checker_user_prompt, create_style_checker_subagent
 from rentl_core.context.project import load_project_context
 
 from tests.helpers.live_llm import flatten_messages, run_agent_with_auto_approve

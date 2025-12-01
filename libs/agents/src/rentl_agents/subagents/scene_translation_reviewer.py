@@ -122,7 +122,7 @@ def _build_translation_reviewer_tools(context: ProjectContext) -> list[BaseTool]
             line_id,
             passed,
             note,
-            origin="agent:translation_reviewer",
+            origin="agent:scene_translation_reviewer",
         )
 
     return [

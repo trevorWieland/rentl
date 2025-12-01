@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from anyio.lowlevel import checkpoint
 from langgraph.checkpoint.memory import MemorySaver
-from rentl_agents.subagents.translate_scene import SceneTranslationResult
+from rentl_agents.subagents.scene_translator import SceneTranslationResult
 from rentl_pipelines.flows.context_builder import _run_context_builder_async
 from rentl_pipelines.flows.translator import _run_translator_async
 

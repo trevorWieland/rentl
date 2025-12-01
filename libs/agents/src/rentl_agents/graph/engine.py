@@ -10,7 +10,7 @@ from rentl_agents.subagents.meta_glossary_curator import GlossaryDetailResult, d
 from rentl_agents.subagents.meta_location_curator import LocationCurateResult, curate_location
 from rentl_agents.subagents.route_outline_builder import RouteOutlineResult, build_route_outline
 from rentl_agents.subagents.scene_summary_detailer import SceneSummaryResult, detail_scene_summary
-from rentl_agents.subagents.translate_scene import SceneTranslationResult, translate_scene
+from rentl_agents.subagents.scene_translator import SceneTranslationResult, translate_scene
 
 __all__ = [
     "CharacterCurateResult",

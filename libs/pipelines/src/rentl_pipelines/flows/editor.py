@@ -11,12 +11,9 @@ import anyio
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel, Field
 from rentl_agents.hitl.checkpoints import get_default_checkpointer, maybe_close_checkpointer
-from rentl_agents.subagents.consistency_checks import (
-    ConsistencyCheckResult,
-    run_consistency_checks,
-)
-from rentl_agents.subagents.style_checks import StyleCheckResult, run_style_checks
-from rentl_agents.subagents.translation_reviewer import (
+from rentl_agents.subagents.consistency_checker import ConsistencyCheckResult, run_consistency_checks
+from rentl_agents.subagents.scene_style_checker import StyleCheckResult, run_style_checks
+from rentl_agents.subagents.scene_translation_reviewer import (
     TranslationReviewResult,
     run_translation_review,
 )

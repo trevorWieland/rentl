@@ -10,7 +10,7 @@ from datetime import date
 
 from langchain_core.tools import BaseTool, tool
 from rentl_agents.subagents.meta_glossary_curator import _build_glossary_curator_tools
-from rentl_agents.subagents.translate_scene import _build_scene_translator_tools
+from rentl_agents.subagents.scene_translator import _build_scene_translator_tools
 from rentl_agents.tools.character import (
     character_create_entry,
     character_delete_entry,

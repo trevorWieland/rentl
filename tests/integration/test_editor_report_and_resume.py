@@ -7,9 +7,9 @@ from pathlib import Path
 import anyio
 import pytest
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from rentl_agents.subagents.consistency_checks import ConsistencyCheckResult
-from rentl_agents.subagents.style_checks import StyleCheckResult
-from rentl_agents.subagents.translation_reviewer import TranslationReviewResult
+from rentl_agents.subagents.consistency_checker import ConsistencyCheckResult
+from rentl_agents.subagents.scene_style_checker import StyleCheckResult
+from rentl_agents.subagents.scene_translation_reviewer import TranslationReviewResult
 from rentl_cli.utils.baseline import write_baseline
 from rentl_core.context.project import load_project_context
 from rentl_core.model.line import TranslatedLine

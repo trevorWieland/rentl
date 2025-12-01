@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
-from rentl_agents.subagents.translate_scene import SceneTranslationResult
+from rentl_agents.subagents.scene_translator import SceneTranslationResult
 from rentl_core.context.project import ProjectContext, load_project_context
 from rentl_core.model.line import TranslatedLine
 from rentl_pipelines.flows.editor import EditorResult, _run_editor_async

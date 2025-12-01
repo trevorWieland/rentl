@@ -25,7 +25,7 @@ PIPELINE_FAILURE_EXCEPTIONS: tuple[type[BaseException], ...] = (
 class PipelineError(BaseModel):
     """Structured error surfaced by a pipeline stage."""
 
-    stage: str = Field(description="Name of the failing stage (e.g., scene_detail, translate_scene).")
+    stage: str = Field(description="Name of the failing stage (e.g., scene_detail, scene_translator).")
     entity_id: str = Field(description="Identifier for the entity being processed (scene/character/etc).")
     error: str = Field(description="Stringified error for display/logging.")
 

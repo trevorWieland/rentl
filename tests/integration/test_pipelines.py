@@ -7,11 +7,11 @@ from pathlib import Path
 import anyio
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
-from rentl_agents.subagents.consistency_checks import ConsistencyCheckResult
+from rentl_agents.subagents.consistency_checker import ConsistencyCheckResult
 from rentl_agents.subagents.meta_glossary_curator import GlossaryDetailResult
-from rentl_agents.subagents.style_checks import StyleCheckResult
-from rentl_agents.subagents.translate_scene import SceneTranslationResult
-from rentl_agents.subagents.translation_reviewer import TranslationReviewResult
+from rentl_agents.subagents.scene_style_checker import StyleCheckResult
+from rentl_agents.subagents.scene_translation_reviewer import TranslationReviewResult
+from rentl_agents.subagents.scene_translator import SceneTranslationResult
 from rentl_core.context.project import load_project_context
 from rentl_core.model.line import TranslatedLine
 from rentl_pipelines.flows.context_builder import ContextBuilderResult, _run_context_builder_async

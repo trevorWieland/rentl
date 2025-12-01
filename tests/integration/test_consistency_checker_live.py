@@ -11,7 +11,7 @@ from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_async_t
 from langchain_core.messages import BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from rentl_agents.backends.base import get_default_chat_model
-from rentl_agents.subagents.consistency_checks import (
+from rentl_agents.subagents.consistency_checker import (
     build_consistency_checker_user_prompt,
     create_consistency_checker_subagent,
 )
