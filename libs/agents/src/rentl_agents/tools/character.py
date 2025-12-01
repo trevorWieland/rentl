@@ -142,3 +142,28 @@ async def character_update_notes(
     result = await context.update_character_notes(character_id, notes, origin)
     updated_notes.add(character_id)
     return result
+
+
+async def character_delete_entry(context: ProjectContext, character_id: str) -> str:
+    """Delete a character entry with HITL protection for human-authored fields.
+
+    Returns:
+        str: Status or approval message.
+    """
+    character = context.characters.get(character_id)
+    if not character:
+        return f"Character '{character_id}' not found."
+
+    if any(
+        origin == "human"
+        for origin in (
+            character.name_src_origin,
+            character.name_tgt_origin,
+            character.pronouns_origin,
+            character.notes_origin,
+        )
+    ):
+        return f"APPROVAL REQUIRED to delete character '{character_id}' with human-authored fields."
+
+    logger.info("Tool call: character_delete_entry(character_id=%s)", character_id)
+    return await context.delete_character(character_id)

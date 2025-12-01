@@ -24,6 +24,7 @@ from rentl_agents.tools.context_docs import contextdoc_list_all, contextdoc_read
 from rentl_agents.tools.glossary import (
     glossary_create_entry,
     glossary_delete_entry,
+    glossary_merge_entries,
     glossary_read_entry,
     glossary_search_term,
     glossary_update_entry,
@@ -48,10 +49,11 @@ Your task is to curate terminology for consistent translation.
 **Workflow:**
 1. Call `contextdoc_list_all()` to see available context documents
 2. Call `contextdoc_read_doc(filename)` to review each document for terminology
-3. Call `glossary_search_term(term)` to check for existing entries
-4. Call `glossary_create_entry(term_src, term_tgt, notes)` for new important terms
-5. Call `glossary_update_entry(term_src, term_tgt, notes)` to refine existing entries
-6. End the conversation once curation is complete
+    3. Call `glossary_search_term(term)` to check for existing entries
+    4. Call `glossary_create_entry(term_src, term_tgt, notes)` for new important terms
+    5. Call `glossary_update_entry(term_src, term_tgt, notes)` to refine existing entries
+    6. Call `glossary_merge_entries(source_term, target_term)` to merge duplicates when needed
+    7. End the conversation once curation is complete
 
 **Important:**
 - Focus on terms needing consistent translation (honorifics, character names, locations, cultural terms)
@@ -79,6 +81,7 @@ def create_glossary_curator_subagent(
         "glossary_create_entry": True,
         "glossary_update_entry": True,
         "glossary_delete_entry": True,
+        "glossary_merge_entries": True,
     }
 
     graph = create_agent(
@@ -220,6 +223,15 @@ def _build_glossary_curator_tools(context: ProjectContext, *, allow_overwrite: b
         """
         return await glossary_delete_entry(context, term_src)
 
+    @tool("glossary_merge_entries")
+    async def glossary_merge_entries_tool(source_term: str, target_term: str) -> str:
+        """Merge a source glossary entry into a target entry.
+
+        Returns:
+            str: Status or approval message.
+        """
+        return await glossary_merge_entries(context, source_term, target_term)
+
     return [
         search_glossary_tool,
         read_glossary_entry_tool,
@@ -227,6 +239,7 @@ def _build_glossary_curator_tools(context: ProjectContext, *, allow_overwrite: b
         add_glossary_entry_tool,
         update_glossary_entry_tool,
         delete_glossary_entry_tool,
+        glossary_merge_entries_tool,
     ]
 
 

@@ -47,7 +47,8 @@ and subagent map.
   `character_update_pronouns`, `character_update_notes`, `character_delete_entry`
 - Locations: `location_read_entry`, `location_create_entry`, `location_update_name_tgt`,
   `location_update_description`, `location_delete_entry`
-- Routes: `route_read_entry`, `route_update_synopsis`, `route_update_primary_characters`, `route_delete_entry`
+- Routes: `route_read_entry`, `route_create_entry`, `route_update_synopsis`, `route_update_primary_characters`,
+  `route_delete_entry`
 - Glossary: `glossary_search_term`, `glossary_read_entry`, `glossary_create_entry`, `glossary_update_entry`,
   `glossary_merge_entries`, `glossary_delete_entry`
 - Style/UI: `styleguide_read_full`, `ui_read_settings`

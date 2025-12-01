@@ -112,3 +112,27 @@ async def location_update_description(
     result = await context.update_location_description(location_id, description, origin)
     updated_description.add(location_id)
     return result
+
+
+async def location_delete_entry(context: ProjectContext, location_id: str) -> str:
+    """Delete a location entry with HITL protection for human-authored fields.
+
+    Returns:
+        str: Status or approval message.
+    """
+    location = context.locations.get(location_id)
+    if not location:
+        return f"Location '{location_id}' not found."
+
+    if any(
+        origin == "human"
+        for origin in (
+            location.name_src_origin,
+            location.name_tgt_origin,
+            location.description_origin,
+        )
+    ):
+        return f"APPROVAL REQUIRED to delete location '{location_id}' with human-authored fields."
+
+    logger.info("Tool call: location_delete_entry(location_id=%s)", location_id)
+    return await context.delete_location(location_id)

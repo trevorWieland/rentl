@@ -581,6 +581,19 @@ Review and retry if your update is still needed."""
         await self._write_characters()
         return f"Added character '{character_id}'"
 
+    async def delete_character(self, character_id: str) -> str:
+        """Delete a character entry and persist changes.
+
+        Returns:
+            str: Status message.
+        """
+        async with self._character_locks[character_id]:
+            if character_id not in self.characters:
+                return f"Character '{character_id}' not found."
+            self.characters.pop(character_id, None)
+            await self._write_characters()
+            return f"Deleted character '{character_id}'"
+
     async def update_location_name_tgt(
         self,
         location_id: str,
@@ -711,6 +724,19 @@ Review and retry if your update is still needed."""
         self.locations[location_id] = new_location
         await self._write_locations()
         return f"Added location '{location_id}'"
+
+    async def delete_location(self, location_id: str) -> str:
+        """Delete a location entry and persist changes.
+
+        Returns:
+            str: Status message.
+        """
+        async with self._location_locks[location_id]:
+            if location_id not in self.locations:
+                return f"Location '{location_id}' not found."
+            self.locations.pop(location_id, None)
+            await self._write_locations()
+            return f"Deleted location '{location_id}'"
 
     async def add_glossary_entry(
         self,
@@ -929,6 +955,49 @@ Review and retry if your update is still needed."""
             self._recent_updates[update_key] = time.time()
             await self._write_routes()
             return f"Successfully updated primary characters for route '{route_id}'"
+
+    async def add_route(
+        self,
+        route_id: str,
+        name: str,
+        scene_ids: list[str] | None,
+        *,
+        origin: str,
+    ) -> str:
+        """Add a new route entry with provenance tracking.
+
+        Returns:
+            str: Status message.
+        """
+        if route_id in self.routes:
+            return f"Route '{route_id}' already exists."
+
+        new_route = RouteMetadata(
+            id=route_id,
+            name=name,
+            name_origin=origin,
+            scene_ids=scene_ids or [],
+            synopsis=None,
+            synopsis_origin=None,
+            primary_characters=[],
+            primary_characters_origin=None,
+        )
+        self.routes[route_id] = new_route
+        await self._write_routes()
+        return f"Added route '{route_id}'"
+
+    async def delete_route(self, route_id: str) -> str:
+        """Delete a route entry and persist changes.
+
+        Returns:
+            str: Status message.
+        """
+        async with self._route_locks[route_id]:
+            if route_id not in self.routes:
+                return f"Route '{route_id}' not found."
+            self.routes.pop(route_id, None)
+            await self._write_routes()
+            return f"Deleted route '{route_id}'"
 
     async def _write_routes(self) -> None:
         """Persist the current route metadata to disk."""

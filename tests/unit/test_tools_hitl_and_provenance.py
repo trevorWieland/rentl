@@ -5,8 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from rentl_agents.tools.character import character_delete_entry
+from rentl_agents.tools.glossary import glossary_merge_entries
 from rentl_agents.tools.hitl import request_if_human_authored
+from rentl_agents.tools.location import location_delete_entry
+from rentl_agents.tools.route import route_create_entry, route_delete_entry
 from rentl_core.context.project import ProjectContext
+from rentl_core.model.character import CharacterMetadata
 from rentl_core.model.game import GameMetadata, UIConstraints
 from rentl_core.model.glossary import GlossaryEntry
 from rentl_core.model.location import LocationMetadata
@@ -177,3 +182,85 @@ async def test_route_update_conflict_and_noop(tmp_path: Path) -> None:
     assert "Successfully updated" in ok_chars or "CONCURRENT" in ok_chars
     conflict = await update_chars.coroutine(route_id="route_1", character_ids=["mc", "x"])  # type: ignore[attr-defined]
     assert "CONCURRENT UPDATE DETECTED" in conflict or "already updated" in conflict
+
+
+@pytest.mark.anyio
+async def test_delete_tools_and_route_create(tmp_path: Path) -> None:
+    """Delete tools should respect human origins and route creation should guard duplicates."""
+    context = _context(tmp_path)
+
+    # Character delete with human origin -> approval required
+    context.characters["mc"] = CharacterMetadata(
+        id="mc",
+        name_src="MC",
+        name_src_origin="human",
+        name_tgt=None,
+        name_tgt_origin=None,
+        pronouns=None,
+        pronouns_origin=None,
+        notes=None,
+        notes_origin=None,
+    )
+    msg = await character_delete_entry(context, "mc")
+    assert "APPROVAL REQUIRED" in msg
+    context.characters["mc"].name_src_origin = "agent:test"
+    msg_ok = await character_delete_entry(context, "mc")
+    assert "Deleted character" in msg_ok
+
+    # Location delete with human origin -> approval required
+    context.locations["loc_h"] = LocationMetadata(
+        id="loc_h",
+        name_src="Loc",
+        name_src_origin="human",
+        name_tgt=None,
+        name_tgt_origin=None,
+        description=None,
+        description_origin=None,
+    )
+    loc_msg = await location_delete_entry(context, "loc_h")
+    assert "APPROVAL REQUIRED" in loc_msg
+    context.locations["loc_h"].name_src_origin = "agent:test"
+    loc_ok = await location_delete_entry(context, "loc_h")
+    assert "Deleted location" in loc_ok
+
+    # Route create/delete with human origin on delete requiring approval
+    create_ok = await route_create_entry(context, "new_route", "New Route", [])
+    assert "Added route" in create_ok
+    # Human name_origin on route_1 blocks delete
+    delete_block = await route_delete_entry(context, "route_1")
+    assert "APPROVAL REQUIRED" in delete_block
+    context.routes["route_1"].name_origin = "agent:test"
+    context.routes["route_1"].synopsis_origin = "agent:test"
+    context.routes["route_1"].primary_characters_origin = "agent:test"
+    delete_ok = await route_delete_entry(context, "route_1")
+    assert "Deleted route" in delete_ok
+
+    # Glossary merge with human origins should require approval; agent-origin merge should proceed
+    context.glossary.append(
+        GlossaryEntry(
+            term_src="dup1",
+            term_src_origin="human",
+            term_tgt="A",
+            term_tgt_origin="human",
+            notes="n1",
+            notes_origin="human",
+        )
+    )
+    context.glossary.append(
+        GlossaryEntry(
+            term_src="dup2",
+            term_src_origin="human",
+            term_tgt="B",
+            term_tgt_origin="human",
+            notes="n2",
+            notes_origin="human",
+        )
+    )
+    merge_block = await glossary_merge_entries(context, "dup1", "dup2")
+    assert "APPROVAL REQUIRED" in merge_block
+    for entry in context.glossary:
+        entry.term_src_origin = "agent:test"
+        entry.term_tgt_origin = "agent:test"
+        entry.notes_origin = "agent:test"
+    merge_ok = await glossary_merge_entries(context, "dup1", "dup2")
+    assert "Merged glossary entry" in merge_ok

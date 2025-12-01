@@ -103,3 +103,50 @@ async def glossary_delete_entry(context: ProjectContext, term_src: str) -> str:
     """
     logger.info("Tool call: glossary_delete_entry(term_src=%s)", term_src)
     return await context.delete_glossary_entry(term_src)
+
+
+async def glossary_merge_entries(context: ProjectContext, source_term: str, target_term: str) -> str:
+    """Merge a duplicate glossary entry into a target entry with basic note preservation.
+
+    Returns:
+        str: Status or approval message.
+    """
+    logger.info("Tool call: glossary_merge_entries(source=%s, target=%s)", source_term, target_term)
+    source = next((e for e in context.glossary if e.term_src == source_term), None)
+    target = next((e for e in context.glossary if e.term_src == target_term), None)
+
+    if not source:
+        return f"Source glossary entry '{source_term}' not found."
+    if not target:
+        return f"Target glossary entry '{target_term}' not found."
+    if source_term == target_term:
+        return "Source and target terms are the same; nothing to merge."
+
+    if any(
+        origin == "human"
+        for origin in (
+            source.term_src_origin,
+            source.term_tgt_origin,
+            source.notes_origin,
+            target.term_src_origin,
+            target.term_tgt_origin,
+            target.notes_origin,
+        )
+    ):
+        return (
+            f"APPROVAL REQUIRED to merge glossary entry '{source_term}' into '{target_term}' "
+            "because one or more fields are human-authored."
+        )
+
+    combined_notes = target.notes or ""
+    if source.notes:
+        combined_notes = f"{combined_notes}\nMerged from {source_term}: {source.notes}".strip()
+
+    target.term_tgt = target.term_tgt or source.term_tgt
+    target.term_tgt_origin = target.term_tgt_origin or source.term_tgt_origin
+    target.notes = combined_notes or None
+    target.notes_origin = target.notes_origin or source.notes_origin
+
+    await context.delete_glossary_entry(source_term)
+    await context._write_glossary()
+    return f"Merged glossary entry '{source_term}' into '{target_term}'"

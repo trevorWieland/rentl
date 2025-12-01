@@ -28,6 +28,21 @@ def route_read_entry(context: ProjectContext, route_id: str) -> str:
     return "\n".join(parts)
 
 
+async def route_create_entry(
+    context: ProjectContext, route_id: str, name: str, scene_ids: list[str] | None = None
+) -> str:
+    """Create a new route entry with provenance tracking.
+
+    Returns:
+        str: Confirmation message after persistence or duplication notice.
+    """
+    from datetime import date
+
+    logger.info("Tool call: route_create_entry(route_id=%s)", route_id)
+    origin = f"agent:route_detailer:{date.today().isoformat()}"
+    return await context.add_route(route_id, name, scene_ids or [], origin=origin)
+
+
 async def route_update_synopsis(
     context: ProjectContext, route_id: str, synopsis: str, *, updated_synopsis: set[str]
 ) -> str:
@@ -92,3 +107,27 @@ async def route_update_primary_characters(
     result = await context.update_route_characters(route_id, character_ids, origin)
     updated_characters.add(route_id)
     return result
+
+
+async def route_delete_entry(context: ProjectContext, route_id: str) -> str:
+    """Delete a route entry with HITL protection for human-authored fields.
+
+    Returns:
+        str: Status or approval message.
+    """
+    route = context.routes.get(route_id)
+    if not route:
+        return f"Route '{route_id}' not found."
+
+    if any(
+        origin == "human"
+        for origin in (
+            route.name_origin,
+            route.synopsis_origin,
+            route.primary_characters_origin,
+        )
+    ):
+        return f"APPROVAL REQUIRED to delete route '{route_id}' with human-authored fields."
+
+    logger.info("Tool call: route_delete_entry(route_id=%s)", route_id)
+    return await context.delete_route(route_id)
