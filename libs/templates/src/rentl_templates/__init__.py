@@ -1,1 +1,0 @@
-"""rentl_templates package."""
