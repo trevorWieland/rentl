@@ -15,10 +15,29 @@
 #   - {file-path}: File created/found (e.g., "docs/product-brief.md")
 #   - skipped: Optional/conditional workflow that was skipped
 
-generated: "{{generated}}"
+generated: "2026-01-06T16:33:32Z"
 project: "rentl"
-project_type: "{{project_type}}"
-selected_track: "{{selected_track}}"
-field_type: "{{field_type}}"
-workflow_path: "{{workflow_path_file}}"
-workflow_status: "{{workflow_items}}"
+user_description: |
+  The high level overview of rentl is that I want to solve the MTL problem for games, which is that traditionaly machine translation methods are contextless line-by-line or sometimes scene-by-scene translators. This leads to significant concistency issues, inaccurate translations, missing polish on things like inter-scene references, lack of foreshadowing awareness, etc.. Modern translation tools are using LLMs for translation, but they're wasting their potential, as they're just using some generic prompting, or are relying on significant end-user configuration. Our approach is an agentic system, with agents tailor made for not just translation, but every single part of the localization process. In a way, rentl is not an MTL tool, it's an Agentic Localization tool, as we want more than rote machine translation, and more than even just translation. We want agents for research and documentation (character studies, annotations, scene analysis, etc.), agents for pretranslation analysis (idiom detection, references to pop culture, cross-scene foreshadowing / connections, etc.), agents for fully-informed translate (MTL + all the context dynamically added to the prompt), agents for QA (pronoun / speaker consistency, prose style consistency, etc.), and of course various formatters and linters for the translations to align things on line-breaks, max-length lines, unsupported characters for the engine, etc.. This project should operate in a language agnostic way, with a SOURCE_LANG and TARGET_LANG, where all documents / annotations / summaries / etc. pre-translation are all in the source language, and qa / feedback / prose standards are in the target language. From an operational standpoint, we want this repo itself to serve as a template repo, with copier, that can bootstrap game-specific repos that use this Agentic Localization tool. The main idea is that individual game translations should be separate git repos, so that they can be tracked, monitored, and contributed to by an individual, a team, or the general public. This is not intended to be a paid platform, or a product down the line.
+project_type: "developer_tool"
+selected_track: "method"
+field_type: "greenfield"
+workflow_path: "rentl/_bmad/bmm/workflows/workflow-status/paths/method-greenfield.yaml"
+workflow_status:
+  brainstorm-project: "rentl/_bmad-output/analysis/brainstorming-session-2026-01-06T17:02:52Z.md"
+  research: "rentl/_bmad-output/planning-artifacts/research/technical-python-agent-workflow-frameworks-and-rag-vector-research-2026-01-07T16:50:29Z.md"
+  product-brief: "_bmad-output/planning-artifacts/product-brief-rentl-2026-01-07.md"
+  prd: required
+  create-ux-design: conditional
+  create-architecture: required
+  create-epics-and-stories: required
+  test-design: optional
+  implementation-readiness: required
+  sprint-planning: required
+workflow_completion:
+  last_completed_workflow: "product-brief"
+  last_completed_file: "_bmad-output/planning-artifacts/product-brief-rentl-2026-01-07.md"
+  last_completed_at: "2026-01-07T21:37:11Z"
+brainstorm_requested: true
+research_requested: true
+product_brief_requested: true
