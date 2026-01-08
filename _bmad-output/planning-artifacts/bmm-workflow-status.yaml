@@ -27,17 +27,17 @@ workflow_status:
   brainstorm-project: "rentl/_bmad-output/analysis/brainstorming-session-2026-01-06T17:02:52Z.md"
   research: "rentl/_bmad-output/planning-artifacts/research/technical-python-agent-workflow-frameworks-and-rag-vector-research-2026-01-07T16:50:29Z.md"
   product-brief: "_bmad-output/planning-artifacts/product-brief-rentl-2026-01-07.md"
-  prd: required
+  prd: "_bmad-output/planning-artifacts/prd.md"
   create-ux-design: conditional
-  create-architecture: required
+  create-architecture: "_bmad-output/planning-artifacts/architecture.md"
   create-epics-and-stories: required
   test-design: optional
   implementation-readiness: required
   sprint-planning: required
 workflow_completion:
-  last_completed_workflow: "product-brief"
-  last_completed_file: "_bmad-output/planning-artifacts/product-brief-rentl-2026-01-07.md"
-  last_completed_at: "2026-01-07T21:37:11Z"
+  last_completed_workflow: "prd"
+  last_completed_file: "_bmad-output/planning-artifacts/prd.md"
+  last_completed_at: "2026-01-08T14:54:45-06:00"
 brainstorm_requested: true
 research_requested: true
 product_brief_requested: true
