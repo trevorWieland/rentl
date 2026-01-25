@@ -1,0 +1,85 @@
+[project]
+name = "rentl"
+version = "0.1.0"
+description = "Agentic localization pipeline"
+requires-python = ">=3.14"
+readme = "README.md"
+
+[tool.uv]
+managed = true
+
+[tool.uv.workspace]
+members = ["packages/*", "services/*"]
+
+[tool.uv.sources]
+rentl-schemas = { workspace = true }
+rentl-io = { workspace = true }
+rentl-core = { workspace = true }
+rentl-cli = { workspace = true }
+rentl-tui = { workspace = true }
+rentl-api = { workspace = true }
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+preview = true
+src = ["packages/*/src", "services/*/src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade (modern Python)
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific rules
+    "ASYNC",  # flake8-async
+    "D",      # pydocstyle
+    "DOC",    # pydoclint
+    "ANN",    # flake8-annotations
+    "FURB",   # refurb
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["rentl_schemas", "rentl_io", "rentl_core", "rentl_cli", "rentl_tui", "rentl_api"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ty.rules]
+# Strict typing enforcement - escalate warnings to errors
+invalid-argument-type = "error"
+call-non-callable = "error"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+timeout = 30
+addopts = "-v --tb=short"
+markers = [
+    "unit: Unit tests (<250ms, mocks allowed)",
+    "integration: Integration tests (<5s, real services, no LLMs)",  
+    "quality: Quality tests (<30s, real LLMs)",
+]
+
+[dependency-groups]
+dev = [
+    "rentl-schemas",
+    "rentl-io",
+    "rentl-core",
+    "rentl-cli",
+    "rentl-tui",
+    "rentl-api",
+    "ruff>=0.14.14",
+    "ty>=0.0.1a13",
+    "pytest>=8",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=6",
+    "pytest-xdist>=3",
+    "pytest-timeout>=2",
+]

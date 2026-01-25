@@ -1,22 +1,22 @@
 # Agent OS Standards Index
 
 architecture:
+  adapter-interface-protocol:
+    description: Never access infrastructure adapters directly; access protocols defined in the Core Domain
   api-response-format:
     description: All responses use pydantic-based {data, error, meta} envelopes
   log-line-format:
     description: All log lines use stable JSONL pydantic-based schema with {timestamp, level, event, run_id, phase, message, data} fields
   naming-conventions:
     description: Use consistent naming conventions across all code; snake_case for modules/functions/variables, PascalCase for classes/types
+  thin-adapter-pattern:
+    description: Surface layers (CLI, TUI, API) are thin adapters; all business logic lives in the Core Domain
 
 global:
   address-deprecations-immediately:
     description: Deprecation warnings must be addressed immediately; never defer to future work
-  adapter-interface-protocol:
-    description: Always access adapters through protocol interfaces; never use implementations directly
   prefer-dependency-updates:
     description: Prefer frequent dependency updates; use compatible ranges instead of exact pins
-  thin-adapter-pattern:
-    description: CLI, TUI, and API are thin adapters over rentl-core only; no core logic in surface layers
 
 python:
   async-first-design:

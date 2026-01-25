@@ -1,0 +1,15 @@
+[project]
+name = "rentl-schemas"
+version = "0.1.0"
+description = "Shared Pydantic schemas and types"
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic>=2.12",
+]
+
+[build-system]
+requires = ["uv-build>=0.1.0"]
+build-backend = "uv_build"
+
+[tool.uv.build]
+packages = ["src/rentl_schemas"]

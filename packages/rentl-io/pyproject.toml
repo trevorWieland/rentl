@@ -1,0 +1,15 @@
+[project]
+name = "rentl-io"
+version = "0.1.0"
+description = "IO adapters for rentl"
+requires-python = ">=3.14"
+dependencies = [
+    "rentl-schemas",
+]
+
+[build-system]
+requires = ["uv-build>=0.1.0"]
+build-backend = "uv_build"
+
+[tool.uv.build]
+packages = ["src/rentl_io"]

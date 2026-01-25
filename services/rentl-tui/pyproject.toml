@@ -1,0 +1,19 @@
+[project]
+name = "rentl-tui"
+version = "0.1.0"
+description = "TUI for rentl"
+requires-python = ">=3.14"
+dependencies = [
+    "rentl-core",
+    "textual>=7.3.0",
+]
+
+[project.scripts]
+rentl-tui = "rentl_tui.app:main"
+
+[build-system]
+requires = ["uv-build>=0.1.0"]
+build-backend = "uv_build"
+
+[tool.uv.build]
+packages = ["src/rentl_tui"]
