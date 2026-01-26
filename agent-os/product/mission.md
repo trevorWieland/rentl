@@ -2,7 +2,7 @@
 
 ## Pitch
 
-rentl is an open-source, BYOK agentic localization pipeline that makes professional-grade game translation feel as easy and fast as simple MTL. It delivers a coherent, playable v1 translation in hours through a phase-based workflow (ingest → context → source analysis → translate → QA → edit → export), targeting both fan translators seeking accessibility and professional localization teams demanding reliability and quality.
+rentl is an open-source, BYOK agentic localization pipeline that makes professional-grade game translation feel as easy and fast as simple MTL. It delivers a coherent, playable v1 translation in hours through a phase-based workflow (ingest → context → pretranslation (source text analysis) → translate → QA → edit → export), targeting both fan translators seeking accessibility and professional localization teams demanding reliability and quality.
 
 ## Users
 
@@ -66,7 +66,7 @@ Unlike one-and-done translation tools that assume a single pass is sufficient, r
 
 ### Core Features
 
-- **Phase-based pipeline orchestration:** Run a complete localization pipeline (ingest → context → source analysis → translate → QA → edit → export) with deterministic completion and clear phase boundaries, enabling reliable, reproducible translation workflows.
+- **Phase-based pipeline orchestration:** Run a complete localization pipeline (ingest → context → pretranslation (source text analysis) → translate → QA → edit → export) with deterministic completion and clear phase boundaries, enabling reliable, reproducible translation workflows.
 
 - **BYOK model integration:** Configure any OpenAI-compatible endpoint (custom URL + API key) and switch models per phase or per run, giving users complete control over quality, cost, and model choice without tool reconfiguration.
 

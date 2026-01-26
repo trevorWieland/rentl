@@ -5,10 +5,14 @@ architecture:
     description: Never access infrastructure adapters directly; access protocols defined in the Core Domain
   api-response-format:
     description: All responses use pydantic-based {data, error, meta} envelopes
+  id-formats:
+    description: UUIDv7 vs human-readable ID formats
   log-line-format:
     description: All log lines use stable JSONL pydantic-based schema with {timestamp, level, event, run_id, phase, message, data} fields
   naming-conventions:
     description: Use consistent naming conventions across all code; snake_case for modules/functions/variables, PascalCase for classes/types
+  none-vs-empty:
+    description: Meaning of None vs empty lists in schemas
   thin-adapter-pattern:
     description: Surface layers (CLI, TUI, API) are thin adapters; all business logic lives in the Core Domain
 
@@ -31,6 +35,8 @@ python:
 testing:
   bdd-for-integration-quality:
     description: Integration and quality tests must use BDD-style (Given/When/Then)
+  make-all-gate:
+    description: Require make all to pass before finalizing work
   mandatory-coverage:
     description: Coverage mandatory for all features; tests must exercise actual behavior
   no-mocks-for-quality-tests:
@@ -38,9 +44,9 @@ testing:
   no-test-skipping:
     description: Never skip tests within a tier; tests either run and pass or run and fail
   test-timing-rules:
-    description: Strict timing limits per tier: unit <250ms, integration <5s, quality <30s
+    description: "Strict timing limits per tier: unit <250ms, integration <5s, quality <30s"
   three-tier-test-structure:
-    description: All tests in unit/integration/quality folders; unit <250ms, integration <5s, quality <30s
+    description: "All tests in unit/integration/quality folders; unit <250ms, integration <5s, quality <30s"
 
 ux:
   frictionless-by-default:

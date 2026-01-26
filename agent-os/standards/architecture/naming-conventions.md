@@ -52,5 +52,7 @@ class translationRequest:  # snake_case for class
 
 **Event naming:**
 - Event names: `snake_case` (e.g., `run_started`, `phase_completed`, `translation_finished`)
+- Log event names (JSONL `event`) must be `snake_case`
+- When phase-specific, prefix with phase name (e.g., `translate_completed`, `qa_failed`)
 
 **Why:** Consistency makes code predictable and easier to navigate; reduces confusion when multiple developers/agents work together.

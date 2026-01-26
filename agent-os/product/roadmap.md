@@ -10,7 +10,7 @@
 **Key Differentiator:** First agentic localization pipeline that combines context intelligence, phase-based orchestration, and strict schemas—all with BYOK model support.
 
 **Scope:**
-- Complete 7-phase pipeline (ingest → context → source analysis → translate → QA → edit → export)
+- Complete 5-phase pipeline (ingest → [context → pretranslation (source text analysis) → translate → QA → edit] → export)
 - One agent per phase (minimal but complete)
 - CLI-first workflow (interactive setup → config → batch run)
 - CSV/JSONL/TXT format support
@@ -19,6 +19,22 @@
 - Progress observability by phase/line/scene
 - Export patch output
 - Functional onboarding (you can get it working)
+
+**Spec List:**
+- ✅ Schema Definitions & Validation (completed)
+- (1) Progress Semantics & Tracking
+- (2) Import Adapter (CSV/JSONL/TXT)
+- (3) Export Adapter (CSV/JSONL/TXT)
+- (4) Pipeline Orchestrator (5-phase workflow + deterministic handoff)
+- (5) BYOK Model Integration (OpenAI-compatible endpoints)
+- (6) Phase Agent: Context
+- (7) Phase Agent: Pretranslation
+- (8) Phase Agent: Translate
+- (9) QA Checks (basic quality gates)
+- (10) Phase Agent: QA
+- (11) Phase Agent: Edit
+- (12) CLI Workflow & Project Setup
+- (13) Functional Onboarding (first successful run)
 
 **Success Criteria:**
 - Produces higher-quality output than simple MTL
@@ -37,7 +53,7 @@
 **Scope:**
 - Multiple agents per phase (tuned based on v0.1 experience)
 - Context team: scene summarization + route tracking + character consistency
-- Source analysis team: idiom detector + reference finder + cultural note generator
+- Pretranslation team: idiom detector + reference finder + cultural note generator
 - Translation team: multiple translators with different approaches (literal → liberal) + consensus selection
 - QA team: style checker + consistency validator + cultural appropriateness reviewer
 - Edit team: smart retranslation + pattern-based fixes + style alignment

@@ -1,9 +1,11 @@
 """Version information and core types."""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from rentl_schemas.base import BaseSchema
 
 
-class VersionInfo(BaseModel):
+class VersionInfo(BaseSchema):
     """Application version information."""
 
     major: int = Field(..., ge=0, description="Major version number")
