@@ -84,6 +84,7 @@ def _build_run_state(run_id: RunId) -> RunState:
         progress=progress,
         artifacts=[],
         phase_history=None,
+        phase_revisions=None,
         last_error=None,
         qa_summary=None,
     )

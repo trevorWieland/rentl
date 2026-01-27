@@ -152,6 +152,9 @@ class PhaseExecutionConfig(BaseSchema):
     scene_batch_size: int | None = Field(
         None, gt=0, description="Scene count per chunk for scene strategy"
     )
+    route_batch_size: int | None = Field(
+        None, gt=0, description="Route count per chunk for route strategy"
+    )
     max_parallel_agents: int | None = Field(
         None, gt=0, description="Maximum parallel agent workers"
     )
@@ -167,18 +170,30 @@ class PhaseExecutionConfig(BaseSchema):
             ValueError: If required parameters are missing or conflicting.
         """
         if self.strategy == PhaseWorkStrategy.FULL and (
-            self.chunk_size is not None or self.scene_batch_size is not None
+            self.chunk_size is not None
+            or self.scene_batch_size is not None
+            or self.route_batch_size is not None
         ):
-            raise ValueError("chunk_size/scene_batch_size not allowed for full")
+            raise ValueError(
+                "chunk_size/scene_batch_size/route_batch_size not allowed for full"
+            )
         if self.strategy == PhaseWorkStrategy.CHUNK and self.chunk_size is None:
             raise ValueError("chunk_size is required for chunk strategy")
-        if (
-            self.strategy == PhaseWorkStrategy.CHUNK
-            and self.scene_batch_size is not None
+        if self.strategy == PhaseWorkStrategy.CHUNK and (
+            self.scene_batch_size is not None or self.route_batch_size is not None
         ):
-            raise ValueError("scene_batch_size is only valid for scene strategy")
-        if self.strategy == PhaseWorkStrategy.SCENE and self.chunk_size is not None:
-            raise ValueError("chunk_size is only valid for chunk strategy")
+            raise ValueError(
+                "scene_batch_size/route_batch_size is only valid for scene/route "
+                "strategy"
+            )
+        if self.strategy == PhaseWorkStrategy.SCENE and (
+            self.chunk_size is not None or self.route_batch_size is not None
+        ):
+            raise ValueError("chunk_size/route_batch_size not allowed for scene")
+        if self.strategy == PhaseWorkStrategy.ROUTE and (
+            self.chunk_size is not None or self.scene_batch_size is not None
+        ):
+            raise ValueError("chunk_size/scene_batch_size not allowed for route")
         return self
 
 

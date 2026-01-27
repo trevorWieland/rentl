@@ -24,6 +24,7 @@ from rentl_schemas.config import (
     ModelEndpointConfig,
     ModelSettings,
     PhaseConfig,
+    PhaseExecutionConfig,
     PipelineConfig,
     ProjectConfig,
     ProjectPaths,
@@ -48,6 +49,7 @@ from rentl_schemas.primitives import (
     ArtifactId,
     FileFormat,
     PhaseName,
+    PhaseWorkStrategy,
     QaCategory,
     QaSeverity,
     RunId,
@@ -109,6 +111,28 @@ class _StubContextAgent:
         )
 
 
+class _RecordingContextPool:
+    def __init__(self) -> None:
+        self.batches: list[list[ContextPhaseInput]] = []
+
+    async def run_batch(
+        self, payloads: list[ContextPhaseInput]
+    ) -> list[ContextPhaseOutput]:
+        self.batches.append(payloads)
+        return [
+            ContextPhaseOutput(
+                run_id=payload.run_id,
+                phase=PhaseName.CONTEXT,
+                project_context=payload.project_context,
+                style_guide=payload.style_guide,
+                glossary=payload.glossary,
+                scene_summaries=[],
+                context_notes=[],
+            )
+            for payload in payloads
+        ]
+
+
 class _StubTranslateAgent:
     """Stub translate agent for orchestrator tests."""
 
@@ -116,6 +140,7 @@ class _StubTranslateAgent:
         translated_lines = [
             TranslatedLine(
                 line_id=line.line_id,
+                route_id=line.route_id,
                 scene_id=line.scene_id,
                 speaker=line.speaker,
                 source_text=line.text,
@@ -247,6 +272,21 @@ def _build_run_config() -> RunConfig:
     )
 
 
+def _with_phase_execution(
+    config: RunConfig,
+    phase_name: PhaseName,
+    execution: PhaseExecutionConfig,
+) -> RunConfig:
+    phases: list[PhaseConfig] = []
+    for phase in config.pipeline.phases:
+        if phase.phase == phase_name:
+            phases.append(phase.model_copy(update={"execution": execution}))
+        else:
+            phases.append(phase)
+    pipeline = config.pipeline.model_copy(update={"phases": phases})
+    return config.model_copy(update={"pipeline": pipeline})
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_pool_preserves_order() -> None:
@@ -255,6 +295,123 @@ async def test_agent_pool_preserves_order() -> None:
     inputs = [_NumberInput(value=value) for value in [3, 1, 2]]
     outputs = await pool.run_batch(inputs)
     assert [output.value for output in outputs] == [3, 1, 2]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_orchestrator_rejects_route_strategy_without_route_ids() -> None:
+    """Ensure route strategy fails when route_id is missing."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0")
+    config = _with_phase_execution(
+        _build_run_config(),
+        PhaseName.CONTEXT,
+        PhaseExecutionConfig(strategy=PhaseWorkStrategy.ROUTE),
+    )
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            route_id=None,
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        )
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    orchestrator = PipelineOrchestrator(
+        ingest_adapter=ingest_adapter,
+        context_agents=_RecordingContextPool(),
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+    with pytest.raises(OrchestrationError):
+        await orchestrator.run_phase(run, PhaseName.CONTEXT)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_orchestrator_routes_sharded_by_route_id() -> None:
+    """Ensure route strategy groups work by route_id."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0")
+    config = _with_phase_execution(
+        _build_run_config(),
+        PhaseName.CONTEXT,
+        PhaseExecutionConfig(strategy=PhaseWorkStrategy.ROUTE),
+    )
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            route_id="route_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_2",
+            route_id="route_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Bye",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_3",
+            route_id="route_2",
+            scene_id="scene_2",
+            speaker=None,
+            text="Next",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_4",
+            route_id="route_2",
+            scene_id="scene_2",
+            speaker=None,
+            text="Later",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_5",
+            route_id="route_3",
+            scene_id="scene_3",
+            speaker=None,
+            text="End",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    pool = _RecordingContextPool()
+    orchestrator = PipelineOrchestrator(
+        ingest_adapter=ingest_adapter,
+        context_agents=pool,
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+    await orchestrator.run_phase(run, PhaseName.CONTEXT)
+
+    assert len(pool.batches) == 1
+    assert len(pool.batches[0]) == 3
+    route_ids = [
+        {line.route_id for line in payload.source_lines} for payload in pool.batches[0]
+    ]
+    assert route_ids == [{"route_1"}, {"route_2"}, {"route_3"}]
 
 
 @pytest.mark.unit
@@ -336,10 +493,68 @@ async def test_orchestrator_marks_stale_on_upstream_change() -> None:
     translate_record = next(
         record for record in run.phase_history if record.phase == PhaseName.TRANSLATE
     )
+    assert translate_record.phase_run_id is not None
     assert translate_record.stale is False
 
     await orchestrator.run_phase(run, PhaseName.CONTEXT)
     assert translate_record.stale is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_orchestrator_emits_invalidation_event_on_upstream_change() -> None:
+    """Ensure invalidation events are logged when upstream changes."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b4")
+    config = _build_run_config()
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_2",
+            scene_id="scene_1",
+            speaker=None,
+            text="Bye",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    log_sink = _StubLogSink()
+    orchestrator = PipelineOrchestrator(
+        ingest_adapter=ingest_adapter,
+        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
+        pretranslation_agents=PhaseAgentPool(agents=[_StubPretranslationAgent()]),
+        translate_agents=PhaseAgentPool(agents=[_StubTranslateAgent()]),
+        log_sink=log_sink,
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+    await orchestrator.run_phase(run, PhaseName.CONTEXT)
+    await orchestrator.run_phase(run, PhaseName.PRETRANSLATION)
+    await orchestrator.run_phase(run, PhaseName.TRANSLATE, target_language="ja")
+
+    invalidated_before = {
+        entry.event for entry in log_sink.entries if entry.event.endswith("invalidated")
+    }
+    assert "translate_invalidated" not in invalidated_before
+
+    await orchestrator.run_phase(run, PhaseName.CONTEXT)
+
+    invalidated_events = {
+        entry.event for entry in log_sink.entries if entry.event.endswith("invalidated")
+    }
+    assert "translate_invalidated" in invalidated_events
 
 
 @pytest.mark.unit

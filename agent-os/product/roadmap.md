@@ -29,7 +29,7 @@
 - ✅ (05) Run Persistence & Artifact Store Protocols — Define storage interfaces for run state, JSONL artifacts, and logs to enable durable runs and audits. **Depends on:** 01, 02.
 - ✅ (06) Log/Event Taxonomy & Sink Protocols — Standardize run/phase event names and payloads for observability and status tooling. **Depends on:** 01, 02, 05.
 - ✅ (07) Pipeline Orchestrator Core — Orchestrate flexible phase execution with dependency gating, deterministic merges, and staleness tracking; define when phase outputs are persisted as artifacts. **Depends on:** 01, 02, 05, 06.
-- (08) Phase Execution & Sharding Config — Add per-phase execution strategies (full/scene/route) and concurrency controls. **Depends on:** 01, 07.
+- ✅ (08) Phase Execution & Sharding Config — Add per-phase execution strategies (full/scene/route) and concurrency controls. **Depends on:** 01, 07.
 - (09) Phase History & Staleness Rules — Capture phase revisions and invalidate downstream outputs when upstream changes. **Depends on:** 01, 02, 07.
 - (10) Phase Result Summaries & Metrics — Capture post-phase stats (glossary counts, QA totals, annotation coverage) for quality signals. **Depends on:** 01, 02, 07.
 - (11) CLI Workflow & Phase Selection — Provide CLI commands to run a full plan or a single phase with clear status output; wire storage adapters into CLI runs. **Depends on:** 02, 07, 10.

@@ -9,6 +9,7 @@ from rentl_schemas.primitives import (
     FileFormat,
     JsonValue,
     LineId,
+    RouteId,
     SceneId,
     UntranslatedPolicy,
 )
@@ -53,6 +54,7 @@ class SourceLine(BaseSchema):
     """Single source line extracted during ingest."""
 
     line_id: LineId = Field(..., description="Unique line identifier")
+    route_id: RouteId | None = Field(None, description="Route identifier if available")
     scene_id: SceneId | None = Field(None, description="Scene identifier if available")
     speaker: str | None = Field(None, description="Speaker label if available")
     text: str = Field(..., min_length=1, description="Source text content")
@@ -68,6 +70,7 @@ class TranslatedLine(BaseSchema):
     """Translated line produced by the translate or edit phase."""
 
     line_id: LineId = Field(..., description="Unique line identifier")
+    route_id: RouteId | None = Field(None, description="Route identifier if available")
     scene_id: SceneId | None = Field(None, description="Scene identifier if available")
     speaker: str | None = Field(None, description="Speaker label if available")
     source_text: str | None = Field(

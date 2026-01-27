@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import (
@@ -59,12 +59,20 @@ class PhaseDependency(BaseSchema):
     )
 
 
+class PhaseRevision(BaseSchema):
+    """Latest revision marker for a phase output."""
+
+    phase: PhaseName = Field(..., description="Phase name")
+    revision: int = Field(..., ge=1, description="Latest revision number")
+    target_language: LanguageCode | None = Field(
+        None, description="Target language for the revision if applicable"
+    )
+
+
 class PhaseRunRecord(BaseSchema):
     """History record for a single phase execution."""
 
-    phase_run_id: PhaseRunId | None = Field(
-        None, description="Unique phase run identifier"
-    )
+    phase_run_id: PhaseRunId = Field(..., description="Unique phase run identifier")
     phase: PhaseName = Field(..., description="Phase name")
     revision: int = Field(..., ge=1, description="Phase revision number")
     status: PhaseStatus = Field(..., description="Phase execution status")
@@ -118,7 +126,24 @@ class RunState(BaseSchema):
     phase_history: list[PhaseRunRecord] | None = Field(
         None, description="Phase run history"
     )
+    phase_revisions: list[PhaseRevision] | None = Field(
+        None, description="Latest phase revisions by phase and target language"
+    )
     last_error: RunError | None = Field(None, description="Most recent error if failed")
     qa_summary: QaSummary | None = Field(
         None, description="Aggregate QA summary for the run"
     )
+
+    @model_validator(mode="after")
+    def _validate_phase_revisions(self) -> RunState:
+        if self.phase_revisions is None:
+            return self
+        seen: set[tuple[PhaseName, LanguageCode | None]] = set()
+        for entry in self.phase_revisions:
+            key = (entry.phase, entry.target_language)
+            if key in seen:
+                raise ValueError(
+                    "phase_revisions must be unique by phase and target_language"
+                )
+            seen.add(key)
+        return self

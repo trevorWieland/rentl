@@ -93,3 +93,30 @@ def test_phase_execution_rejects_chunk_with_scene_batch_size() -> None:
             chunk_size=10,
             scene_batch_size=2,
         )
+
+
+def test_phase_execution_rejects_full_with_route_batch_size() -> None:
+    """Ensure route_batch_size is rejected for full strategy."""
+    with pytest.raises(ValidationError):
+        PhaseExecutionConfig(
+            strategy=PhaseWorkStrategy.FULL,
+            route_batch_size=2,
+        )
+
+
+def test_phase_execution_rejects_route_with_chunk_size() -> None:
+    """Ensure chunk_size is rejected for route strategy."""
+    with pytest.raises(ValidationError):
+        PhaseExecutionConfig(
+            strategy=PhaseWorkStrategy.ROUTE,
+            chunk_size=10,
+        )
+
+
+def test_phase_execution_allows_route_with_route_batch_size() -> None:
+    """Ensure route strategy accepts route_batch_size."""
+    execution = PhaseExecutionConfig(
+        strategy=PhaseWorkStrategy.ROUTE,
+        route_batch_size=3,
+    )
+    assert execution.route_batch_size == 3

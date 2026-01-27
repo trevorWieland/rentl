@@ -59,6 +59,7 @@ from rentl_schemas.pipeline import (
     ArtifactReference,
     PhaseArtifacts,
     PhaseDependency,
+    PhaseRevision,
     PhaseRunRecord,
     RunError,
     RunMetadata,
@@ -78,6 +79,7 @@ from rentl_schemas.primitives import (
     PhaseWorkStrategy,
     QaCategory,
     QaSeverity,
+    RouteId,
     RunId,
     RunStatus,
     Timestamp,
@@ -352,6 +354,7 @@ class PipelineOrchestrator:
         """
         phase_config: PhaseConfig | None = None
         language = target_language
+        shard_plan: dict[str, JsonValue] | None = None
         try:
             phase_config = _get_phase_config(run.config, phase)
             if phase_config is None:
@@ -372,6 +375,9 @@ class PipelineOrchestrator:
                 )
             language = _resolve_target_language(run, phase, target_language)
             _validate_phase_prereqs(run, phase, language)
+            shard_plan = _build_shard_plan(
+                phase, run.source_lines, phase_config.execution
+            )
         except OrchestrationError as exc:
             await self._emit_phase_failure(
                 run, phase, exc.info.message, language, exc.info
@@ -394,7 +400,7 @@ class PipelineOrchestrator:
                 phase,
                 PhaseEventSuffix.STARTED,
                 "Phase started",
-                data=_build_phase_log_data(run, phase, language),
+                data=_build_phase_log_data(run, phase, language, shard_plan),
             )
         )
 
@@ -454,7 +460,7 @@ class PipelineOrchestrator:
                 phase,
                 PhaseEventSuffix.COMPLETED,
                 "Phase completed",
-                data=_build_phase_log_data(run, phase, language),
+                data=_build_phase_log_data(run, phase, language, shard_plan),
             )
         )
         run.current_phase = None
@@ -491,12 +497,13 @@ class PipelineOrchestrator:
             description="Ingest source lines",
         )
         revision = _next_revision(run, PhaseName.INGEST, None)
+        dependencies = _build_dependencies(run, PhaseName.INGEST, None)
         record = _build_phase_record(
             run,
             PhaseName.INGEST,
             revision,
             None,
-            dependencies=None,
+            dependencies=dependencies,
             error=None,
             message="Ingest completed",
         )
@@ -518,7 +525,9 @@ class PipelineOrchestrator:
                     details=OrchestrationErrorDetails(phase=PhaseName.CONTEXT),
                 )
             )
-        chunks = _build_work_chunks(run.source_lines or [], execution)
+        chunks = _build_work_chunks(
+            run.source_lines or [], execution, PhaseName.CONTEXT
+        )
         inputs = [
             ContextPhaseInput(
                 run_id=run.run_id,
@@ -606,7 +615,9 @@ class PipelineOrchestrator:
                     details=OrchestrationErrorDetails(phase=PhaseName.PRETRANSLATION),
                 )
             )
-        chunks = _build_work_chunks(run.source_lines or [], execution)
+        chunks = _build_work_chunks(
+            run.source_lines or [], execution, PhaseName.PRETRANSLATION
+        )
         inputs = [_build_pretranslation_input(run, chunk) for chunk in chunks]
         total_units = len(run.source_lines or [])
         completed_units = 0
@@ -675,7 +686,9 @@ class PipelineOrchestrator:
                     ),
                 )
             )
-        chunks = _build_work_chunks(run.source_lines or [], execution)
+        chunks = _build_work_chunks(
+            run.source_lines or [], execution, PhaseName.TRANSLATE
+        )
         inputs = [
             _build_translate_input(run, target_language, chunk) for chunk in chunks
         ]
@@ -747,7 +760,7 @@ class PipelineOrchestrator:
                     ),
                 )
             )
-        chunks = _build_work_chunks(run.source_lines or [], execution)
+        chunks = _build_work_chunks(run.source_lines or [], execution, PhaseName.QA)
         inputs = [_build_qa_input(run, target_language, chunk) for chunk in chunks]
         total_units = len(run.source_lines or [])
         completed_units = 0
@@ -817,7 +830,7 @@ class PipelineOrchestrator:
                     ),
                 )
             )
-        chunks = _build_work_chunks(run.source_lines or [], execution)
+        chunks = _build_work_chunks(run.source_lines or [], execution, PhaseName.EDIT)
         inputs = [_build_edit_input(run, target_language, chunk) for chunk in chunks]
         total_units = len(run.source_lines or [])
         completed_units = 0
@@ -1191,6 +1204,7 @@ def _build_run_state(run: PipelineRunContext) -> RunState:
         progress=run.progress,
         artifacts=run.artifacts,
         phase_history=run.phase_history or None,
+        phase_revisions=_build_phase_revisions(run),
         last_error=run.last_error,
         qa_summary=qa_summary,
     )
@@ -1241,6 +1255,23 @@ def _build_run_index_record(
         progress=run.progress.summary,
         last_error=run.last_error,
     )
+
+
+def _build_phase_revisions(
+    run: PipelineRunContext,
+) -> list[PhaseRevision] | None:
+    if not run.phase_revisions:
+        return None
+    revisions = [
+        PhaseRevision(
+            phase=phase,
+            target_language=target_language,
+            revision=revision,
+        )
+        for (phase, target_language), revision in run.phase_revisions.items()
+    ]
+    revisions.sort(key=lambda entry: (entry.phase.value, entry.target_language or ""))
+    return revisions
 
 
 def _normalize_phase_value(phase: PhaseName | str) -> str:
@@ -1433,6 +1464,7 @@ def _validate_phase_prereqs(
 def _build_work_chunks(
     source_lines: list[SourceLine],
     execution: PhaseExecutionConfig | None,
+    phase: PhaseName,
 ) -> list[_WorkChunk]:
     if not source_lines:
         return []
@@ -1459,7 +1491,57 @@ def _build_work_chunks(
                 batch.extend(group)
             chunks.append(_WorkChunk(source_lines=batch))
         return chunks
+    if strategy == PhaseWorkStrategy.ROUTE:
+        if any(line.route_id is None for line in source_lines):
+            raise OrchestrationError(
+                OrchestrationErrorInfo(
+                    code=OrchestrationErrorCode.INVALID_STATE,
+                    message="Route strategy requires route_id on all source lines",
+                    details=OrchestrationErrorDetails(
+                        phase=phase, reason="route_id_missing"
+                    ),
+                )
+            )
+        route_groups = _group_by_route(source_lines)
+        if execution is None or execution.route_batch_size is None:
+            return [_WorkChunk(source_lines=group) for group in route_groups]
+        batch_size = execution.route_batch_size
+        chunks: list[_WorkChunk] = []
+        for index in range(0, len(route_groups), batch_size):
+            batch: list[SourceLine] = []
+            for group in route_groups[index : index + batch_size]:
+                batch.extend(group)
+            chunks.append(_WorkChunk(source_lines=batch))
+        return chunks
     return [_WorkChunk(source_lines=source_lines)]
+
+
+def _build_shard_plan(
+    phase: PhaseName,
+    source_lines: list[SourceLine] | None,
+    execution: PhaseExecutionConfig | None,
+) -> dict[str, JsonValue] | None:
+    if phase not in {
+        PhaseName.CONTEXT,
+        PhaseName.PRETRANSLATION,
+        PhaseName.TRANSLATE,
+        PhaseName.QA,
+        PhaseName.EDIT,
+    }:
+        return None
+    strategy = execution.strategy if execution else PhaseWorkStrategy.FULL
+    strategy_value = getattr(strategy, "value", str(strategy))
+    if not source_lines:
+        shard_count = 0
+    else:
+        shard_count = len(_build_work_chunks(source_lines, execution, phase))
+    data: dict[str, JsonValue] = {
+        "execution_strategy": strategy_value,
+        "shard_count": shard_count,
+    }
+    if execution and execution.max_parallel_agents is not None:
+        data["max_parallel_agents"] = execution.max_parallel_agents
+    return data
 
 
 def _group_by_scene(source_lines: list[SourceLine]) -> list[list[SourceLine]]:
@@ -1471,6 +1553,21 @@ def _group_by_scene(source_lines: list[SourceLine]) -> list[list[SourceLine]]:
             groups.append(current_group)
             current_group = []
         current_scene = line.scene_id
+        current_group.append(line)
+    if current_group:
+        groups.append(current_group)
+    return groups
+
+
+def _group_by_route(source_lines: list[SourceLine]) -> list[list[SourceLine]]:
+    groups: list[list[SourceLine]] = []
+    current_group: list[SourceLine] = []
+    current_route = source_lines[0].route_id
+    for line in source_lines:
+        if line.route_id != current_route and current_group:
+            groups.append(current_group)
+            current_group = []
+        current_route = line.route_id
         current_group.append(line)
     if current_group:
         groups.append(current_group)
@@ -1489,6 +1586,12 @@ class _WorkChunk:
     def scene_ids(self) -> set[str]:
         return {
             line.scene_id for line in self.source_lines if line.scene_id is not None
+        }
+
+    @property
+    def route_ids(self) -> set[RouteId]:
+        return {
+            line.route_id for line in self.source_lines if line.route_id is not None
         }
 
 
@@ -2018,7 +2121,7 @@ def _build_dependencies(
     run: PipelineRunContext,
     phase: PhaseName,
     target_language: LanguageCode | None,
-) -> list[PhaseDependency] | None:
+) -> list[PhaseDependency]:
     dependencies: list[PhaseDependency] = []
     ingest_revision = run.phase_revisions.get((PhaseName.INGEST, None))
     if ingest_revision is not None and phase != PhaseName.INGEST:
@@ -2090,7 +2193,7 @@ def _build_dependencies(
                     target_language=target_language,
                 )
             )
-    return dependencies or None
+    return dependencies
 
 
 def _build_phase_record(
@@ -2103,7 +2206,7 @@ def _build_phase_record(
     message: str,
 ) -> PhaseRunRecord:
     return PhaseRunRecord(
-        phase_run_id=None,
+        phase_run_id=uuid7(),
         phase=phase,
         revision=revision,
         status=PhaseStatus.COMPLETED if error is None else PhaseStatus.FAILED,
@@ -2141,11 +2244,12 @@ async def _update_stale_flags(
             "revision": record.revision,
             "target_language": record.target_language,
         }
+        phase_value = PhaseName(record.phase)
         await log_sink.emit_log(
             build_phase_log(
                 clock(),
                 run.run_id,
-                record.phase,
+                phase_value,
                 PhaseEventSuffix.INVALIDATED,
                 "Phase output invalidated by upstream changes",
                 data=data,
@@ -2310,7 +2414,10 @@ def _build_error_payload(
 
 
 def _build_phase_log_data(
-    run: PipelineRunContext, phase: PhaseName, target_language: LanguageCode | None
+    run: PipelineRunContext,
+    phase: PhaseName,
+    target_language: LanguageCode | None,
+    shard_plan: dict[str, JsonValue] | None = None,
 ) -> dict[str, JsonValue]:
     data: dict[str, JsonValue] = {
         "phase": phase.value,
@@ -2318,4 +2425,6 @@ def _build_phase_log_data(
     }
     if target_language is not None:
         data["target_language"] = target_language
+    if shard_plan:
+        data.update(shard_plan)
     return data

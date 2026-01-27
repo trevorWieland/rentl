@@ -48,6 +48,7 @@ type RequestId = Uuid7
 type AnnotationId = Uuid7
 type LineId = HumanReadableId
 type SceneId = HumanReadableId
+type RouteId = HumanReadableId
 type Timestamp = Annotated[str, Field(pattern=ISO_8601_PATTERN)]
 type LanguageCode = Annotated[str, Field(pattern=LANGUAGE_CODE_PATTERN)]
 type EventName = Annotated[str, Field(pattern=EVENT_NAME_PATTERN)]
@@ -122,6 +123,7 @@ class PhaseWorkStrategy(StrEnum):
     FULL = "full"
     SCENE = "scene"
     CHUNK = "chunk"
+    ROUTE = "route"
 
 
 class LogLevel(StrEnum):

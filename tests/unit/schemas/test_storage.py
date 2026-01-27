@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from rentl_schemas.pipeline import RunMetadata, RunState
+from rentl_schemas.pipeline import PhaseRevision, RunMetadata, RunState
 from rentl_schemas.primitives import (
     PhaseName,
     PhaseStatus,
@@ -63,6 +63,7 @@ def _build_run_state(run_id: RunId) -> RunState:
         progress=progress,
         artifacts=[],
         phase_history=None,
+        phase_revisions=None,
         last_error=None,
         qa_summary=None,
     )
@@ -137,4 +138,59 @@ def test_run_index_record_requires_targets() -> None:
             updated_at="2026-01-26T00:00:02Z",
             progress=summary,
             last_error=None,
+        )
+
+
+def test_run_state_revisions_require_unique_pairs() -> None:
+    """RunState requires unique phase/target pairs for revisions."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b4")
+    metadata = RunMetadata(
+        run_id=run_id,
+        schema_version=VersionInfo(major=0, minor=1, patch=0),
+        status=RunStatus.PENDING,
+        current_phase=None,
+        created_at="2026-01-26T00:00:00Z",
+        started_at=None,
+        completed_at=None,
+    )
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    progress = RunProgress(
+        phases=[
+            PhaseProgress(
+                phase=PhaseName.INGEST,
+                status=PhaseStatus.PENDING,
+                summary=summary,
+                metrics=None,
+                started_at=None,
+                completed_at=None,
+            )
+        ],
+        summary=summary,
+        phase_weights=None,
+    )
+    with pytest.raises(ValueError):
+        RunState(
+            metadata=metadata,
+            progress=progress,
+            artifacts=[],
+            phase_history=None,
+            phase_revisions=[
+                PhaseRevision(
+                    phase=PhaseName.CONTEXT,
+                    target_language=None,
+                    revision=1,
+                ),
+                PhaseRevision(
+                    phase=PhaseName.CONTEXT,
+                    target_language=None,
+                    revision=2,
+                ),
+            ],
+            last_error=None,
+            qa_summary=None,
         )
