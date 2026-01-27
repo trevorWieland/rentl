@@ -1,6 +1,5 @@
 """Unit tests for phase input and output schemas."""
 
-from typing import cast
 from uuid import UUID
 
 from rentl_schemas.io import TranslatedLine
@@ -11,8 +10,8 @@ from rentl_schemas.phases import (
 )
 from rentl_schemas.primitives import AnnotationId, PhaseName, RunId
 
-RUN_ID = cast(RunId, UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0"))
-ANNOTATION_ID = cast(AnnotationId, UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b1"))
+RUN_ID: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0")
+ANNOTATION_ID: AnnotationId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b1")
 
 
 def test_translate_output_accepts_required_fields() -> None:

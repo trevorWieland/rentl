@@ -11,6 +11,7 @@ from rentl_schemas.primitives import (
     JsonValue,
     LanguageCode,
     PhaseName,
+    PhaseWorkStrategy,
 )
 from rentl_schemas.version import VersionInfo
 
@@ -131,9 +132,54 @@ class PhaseConfig(BaseSchema):
     retry: RetryConfig | None = Field(
         None, description="Phase-specific retry overrides"
     )
+    execution: PhaseExecutionConfig | None = Field(
+        None, description="Phase-specific execution and sharding options"
+    )
     parameters: dict[str, JsonValue] | None = Field(
         None, description="Phase-specific parameters"
     )
+
+
+class PhaseExecutionConfig(BaseSchema):
+    """Execution settings for phase work sharding and agent fan-out."""
+
+    strategy: PhaseWorkStrategy = Field(
+        PhaseWorkStrategy.FULL, description="Work splitting strategy"
+    )
+    chunk_size: int | None = Field(
+        None, gt=0, description="Line count per chunk for chunk strategy"
+    )
+    scene_batch_size: int | None = Field(
+        None, gt=0, description="Scene count per chunk for scene strategy"
+    )
+    max_parallel_agents: int | None = Field(
+        None, gt=0, description="Maximum parallel agent workers"
+    )
+
+    @model_validator(mode="after")
+    def validate_strategy(self) -> PhaseExecutionConfig:
+        """Validate strategy-specific requirements.
+
+        Returns:
+            PhaseExecutionConfig: Validated execution configuration.
+
+        Raises:
+            ValueError: If required parameters are missing or conflicting.
+        """
+        if self.strategy == PhaseWorkStrategy.FULL and (
+            self.chunk_size is not None or self.scene_batch_size is not None
+        ):
+            raise ValueError("chunk_size/scene_batch_size not allowed for full")
+        if self.strategy == PhaseWorkStrategy.CHUNK and self.chunk_size is None:
+            raise ValueError("chunk_size is required for chunk strategy")
+        if (
+            self.strategy == PhaseWorkStrategy.CHUNK
+            and self.scene_batch_size is not None
+        ):
+            raise ValueError("scene_batch_size is only valid for scene strategy")
+        if self.strategy == PhaseWorkStrategy.SCENE and self.chunk_size is not None:
+            raise ValueError("chunk_size is only valid for chunk strategy")
+        return self
 
 
 class PipelineConfig(BaseSchema):

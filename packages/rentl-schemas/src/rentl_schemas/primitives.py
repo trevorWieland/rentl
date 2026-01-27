@@ -40,6 +40,7 @@ type Uuid7 = Annotated[UUID, AfterValidator(_validate_uuid7)]
 type HumanReadableId = Annotated[str, Field(pattern=HUMAN_ID_PATTERN)]
 
 type RunId = Uuid7
+type PhaseRunId = Uuid7
 type IssueId = Uuid7
 type ArtifactId = Uuid7
 type NoteId = Uuid7
@@ -87,6 +88,14 @@ class FileFormat(StrEnum):
     TXT = "txt"
 
 
+class UntranslatedPolicy(StrEnum):
+    """Policy for handling untranslated lines during export."""
+
+    ERROR = "error"
+    WARN = "warn"
+    ALLOW = "allow"
+
+
 class RunStatus(StrEnum):
     """Overall run status values."""
 
@@ -105,6 +114,14 @@ class PhaseStatus(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     SKIPPED = "skipped"
+
+
+class PhaseWorkStrategy(StrEnum):
+    """Work splitting strategy for multi-agent phase execution."""
+
+    FULL = "full"
+    SCENE = "scene"
+    CHUNK = "chunk"
 
 
 class LogLevel(StrEnum):

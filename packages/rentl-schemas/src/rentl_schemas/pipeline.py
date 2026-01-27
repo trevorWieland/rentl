@@ -9,7 +9,10 @@ from rentl_schemas.primitives import (
     ArtifactId,
     FileFormat,
     JsonValue,
+    LanguageCode,
     PhaseName,
+    PhaseRunId,
+    PhaseStatus,
     RunId,
     RunStatus,
     Timestamp,
@@ -34,12 +37,54 @@ class ArtifactReference(BaseSchema):
 
     artifact_id: ArtifactId = Field(..., description="Artifact identifier")
     path: str = Field(..., min_length=1, description="Artifact path")
+    uri: str | None = Field(
+        None, min_length=1, description="Artifact storage URI if applicable"
+    )
     format: FileFormat = Field(..., description="Artifact format")
     created_at: Timestamp = Field(
         ..., description="ISO-8601 artifact creation timestamp"
     )
     description: str | None = Field(
         None, description="Human-readable artifact description"
+    )
+
+
+class PhaseDependency(BaseSchema):
+    """Dependency reference for a phase output."""
+
+    phase: PhaseName = Field(..., description="Dependent phase name")
+    revision: int = Field(..., ge=1, description="Dependent phase revision")
+    target_language: LanguageCode | None = Field(
+        None, description="Target language for the dependency if applicable"
+    )
+
+
+class PhaseRunRecord(BaseSchema):
+    """History record for a single phase execution."""
+
+    phase_run_id: PhaseRunId | None = Field(
+        None, description="Unique phase run identifier"
+    )
+    phase: PhaseName = Field(..., description="Phase name")
+    revision: int = Field(..., ge=1, description="Phase revision number")
+    status: PhaseStatus = Field(..., description="Phase execution status")
+    target_language: LanguageCode | None = Field(
+        None, description="Target language for language-specific phases"
+    )
+    dependencies: list[PhaseDependency] | None = Field(
+        None, description="Dependencies used to produce this output"
+    )
+    artifact_ids: list[ArtifactId] | None = Field(
+        None, description="Artifacts produced by this phase run"
+    )
+    started_at: Timestamp | None = Field(None, description="Phase start timestamp")
+    completed_at: Timestamp | None = Field(
+        None, description="Phase completion timestamp"
+    )
+    stale: bool = Field(False, description="Whether the output is stale")
+    error: RunError | None = Field(None, description="Error details if failed")
+    message: str | None = Field(
+        None, description="Optional message about the phase run"
     )
 
 
@@ -70,6 +115,9 @@ class RunState(BaseSchema):
     metadata: RunMetadata = Field(..., description="Run metadata")
     progress: RunProgress = Field(..., description="Run progress")
     artifacts: list[PhaseArtifacts] = Field(..., description="Phase artifacts")
+    phase_history: list[PhaseRunRecord] | None = Field(
+        None, description="Phase run history"
+    )
     last_error: RunError | None = Field(None, description="Most recent error if failed")
     qa_summary: QaSummary | None = Field(
         None, description="Aggregate QA summary for the run"

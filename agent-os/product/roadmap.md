@@ -17,24 +17,33 @@
 - BYOK OpenAI-compatible endpoint configuration
 - Basic QA checks + schema validation
 - Progress observability by phase/line/scene
+- Run-level progress events in progress streams (run_started/run_completed/run_failed)
 - Export patch output
 - Functional onboarding (you can get it working)
 
-**Spec List:**
-- ✅ Schema Definitions & Validation (completed)
-- (1) Progress Semantics & Tracking
-- (2) Import Adapter (CSV/JSONL/TXT)
-- (3) Export Adapter (CSV/JSONL/TXT)
-- (4) Pipeline Orchestrator (5-phase workflow + deterministic handoff)
-- (5) BYOK Model Integration (OpenAI-compatible endpoints)
-- (6) Phase Agent: Context
-- (7) Phase Agent: Pretranslation
-- (8) Phase Agent: Translate
-- (9) QA Checks (basic quality gates)
-- (10) Phase Agent: QA
-- (11) Phase Agent: Edit
-- (12) CLI Workflow & Project Setup
-- (13) Functional Onboarding (first successful run)
+**Spec List (Expanded):**
+- ✅ (01) Schema Definitions & Validation — Define strict Pydantic schemas for configs, inputs, outputs, and artifacts so the pipeline is deterministic and debuggable. **Depends on:** None.
+- ✅ (02) Progress Semantics & Tracking — Establish progress invariants and summaries so phases can report trustworthy status and completion. **Depends on:** 01.
+- ✅ (03) Import Adapter: CSV/JSONL/TXT — Normalize input data into canonical `SourceLine` records with schema validation. **Depends on:** 01.
+- ✅ (04) Export Adapter: CSV/JSONL/TXT — Emit patch-ready output formats with audit hooks and schema validation. **Depends on:** 01, 03.
+- ✅ (05) Run Persistence & Artifact Store Protocols — Define storage interfaces for run state, JSONL artifacts, and logs to enable durable runs and audits. **Depends on:** 01, 02.
+- ✅ (06) Log/Event Taxonomy & Sink Protocols — Standardize run/phase event names and payloads for observability and status tooling. **Depends on:** 01, 02, 05.
+- ✅ (07) Pipeline Orchestrator Core — Orchestrate flexible phase execution with dependency gating, deterministic merges, and staleness tracking; define when phase outputs are persisted as artifacts. **Depends on:** 01, 02, 05, 06.
+- (08) Phase Execution & Sharding Config — Add per-phase execution strategies (full/scene/route) and concurrency controls. **Depends on:** 01, 07.
+- (09) Phase History & Staleness Rules — Capture phase revisions and invalidate downstream outputs when upstream changes. **Depends on:** 01, 02, 07.
+- (10) Phase Result Summaries & Metrics — Capture post-phase stats (glossary counts, QA totals, annotation coverage) for quality signals. **Depends on:** 01, 02, 07.
+- (11) CLI Workflow & Phase Selection — Provide CLI commands to run a full plan or a single phase with clear status output; wire storage adapters into CLI runs. **Depends on:** 02, 07, 10.
+- (12) BYOK Config & Endpoint Validation — Validate model endpoints and keys to avoid unsafe or unusable runs. **Depends on:** 01.
+- (13) BYOK Runtime Integration — Implement OpenAI-compatible runtime clients with retries/backoff. **Depends on:** 12.
+- (14) Agent Runtime Scaffold (pydantic-ai) — Establish agent harness, prompts, and tool plumbing for phase agents. **Depends on:** 01, 12, 13.
+- (15) Phase Agent: Context — Generate scene summaries, context notes, and glossary seeds to guide downstream work. **Depends on:** 14.
+- (16) Phase Agent: Pretranslation — Produce annotations and term candidates to lift translation quality above raw MTL. **Depends on:** 14, 15.
+- (17) Phase Agent: Translate — Produce translated lines using context and pretranslation data. **Depends on:** 14, 15, 16.
+- (18) QA Checks (Deterministic) — Run mechanical checks for formatting and completeness to enforce guardrails. **Depends on:** 01, 17.
+- (19) Phase Agent: QA — Surface QA issues and summaries beyond deterministic checks. **Depends on:** 14, 18.
+- (20) Phase Agent: Edit — Apply targeted fixes based on QA findings for iterative improvements. **Depends on:** 14, 17, 19.
+- (21) Observability Surface (CLI Status Viewer) — Display live phase status and completion summaries for trust and clarity. **Depends on:** 02, 06, 10, 11.
+- (22) Functional Onboarding — Guide users to a first successful run with defaults and validation. **Depends on:** 11, 13, 15–20.
 
 **Success Criteria:**
 - Produces higher-quality output than simple MTL
@@ -62,6 +71,14 @@
 - Improved agent iteration visibility and control
 - Functional onboarding refinements
 
+**Spec List (Expanded):**
+- (23) Agent Roster & Per-Phase Composition — Let users configure which agents run in a phase and in what mix. **Depends on:** 14, 15–20.
+- (24) Agent Pool Scheduling & Queueing — Provide async scheduling, backpressure, and sharding for multi-agent teams. **Depends on:** 07, 08, 23.
+- (25) Per-Agent Telemetry & Progress — Show which agents are running, finished, or blocked within a phase. **Depends on:** 06, 21, 23, 24.
+- (26) HITL Review & Manual Artifacts — Enable pause/review/resume with human edits without full resets. **Depends on:** 05, 07, 24.
+- (27) Deterministic Merge Policies & Conflict Resolution — Add configurable resolution rules when multiple agents overlap. **Depends on:** 07, 23.
+- (28) Incremental Rerun & Diffing — Rerun only impacted shards to reduce cost and iteration time. **Depends on:** 07, 08, 09, 24.
+
 **Success Criteria:**
 - First-pass translations are noticeably higher quality than v0.1
 - QA catches issues that v0.1 missed
@@ -86,6 +103,11 @@
 - Batch management for large multi-language projects
 - Multi-language progress tracking and reporting
 - Functional onboarding refinements
+
+**Spec List (Expanded):**
+- (29) Multi-Language Batch Orchestration — Run multiple target languages in parallel with shared context. **Depends on:** 07, 08, 23, 24.
+- (30) Adapter Interface Framework — Standardize adapter contracts for engines and storage backends (e.g., PostgreSQL storage adapters). **Depends on:** 01, 05.
+- (31) Engine-Specific Adapters — Provide out-of-the-box adapters for popular engines. **Depends on:** 30.
 
 **Success Criteria:**
 - Users can translate one script into 3+ languages in one workflow
@@ -112,6 +134,9 @@
 - Visual dashboards for QA reporting and iteration analytics
 - Settings and preferences interface
 - Functional onboarding refinements
+
+**Spec List (Expanded):**
+- (32) Full TUI Workflow — Deliver a complete TUI for setup, progress, QA review, and edits. **Depends on:** 21, 24–26.
 
 **Success Criteria:**
 - Users can complete end-to-end workflows using only the TUI
@@ -151,6 +176,9 @@
   - Benchmarking framework with quality rubrics (accuracy, style fidelity, consistency)
   - Example/benchmark repository with real-game demos
   - Contributor-friendly architecture and documentation
+
+**Spec List (Expanded):**
+- (33) CAT-Grade Features — Add TM, glossary enforcement, advanced QA suites, and reporting for v1.0 parity. **Depends on:** 23–28.
 
 **Success Criteria:**
 - Feature parity with core CAT tool capabilities (TM, glossaries, QA suites, reporting)

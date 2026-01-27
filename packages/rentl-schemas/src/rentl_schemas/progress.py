@@ -8,9 +8,9 @@ from typing import Annotated
 from pydantic import Field, model_validator
 
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.events import ProgressEvent
 from rentl_schemas.primitives import (
     EVENT_NAME_PATTERN,
-    EventName,
     PhaseName,
     PhaseStatus,
     RunId,
@@ -265,7 +265,7 @@ class ProgressUpdate(BaseSchema):
     """Incremental progress update suitable for logs or streaming."""
 
     run_id: RunId = Field(..., description="Run identifier")
-    event: EventName = Field(..., description="Event name in snake_case")
+    event: ProgressEvent = Field(..., description="Progress event name in snake_case")
     timestamp: Timestamp = Field(..., description="Update timestamp")
     phase: PhaseName | None = Field(None, description="Associated phase")
     phase_status: PhaseStatus | None = Field(

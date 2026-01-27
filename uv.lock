@@ -2185,6 +2185,8 @@ version = "0.1.0"
 source = { editable = "services/rentl-cli" }
 dependencies = [
     { name = "rentl-core" },
+    { name = "rentl-io" },
+    { name = "rentl-schemas" },
     { name = "rich" },
     { name = "typer" },
 ]
@@ -2192,6 +2194,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "rentl-core", editable = "packages/rentl-core" },
+    { name = "rentl-io", editable = "packages/rentl-io" },
+    { name = "rentl-schemas", editable = "packages/rentl-schemas" },
     { name = "rich", specifier = ">=14.3.1" },
     { name = "typer", specifier = ">=0.21.1" },
 ]
@@ -2202,14 +2206,12 @@ version = "0.1.0"
 source = { editable = "packages/rentl-core" }
 dependencies = [
     { name = "pydantic-ai" },
-    { name = "rentl-io" },
     { name = "rentl-schemas" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "pydantic-ai", specifier = ">=1.47.0" },
-    { name = "rentl-io", editable = "packages/rentl-io" },
     { name = "rentl-schemas", editable = "packages/rentl-schemas" },
 ]
 
@@ -2218,11 +2220,15 @@ name = "rentl-io"
 version = "0.1.0"
 source = { editable = "packages/rentl-io" }
 dependencies = [
+    { name = "rentl-core" },
     { name = "rentl-schemas" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "rentl-schemas", editable = "packages/rentl-schemas" }]
+requires-dist = [
+    { name = "rentl-core", editable = "packages/rentl-core" },
+    { name = "rentl-schemas", editable = "packages/rentl-schemas" },
+]
 
 [[package]]
 name = "rentl-schemas"

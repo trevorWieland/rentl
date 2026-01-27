@@ -7,9 +7,10 @@ from rentl_schemas.config import (
     LanguageConfig,
     ModelSettings,
     PhaseConfig,
+    PhaseExecutionConfig,
     PipelineConfig,
 )
-from rentl_schemas.primitives import PhaseName
+from rentl_schemas.primitives import PhaseName, PhaseWorkStrategy
 
 
 def test_language_config_rejects_duplicate_targets() -> None:
@@ -57,4 +58,38 @@ def test_pipeline_config_requires_default_model() -> None:
                 PhaseConfig(phase=PhaseName.QA),
                 PhaseConfig(phase=PhaseName.EDIT),
             ],
+        )
+
+
+def test_phase_execution_requires_chunk_size() -> None:
+    """Ensure chunk strategy requires chunk_size."""
+    with pytest.raises(ValidationError):
+        PhaseExecutionConfig(strategy=PhaseWorkStrategy.CHUNK)
+
+
+def test_phase_execution_rejects_full_with_chunk_size() -> None:
+    """Ensure chunk_size is rejected for full strategy."""
+    with pytest.raises(ValidationError):
+        PhaseExecutionConfig(
+            strategy=PhaseWorkStrategy.FULL,
+            chunk_size=10,
+        )
+
+
+def test_phase_execution_rejects_scene_with_chunk_size() -> None:
+    """Ensure chunk_size is rejected for scene strategy."""
+    with pytest.raises(ValidationError):
+        PhaseExecutionConfig(
+            strategy=PhaseWorkStrategy.SCENE,
+            chunk_size=10,
+        )
+
+
+def test_phase_execution_rejects_chunk_with_scene_batch_size() -> None:
+    """Ensure scene_batch_size is rejected for chunk strategy."""
+    with pytest.raises(ValidationError):
+        PhaseExecutionConfig(
+            strategy=PhaseWorkStrategy.CHUNK,
+            chunk_size=10,
+            scene_batch_size=2,
         )

@@ -1,11 +1,11 @@
 """Unit tests for progress tracking schemas and helpers."""
 
-from typing import cast
 from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
 
+from rentl_schemas.events import ProgressEvent
 from rentl_schemas.primitives import PhaseName, PhaseStatus, RunId
 from rentl_schemas.progress import (
     PhaseProgress,
@@ -21,7 +21,7 @@ from rentl_schemas.progress import (
 )
 from rentl_schemas.validation import validate_progress_monotonic
 
-RUN_ID = cast(RunId, UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0"))
+RUN_ID: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0")
 
 
 def build_summary(percent: float | None, mode: ProgressPercentMode) -> ProgressSummary:
@@ -130,7 +130,7 @@ def test_progress_update_requires_payload() -> None:
     with pytest.raises(ValidationError):
         ProgressUpdate(
             run_id=RUN_ID,
-            event="phase_started",
+            event=ProgressEvent.PHASE_STARTED,
             timestamp="2026-01-25T12:00:00Z",
             phase=PhaseName.TRANSLATE,
             phase_status=PhaseStatus.RUNNING,
@@ -163,7 +163,7 @@ def test_progress_update_rejects_phase_mismatch() -> None:
     with pytest.raises(ValidationError):
         ProgressUpdate(
             run_id=RUN_ID,
-            event="phase_progress",
+            event=ProgressEvent.PHASE_PROGRESS,
             timestamp="2026-01-25T12:00:00Z",
             phase=PhaseName.QA,
             phase_status=PhaseStatus.RUNNING,
@@ -196,7 +196,7 @@ def test_progress_update_rejects_phase_status_mismatch() -> None:
     with pytest.raises(ValidationError):
         ProgressUpdate(
             run_id=RUN_ID,
-            event="phase_progress",
+            event=ProgressEvent.PHASE_PROGRESS,
             timestamp="2026-01-25T12:00:00Z",
             phase=PhaseName.TRANSLATE,
             phase_status=PhaseStatus.RUNNING,
@@ -373,7 +373,7 @@ def test_progress_update_rejects_phase_not_in_run_progress() -> None:
     with pytest.raises(ValidationError):
         ProgressUpdate(
             run_id=RUN_ID,
-            event="phase_progress",
+            event=ProgressEvent.PHASE_PROGRESS,
             timestamp="2026-01-25T12:00:00Z",
             phase=PhaseName.QA,
             phase_status=PhaseStatus.RUNNING,

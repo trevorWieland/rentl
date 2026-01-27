@@ -156,6 +156,63 @@ Create `agent-os/specs/{folder-name}/` with:
 Does this plan structure look right? I'll fill in the implementation tasks next.
 ```
 
+### Step 7.5: Add Verification Task
+
+**IMPORTANT**: Every plan MUST include a final verification task that runs `make all`.
+
+Explain to the user:
+
+```
+One critical addition: Before finalizing, we must verify all code passes quality checks.
+
+This enforces the make-all-gate standard, which requires running format, lint, type, and unit tests before any work is considered complete.
+
+I'll add a final verification task that runs `make all`. This task should:
+
+- Be the LAST task in the plan (after all implementation is done)
+- Run `make all` to ensure format, lint, type, and unit checks all pass
+- Fail the plan if `make all` doesn't pass
+```
+
+Then present the updated plan structure with the verification task as the final step:
+
+```
+Here's the updated plan structure with verification as the final gate:
+
+---
+
+## Task 1: Save Spec Documentation
+
+Create `agent-os/specs/{folder-name}/` with:
+- **plan.md** — This full plan
+- **shape.md** — Shaping notes (scope, decisions, context from our conversation)
+- **standards.md** — Relevant standards that apply to this work
+- **references.md** — Pointers to reference implementations studied
+- **visuals/** — Any mockups or screenshots provided
+
+## Task 2: [First implementation task]
+
+[Description based on the feature]
+
+## Task 3: [Next task]
+
+...
+
+## Task N: Verification - Run make all
+
+Run `make all` to ensure all code passes quality checks:
+- Format code with ruff
+- Check linting rules
+- Type check with ty
+- Run unit tests
+
+This task MUST pass before the spec is considered complete. Failures must be fixed and re-run until `make all` passes.
+
+---
+
+Does this plan structure look right? I'll fill in the implementation tasks next.
+```
+
 ### Step 8: Complete the Plan
 
 After Task 1 is confirmed, continue building out the remaining implementation tasks based on:
@@ -174,6 +231,8 @@ Plan complete. When you approve and execute:
 
 1. Task 1 will save all spec documentation first
 2. Then implementation tasks will proceed
+3. The final verification task will run `make all` to ensure quality
+4. If `make all` fails, the plan is incomplete until issues are fixed
 
 Ready to start? (approve / adjust)
 ```
@@ -215,9 +274,12 @@ The shape.md file should capture:
 
 ## Standards Applied
 
+- testing/make-all-gate — Verification required before completion
 - api/response-format — [why it applies]
 - api/error-handling — [why it applies]
 ```
+
+Note: The testing/make-all-gate standard should always be included.
 
 ## standards.md Content
 
@@ -265,3 +327,4 @@ The following standards apply to this work.
 - **Visuals are optional** — Not every feature needs mockups.
 - **Standards guide, not dictate** — They inform the plan but aren't always mandatory.
 - **Specs are discoverable** — Months later, someone can find this spec and understand what was built and why.
+- **Verification is mandatory**: Every plan must end with a verification task that runs `make all`. This is not optional — it enforces the make-all-gate standard.
