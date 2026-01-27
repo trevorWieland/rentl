@@ -30,18 +30,18 @@
 - ✅ (06) Log/Event Taxonomy & Sink Protocols — Standardize run/phase event names and payloads for observability and status tooling. **Depends on:** 01, 02, 05.
 - ✅ (07) Pipeline Orchestrator Core — Orchestrate flexible phase execution with dependency gating, deterministic merges, and staleness tracking; define when phase outputs are persisted as artifacts. **Depends on:** 01, 02, 05, 06.
 - ✅ (08) Phase Execution & Sharding Config — Add per-phase execution strategies (full/scene/route) and concurrency controls. **Depends on:** 01, 07.
-- (09) Phase History & Staleness Rules — Capture phase revisions and invalidate downstream outputs when upstream changes. **Depends on:** 01, 02, 07.
+- ✅ (09) Phase History & Staleness Rules — Capture phase revisions and invalidate downstream outputs when upstream changes. **Depends on:** 01, 02, 07.
 - (10) Phase Result Summaries & Metrics — Capture post-phase stats (glossary counts, QA totals, annotation coverage) for quality signals. **Depends on:** 01, 02, 07.
 - (11) CLI Workflow & Phase Selection — Provide CLI commands to run a full plan or a single phase with clear status output; wire storage adapters into CLI runs. **Depends on:** 02, 07, 10.
 - (12) BYOK Config & Endpoint Validation — Validate model endpoints and keys to avoid unsafe or unusable runs. **Depends on:** 01.
-- (13) BYOK Runtime Integration — Implement OpenAI-compatible runtime clients with retries/backoff. **Depends on:** 12.
+- (13) BYOK Runtime Integration — Implement OpenAI-compatible runtime clients (pydantic-ai) with retries/backoff. **Depends on:** 12.
 - (14) Agent Runtime Scaffold (pydantic-ai) — Establish agent harness, prompts, and tool plumbing for phase agents. **Depends on:** 01, 12, 13.
-- (15) Phase Agent: Context — Generate scene summaries, context notes, and glossary seeds to guide downstream work. **Depends on:** 14.
-- (16) Phase Agent: Pretranslation — Produce annotations and term candidates to lift translation quality above raw MTL. **Depends on:** 14, 15.
-- (17) Phase Agent: Translate — Produce translated lines using context and pretranslation data. **Depends on:** 14, 15, 16.
-- (18) QA Checks (Deterministic) — Run mechanical checks for formatting and completeness to enforce guardrails. **Depends on:** 01, 17.
-- (19) Phase Agent: QA — Surface QA issues and summaries beyond deterministic checks. **Depends on:** 14, 18.
-- (20) Phase Agent: Edit — Apply targeted fixes based on QA findings for iterative improvements. **Depends on:** 14, 17, 19.
+- (15) Initial Phase Agent: Context — Create an initial agent to act in the Context phase. Candidates include (but are not limited to): scene summarization, glossary generation, character bio generation. **Depends on:** 14.
+- (16) Initial Phase Agent: Pretranslation — Create an initial agent to act in the Pretranslation phase. Candidates include (but are not limited to): idiom labeler, pop-culture reference finder, speaker attribution. **Depends on:** 14, 15.
+- (17) Initial Phase Agent: Translate — Create our main translation agent, utilizing simple direct translation. This should take in context and pretranslation data, and output translated lines. Future translation agents would involve extra features like selective usage of other MTL models as tool calls. **Depends on:** 14, 15, 16.
+- (18) Initial QA Checks (Deterministic) — Create deterministic and automated checks for formatting and completeness to enforce guardrails. **Depends on:** 01, 17.
+- (19) Initial Phase Agent: QA — Create an initial agent to act in the QA phase. Candidates include (but are not limited to): inaccurate translation detection, style-guide adherence critic, incorrect pronoun usage detection, etc. **Depends on:** 14, 18.
+- (20) Initial Phase Agent: Edit — Create our main editor agent, which will take in translated lines and apply targeted fixes based on QA findings for iterative improvements. Future editor agents would involve extra features like flagging a line for full retranslation, or using tools for more complex fixes. **Depends on:** 14, 17, 19.
 - (21) Observability Surface (CLI Status Viewer) — Display live phase status and completion summaries for trust and clarity. **Depends on:** 02, 06, 10, 11.
 - (22) Functional Onboarding — Guide users to a first successful run with defaults and validation. **Depends on:** 11, 13, 15–20.
 
