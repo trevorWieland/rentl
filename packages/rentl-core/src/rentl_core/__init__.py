@@ -4,6 +4,7 @@ from rentl_core.orchestrator import (
     PhaseAgentPool,
     PipelineOrchestrator,
     PipelineRunContext,
+    hydrate_run_context,
 )
 from rentl_core.ports import (
     ExportAdapterProtocol,
@@ -60,4 +61,5 @@ __all__ = [
     "build_ingest_completed_log",
     "build_ingest_failed_log",
     "build_ingest_started_log",
+    "hydrate_run_context",
 ]

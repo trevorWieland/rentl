@@ -1154,6 +1154,34 @@ class PipelineOrchestrator:
         )
 
 
+def hydrate_run_context(config: RunConfig, state: RunState) -> PipelineRunContext:
+    """Hydrate a run context from persisted run state.
+
+    Args:
+        config: Run configuration.
+        state: Persisted run state snapshot.
+
+    Returns:
+        PipelineRunContext: Hydrated run context with revisions restored.
+    """
+    phase_history = state.phase_history or []
+    phase_revisions = _resolve_phase_revisions(state)
+    return PipelineRunContext(
+        run_id=state.metadata.run_id,
+        config=config,
+        progress=state.progress,
+        created_at=state.metadata.created_at,
+        started_at=state.metadata.started_at,
+        completed_at=state.metadata.completed_at,
+        status=state.metadata.status,
+        current_phase=state.metadata.current_phase,
+        last_error=state.last_error,
+        artifacts=state.artifacts,
+        phase_history=phase_history,
+        phase_revisions=phase_revisions,
+    )
+
+
 def _build_initial_progress(config: RunConfig) -> RunProgress:
     phases = []
     for phase in config.pipeline.phases:
@@ -1271,6 +1299,24 @@ def _build_phase_revisions(
         for (phase, target_language), revision in run.phase_revisions.items()
     ]
     revisions.sort(key=lambda entry: (entry.phase.value, entry.target_language or ""))
+    return revisions
+
+
+def _resolve_phase_revisions(state: RunState) -> dict[PhaseKey, int]:
+    if state.phase_revisions:
+        return {
+            (entry.phase, entry.target_language): entry.revision
+            for entry in state.phase_revisions
+        }
+    revisions: dict[PhaseKey, int] = {}
+    if state.phase_history is None:
+        return revisions
+    for record in state.phase_history:
+        if record.status != PhaseStatus.COMPLETED:
+            continue
+        key = (record.phase, record.target_language)
+        revision = revisions.get(key, 0)
+        revisions[key] = max(revision, record.revision)
     return revisions
 
 

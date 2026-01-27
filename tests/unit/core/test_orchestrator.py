@@ -8,7 +8,11 @@ from uuid import UUID
 import pytest
 from pydantic import Field
 
-from rentl_core.orchestrator import PhaseAgentPool, PipelineOrchestrator
+from rentl_core.orchestrator import (
+    PhaseAgentPool,
+    PipelineOrchestrator,
+    hydrate_run_context,
+)
 from rentl_core.ports.orchestrator import (
     LogSinkProtocol,
     OrchestrationError,
@@ -45,16 +49,25 @@ from rentl_schemas.phases import (
     TranslatePhaseInput,
     TranslatePhaseOutput,
 )
+from rentl_schemas.pipeline import PhaseRunRecord, RunMetadata, RunState
 from rentl_schemas.primitives import (
     ArtifactId,
     FileFormat,
     PhaseName,
+    PhaseStatus,
     PhaseWorkStrategy,
     QaCategory,
     QaSeverity,
     RunId,
+    RunStatus,
 )
-from rentl_schemas.progress import ProgressUpdate
+from rentl_schemas.progress import (
+    PhaseProgress,
+    ProgressPercentMode,
+    ProgressSummary,
+    ProgressUpdate,
+    RunProgress,
+)
 from rentl_schemas.qa import QaSummary
 from rentl_schemas.storage import ArtifactFormat, ArtifactMetadata, ArtifactRole
 from rentl_schemas.version import VersionInfo
@@ -287,6 +300,77 @@ def _with_phase_execution(
     return config.model_copy(update={"pipeline": pipeline})
 
 
+def _build_run_state(run_id: RunId) -> RunState:
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    progress = RunProgress(
+        phases=[
+            PhaseProgress(
+                phase=PhaseName.INGEST,
+                status=PhaseStatus.PENDING,
+                summary=summary,
+                metrics=None,
+                started_at=None,
+                completed_at=None,
+            )
+        ],
+        summary=summary,
+        phase_weights=None,
+    )
+    metadata = RunMetadata(
+        run_id=run_id,
+        schema_version=VersionInfo(major=0, minor=1, patch=0),
+        status=RunStatus.COMPLETED,
+        current_phase=None,
+        created_at="2026-01-27T00:00:00Z",
+        started_at="2026-01-27T00:00:01Z",
+        completed_at="2026-01-27T00:00:02Z",
+    )
+    history = [
+        PhaseRunRecord(
+            phase_run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5d0"),
+            phase=PhaseName.TRANSLATE,
+            revision=1,
+            status=PhaseStatus.COMPLETED,
+            target_language="ja",
+            dependencies=[],
+            artifact_ids=None,
+            started_at=None,
+            completed_at=None,
+            stale=False,
+            error=None,
+            message="Translate completed",
+        ),
+        PhaseRunRecord(
+            phase_run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5d1"),
+            phase=PhaseName.TRANSLATE,
+            revision=2,
+            status=PhaseStatus.COMPLETED,
+            target_language="ja",
+            dependencies=[],
+            artifact_ids=None,
+            started_at=None,
+            completed_at=None,
+            stale=False,
+            error=None,
+            message="Translate completed",
+        ),
+    ]
+    return RunState(
+        metadata=metadata,
+        progress=progress,
+        artifacts=[],
+        phase_history=history,
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_pool_preserves_order() -> None:
@@ -295,6 +379,17 @@ async def test_agent_pool_preserves_order() -> None:
     inputs = [_NumberInput(value=value) for value in [3, 1, 2]]
     outputs = await pool.run_batch(inputs)
     assert [output.value for output in outputs] == [3, 1, 2]
+
+
+@pytest.mark.unit
+def test_hydrate_run_context_restores_phase_revisions() -> None:
+    """Hydration restores phase revisions when missing from state."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5d2")
+    state = _build_run_state(run_id)
+    run = hydrate_run_context(_build_run_config(), state)
+
+    assert run.phase_revisions[PhaseName.TRANSLATE, "ja"] == 2
+    assert len(run.phase_history) == 2
 
 
 @pytest.mark.unit
