@@ -12,13 +12,14 @@ managed = true
 members = ["packages/*", "services/*"]
 
 [tool.uv.sources]
-rentl-schemas = { workspace = true }
-rentl-io = { workspace = true }
-rentl-core = { workspace = true }
-rentl-llm = { workspace = true }
-rentl-cli = { workspace = true }
-rentl-tui = { workspace = true }
+rentl-agents = { workspace = true }
 rentl-api = { workspace = true }
+rentl-cli = { workspace = true }
+rentl-core = { workspace = true }
+rentl-io = { workspace = true }
+rentl-llm = { workspace = true }
+rentl-schemas = { workspace = true }
+rentl-tui = { workspace = true }
 
 [tool.ruff]
 target-version = "py314"
@@ -46,7 +47,7 @@ select = [
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["rentl_schemas", "rentl_io", "rentl_core", "rentl_llm", "rentl_cli", "rentl_tui", "rentl_api"]
+known-first-party = ["rentl_schemas", "rentl_io", "rentl_core", "rentl_llm", "rentl_agents", "rentl_cli", "rentl_tui", "rentl_api"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -89,6 +90,7 @@ dev = [
     "rentl-io",
     "rentl-core",
     "rentl-llm",
+    "rentl-agents",
     "rentl-cli",
     "rentl-tui",
     "rentl-api",

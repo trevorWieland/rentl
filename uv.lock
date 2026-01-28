@@ -5,6 +5,7 @@ requires-python = ">=3.14"
 [manifest]
 members = [
     "rentl",
+    "rentl-agents",
     "rentl-api",
     "rentl-cli",
     "rentl-core",
@@ -2134,6 +2135,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
+    { name = "rentl-agents" },
     { name = "rentl-api" },
     { name = "rentl-cli" },
     { name = "rentl-core" },
@@ -2154,6 +2156,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=6" },
     { name = "pytest-timeout", specifier = ">=2" },
     { name = "pytest-xdist", specifier = ">=3" },
+    { name = "rentl-agents", editable = "packages/rentl-agents" },
     { name = "rentl-api", editable = "services/rentl-api" },
     { name = "rentl-cli", editable = "services/rentl-cli" },
     { name = "rentl-core", editable = "packages/rentl-core" },
@@ -2163,6 +2166,25 @@ dev = [
     { name = "rentl-tui", editable = "services/rentl-tui" },
     { name = "ruff", specifier = ">=0.14.14" },
     { name = "ty", specifier = ">=0.0.1a13" },
+]
+
+[[package]]
+name = "rentl-agents"
+version = "0.1.0"
+source = { editable = "packages/rentl-agents" }
+dependencies = [
+    { name = "pydantic-ai" },
+    { name = "rentl-core" },
+    { name = "rentl-llm" },
+    { name = "rentl-schemas" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic-ai", specifier = ">=1.47.0" },
+    { name = "rentl-core", editable = "packages/rentl-core" },
+    { name = "rentl-llm", editable = "packages/rentl-llm" },
+    { name = "rentl-schemas", editable = "packages/rentl-schemas" },
 ]
 
 [[package]]
