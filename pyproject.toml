@@ -101,4 +101,5 @@ dev = [
     "pytest-cov>=6",
     "pytest-xdist>=3",
     "pytest-timeout>=2",
+    "pytest-bdd>=8",
 ]

@@ -35,7 +35,7 @@
 - ✅ (11) CLI Workflow & Phase Selection — Provide CLI commands to run a full plan or a single phase with clear status output; wire storage adapters into CLI runs. **Depends on:** 02, 07, 10.
 - ✅ (12) BYOK Config & Endpoint Validation — Validate model endpoints and keys to avoid unsafe or unusable runs. **Depends on:** 01.
 - ✅ (13) BYOK Runtime Integration — Implement OpenAI-compatible runtime clients (pydantic-ai) with retries/backoff. **Depends on:** 12.
-- (14) Agent Runtime Scaffold (pydantic-ai) — Establish agent harness, prompts, and tool plumbing for phase agents. **Depends on:** 01, 12, 13.
+- ✅ (14) Agent Runtime Scaffold (pydantic-ai) — Establish agent harness, prompts, and tool plumbing for phase agents. **Depends on:** 01, 12, 13.
 - (15) Initial Phase Agent: Context — Create an initial agent to act in the Context phase. Candidates include (but are not limited to): scene summarization, glossary generation, character bio generation. **Depends on:** 14.
 - (16) Initial Phase Agent: Pretranslation — Create an initial agent to act in the Pretranslation phase. Candidates include (but are not limited to): idiom labeler, pop-culture reference finder, speaker attribution. **Depends on:** 14, 15.
 - (17) Initial Phase Agent: Translate — Create our main translation agent, utilizing simple direct translation. This should take in context and pretranslation data, and output translated lines. Future translation agents would involve extra features like selective usage of other MTL models as tool calls. **Depends on:** 14, 15, 16.

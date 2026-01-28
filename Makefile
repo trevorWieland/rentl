@@ -82,13 +82,14 @@ quality:
 test:
 	@uv run pytest --cov=packages --cov=services --cov-report=term-missing
 
-# Run all checks (format, lint, type, unit)
+# Run all checks (format, lint, type, unit, integration)
 all: 
 	@echo "🚀 Starting Full Verification..."
 	@$(MAKE) format --no-print-directory
 	@$(MAKE) lint --no-print-directory
 	@$(MAKE) type --no-print-directory
 	@$(MAKE) unit --no-print-directory
+	@$(MAKE) integration --no-print-directory
 	@echo "🎉 All Checks Passed!"
 
 # Clean build artifacts
