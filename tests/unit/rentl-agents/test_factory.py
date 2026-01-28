@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
 
 from rentl_agents.factory import AgentConfig, AgentFactory
@@ -36,7 +34,7 @@ class MockTool(AgentTool):
             description="Mock tool for testing",
         )
 
-    def execute(self, input_data: dict) -> dict:
+    def execute(self, input_data: dict[str, object]) -> dict[str, object]:
         """Execute mock tool and return success result.
 
         Args:
@@ -147,20 +145,12 @@ class TestAgentConfig:
 class TestAgentFactory:
     """Test cases for AgentFactory class."""
 
-    def test_create_factory_without_runtime(self) -> None:
-        """Test creating a factory without runtime."""
+    def test_create_factory(self) -> None:
+        """Test creating a factory."""
         factory = AgentFactory()
 
-        assert factory._runtime is None
         assert factory._tool_registry == {}
         assert factory._instance_cache == {}
-
-    def test_create_factory_with_runtime(self) -> None:
-        """Test creating a factory with runtime."""
-        mock_runtime = MagicMock(spec=[])
-        factory = AgentFactory(runtime=mock_runtime)
-
-        assert factory._runtime is mock_runtime
 
     def test_register_tool(self) -> None:
         """Test registering a tool."""
@@ -194,25 +184,9 @@ class TestAgentFactory:
 
         factory.unregister_tool("nonexistent_tool")
 
-    @pytest.mark.asyncio
-    async def test_create_agent_without_runtime(self) -> None:
-        """Test creating agent without runtime raises error."""
-        factory = AgentFactory()
-        config = AgentConfig(
-            model_endpoint_ref="default",
-            system_prompt="You are helpful.",
-            user_prompt_template="Translate: {{text}}",
-        )
-
-        with pytest.raises(ValueError, match="LLM runtime must be set"):
-            factory.create_agent(config, MockOutput)
-
-    @pytest.mark.asyncio
-    async def test_create_agent_success(self) -> None:
+    def test_create_agent_success(self) -> None:
         """Test creating an agent successfully."""
-        mock_runtime = MagicMock()
-        mock_runtime.run_prompt = AsyncMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config = AgentConfig(
             model_endpoint_ref="default",
@@ -224,12 +198,9 @@ class TestAgentFactory:
 
         assert isinstance(agent, AgentHarness)
 
-    @pytest.mark.asyncio
-    async def test_create_agent_with_tools(self) -> None:
+    def test_create_agent_with_tools(self) -> None:
         """Test creating an agent with tools."""
-        mock_runtime = MagicMock()
-        mock_runtime.run_prompt = AsyncMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         factory.register_tool("context_lookup", lambda: ContextLookupTool())
 
@@ -244,11 +215,9 @@ class TestAgentFactory:
 
         assert isinstance(agent, AgentHarness)
 
-    @pytest.mark.asyncio
-    async def test_create_agent_with_unregistered_tool(self) -> None:
+    def test_create_agent_with_unregistered_tool(self) -> None:
         """Test creating agent with unregistered tool raises error."""
-        mock_runtime = MagicMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config = AgentConfig(
             model_endpoint_ref="default",
@@ -262,12 +231,9 @@ class TestAgentFactory:
         ):
             factory.create_agent(config, MockOutput)
 
-    @pytest.mark.asyncio
-    async def test_create_agent_caching(self) -> None:
+    def test_create_agent_caching(self) -> None:
         """Test that agent instances are cached."""
-        mock_runtime = MagicMock()
-        mock_runtime.run_prompt = AsyncMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config = AgentConfig(
             model_endpoint_ref="default",
@@ -280,11 +246,9 @@ class TestAgentFactory:
 
         assert agent1 is agent2
 
-    @pytest.mark.asyncio
-    async def test_create_pool_with_invalid_count(self) -> None:
+    def test_create_pool_with_invalid_count(self) -> None:
         """Test creating pool with invalid count raises error."""
-        mock_runtime = MagicMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config = AgentConfig(
             model_endpoint_ref="default",
@@ -295,12 +259,9 @@ class TestAgentFactory:
         with pytest.raises(ValueError, match="count must be positive"):
             factory.create_pool(config, MockOutput, count=0)
 
-    @pytest.mark.asyncio
-    async def test_create_pool_success(self) -> None:
+    def test_create_pool_success(self) -> None:
         """Test creating an agent pool successfully."""
-        mock_runtime = MagicMock()
-        mock_runtime.run_prompt = AsyncMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config = AgentConfig(
             model_endpoint_ref="default",
@@ -312,12 +273,9 @@ class TestAgentFactory:
 
         assert pool is not None
 
-    @pytest.mark.asyncio
-    async def test_create_pool_with_max_parallel(self) -> None:
+    def test_create_pool_with_max_parallel(self) -> None:
         """Test creating an agent pool with max_parallel setting."""
-        mock_runtime = MagicMock()
-        mock_runtime.run_prompt = AsyncMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config = AgentConfig(
             model_endpoint_ref="default",
@@ -336,9 +294,7 @@ class TestAgentFactory:
 
     def test_clear_cache(self) -> None:
         """Test clearing the agent instance cache."""
-        mock_runtime = MagicMock()
-        mock_runtime.run_prompt = MagicMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config = AgentConfig(
             model_endpoint_ref="default",
@@ -354,8 +310,7 @@ class TestAgentFactory:
 
     def test_build_cache_key(self) -> None:
         """Test building cache key is deterministic."""
-        mock_runtime = MagicMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config = AgentConfig(
             model_endpoint_ref="default",
@@ -370,8 +325,7 @@ class TestAgentFactory:
 
     def test_build_cache_key_different_config(self) -> None:
         """Test cache keys are different for different configs."""
-        mock_runtime = MagicMock()
-        factory = AgentFactory(runtime=mock_runtime)
+        factory = AgentFactory()
 
         config1 = AgentConfig(
             model_endpoint_ref="default",
@@ -399,7 +353,8 @@ class TestAgentFactory:
         tool_list = factory._build_tool_list(["mock_tool"])
 
         assert len(tool_list) == 1
-        assert tool_list[0]["name"] == "mock_tool"
+        # The tool list contains the execute method callable
+        assert callable(tool_list[0])
 
     def test_build_tool_list_with_unregistered_tool(self) -> None:
         """Test building tool list raises error for unregistered tool."""

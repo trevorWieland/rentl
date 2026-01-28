@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from pydantic import Field, field_validator, model_validator
 
 from rentl_agents.harness import AgentHarness
 from rentl_agents.tools import AgentTool
 from rentl_core.orchestrator import PhaseAgentPool
-from rentl_core.ports.llm import LlmRuntimeProtocol
 from rentl_core.ports.orchestrator import (
     PhaseAgentPoolProtocol,
 )
@@ -30,7 +29,6 @@ class AgentConfig(BaseSchema):
         tools: List of tool names to register.
         max_retries: Maximum retry attempts for transient failures.
         retry_base_delay: Base delay for exponential backoff in seconds.
-        model_settings: Additional model settings for LLM.
     """
 
     model_endpoint_ref: str = Field(
@@ -61,10 +59,6 @@ class AgentConfig(BaseSchema):
         default=1.0,
         gt=0,
         description="Base delay for exponential backoff in seconds",
-    )
-    model_settings: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional model settings for LLM",
     )
 
     @field_validator("tools")
@@ -118,18 +112,10 @@ class AgentFactory:
         pool = factory.create_pool[InputType, OutputType](config, count=4)
     """
 
-    def __init__(
-        self,
-        runtime: LlmRuntimeProtocol | None = None,
-    ) -> None:
-        """Initialize the agent factory.
-
-        Args:
-            runtime: Optional LLM runtime for agent execution.
-        """
-        self._runtime = runtime
+    def __init__(self) -> None:
+        """Initialize the agent factory."""
         self._tool_registry: dict[str, Callable[[], AgentTool]] = {}
-        self._instance_cache: dict[str, AgentHarness[Any, Any]] = {}
+        self._instance_cache: dict[str, AgentHarness[BaseSchema, BaseSchema]] = {}
 
     def register_tool(
         self,
@@ -174,31 +160,26 @@ class AgentFactory:
 
         Returns:
             Configured agent harness.
-
-        Raises:
-            ValueError: If configuration is invalid or runtime is not set.
         """
-        if self._runtime is None:
-            raise ValueError("LLM runtime must be set before creating agents")
-
         cache_key = self._build_cache_key(config, output_type)
 
         if cache_key in self._instance_cache:
-            return self._instance_cache[cache_key]
+            # The cache stores AgentHarness[BaseSchema, BaseSchema] but we know
+            # the specific types based on the cache key
+            return self._instance_cache[cache_key]  # type: ignore[return-value]
 
-        tool_list = self._build_tool_list(config.tools)
+        tool_callables = self._build_tool_list(config.tools)
 
-        agent = AgentHarness(
-            runtime=self._runtime,
+        agent: AgentHarness[InputT, OutputT] = AgentHarness(
             system_prompt=config.system_prompt,
             user_prompt_template=config.user_prompt_template,
             output_type=output_type,
-            tools=tool_list,
+            tools=tool_callables,
             max_retries=config.max_retries,
             retry_base_delay=config.retry_base_delay,
         )
 
-        self._instance_cache[cache_key] = agent
+        self._instance_cache[cache_key] = agent  # type: ignore[assignment]
         return agent
 
     def create_pool[
@@ -242,7 +223,6 @@ class AgentFactory:
         self._instance_cache.clear()
 
     def _build_cache_key[
-        InputT: BaseSchema,
         OutputT: BaseSchema,
     ](
         self,
@@ -273,19 +253,19 @@ class AgentFactory:
     def _build_tool_list(
         self,
         tool_names: list[str],
-    ) -> list[dict[str, Any]]:
+    ) -> list[Callable[..., str]]:
         """Build tool list from tool names.
 
         Args:
             tool_names: List of tool names.
 
         Returns:
-            List of tool dictionaries.
+            List of tool callables.
 
         Raises:
             ValueError: If tool name is not registered.
         """
-        tool_list: list[dict[str, Any]] = []
+        tool_list: list[Callable[..., str]] = []
 
         for tool_name in tool_names:
             if tool_name not in self._tool_registry:
@@ -294,10 +274,8 @@ class AgentFactory:
             tool_factory = self._tool_registry[tool_name]
             tool = tool_factory()
 
-            tool_list.append({
-                "name": tool.name,
-                "description": tool.description,
-                "execute": tool.execute,
-            })
+            # pydantic-ai tools can be any callable - the execute method
+            # signature varies by tool implementation
+            tool_list.append(tool.execute)  # type: ignore[arg-type]
 
         return tool_list
