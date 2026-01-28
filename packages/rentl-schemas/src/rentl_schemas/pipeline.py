@@ -19,6 +19,7 @@ from rentl_schemas.primitives import (
 )
 from rentl_schemas.progress import RunProgress
 from rentl_schemas.qa import QaSummary
+from rentl_schemas.results import PhaseResultSummary
 from rentl_schemas.version import VersionInfo
 
 
@@ -91,6 +92,9 @@ class PhaseRunRecord(BaseSchema):
     )
     stale: bool = Field(False, description="Whether the output is stale")
     error: RunError | None = Field(None, description="Error details if failed")
+    summary: PhaseResultSummary | None = Field(
+        None, description="Phase result summary metrics"
+    )
     message: str | None = Field(
         None, description="Optional message about the phase run"
     )

@@ -59,7 +59,7 @@ def validate_run_config(payload: dict[str, JsonValue]) -> RunConfig:
     Returns:
         RunConfig: Validated run configuration.
     """
-    return RunConfig.model_validate(payload)
+    return RunConfig.model_validate(payload, strict=False)
 
 
 def validate_context_input(payload: dict[str, JsonValue]) -> ContextPhaseInput:

@@ -4,6 +4,7 @@ from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import (
     CacheConfig,
     ConcurrencyConfig,
+    EndpointSetConfig,
     FormatConfig,
     LanguageConfig,
     ModelEndpointConfig,
@@ -37,6 +38,16 @@ from rentl_schemas.events import (
     RunStartedData,
 )
 from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
+from rentl_schemas.llm import (
+    LlmConnectionReport,
+    LlmConnectionResult,
+    LlmConnectionStatus,
+    LlmEndpointTarget,
+    LlmModelSettings,
+    LlmPromptRequest,
+    LlmPromptResponse,
+    LlmRuntimeSettings,
+)
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import (
     ContextNote,
@@ -82,6 +93,7 @@ from rentl_schemas.primitives import (
     PhaseWorkStrategy,
     QaCategory,
     QaSeverity,
+    ReasoningEffort,
     RequestId,
     RouteId,
     RunId,
@@ -106,7 +118,21 @@ from rentl_schemas.progress import (
     compute_run_summary,
 )
 from rentl_schemas.qa import LineEdit, QaIssue, QaSummary, ReviewerNote
-from rentl_schemas.responses import ApiResponse, ErrorDetails, ErrorResponse, MetaInfo
+from rentl_schemas.responses import (
+    ApiResponse,
+    ErrorDetails,
+    ErrorResponse,
+    MetaInfo,
+    RunExecutionResult,
+)
+from rentl_schemas.results import (
+    PHASE_RESULT_METRIC_DEFINITIONS,
+    PhaseResultDimension,
+    PhaseResultMetric,
+    PhaseResultSummary,
+    ResultMetricKey,
+    ResultMetricUnit,
+)
 from rentl_schemas.storage import (
     ArtifactFormat,
     ArtifactManifest,
@@ -145,6 +171,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "PHASE_METRIC_DEFINITIONS",
+    "PHASE_RESULT_METRIC_DEFINITIONS",
     "AnnotationId",
     "AnnotationType",
     "ApiResponse",
@@ -165,6 +192,7 @@ __all__ = [
     "ContextPhaseOutput",
     "EditPhaseInput",
     "EditPhaseOutput",
+    "EndpointSetConfig",
     "ErrorDetails",
     "ErrorResponse",
     "EventName",
@@ -186,6 +214,14 @@ __all__ = [
     "LanguageConfig",
     "LineEdit",
     "LineId",
+    "LlmConnectionReport",
+    "LlmConnectionResult",
+    "LlmConnectionStatus",
+    "LlmEndpointTarget",
+    "LlmModelSettings",
+    "LlmPromptRequest",
+    "LlmPromptResponse",
+    "LlmRuntimeSettings",
     "LogEntry",
     "LogFileReference",
     "LogLevel",
@@ -201,6 +237,9 @@ __all__ = [
     "PhaseExecutionConfig",
     "PhaseName",
     "PhaseProgress",
+    "PhaseResultDimension",
+    "PhaseResultMetric",
+    "PhaseResultSummary",
     "PhaseRevision",
     "PhaseRunId",
     "PhaseRunRecord",
@@ -227,7 +266,10 @@ __all__ = [
     "QaPhaseOutput",
     "QaSeverity",
     "QaSummary",
+    "ReasoningEffort",
     "RequestId",
+    "ResultMetricKey",
+    "ResultMetricUnit",
     "RetryConfig",
     "ReviewerNote",
     "RouteId",
@@ -235,6 +277,7 @@ __all__ = [
     "RunConfig",
     "RunError",
     "RunEvent",
+    "RunExecutionResult",
     "RunFailedData",
     "RunId",
     "RunIndexRecord",

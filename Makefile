@@ -63,10 +63,10 @@ type:
 	@echo "types checking types..."
 	$(call run_clean, uv run ty check, .type.log)
 
-# Run unit tests
+# Run unit tests with coverage enforcement
 unit:
-	@echo "🧪 Running unit tests..."
-	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1, .unit.log, Unit Tests)
+	@echo "🧪 Running unit tests with coverage..."
+	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1 --cov=packages --cov=services --cov-fail-under=80, .unit.log, Unit Tests)
 
 # Run integration tests
 integration:

@@ -148,13 +148,19 @@ class OrchestrationErrorInfo(BaseSchema):
         """
         details: ErrorDetails | None = None
         if self.details is not None and self.details.phase is not None:
+            phase_value = self.details.phase
+            if isinstance(phase_value, PhaseName):
+                provided = phase_value.value
+            else:
+                provided = str(phase_value)
             details = ErrorDetails(
                 field="phase",
-                provided=self.details.phase.value,
+                provided=provided,
                 valid_options=None,
             )
+        code_value = getattr(self.code, "value", self.code)
         return ErrorResponse(
-            code=self.code.value, message=self.message, details=details
+            code=str(code_value), message=self.message, details=details
         )
 
 

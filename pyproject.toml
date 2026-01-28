@@ -15,6 +15,7 @@ members = ["packages/*", "services/*"]
 rentl-schemas = { workspace = true }
 rentl-io = { workspace = true }
 rentl-core = { workspace = true }
+rentl-llm = { workspace = true }
 rentl-cli = { workspace = true }
 rentl-tui = { workspace = true }
 rentl-api = { workspace = true }
@@ -45,7 +46,7 @@ select = [
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["rentl_schemas", "rentl_io", "rentl_core", "rentl_cli", "rentl_tui", "rentl_api"]
+known-first-party = ["rentl_schemas", "rentl_io", "rentl_core", "rentl_llm", "rentl_cli", "rentl_tui", "rentl_api"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -67,11 +68,27 @@ markers = [
     "quality: Quality tests (<30s, real LLMs)",
 ]
 
+[tool.coverage.run]
+source = ["packages", "services"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]
+
 [dependency-groups]
 dev = [
     "rentl-schemas",
     "rentl-io",
     "rentl-core",
+    "rentl-llm",
     "rentl-cli",
     "rentl-tui",
     "rentl-api",

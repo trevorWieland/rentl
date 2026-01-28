@@ -343,6 +343,7 @@ def _build_run_state(run_id: RunId) -> RunState:
             completed_at=None,
             stale=False,
             error=None,
+            summary=None,
             message="Translate completed",
         ),
         PhaseRunRecord(
@@ -357,6 +358,7 @@ def _build_run_state(run_id: RunId) -> RunState:
             completed_at=None,
             stale=False,
             error=None,
+            summary=None,
             message="Translate completed",
         ),
     ]
@@ -845,3 +847,49 @@ async def test_orchestrator_emits_run_failed_events() -> None:
     assert RunEvent.FAILED in log_events
     progress_events = {update.event for update in progress_sink.updates}
     assert ProgressEvent.RUN_FAILED in progress_events
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_orchestrator_records_phase_summary_and_logs() -> None:
+    """Ensure phase summaries are recorded and logged on completion."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5d5")
+    config = _build_run_config()
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        )
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    log_sink = _StubLogSink()
+    orchestrator = PipelineOrchestrator(
+        ingest_adapter=ingest_adapter,
+        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
+        log_sink=log_sink,
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+    record = await orchestrator.run_phase(run, PhaseName.CONTEXT)
+
+    assert record.summary is not None
+    metrics = {metric.metric_key: metric.value for metric in record.summary.metrics}
+    assert metrics["scene_summary_count"] == 1
+    assert metrics["context_note_count"] == 0
+
+    completed_entries = [
+        entry for entry in log_sink.entries if entry.event == "context_completed"
+    ]
+    assert completed_entries
+    summary_payload = completed_entries[-1].data.get("summary")
+    assert summary_payload is not None
+    assert summary_payload["phase"] == "context"

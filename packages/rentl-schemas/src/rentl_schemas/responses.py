@@ -5,7 +5,10 @@ from __future__ import annotations
 from pydantic import Field
 
 from rentl_schemas.base import BaseSchema
-from rentl_schemas.primitives import RequestId, Timestamp
+from rentl_schemas.pipeline import PhaseRunRecord, RunState
+from rentl_schemas.primitives import RequestId, RunId, RunStatus, Timestamp
+from rentl_schemas.progress import ProgressSummary
+from rentl_schemas.storage import LogFileReference, StorageReference
 
 
 class MetaInfo(BaseSchema):
@@ -45,3 +48,19 @@ class ApiResponse[ResponseData](BaseSchema):
         None, description="Error information, null on success"
     )
     meta: MetaInfo = Field(..., description="Response metadata")
+
+
+class RunExecutionResult(BaseSchema):
+    """Result payload for CLI run commands."""
+
+    run_id: RunId = Field(..., description="Run identifier")
+    status: RunStatus = Field(..., description="Run status")
+    progress: ProgressSummary | None = Field(None, description="Run progress summary")
+    run_state: RunState | None = Field(None, description="Latest run state snapshot")
+    log_file: LogFileReference | None = Field(None, description="Log file reference")
+    progress_file: StorageReference | None = Field(
+        None, description="Progress stream file reference"
+    )
+    phase_record: PhaseRunRecord | None = Field(
+        None, description="Phase run record when running a single phase"
+    )

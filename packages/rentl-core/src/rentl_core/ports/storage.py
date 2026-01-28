@@ -68,8 +68,9 @@ class StorageErrorInfo(BaseSchema):
                 provided=self.details.path or self.details.uri,
                 valid_options=None,
             )
+        code_value = getattr(self.code, "value", self.code)
         return ErrorResponse(
-            code=self.code.value, message=self.message, details=details
+            code=str(code_value), message=self.message, details=details
         )
 
 

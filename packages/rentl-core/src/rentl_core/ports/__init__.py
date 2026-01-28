@@ -26,6 +26,7 @@ from rentl_core.ports.ingest import (
     build_ingest_failed_log,
     build_ingest_started_log,
 )
+from rentl_core.ports.llm import LlmRuntimeProtocol
 from rentl_core.ports.orchestrator import (
     ContextAgentPoolProtocol,
     ContextAgentProtocol,
@@ -85,6 +86,7 @@ __all__ = [
     "IngestErrorDetails",
     "IngestErrorInfo",
     "IngestEvent",
+    "LlmRuntimeProtocol",
     "LogSinkProtocol",
     "LogStoreProtocol",
     "OrchestrationError",

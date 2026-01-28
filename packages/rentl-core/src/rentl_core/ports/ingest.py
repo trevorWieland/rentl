@@ -82,7 +82,8 @@ class IngestErrorInfo(BaseSchema):
         if location is not None:
             message = f"{location}: {message}"
 
-        return ErrorResponse(code=self.code.value, message=message, details=details)
+        code_value = getattr(self.code, "value", self.code)
+        return ErrorResponse(code=str(code_value), message=message, details=details)
 
 
 class IngestError(Exception):

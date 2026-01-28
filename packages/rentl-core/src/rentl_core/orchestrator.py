@@ -97,6 +97,11 @@ from rentl_schemas.progress import (
     compute_run_summary,
 )
 from rentl_schemas.qa import LineEdit, QaIssue, QaSummary
+from rentl_schemas.results import (
+    PhaseResultMetric,
+    PhaseResultSummary,
+    ResultMetricUnit,
+)
 from rentl_schemas.storage import (
     ArtifactFormat,
     ArtifactMetadata,
@@ -285,6 +290,8 @@ class PipelineOrchestrator:
         run: PipelineRunContext,
         phases: list[PhaseName] | None = None,
         target_languages: list[LanguageCode] | None = None,
+        ingest_source: IngestSource | None = None,
+        export_targets: dict[LanguageCode, ExportTarget] | None = None,
     ) -> None:
         """Run a planned set of phases.
 
@@ -292,6 +299,8 @@ class PipelineOrchestrator:
             run: Run context.
             phases: Optional ordered phases to execute.
             target_languages: Optional target languages override.
+            ingest_source: Optional ingest source for ingest phase.
+            export_targets: Optional export targets by language.
         """
         planned_phases = phases or [
             PhaseName(phase.phase)
@@ -310,6 +319,9 @@ class PipelineOrchestrator:
             build_run_started_log(self._clock(), run.run_id, planned_phases)
         )
         for phase in planned_phases:
+            if phase == PhaseName.INGEST:
+                await self.run_phase(run, phase, ingest_source=ingest_source)
+                continue
             if phase in {
                 PhaseName.TRANSLATE,
                 PhaseName.QA,
@@ -317,7 +329,15 @@ class PipelineOrchestrator:
                 PhaseName.EXPORT,
             }:
                 for language in languages:
-                    await self.run_phase(run, phase, target_language=language)
+                    export_target = None
+                    if phase == PhaseName.EXPORT and export_targets is not None:
+                        export_target = export_targets.get(language)
+                    await self.run_phase(
+                        run,
+                        phase,
+                        target_language=language,
+                        export_target=export_target,
+                    )
             else:
                 await self.run_phase(run, phase)
         run.status = RunStatus.COMPLETED
@@ -453,6 +473,9 @@ class PipelineOrchestrator:
         record.completed_at = completed_at
         self._update_phase_status(run, phase, PhaseStatus.COMPLETED, completed_at)
         await self._emit_progress(run, phase, ProgressEvent.PHASE_COMPLETED)
+        completed_data = _build_phase_log_data(run, phase, language, shard_plan)
+        if record.summary is not None:
+            completed_data["summary"] = record.summary.model_dump(exclude_none=True)
         await self._emit_log(
             build_phase_log(
                 completed_at,
@@ -460,7 +483,7 @@ class PipelineOrchestrator:
                 phase,
                 PhaseEventSuffix.COMPLETED,
                 "Phase completed",
-                data=_build_phase_log_data(run, phase, language, shard_plan),
+                data=completed_data,
             )
         )
         run.current_phase = None
@@ -498,12 +521,14 @@ class PipelineOrchestrator:
         )
         revision = _next_revision(run, PhaseName.INGEST, None)
         dependencies = _build_dependencies(run, PhaseName.INGEST, None)
+        summary = _build_ingest_summary(run)
         record = _build_phase_record(
             run,
             PhaseName.INGEST,
             revision,
             None,
             dependencies=dependencies,
+            summary=summary,
             error=None,
             message="Ingest completed",
         )
@@ -588,12 +613,14 @@ class PipelineOrchestrator:
         )
         revision = _next_revision(run, PhaseName.CONTEXT, None)
         dependencies = _build_dependencies(run, PhaseName.CONTEXT, None)
+        summary = _build_context_summary(run.context_output)
         record = _build_phase_record(
             run,
             PhaseName.CONTEXT,
             revision,
             None,
             dependencies=dependencies,
+            summary=summary,
             error=None,
             message="Context completed",
         )
@@ -655,12 +682,14 @@ class PipelineOrchestrator:
         )
         revision = _next_revision(run, PhaseName.PRETRANSLATION, None)
         dependencies = _build_dependencies(run, PhaseName.PRETRANSLATION, None)
+        summary = _build_pretranslation_summary(run, run.pretranslation_output)
         record = _build_phase_record(
             run,
             PhaseName.PRETRANSLATION,
             revision,
             None,
             dependencies=dependencies,
+            summary=summary,
             error=None,
             message="Pretranslation completed",
         )
@@ -729,12 +758,14 @@ class PipelineOrchestrator:
         )
         revision = _next_revision(run, PhaseName.TRANSLATE, target_language)
         dependencies = _build_dependencies(run, PhaseName.TRANSLATE, target_language)
+        summary = _build_translate_summary(merged_output)
         record = _build_phase_record(
             run,
             PhaseName.TRANSLATE,
             revision,
             target_language,
             dependencies=dependencies,
+            summary=summary,
             error=None,
             message="Translate completed",
         )
@@ -799,12 +830,14 @@ class PipelineOrchestrator:
         )
         revision = _next_revision(run, PhaseName.QA, target_language)
         dependencies = _build_dependencies(run, PhaseName.QA, target_language)
+        summary = _build_qa_result_summary(merged_output)
         record = _build_phase_record(
             run,
             PhaseName.QA,
             revision,
             target_language,
             dependencies=dependencies,
+            summary=summary,
             error=None,
             message="QA completed",
         )
@@ -869,12 +902,14 @@ class PipelineOrchestrator:
         )
         revision = _next_revision(run, PhaseName.EDIT, target_language)
         dependencies = _build_dependencies(run, PhaseName.EDIT, target_language)
+        summary = _build_edit_summary(merged_output)
         record = _build_phase_record(
             run,
             PhaseName.EDIT,
             revision,
             target_language,
             dependencies=dependencies,
+            summary=summary,
             error=None,
             message="Edit completed",
         )
@@ -925,12 +960,14 @@ class PipelineOrchestrator:
         )
         revision = _next_revision(run, PhaseName.EXPORT, target_language)
         dependencies = _build_dependencies(run, PhaseName.EXPORT, target_language)
+        summary = _build_export_summary(export_result, target_language)
         record = _build_phase_record(
             run,
             PhaseName.EXPORT,
             revision,
             target_language,
             dependencies=dependencies,
+            summary=summary,
             error=None,
             message="Export completed",
         )
@@ -1298,7 +1335,12 @@ def _build_phase_revisions(
         )
         for (phase, target_language), revision in run.phase_revisions.items()
     ]
-    revisions.sort(key=lambda entry: (entry.phase.value, entry.target_language or ""))
+    revisions.sort(
+        key=lambda entry: (
+            _normalize_phase_value(entry.phase),
+            entry.target_language or "",
+        )
+    )
     return revisions
 
 
@@ -2248,6 +2290,7 @@ def _build_phase_record(
     revision: int,
     target_language: LanguageCode | None,
     dependencies: list[PhaseDependency] | None,
+    summary: PhaseResultSummary | None,
     error: RunError | None,
     message: str,
 ) -> PhaseRunRecord:
@@ -2263,6 +2306,7 @@ def _build_phase_record(
         completed_at=None,
         stale=False,
         error=error,
+        summary=summary,
         message=message,
     )
 
@@ -2421,6 +2465,196 @@ def _build_progress_metric(
         percent_mode=ProgressPercentMode.FINAL,
         eta_seconds=eta_seconds,
         notes=None,
+    )
+
+
+def _build_result_metric(
+    metric_key: str, unit: ResultMetricUnit, value: int | float
+) -> PhaseResultMetric:
+    return PhaseResultMetric(
+        metric_key=metric_key,
+        unit=unit,
+        value=value,
+        notes=None,
+    )
+
+
+def _build_ingest_summary(run: PipelineRunContext) -> PhaseResultSummary:
+    source_lines = run.source_lines or []
+    scene_ids = {line.scene_id for line in source_lines if line.scene_id}
+    route_ids = {line.route_id for line in source_lines if line.route_id}
+    metrics = [
+        _build_result_metric("line_count", ResultMetricUnit.LINES, len(source_lines)),
+        _build_result_metric("scene_count", ResultMetricUnit.SCENES, len(scene_ids)),
+        _build_result_metric("route_count", ResultMetricUnit.ROUTES, len(route_ids)),
+    ]
+    return PhaseResultSummary(
+        phase=PhaseName.INGEST,
+        target_language=None,
+        metrics=metrics,
+        qa_summary=None,
+        dimensions=None,
+    )
+
+
+def _build_context_summary(output: ContextPhaseOutput) -> PhaseResultSummary:
+    metrics = [
+        _build_result_metric(
+            "scene_summary_count",
+            ResultMetricUnit.SCENES,
+            len(output.scene_summaries),
+        ),
+        _build_result_metric(
+            "context_note_count",
+            ResultMetricUnit.NOTES,
+            len(output.context_notes),
+        ),
+    ]
+    if output.glossary is not None:
+        metrics.append(
+            _build_result_metric(
+                "glossary_term_count",
+                ResultMetricUnit.TERMS,
+                len(output.glossary),
+            )
+        )
+    character_count = len({
+        character
+        for summary in output.scene_summaries
+        for character in summary.characters
+    })
+    metrics.append(
+        _build_result_metric(
+            "character_count", ResultMetricUnit.CHARACTERS, character_count
+        )
+    )
+    return PhaseResultSummary(
+        phase=PhaseName.CONTEXT,
+        target_language=None,
+        metrics=metrics,
+        qa_summary=None,
+        dimensions=None,
+    )
+
+
+def _build_pretranslation_summary(
+    run: PipelineRunContext, output: PretranslationPhaseOutput
+) -> PhaseResultSummary:
+    annotations = output.annotations
+    annotated_line_ids = {annotation.line_id for annotation in annotations}
+    total_lines = len(run.source_lines or [])
+    coverage = 0.0 if total_lines <= 0 else len(annotated_line_ids) / total_lines
+    metrics = [
+        _build_result_metric(
+            "annotation_count", ResultMetricUnit.COUNT, len(annotations)
+        ),
+        _build_result_metric(
+            "annotated_line_count",
+            ResultMetricUnit.LINES,
+            len(annotated_line_ids),
+        ),
+        _build_result_metric("annotation_coverage", ResultMetricUnit.RATIO, coverage),
+        _build_result_metric(
+            "term_candidate_count",
+            ResultMetricUnit.TERMS,
+            len(output.term_candidates),
+        ),
+    ]
+    return PhaseResultSummary(
+        phase=PhaseName.PRETRANSLATION,
+        target_language=None,
+        metrics=metrics,
+        qa_summary=None,
+        dimensions=None,
+    )
+
+
+def _build_translate_summary(output: TranslatePhaseOutput) -> PhaseResultSummary:
+    metrics = [
+        _build_result_metric(
+            "translated_line_count",
+            ResultMetricUnit.LINES,
+            len(output.translated_lines),
+        )
+    ]
+    return PhaseResultSummary(
+        phase=PhaseName.TRANSLATE,
+        target_language=output.target_language,
+        metrics=metrics,
+        qa_summary=None,
+        dimensions=None,
+    )
+
+
+def _build_qa_result_summary(output: QaPhaseOutput) -> PhaseResultSummary:
+    metrics = [
+        _build_result_metric(
+            "issue_count",
+            ResultMetricUnit.ISSUES,
+            output.summary.total_issues,
+        )
+    ]
+    return PhaseResultSummary(
+        phase=PhaseName.QA,
+        target_language=output.target_language,
+        metrics=metrics,
+        qa_summary=output.summary,
+        dimensions=None,
+    )
+
+
+def _build_edit_summary(output: EditPhaseOutput) -> PhaseResultSummary:
+    changed_line_ids = {edit.line_id for edit in output.change_log}
+    metrics = [
+        _build_result_metric(
+            "edited_line_count",
+            ResultMetricUnit.LINES,
+            len(output.edited_lines),
+        ),
+        _build_result_metric(
+            "change_count", ResultMetricUnit.EDITS, len(output.change_log)
+        ),
+        _build_result_metric(
+            "changed_line_count",
+            ResultMetricUnit.LINES,
+            len(changed_line_ids),
+        ),
+    ]
+    return PhaseResultSummary(
+        phase=PhaseName.EDIT,
+        target_language=output.target_language,
+        metrics=metrics,
+        qa_summary=None,
+        dimensions=None,
+    )
+
+
+def _build_export_summary(
+    result: ExportResult, target_language: LanguageCode
+) -> PhaseResultSummary:
+    summary = result.summary
+    metrics = [
+        _build_result_metric(
+            "exported_line_count", ResultMetricUnit.LINES, summary.line_count
+        ),
+        _build_result_metric(
+            "untranslated_line_count",
+            ResultMetricUnit.LINES,
+            summary.untranslated_count,
+        ),
+    ]
+    if summary.column_count is not None:
+        metrics.append(
+            _build_result_metric(
+                "column_count", ResultMetricUnit.COLUMNS, summary.column_count
+            )
+        )
+    return PhaseResultSummary(
+        phase=PhaseName.EXPORT,
+        target_language=target_language,
+        metrics=metrics,
+        qa_summary=None,
+        dimensions=None,
     )
 
 

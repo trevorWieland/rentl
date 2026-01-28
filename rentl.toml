@@ -1,0 +1,60 @@
+[project]
+schema_version = { major = 0, minor = 1, patch = 0 }
+project_name = "local-validate"
+
+[project.paths]
+workspace_dir = "."
+input_path = "input.txt"
+output_dir = "out"
+logs_dir = "logs"
+
+[project.formats]
+input_format = "txt"
+output_format = "txt"
+
+[project.languages]
+source_language = "ja"
+target_languages = ["en"]
+
+[endpoint]
+provider_name = "local"
+base_url = "http://172.20.192.1:1234/v1"
+api_key_env = "RENTL_LOCAL_API_KEY"
+timeout_s = 10
+
+[pipeline.default_model]
+model_id = "openai/gpt-oss-20b"
+reasoning_effort = "low"
+
+[[pipeline.phases]]
+phase = "ingest"
+
+[[pipeline.phases]]
+phase = "context"
+
+[[pipeline.phases]]
+phase = "pretranslation"
+
+[[pipeline.phases]]
+phase = "translate"
+
+[[pipeline.phases]]
+phase = "qa"
+
+[[pipeline.phases]]
+phase = "edit"
+
+[[pipeline.phases]]
+phase = "export"
+
+[concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[cache]
+enabled = false

@@ -3,6 +3,7 @@
 .pytest_cache
 .ruff_cache
 .venv
+.env
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

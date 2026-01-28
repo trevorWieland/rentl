@@ -155,3 +155,11 @@ class QaCategory(StrEnum):
     CONTEXT = "context"
     CULTURAL = "cultural"
     OTHER = "other"
+
+
+class ReasoningEffort(StrEnum):
+    """Reasoning effort levels for LLM requests."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"

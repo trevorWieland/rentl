@@ -5,8 +5,10 @@ description = "CLI for rentl"
 requires-python = ">=3.14"
 dependencies = [
     "rentl-core",
+    "rentl-llm",
     "rentl-io",
     "rentl-schemas",
+    "python-dotenv>=1.0.1",
     "typer>=0.21.1",
     "rich>=14.3.1",
 ]

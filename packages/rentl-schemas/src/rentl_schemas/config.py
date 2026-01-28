@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import Field, model_validator
+from urllib.parse import urlparse
+
+from pydantic import Field, field_validator, model_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import (
@@ -12,6 +14,7 @@ from rentl_schemas.primitives import (
     LanguageCode,
     PhaseName,
     PhaseWorkStrategy,
+    ReasoningEffort,
 )
 from rentl_schemas.version import VersionInfo
 
@@ -65,21 +68,79 @@ class LanguageConfig(BaseSchema):
 class ModelEndpointConfig(BaseSchema):
     """BYOK endpoint configuration for OpenAI-compatible APIs."""
 
-    provider_name: str = Field(..., min_length=1, description="Provider identifier")
+    provider_name: str = Field(
+        ..., min_length=1, description="User-defined endpoint label"
+    )
     base_url: str = Field(..., min_length=1, description="OpenAI-compatible base URL")
     api_key_env: str = Field(
         ..., min_length=1, description="Environment variable for API key"
     )
     timeout_s: float = Field(60.0, gt=0, description="Request timeout in seconds")
 
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        """Ensure base URL uses http/https with a host.
+
+        Args:
+            value: Raw base URL string.
+
+        Returns:
+            str: Validated base URL.
+
+        Raises:
+            ValueError: If the URL is missing scheme/host.
+        """
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError(
+                "base_url must be an http/https URL with host "
+                "(for localhost include http://)"
+            )
+        if parsed.path in {"", "/"}:
+            return f"{value.rstrip('/')}/v1"
+        return value
+
+
+class EndpointSetConfig(BaseSchema):
+    """Configuration for multiple BYOK endpoints."""
+
+    default: str = Field(..., min_length=1, description="Default endpoint reference")
+    endpoints: list[ModelEndpointConfig] = Field(
+        ..., min_length=1, description="Endpoint configurations"
+    )
+
+    @model_validator(mode="after")
+    def validate_endpoints(self) -> EndpointSetConfig:
+        """Validate endpoint uniqueness and default reference.
+
+        Returns:
+            EndpointSetConfig: Validated endpoint configuration.
+
+        Raises:
+            ValueError: If endpoints are duplicated or default is missing.
+        """
+        names = [endpoint.provider_name for endpoint in self.endpoints]
+        if len(set(names)) != len(names):
+            raise ValueError("endpoints must have unique provider_name values")
+        if self.default not in names:
+            raise ValueError("default must match an endpoint provider_name")
+        return self
+
 
 class ModelSettings(BaseSchema):
     """Per-model settings for agent calls."""
 
     model_id: str = Field(..., min_length=1, description="Model identifier")
+    endpoint_ref: str | None = Field(
+        None, min_length=1, description="Endpoint reference override"
+    )
     temperature: float = Field(0.2, ge=0, le=2, description="Sampling temperature")
-    max_output_tokens: int = Field(
-        2048, ge=1, description="Maximum tokens for responses"
+    max_output_tokens: int | None = Field(
+        None, ge=1, description="Maximum tokens for responses (None uses model default)"
+    )
+    reasoning_effort: ReasoningEffort | None = Field(
+        None, description="Reasoning effort level when supported"
     )
     top_p: float = Field(1.0, ge=0, le=1, description="Top-p sampling")
     presence_penalty: float = Field(0.0, ge=-2, le=2, description="Presence penalty")
@@ -264,10 +325,76 @@ class RunConfig(BaseSchema):
     """Top-level configuration for executing a pipeline run."""
 
     project: ProjectConfig = Field(..., description="Project settings")
-    endpoint: ModelEndpointConfig = Field(..., description="Model endpoint settings")
+    endpoint: ModelEndpointConfig | None = Field(
+        None, description="Legacy model endpoint settings"
+    )
+    endpoints: EndpointSetConfig | None = Field(
+        None, description="Multi-endpoint settings"
+    )
     pipeline: PipelineConfig = Field(..., description="Pipeline settings")
     concurrency: ConcurrencyConfig = Field(
         ..., description="Global concurrency defaults"
     )
     retry: RetryConfig = Field(..., description="Global retry defaults")
     cache: CacheConfig = Field(..., description="Cache settings")
+
+    @model_validator(mode="after")
+    def validate_endpoint_config(self) -> RunConfig:
+        """Validate legacy vs multi-endpoint configuration.
+
+        Returns:
+            RunConfig: Validated run configuration.
+
+        Raises:
+            ValueError: If endpoint configuration is invalid.
+        """
+        has_legacy = self.endpoint is not None
+        has_multi = self.endpoints is not None
+        if has_legacy == has_multi:
+            raise ValueError("exactly one of endpoint or endpoints must be set")
+        endpoint_refs = _collect_endpoint_refs(self.pipeline)
+        if has_legacy and endpoint_refs:
+            raise ValueError("endpoint_ref requires endpoints configuration")
+        if has_multi:
+            endpoints = self.endpoints
+            if endpoints is None:
+                raise ValueError("endpoints configuration is required")
+            configured = {entry.provider_name for entry in endpoints.endpoints}
+            missing = sorted(ref for ref in endpoint_refs if ref not in configured)
+            if missing:
+                joined = ", ".join(missing)
+                raise ValueError(f"Unknown endpoint_ref(s): {joined}")
+        return self
+
+    def resolve_endpoint_ref(
+        self,
+        *,
+        model: ModelSettings | None,
+        agent_endpoint_ref: str | None = None,
+    ) -> str | None:
+        """Resolve endpoint references using agent → phase → default precedence.
+
+        Args:
+            model: Model settings for the phase (or default model).
+            agent_endpoint_ref: Optional per-agent override (future use).
+
+        Returns:
+            str | None: Resolved endpoint reference, or None for legacy config.
+        """
+        if agent_endpoint_ref:
+            return agent_endpoint_ref
+        if model and model.endpoint_ref:
+            return model.endpoint_ref
+        if self.endpoints is not None:
+            return self.endpoints.default
+        return None
+
+
+def _collect_endpoint_refs(pipeline: PipelineConfig) -> set[str]:
+    refs: set[str] = set()
+    if pipeline.default_model and pipeline.default_model.endpoint_ref:
+        refs.add(pipeline.default_model.endpoint_ref)
+    for phase in pipeline.phases:
+        if phase.model and phase.model.endpoint_ref:
+            refs.add(phase.model.endpoint_ref)
+    return refs
