@@ -1,0 +1,60 @@
+# Scene Summarizer Agent Profile
+# Analyzes scenes and produces summaries with character identification.
+
+[meta]
+name = "scene_summarizer"
+version = "1.0.0"
+phase = "context"
+description = "Analyzes scenes and produces summaries with character identification"
+output_schema = "SceneSummary"
+
+[requirements]
+scene_id_required = true
+
+[orchestration]
+priority = 10
+depends_on = []
+
+[prompts.agent]
+content = """
+Your specific role is Scene Summarization.
+
+For each scene you analyze, produce:
+1. A concise summary (2-4 sentences) capturing the key events, emotional tone,
+   and narrative significance
+2. A list of all characters who appear or are mentioned in the scene
+
+What makes a good scene summary:
+- Captures what happens without excessive detail
+- Notes emotional beats and tension
+- Identifies key plot points or revelations
+- Mentions character dynamics and relationships shown
+- Is written in the same language as the source text
+
+Remember: Your summaries help translators understand context. Focus on what
+matters for translation decisions.
+"""
+
+[prompts.user_template]
+content = """
+Analyze and summarize the following scene.
+
+Scene ID: {{scene_id}}
+Number of lines: {{line_count}}
+
+---
+{{scene_lines}}
+---
+
+Provide a JSON response with:
+- "summary": A concise 2-4 sentence summary of the scene
+- "characters": A list of character names appearing in or mentioned in the scene
+"""
+
+[tools]
+allowed = ["get_game_info"]
+
+[model_hints]
+recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]
+min_context_tokens = 8192
+benefits_from_reasoning = false

@@ -64,11 +64,13 @@
 
 **Scope:**
 - Multiple agents per phase (tuned based on v0.1 experience)
-- Context team: scene summarization + route tracking + character consistency
+- Multi-agent orchestration with priority ordering and agent dependencies
+- Context team: scene summarization + route summarizer + batch summarizer + character consistency
 - Pretranslation team: idiom detector + reference finder + cultural note generator
 - Translation team: multiple translators with different approaches (literal → liberal) + consensus selection
 - QA team: style checker + consistency validator + cultural appropriateness reviewer
 - Edit team: smart retranslation + pattern-based fixes + style alignment
+- Agent hooks for pre/post LLM processing
 - Richer QA checks (beyond basic style)
 - Enhanced QA reporting with granular issue categorization
 - Improved agent iteration visibility and control
@@ -81,6 +83,10 @@
 - (29) HITL Review & Manual Artifacts — Enable pause/review/resume with human edits without full resets. **Depends on:** 05, 07, 27.
 - (30) Deterministic Merge Policies & Conflict Resolution — Add configurable resolution rules when multiple agents overlap. **Depends on:** 07, 26.
 - (31) Incremental Rerun & Diffing — Rerun only impacted shards to reduce cost and iteration time. **Depends on:** 07, 08, 09, 27.
+- (37) Multi-Agent Orchestration — Execute multiple agents per phase with priority ordering and depends_on relationships; route summarizer runs after scene summarizer. **Depends on:** 15, 26, 27.
+- (38) Agent Hooks — Pre/post LLM generation callbacks for custom processing, validation, or logging. **Depends on:** 15.
+- (39) BatchSummarizer Agent — Context agent for content without scene boundaries; processes arbitrary line batches. **Depends on:** 15, 26.
+- (40) RouteSummarizer Agent — Context agent for route-level summaries; depends on scene summaries. **Depends on:** 15, 37.
 
 **Success Criteria:**
 - First-pass translations are noticeably higher quality than v0.1

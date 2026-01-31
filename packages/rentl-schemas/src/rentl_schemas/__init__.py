@@ -1,5 +1,18 @@
 """rentl-schemas: Shared Pydantic schemas."""
 
+from rentl_schemas.agents import (
+    AgentOrchestration,
+    AgentProfileConfig,
+    AgentProfileMeta,
+    AgentPromptConfig,
+    AgentPromptContent,
+    AgentRequirements,
+    ModelHints,
+    PhasePromptConfig,
+    PromptLayerContent,
+    RootPromptConfig,
+    ToolAccessConfig,
+)
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import (
     CacheConfig,
@@ -172,6 +185,12 @@ __version__ = "0.1.0"
 __all__ = [
     "PHASE_METRIC_DEFINITIONS",
     "PHASE_RESULT_METRIC_DEFINITIONS",
+    "AgentOrchestration",
+    "AgentProfileConfig",
+    "AgentProfileMeta",
+    "AgentPromptConfig",
+    "AgentPromptContent",
+    "AgentRequirements",
     "AnnotationId",
     "AnnotationType",
     "ApiResponse",
@@ -227,6 +246,7 @@ __all__ = [
     "LogLevel",
     "MetaInfo",
     "ModelEndpointConfig",
+    "ModelHints",
     "ModelSettings",
     "NoteId",
     "PhaseArtifacts",
@@ -237,6 +257,7 @@ __all__ = [
     "PhaseExecutionConfig",
     "PhaseName",
     "PhaseProgress",
+    "PhasePromptConfig",
     "PhaseResultDimension",
     "PhaseResultMetric",
     "PhaseResultSummary",
@@ -260,6 +281,7 @@ __all__ = [
     "ProgressUpdate",
     "ProjectConfig",
     "ProjectPaths",
+    "PromptLayerContent",
     "QaCategory",
     "QaIssue",
     "QaPhaseInput",
@@ -272,6 +294,7 @@ __all__ = [
     "ResultMetricUnit",
     "RetryConfig",
     "ReviewerNote",
+    "RootPromptConfig",
     "RouteId",
     "RunCompletedData",
     "RunConfig",
@@ -294,6 +317,7 @@ __all__ = [
     "StorageReference",
     "TermCandidate",
     "Timestamp",
+    "ToolAccessConfig",
     "TranslatePhaseInput",
     "TranslatePhaseOutput",
     "TranslatedLine",
