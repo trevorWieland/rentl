@@ -60,8 +60,8 @@ def main() -> int:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o-mini",
-        help="Model ID to use (default: gpt-4o-mini)",
+        default=None,
+        help="Model ID to use (default: from rentl.toml pipeline.default_model.model_id, fallback: gpt-4o-mini)",
     )
     parser.add_argument(
         "--mock",
@@ -71,16 +71,23 @@ def main() -> int:
     parser.add_argument(
         "--api-key",
         type=str,
-        help="API key (or set OPENAI_API_KEY env var)",
+        help="API key (or set env var from rentl.toml api_key_env, default: RENTL_LOCAL_API_KEY)",
     )
     parser.add_argument(
         "--base-url",
         type=str,
-        default="https://api.openai.com/v1",
-        help="API base URL (default: OpenAI)",
+        default=None,
+        help="API base URL (default: from rentl.toml endpoint.base_url, fallback: OpenAI)",
     )
 
     args = parser.parse_args()
+
+    # Load .env file if present (same as main CLI)
+    from dotenv import load_dotenv
+
+    env_path = Path(".env")
+    if env_path.exists():
+        load_dotenv(env_path, override=False)
 
     # Import after path setup
     from rentl_agents import (
@@ -179,23 +186,56 @@ def main() -> int:
         print("  ✓ Agent validation complete (structure only)")
         return 0
 
-    # Get API key
+    # Get API key from rentl.toml config or args
     import os
 
-    api_key = args.api_key or os.environ.get("OPENAI_API_KEY")
+    # Load rentl.toml to get the api_key_env
+    rentl_toml_path = Path("rentl.toml")
+    api_key_env = "RENTL_LOCAL_API_KEY"  # Default matching rentl.toml.example
+    base_url_from_config = None
+    model_from_config = None
+
+    if rentl_toml_path.exists():
+        try:
+            import tomllib
+
+            with rentl_toml_path.open("rb") as f:
+                config = tomllib.load(f)
+            if "endpoint" in config:
+                endpoint = config["endpoint"]
+                if "api_key_env" in endpoint:
+                    api_key_env = endpoint["api_key_env"]
+                if "base_url" in endpoint and not args.base_url:
+                    base_url_from_config = endpoint["base_url"]
+            if "pipeline" in config and "default_model" in config["pipeline"]:
+                default_model = config["pipeline"]["default_model"]
+                if "model_id" in default_model and not args.model:
+                    model_from_config = default_model["model_id"]
+            print(f"  Loaded config from rentl.toml (using {api_key_env})")
+        except Exception as e:
+            print(f"  ⚠ Could not load rentl.toml: {e}")
+            print(f"  Falling back to default env var: {api_key_env}")
+
+    api_key = args.api_key or os.environ.get(api_key_env)
     if not api_key:
-        print("  ✗ No API key provided. Use --api-key or set OPENAI_API_KEY")
+        print(f"  ✗ No API key provided. Use --api-key or set {api_key_env}")
         print("  ⊘ Run with --mock to skip LLM call")
         return 1
 
-    print(f"  Model: {args.model}")
-    print(f"  Base URL: {args.base_url}")
+    # Use base_url and model from config if not overridden by args
+    effective_base_url = (
+        args.base_url or base_url_from_config or "https://api.openai.com/v1"
+    )
+    effective_model = args.model or model_from_config or "gpt-4o-mini"
+
+    print(f"  Model: {effective_model}")
+    print(f"  Base URL: {effective_base_url}")
 
     try:
         config = ProfileAgentConfig(
             api_key=api_key,
-            base_url=args.base_url,
-            model_id=args.model,
+            base_url=effective_base_url,
+            model_id=effective_model,
         )
 
         agent = create_context_agent_from_profile(
