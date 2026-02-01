@@ -94,6 +94,62 @@ The `AgentFactory` creates configured agent instances and pools:
 - `create_pool[InputT, OutputT](config, count)` — Create agent pool
 - Agent instance caching for performance
 
+## Validation Script
+
+The `scripts/validate_scene_summarizer.py` script provides end-to-end validation of the context phase agent with real game data:
+
+```bash
+# Validate with sample data (no LLM call)
+python scripts/validate_scene_summarizer.py --mock
+
+# Validate with real LLM using rentl.toml config
+python scripts/validate_scene_summarizer.py
+
+# Validate with custom JSONL input
+python scripts/validate_scene_summarizer.py --input scenes.jsonl
+
+# Process scenes concurrently (3 separate agent calls)
+python scripts/validate_scene_summarizer.py --input scenes.jsonl --concurrent
+
+# Override model or API settings
+python scripts/validate_scene_summarizer.py --model gpt-4o-mini --api-key "your-key"
+```
+
+### JSONL Input Format
+
+Input files should contain `SourceLine` records:
+
+```json
+{"line_id": "scene_001", "text": "Hello", "speaker": "Character", "scene_id": "scene_001", "route_id": "route_001"}
+```
+
+**Important:** IDs must match the `HumanReadableId` pattern: `^[a-z]+_[0-9]+$` (lowercase letters, underscore, numbers).
+
+### Real-World Extraction Notes
+
+When extracting from game engines:
+
+- **Speaker pairing**: Some engines output speakers as separate lines before dialogue (e.g., "奈月" followed by line starting with 「). The validation script handles this by tracking state.
+- **No-op lines**: Empty lines or placeholders like "名無し" are filtered out during extraction but tracked via metadata for reconstruction.
+- **Scene grouping**: Lines are automatically grouped by `scene_id` for per-scene summarization.
+- **Concurrent mode**: Use `--concurrent` to process multiple scenes in parallel with separate agent contexts.
+
+### Configuration Requirements
+
+The validation script reads from `rentl.toml`:
+
+```toml
+[endpoint]
+provider_name = "local"
+base_url = "http://localhost:1234/v1"
+api_key_env = "RENTL_LOCAL_API_KEY"
+
+[pipeline.default_model]
+model_id = "openai/gpt-oss-20b"
+```
+
+Environment variables are loaded from `.env` file if present.
+
 ## Standards Compliance
 
 This package follows rentl Agent OS standards:

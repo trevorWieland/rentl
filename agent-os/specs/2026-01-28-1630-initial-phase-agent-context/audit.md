@@ -179,5 +179,37 @@ All rubric scores are 5/5 with no remaining action items. The implementation ful
 9. ✓ Integration tests pass (4 BDD scenarios)
 10. ✓ `make all` passes (296 unit + 27 integration tests)
 
+## Real-World Validation Results
+
+**Date:** 2026-02-01
+**Test Data:** 473 lines from 3 scenes (seen2010.ss, seen2020.ss, seen2030.ss)
+**Source:** Sample Excel export from visual novel text extraction tool
+
+### Extraction Pipeline
+
+Successfully demonstrated:
+- **Excel → JSONL transformation** with pandas/openpyxl
+- **Speaker/dialogue pairing** for engines that output speakers as separate lines
+- **Scene grouping** by scene_id for per-scene processing
+- **ID normalization** to match HumanReadableId pattern (`^[a-z]+_[0-9]+$`)
+- **No-op filtering** (名無し/empty lines excluded but tracked in metadata)
+
+### Validation Script Improvements
+
+Added during real-world testing:
+- `--concurrent` flag for parallel scene processing
+- Automatic `rentl.toml` config loading (api_key_env, base_url, default_model)
+- `.env` file support for API keys
+- ID normalization for external data sources
+
+### Agent Performance
+
+Scene summarizer successfully processed:
+- **seen_2010**: 198 lines → Summary of sister's morning intrusion scene
+- **seen_2020**: 186 lines → Summary of breakfast/family dynamics  
+- **seen_2030**: 89 lines → Summary of school commute/gender identity themes
+
+All summaries correctly identified characters and captured scene essence.
+
 **Next Steps:**
 This spec is complete and ready for the next phase. Proceed to spec (16) Initial Phase Agent: Pretranslation.

@@ -89,3 +89,4 @@ profile_default/
 ipython_config.py
 
 *.xlsx
+sample_scenes.jsonl

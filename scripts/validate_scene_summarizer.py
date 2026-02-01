@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 from uuid import uuid7
@@ -79,6 +80,11 @@ def main() -> int:
         default=None,
         help="API base URL (default: from rentl.toml endpoint.base_url, fallback: OpenAI)",
     )
+    parser.add_argument(
+        "--concurrent",
+        action="store_true",
+        help="Process scenes concurrently (one agent call per scene)",
+    )
 
     args = parser.parse_args()
 
@@ -88,6 +94,19 @@ def main() -> int:
     env_path = Path(".env")
     if env_path.exists():
         load_dotenv(env_path, override=False)
+
+    def normalize_id(value: str) -> str:
+        """Normalize ID to match HumanReadableId pattern: ^[a-z]+_[0-9]+$"""
+        if not value:
+            return "unknown_0"
+        # Extract only lowercase letters and numbers
+        letters = "".join(c for c in value if c.isalpha()).lower()
+        numbers = "".join(c for c in value if c.isdigit())
+        if not letters:
+            letters = "id"
+        if not numbers:
+            numbers = "0"
+        return f"{letters}_{numbers}"
 
     # Import after path setup
     from rentl_agents import (
@@ -127,10 +146,16 @@ def main() -> int:
     if args.input:
         print(f"  Loading from: {args.input}")
         source_lines = []
+        line_counter = 0
         with args.input.open() as f:
             for line in f:
                 data = json.loads(line)
+                # Normalize IDs to match HumanReadableId pattern
+                data["line_id"] = f"line_{line_counter:04d}"
+                data["scene_id"] = normalize_id(data.get("scene_id", "scene_0"))
+                data["route_id"] = normalize_id(data.get("route_id", "route_0"))
                 source_lines.append(SourceLine.model_validate(data))
+                line_counter += 1
         print(f"  ✓ Loaded {len(source_lines)} lines")
     else:
         print("  Using sample data...")
@@ -238,31 +263,88 @@ def main() -> int:
             model_id=effective_model,
         )
 
-        agent = create_context_agent_from_profile(
-            profile_path=profile_path,
-            prompts_dir=get_default_prompts_dir(),
-            config=config,
-        )
+        if args.concurrent:
+            # Process scenes concurrently
+            print(f"  Running {len(scene_groups)} scenes concurrently...")
 
-        payload = ContextPhaseInput(
-            run_id=uuid7(),
-            source_lines=source_lines,
-        )
+            async def run_scene(scene_id, scene_lines):
+                """Run agent on a single scene."""
+                agent = create_context_agent_from_profile(
+                    profile_path=profile_path,
+                    prompts_dir=get_default_prompts_dir(),
+                    config=config,
+                )
+                payload = ContextPhaseInput(
+                    run_id=uuid7(),
+                    source_lines=scene_lines,
+                )
+                result = await agent.run(payload)
+                return scene_id, result
 
-        print("  Running agent...")
-        result = asyncio.run(agent.run(payload))
+            async def run_all_scenes():
+                tasks = [
+                    run_scene(scene_id, lines)
+                    for scene_id, lines in scene_groups.items()
+                ]
+                return await asyncio.gather(*tasks, return_exceptions=True)
 
-        print("\n" + "=" * 60)
-        print("Results")
-        print("=" * 60)
+            results = asyncio.run(run_all_scenes())
 
-        for summary in result.scene_summaries:
-            print(f"\nScene: {summary.scene_id}")
-            print(f"Summary: {summary.summary}")
-            print(f"Characters: {', '.join(summary.characters)}")
+            # Collect all summaries
+            all_summaries = []
+            errors = []
+            for result in results:
+                if isinstance(result, Exception):
+                    errors.append(result)
+                else:
+                    scene_id, scene_result = result
+                    all_summaries.extend(scene_result.scene_summaries)
 
-        print("\n✓ Agent execution successful!")
-        return 0
+            if errors:
+                print(f"  ✗ {len(errors)} scene(s) failed:")
+                for err in errors:
+                    print(f"    - {err}")
+                if len(errors) == len(results):
+                    return 1
+
+            print("\n" + "=" * 60)
+            print("Results (Concurrent Processing)")
+            print("=" * 60)
+
+            for summary in all_summaries:
+                print(f"\nScene: {summary.scene_id}")
+                print(f"Summary: {summary.summary}")
+                print(f"Characters: {', '.join(summary.characters)}")
+
+            print(f"\n✓ Processed {len(all_summaries)} scenes concurrently!")
+            return 0
+        else:
+            # Process all scenes together (sequential/aggregated)
+            agent = create_context_agent_from_profile(
+                profile_path=profile_path,
+                prompts_dir=get_default_prompts_dir(),
+                config=config,
+            )
+
+            payload = ContextPhaseInput(
+                run_id=uuid7(),
+                source_lines=source_lines,
+            )
+
+            print("  Running agent on all scenes...")
+            result = asyncio.run(agent.run(payload))
+
+            print("\n" + "=" * 60)
+            print("Results")
+            print("=" * 60)
+
+            for summary in result.scene_summaries:
+                print(f"\nScene: {summary.scene_id}")
+                print(f"Summary: {summary.summary}")
+                print(f"Characters: {', '.join(summary.characters)}")
+
+            print("\n✓ Agent execution successful!")
+            return 0
 
     except Exception as e:
         print(f"  ✗ Agent execution failed: {e}")

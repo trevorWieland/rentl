@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Agentic localization pipeline"
 requires-python = ">=3.14"
 readme = "README.md"
+dependencies = [
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.0",
+]
 
 [tool.uv]
 managed = true
