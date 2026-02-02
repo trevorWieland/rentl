@@ -890,6 +890,8 @@ async def test_orchestrator_records_phase_summary_and_logs() -> None:
         entry for entry in log_sink.entries if entry.event == "context_completed"
     ]
     assert completed_entries
-    summary_payload = completed_entries[-1].data.get("summary")
-    assert summary_payload is not None
+    entry_data = completed_entries[-1].data
+    assert entry_data is not None
+    summary_payload = entry_data.get("summary")
+    assert isinstance(summary_payload, dict)
     assert summary_payload["phase"] == "context"

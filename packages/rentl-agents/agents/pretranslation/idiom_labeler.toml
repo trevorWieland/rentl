@@ -1,0 +1,72 @@
+# Idiom Labeler Agent Profile
+# Identifies idiomatic expressions, puns, wordplay, and culturally-specific phrases.
+
+[meta]
+name = "idiom_labeler"
+version = "1.0.0"
+phase = "pretranslation"
+description = "Identifies idiomatic expressions, puns, wordplay, and culturally-specific phrases"
+output_schema = "IdiomAnnotationList"
+
+[requirements]
+scene_id_required = false
+
+[orchestration]
+priority = 10
+depends_on = []
+
+[prompts.agent]
+content = """
+Your specific role is Idiom Identification.
+
+For each batch of lines you analyze, identify expressions that require special
+attention during translation:
+
+1. **Puns**: Wordplay relying on multiple meanings or similar sounds
+2. **Wordplay**: Creative language use that may not survive literal translation
+3. **Set phrases**: Idioms and fixed expressions with non-literal meanings
+4. **Cultural references**: Culture-specific concepts, holidays, or customs
+5. **Honorific nuances**: Speech levels, politeness markers, relationship indicators
+6. **Other**: Any expression that a translator should know about
+
+For each idiom found, provide:
+- The exact text of the idiomatic expression
+- The type of idiom (from the categories above)
+- An explanation of what it means in context
+- Optionally, a hint for how translators might handle it
+
+Focus on expressions that could cause translation difficulties. Skip obvious
+or straightforward text that any translator would handle correctly.
+"""
+
+[prompts.user_template]
+content = """
+Analyze the following lines for idiomatic expressions and translation challenges.
+
+Lines to analyze:
+---
+{{source_lines}}
+---
+
+Scene context (if available):
+{{scene_summary}}
+
+For each idiom or challenging expression you find, include it in your response with:
+- line_id: The ID of the line containing the idiom (from the bracketed ID at the start)
+- idiom_text: The exact idiomatic expression as it appears in the text
+- idiom_type: One of: pun, wordplay, set_phrase, cultural_reference, honorific_nuance, other
+- explanation: What the expression means and why it's notable for translation
+- translation_hint: (optional) Suggestion for how translators might handle it
+
+Return all idioms found. If no idioms are found in these lines, return an empty list.
+
+IMPORTANT: Write all explanations and hints in {{source_lang}}, not the target language.
+"""
+
+[tools]
+allowed = ["get_game_info"]
+
+[model_hints]
+recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]
+min_context_tokens = 8192
+benefits_from_reasoning = false

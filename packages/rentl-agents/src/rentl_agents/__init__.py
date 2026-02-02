@@ -17,6 +17,13 @@ from rentl_agents.layers import (
     load_phase_prompt,
     load_root_prompt,
 )
+from rentl_agents.pretranslation import (
+    chunk_lines,
+    format_lines_for_prompt,
+    get_scene_summary_for_lines,
+    idiom_to_annotation,
+    merge_idiom_annotations,
+)
 from rentl_agents.profiles import (
     AgentProfileLoadError,
     SchemaResolutionError,
@@ -54,7 +61,9 @@ from rentl_agents.tools.registry import (
 )
 from rentl_agents.wiring import (
     ContextSceneSummarizerAgent,
+    PretranslationIdiomLabelerAgent,
     create_context_agent_from_profile,
+    create_pretranslation_agent_from_profile,
     get_default_agents_dir,
     get_default_prompts_dir,
 )
@@ -72,6 +81,7 @@ __all__ = [
     "GameInfoTool",
     "GlossarySearchTool",
     "LayerLoadError",
+    "PretranslationIdiomLabelerAgent",
     "ProfileAgent",
     "ProfileAgentConfig",
     "ProjectContext",
@@ -88,20 +98,26 @@ __all__ = [
     "ToolNotFoundError",
     "ToolRegistry",
     "ToolResolutionError",
+    "chunk_lines",
     "create_context_agent_from_profile",
+    "create_pretranslation_agent_from_profile",
     "discover_agent_profiles",
     "extract_template_variables",
+    "format_lines_for_prompt",
     "format_scene_lines",
     "get_agents_for_phase",
     "get_allowed_variables_for_layer",
     "get_default_agents_dir",
     "get_default_prompts_dir",
     "get_default_registry",
+    "get_scene_summary_for_lines",
     "group_lines_by_scene",
+    "idiom_to_annotation",
     "load_agent_profile",
     "load_layer_registry",
     "load_phase_prompt",
     "load_root_prompt",
+    "merge_idiom_annotations",
     "merge_scene_summaries",
     "register_output_schema",
     "render_template",

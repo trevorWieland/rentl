@@ -229,7 +229,8 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT]):
             "timeout": self._config.timeout_s,
         }
 
-        agent: Agent[None, OutputT] = Agent(
+        # Note: type ignore needed due to pydantic-ai typing limitations with generics
+        agent: Agent[None, OutputT] = Agent(  # type: ignore[assignment]
             model=model,
             instructions=self._system_prompt,
             output_type=self._output_type,

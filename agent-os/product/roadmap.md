@@ -20,6 +20,7 @@
 - Run-level progress events in progress streams (run_started/run_completed/run_failed)
 - Export patch output
 - Functional onboarding (you can get it working)
+- Standards review: lock in declarative agent configuration and conventions
 
 **Spec List (Expanded):**
 - ✅ (01) Schema Definitions & Validation — Define strict Pydantic schemas for configs, inputs, outputs, and artifacts so the pipeline is deterministic and debuggable. **Depends on:** None.
@@ -37,7 +38,7 @@
 - ✅ (13) BYOK Runtime Integration — Implement OpenAI-compatible runtime clients (pydantic-ai) with retries/backoff. **Depends on:** 12.
 - ✅ (14) Agent Runtime Scaffold (pydantic-ai) — Establish agent harness, prompts, and tool plumbing for phase agents. **Depends on:** 01, 12, 13.
 - ✅ (15) Initial Phase Agent: Context — Scene summarizer agent with TOML profile, 3-layer prompts, and strict validation. Validated with real game data. **Depends on:** 14.
-- (16) Initial Phase Agent: Pretranslation — Create an initial agent to act in the Pretranslation phase. Candidates include (but are not limited to): idiom labeler, pop-culture reference finder, speaker attribution. **Depends on:** 14, 15.
+- ✅ (16) Initial Phase Agent: Pretranslation — Idiom Labeler agent that identifies idiomatic expressions, puns, wordplay, and culturally-specific phrases. Outputs `IdiomAnnotationList` with structured annotations. Validated with real LLM. **Depends on:** 14, 15.
 - (17) Initial Phase Agent: Translate — Create our main translation agent, utilizing simple direct translation. This should take in context and pretranslation data, and output translated lines. Future translation agents would involve extra features like selective usage of other MTL models as tool calls. **Depends on:** 14, 15, 16.
 - (18) Initial QA Checks (Deterministic) — Create deterministic and automated checks for formatting and completeness to enforce guardrails. **Depends on:** 01, 17.
 - (19) Initial Phase Agent: QA — Create an initial agent to act in the QA phase. Candidates include (but are not limited to): inaccurate translation detection, style-guide adherence critic, incorrect pronoun usage detection, etc. **Depends on:** 14, 18.
@@ -47,6 +48,8 @@
 - ✅ (23) Unit Test Coverage Gate (>80%) — Enforce unit test coverage threshold across core and CLI packages. **Depends on:** 01–13.
 - ✅ (24) Integration Test Suite — Validate CLI workflows and runtime wiring across storage and BYOK endpoints. **Depends on:** 11, 12, 13, 23.
 - (25) Quality Test Suite — Real-LLM smoke tests for runtime and agent behaviors. **Depends on:** 14, 15–20, 23.
+- (25a) Standards Review: Declarative Agent Config — Lock in agent configuration conventions and documentation. **Depends on:** 14–16.
+- (25b) End-to-End Logging & Error Surfacing — Ensure full logging coverage and raise actionable errors instead of silent failures. **Depends on:** 06, 07, 14–16.
 
 **Success Criteria:**
 - Produces higher-quality output than simple MTL
@@ -87,6 +90,7 @@
 - (38) Agent Hooks — Pre/post LLM generation callbacks for custom processing, validation, or logging. **Depends on:** 15.
 - (39) BatchSummarizer Agent — Context agent for content without scene boundaries; processes arbitrary line batches. **Depends on:** 15, 26.
 - (40) RouteSummarizer Agent — Context agent for route-level summaries; depends on scene summaries. **Depends on:** 15, 37.
+- (41) User-Configurable Agent Output Schemas — Allow users to define custom agent output schemas via TOML or JSON Schema without writing Python code; supports dynamic schema generation and validation. **Depends on:** 14, 26.
 
 **Success Criteria:**
 - First-pass translations are noticeably higher quality than v0.1

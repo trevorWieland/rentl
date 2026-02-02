@@ -28,6 +28,45 @@ class SceneSummary(BaseSchema):
     characters: list[str] = Field(..., description="Relevant characters")
 
 
+class IdiomAnnotation(BaseSchema):
+    """Single idiom annotation produced by the Idiom Labeler agent.
+
+    This is the structured output from the idiom labeler, which identifies
+    idiomatic expressions requiring special translation handling.
+    """
+
+    line_id: LineId = Field(..., description="Line identifier for the annotation")
+    idiom_text: str = Field(
+        ..., min_length=1, description="The idiomatic expression found"
+    )
+    idiom_type: str = Field(
+        ...,
+        pattern=r"^(pun|wordplay|set_phrase|cultural_reference|honorific_nuance|other)$",
+        description="Type of idiom (pun, wordplay, set_phrase, etc.)",
+    )
+    explanation: str = Field(
+        ...,
+        min_length=1,
+        description="Explanation of the idiom's meaning and significance",
+    )
+    translation_hint: str | None = Field(
+        None, description="Optional suggestion for how to handle in translation"
+    )
+
+
+class IdiomAnnotationList(BaseSchema):
+    """List of idiom annotations from a single chunk analysis.
+
+    This wrapper schema allows the LLM to return multiple idioms
+    found in a batch of lines.
+    """
+
+    idioms: list[IdiomAnnotation] = Field(
+        default_factory=list,
+        description="List of idioms found in the analyzed lines",
+    )
+
+
 class ContextNote(BaseSchema):
     """Context note associated with a line or scene."""
 

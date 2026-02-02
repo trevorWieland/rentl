@@ -20,11 +20,11 @@ target_languages = ["en"]
 provider_name = "local"
 base_url = "http://172.20.192.1:1234/v1"
 api_key_env = "RENTL_LOCAL_API_KEY"
-timeout_s = 10
+timeout_s = 180
 
 [pipeline.default_model]
-model_id = "openai/gpt-oss-20b"
-reasoning_effort = "low"
+model_id = "google/gemma-3-27b"
+reasoning_effort = "medium"
 
 [[pipeline.phases]]
 phase = "ingest"

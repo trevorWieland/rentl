@@ -35,9 +35,9 @@ class ProfileAgentConfig(BaseSchema):
     model_id: str = "gpt-4o-mini"
     temperature: float = 0.7
     top_p: float = 1.0
-    timeout_s: float = 60.0
+    timeout_s: float = 180.0
     max_retries: int = 3
-    retry_base_delay: float = 1.0
+    retry_base_delay: float = 2.0
 
 
 class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
@@ -162,11 +162,12 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
         }
 
         # Create agent with structured output
-        agent: Agent[None, OutputT] = Agent(
+        # Note: type ignore needed due to pydantic-ai typing limitations with generics
+        agent: Agent[None, OutputT] = Agent(  # type: ignore[assignment]
             model=model,
             instructions=system_prompt,
             output_type=self._output_type,
-            tools=tool_callables,  # type: ignore[arg-type]
+            tools=tool_callables,
         )
 
         result = await agent.run(user_prompt, model_settings=model_settings)
