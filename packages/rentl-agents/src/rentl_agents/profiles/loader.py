@@ -134,6 +134,8 @@ def _init_schema_registry() -> None:
         IdiomAnnotation,
         IdiomAnnotationList,
         SceneSummary,
+        StyleGuideViolation,
+        StyleGuideViolationList,
         TranslationResultList,
     )
 
@@ -146,6 +148,10 @@ def _init_schema_registry() -> None:
         register_output_schema("IdiomAnnotationList", IdiomAnnotationList)
     if "TranslationResultList" not in SCHEMA_REGISTRY:
         register_output_schema("TranslationResultList", TranslationResultList)
+    if "StyleGuideViolation" not in SCHEMA_REGISTRY:
+        register_output_schema("StyleGuideViolation", StyleGuideViolation)
+    if "StyleGuideViolationList" not in SCHEMA_REGISTRY:
+        register_output_schema("StyleGuideViolationList", StyleGuideViolationList)
 
 
 # Initialize on module load

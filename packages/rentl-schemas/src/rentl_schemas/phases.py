@@ -67,6 +67,58 @@ class IdiomAnnotationList(BaseSchema):
     )
 
 
+class StyleGuideViolation(BaseSchema):
+    """Single style guide violation found by the Style Guide Critic agent.
+
+    This is the structured output from the style guide critic, which identifies
+    violations of project style guidelines in translations.
+    """
+
+    line_id: LineId = Field(..., description="Line identifier for the violation")
+    violation_type: str = Field(
+        ...,
+        pattern=r"^(honorific|formality|terminology|cultural|consistency|other)$",
+        description="Type of style violation (honorific, formality, etc.)",
+    )
+    rule_violated: str = Field(
+        ...,
+        min_length=1,
+        description="The specific style rule that was violated",
+    )
+    source_text: str = Field(
+        ...,
+        min_length=1,
+        description="The relevant source text being translated",
+    )
+    translation_text: str = Field(
+        ...,
+        min_length=1,
+        description="The problematic translation text",
+    )
+    explanation: str = Field(
+        ...,
+        min_length=1,
+        description="Explanation of why this violates the style guide",
+    )
+    suggestion: str | None = Field(
+        None,
+        description="Suggested correction for the violation",
+    )
+
+
+class StyleGuideViolationList(BaseSchema):
+    """List of style guide violations from a single chunk analysis.
+
+    This wrapper schema allows the LLM to return multiple violations
+    found in a batch of translations.
+    """
+
+    violations: list[StyleGuideViolation] = Field(
+        default_factory=list,
+        description="List of style guide violations found",
+    )
+
+
 class TranslationResultLine(BaseSchema):
     """Single translated line in LLM output format.
 

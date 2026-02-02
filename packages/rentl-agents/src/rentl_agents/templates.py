@@ -117,6 +117,8 @@ QA_AGENT_VARIABLES: frozenset[str] = frozenset({
     "translated_text",
     "scene_summary",
     "glossary_terms",
+    "style_guide",
+    "lines_to_review",
 })
 
 EDIT_AGENT_VARIABLES: frozenset[str] = frozenset({

@@ -1,0 +1,68 @@
+# Style Guide Critic Agent Profile
+# Evaluates translations against project style guide for violations
+
+[meta]
+name = "style_guide_critic"
+version = "1.0.0"
+phase = "qa"
+description = "Evaluates translations against project style guide and identifies violations"
+output_schema = "StyleGuideViolationList"
+
+[requirements]
+scene_id_required = false
+
+[orchestration]
+priority = 10
+depends_on = []
+
+[prompts.agent]
+content = """
+Your specific role is Style Guide Enforcement.
+
+For each batch of translations you review:
+1. Compare each translation against the style guide rules
+2. Identify violations of honorific conventions (e.g., "Mr. Tanaka" instead of "Tanaka-san")
+3. Check that formality levels match the source text
+4. Verify terminology consistency with the glossary and style guide
+5. Flag cultural localization issues (e.g., replacing cultural terms with Western equivalents)
+6. Check for consistency violations within the batch
+
+For each violation found, you MUST specify:
+- violation_type: One of "honorific", "formality", "terminology", "cultural", "consistency", or "other"
+- rule_violated: The specific rule from the style guide that was violated
+- source_text: The relevant source text
+- translation_text: The problematic translation
+- explanation: Why this is a violation
+- suggestion: A suggested correction (optional but encouraged)
+
+IMPORTANT:
+- If the style guide is empty or not provided, return an empty violations list
+- Only report clear violations, not subjective preferences
+- Be specific about which rule was violated
+- Provide actionable suggestions when possible
+- Return ONLY the violations list - do not include any other fields in your response
+"""
+
+[prompts.user_template]
+content = """
+Review the following translations against the style guide.
+
+## Style Guide
+---
+{{style_guide}}
+---
+
+## Lines to Review
+{{lines_to_review}}
+---
+
+Identify any style guide violations in the translations above.
+"""
+
+[tools]
+allowed = []
+
+[model_hints]
+recommended = ["gpt-4o", "claude-3.5-sonnet", "claude-3-opus"]
+min_context_tokens = 8192
+benefits_from_reasoning = true

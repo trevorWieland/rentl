@@ -10,7 +10,7 @@ import asyncio
 from typing import Literal, TypeVar
 
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.output import PromptedOutput
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -52,14 +52,15 @@ class ProfileAgentConfig(BaseSchema):
     temperature: float = 0.7
     top_p: float = 1.0
     timeout_s: float = 180.0
-    max_retries: int = 3
+    max_retries: int = 2  # Retries for transient errors only (network, rate limits)
     retry_base_delay: float = 2.0
     output_mode: OutputMode = "auto"  # Auto-detect based on provider
-    # Safeguards against infinite loops
+    # Safeguards against infinite loops - FAIL LOUDLY when exceeded
     max_requests_per_run: int = (
-        5  # Max API requests per single run (default 50 is too high)
+        5  # Max API requests per single run - includes output validation retries
     )
-    max_output_retries: int = 2  # Max retries for structured output validation
+    # Output validation retries (pydantic-ai provides feedback to model)
+    max_output_retries: int = 3
 
 
 class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
@@ -127,14 +128,35 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             OutputT: Agent output matching output_type.
 
         Raises:
-            RuntimeError: If execution fails after retries.
+            RuntimeError: If execution fails (transient errors, validation failures,
+                or usage limits exceeded). Error message indicates the cause.
         """
         last_error: Exception | None = None
 
         for attempt in range(self._config.max_retries + 1):
             try:
                 return await self._execute(payload)
+            except UsageLimitExceeded as e:
+                # Model failed to produce valid output within request limit
+                # This is a LOUD failure - don't retry, report clearly
+                limit = self._config.max_requests_per_run
+                raise RuntimeError(
+                    f"Agent {self.name} FAILED: Hit request limit ({limit}). "
+                    f"Model repeatedly failed to produce valid structured output. "
+                    f"The model may not be capable enough for this task. "
+                    f"Try a more capable model (e.g., gpt-4o, claude-3.5-sonnet). "
+                    f"Details: {e}"
+                ) from e
+            except UnexpectedModelBehavior as e:
+                # Model produced invalid output that couldn't be parsed
+                # This is a LOUD failure - don't retry, report clearly
+                raise RuntimeError(
+                    f"Agent {self.name} FAILED: Model produced invalid output. "
+                    f"The model response did not match the expected schema. "
+                    f"Details: {e}"
+                ) from e
             except Exception as exc:
+                # Transient errors (network, rate limits) - retry with backoff
                 last_error = exc
                 if attempt < self._config.max_retries:
                     delay = self._config.retry_base_delay * (2**attempt)
@@ -148,14 +170,14 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
     async def _execute(self, payload: InputT) -> OutputT:
         """Execute a single agent invocation.
 
+        May raise UsageLimitExceeded or UnexpectedModelBehavior from pydantic-ai
+        if the model fails to produce valid output.
+
         Args:
             payload: Input payload.
 
         Returns:
             Agent output.
-
-        Raises:
-            RuntimeError: If usage limits exceeded (likely infinite loop).
         """
         # Build prompts from layers
         system_prompt = self._composer.compose_system_prompt(
@@ -231,17 +253,9 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             request_limit=self._config.max_requests_per_run,
         )
 
-        try:
-            result = await agent.run(
-                user_prompt,
-                model_settings=model_settings,
-                usage_limits=usage_limits,
-            )
-            return result.output
-        except UsageLimitExceeded as e:
-            limit = self._config.max_requests_per_run
-            raise RuntimeError(
-                f"Agent {self.name} hit request limit ({limit}). "
-                f"Model may be failing to produce valid structured output. "
-                f"Try a different model or output_mode. Details: {e}"
-            ) from e
+        result = await agent.run(
+            user_prompt,
+            model_settings=model_settings,
+            usage_limits=usage_limits,
+        )
+        return result.output

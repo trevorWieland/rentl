@@ -35,6 +35,15 @@ from rentl_agents.profiles import (
     resolve_output_schema,
 )
 from rentl_agents.prompts import PromptRenderer, PromptTemplate
+from rentl_agents.qa import (
+    build_qa_summary,
+    chunk_qa_lines,
+    empty_qa_output,
+    format_lines_for_qa_prompt,
+    get_scene_summary_for_qa,
+    merge_qa_agent_outputs,
+    violation_to_qa_issue,
+)
 from rentl_agents.runtime import ProfileAgent, ProfileAgentConfig
 from rentl_agents.templates import (
     TemplateContext,
@@ -78,9 +87,11 @@ from rentl_agents.translate import (
 from rentl_agents.wiring import (
     ContextSceneSummarizerAgent,
     PretranslationIdiomLabelerAgent,
+    QaStyleGuideCriticAgent,
     TranslateDirectTranslatorAgent,
     create_context_agent_from_profile,
     create_pretranslation_agent_from_profile,
+    create_qa_agent_from_profile,
     create_translate_agent_from_profile,
     get_default_agents_dir,
     get_default_prompts_dir,
@@ -107,6 +118,7 @@ __all__ = [
     "PromptLayerRegistry",
     "PromptRenderer",
     "PromptTemplate",
+    "QaStyleGuideCriticAgent",
     "SceneValidationError",
     "SchemaResolutionError",
     "StyleGuideLookupTool",
@@ -117,15 +129,20 @@ __all__ = [
     "ToolRegistry",
     "ToolResolutionError",
     "TranslateDirectTranslatorAgent",
+    "build_qa_summary",
     "chunk_lines",
+    "chunk_qa_lines",
     "create_context_agent_from_profile",
     "create_pretranslation_agent_from_profile",
+    "create_qa_agent_from_profile",
     "create_translate_agent_from_profile",
     "discover_agent_profiles",
+    "empty_qa_output",
     "extract_template_variables",
     "format_annotated_lines_for_prompt",
     "format_glossary_terms",
     "format_lines_for_prompt",
+    "format_lines_for_qa_prompt",
     "format_pretranslation_annotations",
     "format_scene_lines",
     "get_agents_for_phase",
@@ -134,6 +151,7 @@ __all__ = [
     "get_default_prompts_dir",
     "get_default_registry",
     "get_scene_summary_for_lines",
+    "get_scene_summary_for_qa",
     "group_lines_by_scene",
     "idiom_to_annotation",
     "load_agent_profile",
@@ -141,6 +159,7 @@ __all__ = [
     "load_phase_prompt",
     "load_root_prompt",
     "merge_idiom_annotations",
+    "merge_qa_agent_outputs",
     "merge_scene_summaries",
     "merge_translated_lines",
     "register_output_schema",
@@ -153,4 +172,5 @@ __all__ = [
     "validate_agent_template",
     "validate_scene_input",
     "validate_template",
+    "violation_to_qa_issue",
 ]

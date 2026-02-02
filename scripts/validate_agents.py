@@ -199,9 +199,15 @@ def main() -> int:
     parser.add_argument(
         "--phase",
         type=str,
-        choices=["all", "context", "pretranslation", "translate"],
+        choices=["all", "context", "pretranslation", "translate", "qa"],
         default="all",
         help="Which phase(s) to run (default: all)",
+    )
+    parser.add_argument(
+        "--style-guide",
+        type=Path,
+        default=Path("samples/style-guide.md"),
+        help="Path to style guide markdown file (default: samples/style-guide.md)",
     )
     parser.add_argument(
         "--chunk-size",
@@ -250,9 +256,10 @@ def main() -> int:
     from rentl_agents.wiring import (
         create_context_agent_from_profile,
         create_pretranslation_agent_from_profile,
+        create_qa_agent_from_profile,
         create_translate_agent_from_profile,
     )
-    from rentl_schemas.io import SourceLine
+    from rentl_schemas.io import SourceLine, TranslatedLine
     from rentl_schemas.phases import (
         ContextPhaseInput,
         ContextPhaseOutput,
@@ -414,13 +421,13 @@ def main() -> int:
 
     # Check for mock mode
     if args.mock:
-        print("\n[4/6] Context phase (mock)...")
+        print("\n[4/7] Context phase (mock)...")
         print("  ⊘ Mock mode - skipping LLM calls")
 
-        print("\n[5/6] Pretranslation phase (mock)...")
+        print("\n[5/7] Pretranslation phase (mock)...")
         print("  ⊘ Mock mode - skipping LLM calls")
 
-        print("\n[6/6] Translate phase (mock)...")
+        print("\n[6/7] Translate phase (mock)...")
         print("  ⊘ Mock mode - skipping LLM calls")
 
         # Show what would be processed
@@ -433,6 +440,15 @@ def main() -> int:
                 print(f"    {line}")
             if len(chunk) > 3:
                 print(f"    ... and {len(chunk) - 3} more")
+
+        print("\n[7/7] QA phase (mock)...")
+        print("  ⊘ Mock mode - showing what would run:")
+        print("  • Deterministic: line_length, empty_translation, whitespace")
+        print("  • LLM-based: style_guide_critic")
+        if args.style_guide.exists():
+            print(f"  • Style guide: {args.style_guide}")
+        else:
+            print(f"  • Style guide: (not found at {args.style_guide})")
 
         print("\n" + "=" * 70)
         print("✓ Agent validation complete (structure only)")
@@ -460,7 +476,7 @@ def main() -> int:
     scene_summaries: list[SceneSummary] = []
 
     if args.phase in ["all", "context"]:
-        print("\n[4/6] Context phase (Scene Summarizer)...")
+        print("\n[4/7] Context phase (Scene Summarizer)...")
         concurrency = args.concurrency
         print(f"  Running {len(scene_groups)} scene(s) (concurrency={concurrency})...")
 
@@ -539,13 +555,13 @@ def main() -> int:
             traceback.print_exc()
             return 1
     else:
-        print("\n[4/6] Context phase (skipped)")
+        print("\n[4/7] Context phase (skipped)")
 
     # Step 5: Run Pretranslation Phase (Idiom Labeler)
     pretranslation_annotations: list[PretranslationAnnotation] = []
 
     if args.phase in ["all", "pretranslation"]:
-        print("\n[5/6] Pretranslation phase (Idiom Labeler)...")
+        print("\n[5/7] Pretranslation phase (Idiom Labeler)...")
 
         try:
             agent = create_pretranslation_agent_from_profile(
@@ -595,11 +611,13 @@ def main() -> int:
             traceback.print_exc()
             return 1
     else:
-        print("\n[5/6] Pretranslation phase (skipped)")
+        print("\n[5/7] Pretranslation phase (skipped)")
 
     # Step 6: Run Translate Phase (Direct Translator)
+    translated_lines: list[TranslatedLine] = []
+
     if args.phase in ["all", "translate"]:
-        print("\n[6/6] Translate phase (Direct Translator)...")
+        print("\n[6/7] Translate phase (Direct Translator)...")
 
         try:
             agent = create_translate_agent_from_profile(
@@ -626,6 +644,9 @@ def main() -> int:
 
             print(f"  ✓ Translated {len(result.translated_lines)} line(s)")
 
+            # Save for QA phase
+            translated_lines = result.translated_lines
+
             if result.translated_lines:
                 print("\n  Sample translations:")
                 for line in result.translated_lines[:5]:
@@ -646,7 +667,116 @@ def main() -> int:
             traceback.print_exc()
             return 1
     else:
-        print("\n[6/6] Translate phase (skipped)")
+        print("\n[6/7] Translate phase (skipped)")
+
+    # Step 7: Run QA Phase (Deterministic + LLM-based)
+    if args.phase in ["all", "qa"]:
+        print("\n[7/7] QA phase...")
+
+        # Load style guide
+        style_guide_content = ""
+        if args.style_guide.exists():
+            style_guide_content = args.style_guide.read_text()
+            print(f"  Loaded style guide: {args.style_guide}")
+        else:
+            print(f"  ⚠ Style guide not found: {args.style_guide}")
+
+        # Check if we have translated lines
+        if not translated_lines:
+            print("  ⚠ No translated lines available - skipping QA")
+        else:
+            # 7a. Run DETERMINISTIC checks first (fast, free)
+            print("  Running deterministic checks...")
+            from rentl_core.qa import DeterministicQaRunner, get_default_registry
+            from rentl_schemas.primitives import QaSeverity
+
+            runner = DeterministicQaRunner(get_default_registry())
+            runner.configure_check("line_length", QaSeverity.MAJOR, {"max_length": 256})
+            runner.configure_check("empty_translation", QaSeverity.CRITICAL, None)
+            runner.configure_check("whitespace", QaSeverity.MINOR, None)
+
+            deterministic_issues = runner.run_checks(translated_lines)
+            print(f"  ✓ Deterministic: {len(deterministic_issues)} issue(s)")
+
+            # 7b. Run LLM-BASED Style Guide Critic (if not mock mode)
+            from rentl_schemas.qa import QaIssue
+
+            llm_issues: list[QaIssue] = []
+            if args.mock:
+                print("  ⊘ Mock mode - skipping LLM-based QA")
+                print("    Would run: style_guide_critic")
+            else:
+                print("  Running style guide critic (LLM)...")
+                try:
+                    from rentl_schemas.phases import QaPhaseInput
+
+                    style_guide_critic_path = (
+                        agents_dir / "qa" / "style_guide_critic.toml"
+                    )
+                    qa_agent = create_qa_agent_from_profile(
+                        profile_path=style_guide_critic_path,
+                        prompts_dir=prompts_dir,
+                        config=config,
+                        chunk_size=args.chunk_size,
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                    )
+
+                    qa_input = QaPhaseInput(
+                        run_id=uuid7(),
+                        target_language=target_lang,
+                        source_lines=source_lines,
+                        translated_lines=translated_lines,
+                        style_guide=style_guide_content,
+                    )
+
+                    qa_output = asyncio.run(qa_agent.run(qa_input))
+                    llm_issues = qa_output.issues
+                    print(f"  ✓ LLM-based: {len(llm_issues)} issue(s)")
+                except Exception as e:
+                    print(f"  ⚠ LLM-based QA failed: {e}")
+                    import traceback
+
+                    traceback.print_exc()
+
+            # 7c. Display ALL issues
+            all_issues = list(deterministic_issues) + list(llm_issues)
+            print(f"\n  Total QA issues: {len(all_issues)}")
+
+            if all_issues:
+                # Display by category
+                # Note: use_enum_values=True means these may already be strings
+                by_category: dict[str, int] = {}
+                for issue in all_issues:
+                    cat = (
+                        issue.category.value
+                        if hasattr(issue.category, "value")
+                        else str(issue.category)
+                    )
+                    by_category[cat] = by_category.get(cat, 0) + 1
+
+                for cat, count in sorted(by_category.items()):
+                    print(f"    {cat}: {count}")
+
+                # Show sample issues
+                print("\n  Sample issues:")
+                for issue in all_issues[:5]:
+                    severity = (
+                        issue.severity.value
+                        if hasattr(issue.severity, "value")
+                        else str(issue.severity)
+                    )
+                    category = (
+                        issue.category.value
+                        if hasattr(issue.category, "value")
+                        else str(issue.category)
+                    )
+                    message = issue.message[:60] if issue.message else "N/A"
+                    print(f"    [{severity}] {category}: {message}...")
+                if len(all_issues) > 5:
+                    print(f"\n  ... and {len(all_issues) - 5} more")
+    else:
+        print("\n[7/7] QA phase (skipped)")
 
     print("\n" + "=" * 70)
     print("✓ Agent validation complete!")

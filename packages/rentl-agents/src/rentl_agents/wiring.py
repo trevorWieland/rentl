@@ -26,12 +26,15 @@ from rentl_schemas.phases import (
     IdiomAnnotationList,
     PretranslationPhaseInput,
     PretranslationPhaseOutput,
+    QaPhaseInput,
+    QaPhaseOutput,
     SceneSummary,
+    StyleGuideViolationList,
     TranslatePhaseInput,
     TranslatePhaseOutput,
     TranslationResultList,
 )
-from rentl_schemas.primitives import LanguageCode, PhaseName
+from rentl_schemas.primitives import LanguageCode, PhaseName, QaSeverity
 
 if TYPE_CHECKING:
     pass
@@ -280,15 +283,8 @@ class PretranslationIdiomLabelerAgent:
 
             # Run the profile agent for this chunk
             # ProfileAgent returns IdiomAnnotationList with all idioms found
-            try:
-                result = await self._profile_agent.run(payload)
-                all_idioms.extend(result.idioms)
-            except Exception as e:
-                # Log the error but continue processing other chunks
-                # TODO: Use proper logging in production
-                import sys
-
-                print(f"  ⚠ Chunk failed: {e}", file=sys.stderr)
+            result = await self._profile_agent.run(payload)
+            all_idioms.extend(result.idioms)
 
         return merge_idiom_annotations(payload.run_id, all_idioms)
 
@@ -438,19 +434,9 @@ class TranslateDirectTranslatorAgent:
 
             # Run the profile agent for this chunk
             # ProfileAgent returns TranslationResultList with translated lines
-            try:
-                result = await self._profile_agent.run(payload)
-                translated_lines = translation_result_to_lines(result, chunk)
-                all_translated_lines.extend(translated_lines)
-            except Exception as e:
-                # Log the error with root cause
-                import sys
-
-                print(f"  ⚠ Chunk failed: {e}", file=sys.stderr)
-                if e.__cause__:
-                    print(f"    Caused by: {e.__cause__}", file=sys.stderr)
-                # Re-raise - we shouldn't silently lose translations
-                raise
+            result = await self._profile_agent.run(payload)
+            translated_lines = translation_result_to_lines(result, chunk)
+            all_translated_lines.extend(translated_lines)
 
         return merge_translated_lines(
             payload.run_id,
@@ -520,4 +506,169 @@ def create_translate_agent_from_profile(
         chunk_size=chunk_size,
         source_lang=source_lang,
         target_lang=target_lang,
+    )
+
+
+class QaStyleGuideCriticAgent:
+    """QA phase agent that evaluates translations against style guide.
+
+    This agent:
+    1. Checks if a style guide is provided (returns empty if not)
+    2. Chunks source and translated lines into batches for processing
+    3. Runs ProfileAgent for each chunk to identify style violations
+    4. Converts violations to QaIssue and merges into QaPhaseOutput
+    """
+
+    def __init__(
+        self,
+        profile_agent: ProfileAgent[QaPhaseInput, StyleGuideViolationList],
+        config: ProfileAgentConfig,
+        chunk_size: int = 10,
+        source_lang: LanguageCode = "ja",
+        target_lang: LanguageCode = "en",
+        severity: QaSeverity = QaSeverity.MAJOR,
+    ) -> None:
+        """Initialize the QA style guide critic agent.
+
+        Args:
+            profile_agent: Underlying ProfileAgent for style guide evaluation.
+            config: Runtime configuration.
+            chunk_size: Number of lines per processing chunk.
+            source_lang: Source language name for prompts.
+            target_lang: Target language name for prompts.
+            severity: Severity level for style violations.
+        """
+        self._profile_agent = profile_agent
+        self._config = config
+        self._chunk_size = chunk_size
+        self._source_lang = source_lang
+        self._target_lang = target_lang
+        self._severity = severity
+
+    async def run(self, payload: QaPhaseInput) -> QaPhaseOutput:
+        """Execute QA phase by evaluating translations against style guide.
+
+        Args:
+            payload: QA phase input with source lines, translations, and style guide.
+
+        Returns:
+            QA phase output with style guide violations as issues.
+        """
+        from rentl_agents.qa.lines import (
+            chunk_qa_lines,
+            empty_qa_output,
+            format_lines_for_qa_prompt,
+            merge_qa_agent_outputs,
+            violation_to_qa_issue,
+        )
+        from rentl_schemas.qa import QaIssue
+
+        # Return empty output if no style guide provided
+        if not payload.style_guide or not payload.style_guide.strip():
+            return empty_qa_output(payload.run_id, payload.target_language)
+
+        # Chunk lines for batch processing
+        chunks = chunk_qa_lines(
+            payload.source_lines,
+            payload.translated_lines,
+            self._chunk_size,
+        )
+
+        # Process each chunk
+        all_issues: list[QaIssue] = []
+        for source_chunk, translated_chunk in chunks:
+            # Format lines for prompt
+            lines_to_review = format_lines_for_qa_prompt(source_chunk, translated_chunk)
+
+            # Update template context for this chunk
+            context = TemplateContext(
+                root_variables={},
+                phase_variables={
+                    "source_lang": self._source_lang,
+                    "target_lang": self._target_lang,
+                },
+                agent_variables={
+                    "style_guide": payload.style_guide,
+                    "lines_to_review": lines_to_review,
+                },
+            )
+            self._profile_agent.update_context(context)
+
+            # Run the profile agent for this chunk
+            # ProfileAgent returns StyleGuideViolationList with all violations found
+            result = await self._profile_agent.run(payload)
+            # Convert violations to QaIssue
+            for violation in result.violations:
+                issue = violation_to_qa_issue(violation, self._severity)
+                all_issues.append(issue)
+
+        return merge_qa_agent_outputs(
+            payload.run_id,
+            all_issues,
+            payload.target_language,
+        )
+
+
+def create_qa_agent_from_profile(
+    profile_path: Path,
+    prompts_dir: Path,
+    config: ProfileAgentConfig,
+    tool_registry: ToolRegistry | None = None,
+    chunk_size: int = 10,
+    source_lang: LanguageCode = "ja",
+    target_lang: LanguageCode = "en",
+    severity: QaSeverity = QaSeverity.MAJOR,
+) -> QaStyleGuideCriticAgent:
+    """Create a QA phase agent from a TOML profile.
+
+    Args:
+        profile_path: Path to the agent profile TOML file.
+        prompts_dir: Path to the prompts directory (containing root.toml, phases/).
+        config: Runtime configuration (API key, model settings, etc.).
+        tool_registry: Tool registry to use. Defaults to the default registry.
+        chunk_size: Number of lines per processing chunk.
+        source_lang: Source language name for prompts.
+        target_lang: Target language name for prompts.
+        severity: Severity level for style violations.
+
+    Returns:
+        QA phase agent ready for orchestrator.
+
+    Raises:
+        ValueError: If profile is not for QA phase.
+    """
+    # Load the profile
+    profile = load_agent_profile(profile_path)
+
+    # Verify it's a QA phase agent
+    if profile.meta.phase != PhaseName.QA:
+        raise ValueError(
+            f"Profile {profile.meta.name} is for phase {profile.meta.phase.value}, "
+            f"expected qa"
+        )
+
+    # Load prompt layers
+    layer_registry = load_layer_registry(prompts_dir)
+
+    # Get tool registry
+    if tool_registry is None:
+        tool_registry = get_default_registry()
+
+    # Create the ProfileAgent
+    profile_agent: ProfileAgent[QaPhaseInput, StyleGuideViolationList] = ProfileAgent(
+        profile=profile,
+        output_type=StyleGuideViolationList,
+        layer_registry=layer_registry,
+        tool_registry=tool_registry,
+        config=config,
+    )
+
+    # Wrap in QaStyleGuideCriticAgent
+    return QaStyleGuideCriticAgent(
+        profile_agent=profile_agent,
+        config=config,
+        chunk_size=chunk_size,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        severity=severity,
     )
