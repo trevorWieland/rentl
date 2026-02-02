@@ -6,10 +6,15 @@ from pydantic import BaseModel, ConfigDict
 
 
 class BaseSchema(BaseModel):
-    """Base schema with strict validation defaults."""
+    """Base schema with strict validation defaults.
+
+    Note: extra="ignore" allows LLMs to include additional fields without
+    failing validation. This improves reliability with less capable models
+    that may add extra context fields. Required fields are still validated.
+    """
 
     model_config = ConfigDict(
-        extra="forbid",
+        extra="ignore",  # Drop extra fields instead of failing
         validate_assignment=True,
         validate_default=True,
         str_strip_whitespace=True,

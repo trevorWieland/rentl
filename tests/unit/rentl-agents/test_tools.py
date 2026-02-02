@@ -135,11 +135,13 @@ class TestContextLookupTool:
         assert result["context_notes"][0]["line_id"] == "line_1"
 
     def test_execute_with_invalid_input(self) -> None:
-        """Test executing tool with invalid input raises error."""
+        """Test executing tool with invalid input type raises error."""
         tool = ContextLookupTool()
 
+        # Extra fields are now ignored for LLM reliability
+        # Test with invalid type instead
         with pytest.raises(RuntimeError, match="Invalid input"):
-            tool.execute({"invalid_field": "value"})
+            tool.execute({"scene_id": 123})  # Should be string, not int
 
     def test_execute_with_no_results(self) -> None:
         """Test executing tool with no matching results."""
@@ -294,9 +296,11 @@ class TestStyleGuideLookupTool:
         assert "Use formal tone" in result["content"]
 
     def test_execute_with_invalid_input(self) -> None:
-        """Test executing tool with invalid input raises error."""
+        """Test executing tool with invalid input type raises error."""
         content = "# General\nUse formal tone.\n"
         tool = StyleGuideLookupTool(style_guide_content=content)
 
+        # Extra fields are now ignored for LLM reliability
+        # Test with invalid type instead
         with pytest.raises(RuntimeError, match="Invalid input"):
-            tool.execute({"invalid": "test"})
+            tool.execute({"section": 123})  # Should be string, not int

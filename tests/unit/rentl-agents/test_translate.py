@@ -665,7 +665,6 @@ class TestMergeTranslatedLines:
                 route_id="route_001",
                 scene_id="scene_001",
                 speaker="Alice",
-                source_text="こんにちは",
             ),
         ]
 
@@ -675,4 +674,3 @@ class TestMergeTranslatedLines:
         assert merged_line.route_id == "route_001"
         assert merged_line.scene_id == "scene_001"
         assert merged_line.speaker == "Alice"
-        assert merged_line.source_text == "こんにちは"

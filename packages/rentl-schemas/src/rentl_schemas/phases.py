@@ -33,24 +33,19 @@ class IdiomAnnotation(BaseSchema):
 
     This is the structured output from the idiom labeler, which identifies
     idiomatic expressions requiring special translation handling.
+
+    Simplified schema: Only essential fields, no optional fields, no overlap
+    with translation phase. The pretranslation phase is target-language unaware.
     """
 
     line_id: LineId = Field(..., description="Line identifier for the annotation")
     idiom_text: str = Field(
         ..., min_length=1, description="The idiomatic expression found"
     )
-    idiom_type: str = Field(
-        ...,
-        pattern=r"^(pun|wordplay|set_phrase|cultural_reference|honorific_nuance|other)$",
-        description="Type of idiom (pun, wordplay, set_phrase, etc.)",
-    )
     explanation: str = Field(
         ...,
         min_length=1,
         description="Explanation of the idiom's meaning and significance",
-    )
-    translation_hint: str | None = Field(
-        None, description="Optional suggestion for how to handle in translation"
     )
 
 
@@ -72,37 +67,22 @@ class StyleGuideViolation(BaseSchema):
 
     This is the structured output from the style guide critic, which identifies
     violations of project style guidelines in translations.
+
+    Simplified schema: Only essential fields, no optional fields, no redundancy.
+    Source/translation text already available in context. Suggestions are out
+    of scope for QA - that's for the editor/translator to decide.
     """
 
     line_id: LineId = Field(..., description="Line identifier for the violation")
-    violation_type: str = Field(
-        ...,
-        pattern=r"^(honorific|formality|terminology|cultural|consistency|other)$",
-        description="Type of style violation (honorific, formality, etc.)",
-    )
     rule_violated: str = Field(
         ...,
         min_length=1,
         description="The specific style rule that was violated",
     )
-    source_text: str = Field(
-        ...,
-        min_length=1,
-        description="The relevant source text being translated",
-    )
-    translation_text: str = Field(
-        ...,
-        min_length=1,
-        description="The problematic translation text",
-    )
     explanation: str = Field(
         ...,
         min_length=1,
         description="Explanation of why this violates the style guide",
-    )
-    suggestion: str | None = Field(
-        None,
-        description="Suggested correction for the violation",
     )
 
 

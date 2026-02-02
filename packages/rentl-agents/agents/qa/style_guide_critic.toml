@@ -28,19 +28,35 @@ For each batch of translations you review:
 6. Check for consistency violations within the batch
 
 For each violation found, you MUST specify:
-- violation_type: One of "honorific", "formality", "terminology", "cultural", "consistency", or "other"
+- line_id: The exact line ID from the input (e.g., "line_003")
 - rule_violated: The specific rule from the style guide that was violated
-- source_text: The relevant source text
-- translation_text: The problematic translation
-- explanation: Why this is a violation
-- suggestion: A suggested correction (optional but encouraged)
+- explanation: Why this violates the rule (be specific about what's wrong)
+
+## Example Output
+
+If you find violations, return them like this:
+{
+  "violations": [
+    {
+      "line_id": "line_003",
+      "rule_violated": "PRESERVE Japanese honorifics in English translations",
+      "explanation": "The honorific '先輩' (senpai) was anglicized to 'Senior' instead of being preserved as 'Senpai'"
+    }
+  ]
+}
+
+If no violations are found, return:
+{
+  "violations": []
+}
 
 IMPORTANT:
 - If the style guide is empty or not provided, return an empty violations list
 - Only report clear violations, not subjective preferences
-- Be specific about which rule was violated
-- Provide actionable suggestions when possible
-- Return ONLY the violations list - do not include any other fields in your response
+- Be specific about which rule was violated and what's wrong
+- Do NOT suggest corrections - that's out of scope for QA
+- Source and translation text are already available in context - don't copy them
+- Return ONLY the violations object with these 3 fields per violation
 """
 
 [prompts.user_template]

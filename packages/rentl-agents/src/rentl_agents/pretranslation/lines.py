@@ -128,10 +128,7 @@ def idiom_to_annotation(idiom: IdiomAnnotation) -> PretranslationAnnotation:
         annotation_type="idiom",
         value=idiom.idiom_text,
         notes=idiom.explanation,
-        metadata={
-            "idiom_type": idiom.idiom_type,
-            "translation_hint": idiom.translation_hint,
-        },
+        metadata={},  # Simplified schema - no type categorization needed
     )
 
 

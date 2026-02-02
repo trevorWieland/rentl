@@ -266,7 +266,6 @@ class TestIdiomToAnnotation:
         idiom = IdiomAnnotation(
             line_id="line_001",
             idiom_text="猫の手も借りたい",
-            idiom_type="set_phrase",
             explanation="A phrase meaning extremely busy",
         )
 
@@ -277,31 +276,25 @@ class TestIdiomToAnnotation:
         assert result.value == "猫の手も借りたい"
         assert result.notes == "A phrase meaning extremely busy"
 
-    def test_convert_idiom_with_hint(self) -> None:
-        """Test converting idiom with translation hint."""
+    def test_convert_idiom_preserves_explanation(self) -> None:
+        """Test converting idiom preserves explanation in notes."""
         idiom = IdiomAnnotation(
             line_id="line_002",
             idiom_text="It's raining cats and dogs",
-            idiom_type="set_phrase",
-            explanation="Heavy rain",
-            translation_hint="Use equivalent local idiom for heavy rain",
+            explanation="Heavy rain idiom",
         )
 
         result = idiom_to_annotation(idiom)
 
-        assert result.metadata is not None
-        assert (
-            result.metadata.get("translation_hint")
-            == "Use equivalent local idiom for heavy rain"
-        )
-        assert result.metadata.get("idiom_type") == "set_phrase"
+        assert result.line_id == "line_002"
+        assert result.value == "It's raining cats and dogs"
+        assert result.notes == "Heavy rain idiom"
 
     def test_convert_idiom_generates_unique_id(self) -> None:
         """Test that each conversion generates unique annotation_id."""
         idiom = IdiomAnnotation(
             line_id="line_001",
             idiom_text="Test",
-            idiom_type="other",
             explanation="Test",
         )
 
@@ -321,13 +314,11 @@ class TestMergeIdiomAnnotations:
             IdiomAnnotation(
                 line_id="line_001",
                 idiom_text="Idiom 1",
-                idiom_type="pun",
                 explanation="First idiom",
             ),
             IdiomAnnotation(
                 line_id="line_002",
                 idiom_text="Idiom 2",
-                idiom_type="wordplay",
                 explanation="Second idiom",
             ),
         ]
@@ -355,9 +346,7 @@ class TestMergeIdiomAnnotations:
             IdiomAnnotation(
                 line_id="line_001",
                 idiom_text="Test idiom",
-                idiom_type="cultural_reference",
                 explanation="Cultural explanation",
-                translation_hint="Consider localization",
             ),
         ]
 
@@ -366,6 +355,4 @@ class TestMergeIdiomAnnotations:
         annotation = result.annotations[0]
         assert annotation.value == "Test idiom"
         assert annotation.notes == "Cultural explanation"
-        assert annotation.metadata is not None
-        assert annotation.metadata.get("idiom_type") == "cultural_reference"
-        assert annotation.metadata.get("translation_hint") == "Consider localization"
+        # Simplified schema - no type categorization or hints needed

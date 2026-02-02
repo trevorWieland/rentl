@@ -95,7 +95,6 @@ class TestFormatLinesForQaPrompt:
             TranslatedLine(
                 line_id="line_001",
                 text="Hello",
-                source_text="こんにちは",
             ),
         ]
 
@@ -115,7 +114,6 @@ class TestFormatLinesForQaPrompt:
             TranslatedLine(
                 line_id="line_001",
                 text="Translated narration",
-                source_text="Narration",
             ),
         ]
 
@@ -182,12 +180,8 @@ class TestViolationToQaIssue:
         """Test converting a basic style guide violation."""
         violation = StyleGuideViolation(
             line_id="line_001",
-            violation_type="honorific",
             rule_violated="Preserve Japanese honorifics",
-            source_text="田中さん",
-            translation_text="Mr. Tanaka",
             explanation="Honorific -san was anglicized to Mr.",
-            suggestion="Use 'Tanaka-san' instead",
         )
 
         result = violation_to_qa_issue(violation)
@@ -196,16 +190,14 @@ class TestViolationToQaIssue:
         assert result.category == QaCategory.STYLE
         assert result.severity == QaSeverity.MAJOR  # default
         assert "Preserve Japanese honorifics" in result.message
-        assert result.suggestion == "Use 'Tanaka-san' instead"
+        assert "Honorific -san was anglicized" in result.message
+        assert result.suggestion is None  # Simplified schema - suggestions out of scope
 
     def test_convert_with_custom_severity(self) -> None:
         """Test converting with custom severity."""
         violation = StyleGuideViolation(
             line_id="line_002",
-            violation_type="formality",
             rule_violated="Match formality level",
-            source_text="ありがとうございます",
-            translation_text="Thanks!",
             explanation="Formal speech translated as casual",
         )
 
@@ -217,10 +209,7 @@ class TestViolationToQaIssue:
         """Test that each conversion generates unique issue_id."""
         violation = StyleGuideViolation(
             line_id="line_001",
-            violation_type="other",
             rule_violated="Test rule",
-            source_text="Test",
-            translation_text="Test",
             explanation="Test explanation",
         )
 
@@ -233,19 +222,15 @@ class TestViolationToQaIssue:
         """Test that metadata includes violation details."""
         violation = StyleGuideViolation(
             line_id="line_001",
-            violation_type="terminology",
             rule_violated="Use glossary terms",
-            source_text="Source text",
-            translation_text="Translation",
             explanation="Wrong term used",
         )
 
         result = violation_to_qa_issue(violation)
 
         assert result.metadata is not None
-        assert result.metadata.get("violation_type") == "terminology"
-        assert result.metadata.get("source_text") == "Source text"
-        assert result.metadata.get("translation_text") == "Translation"
+        assert result.metadata.get("rule_violated") == "Use glossary terms"
+        # Simplified schema - no source/translation text duplication
 
 
 class TestBuildQaSummary:

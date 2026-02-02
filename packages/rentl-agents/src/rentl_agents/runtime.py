@@ -56,11 +56,13 @@ class ProfileAgentConfig(BaseSchema):
     retry_base_delay: float = 2.0
     output_mode: OutputMode = "auto"  # Auto-detect based on provider
     # Safeguards against infinite loops - FAIL LOUDLY when exceeded
+    # Note: pydantic-ai default is 50, but we use a lower limit to control costs
+    # and detect problematic prompts/schemas earlier
     max_requests_per_run: int = (
-        5  # Max API requests per single run - includes output validation retries
+        20  # Max API requests per single run - includes output validation retries
     )
     # Output validation retries (pydantic-ai provides feedback to model)
-    max_output_retries: int = 3
+    max_output_retries: int = 5
 
 
 class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
@@ -185,6 +187,15 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             self._template_context,
         )
 
+        # Add explicit instruction for function calling with local models
+        # Local models often ignore the function name and choose their own
+        # We explicitly tell them to use "final_result"
+        system_prompt += (
+            "\n\nIMPORTANT: When returning structured output via function calling, "
+            "you MUST use the function named 'final_result'. "
+            "Do not create your own function names."
+        )
+
         user_prompt = self._composer.render_user_prompt(
             self._profile,
             self._template_context,
@@ -198,8 +209,6 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
         # Detect provider from base_url
         base_url = self._config.base_url
         is_openrouter = "openrouter.ai" in base_url
-        # LM Studio detection: default port 1234, any host (localhost, WSL IP, etc.)
-        is_lmstudio = ":1234" in base_url
 
         # Create pydantic-ai provider and model
         if is_openrouter:
@@ -220,15 +229,9 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
         # Resolve output mode - auto-detect based on provider if "auto"
         output_mode = self._config.output_mode
         if output_mode == "auto":
-            if is_openrouter:
-                # OpenRouter doesn't support tool_choice:required
-                output_mode = "prompted"
-            elif is_lmstudio:
-                # LM Studio supports tool_choice:required (llama.cpp)
-                output_mode = "tool"
-            else:
-                # Default to tool for OpenAI and other providers
-                output_mode = "tool"
+            # OpenRouter doesn't support tool_choice:required, use prompted mode
+            # All other providers use tool mode for structured output
+            output_mode = "prompted" if is_openrouter else "tool"
 
         # Configure output type based on resolved output mode
         if output_mode == "prompted":
@@ -246,6 +249,11 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             tools=tool_callables,
             output_retries=self._config.max_output_retries,
         )
+
+        # Note: We rely on pydantic-ai's built-in validation with output_retries
+        # Custom output validators can cause extra validation failures
+        # The combination of extra="ignore" and output_retries=3 provides
+        # the best balance of strictness and reliability
 
         # Set usage limits to prevent infinite loops
         # pydantic-ai default is 50 requests which can burn through tokens

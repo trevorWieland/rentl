@@ -49,7 +49,6 @@ def test_csv_export_expands_metadata_extra(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
             text="Hola",
             metadata={"tone": "calm", "extra": {"emotion": "happy", "stage": 1}},
         )
@@ -73,7 +72,6 @@ def test_csv_export_expands_metadata_extra(tmp_path: Path) -> None:
     rows = _read_csv(output)
     assert rows[0]["line_id"] == "line_1"
     assert rows[0]["text"] == "Hola"
-    assert rows[0]["source_text"] == "Hello"
     assert rows[0]["emotion"] == "happy"
     assert rows[0]["stage"] == "1"
 
@@ -90,7 +88,7 @@ def test_csv_export_rejects_untranslated_by_default(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
+            source_text="Hello",  # Required for untranslated detection
             text="Hello",
             metadata=None,
         )
@@ -119,7 +117,7 @@ def test_csv_export_warns_on_untranslated(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
+            source_text="Hello",  # Required for untranslated detection
             text="Hello",
             metadata=None,
         )
@@ -145,7 +143,6 @@ def test_csv_export_allows_untranslated_with_policy(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
             text="Hello",
             metadata=None,
         )
@@ -166,7 +163,6 @@ def test_csv_export_rejects_reserved_extra_columns(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
             text="Hola",
             metadata={"extra": {"text": "oops"}},
         )
@@ -191,7 +187,7 @@ def test_csv_export_column_order_controls_output(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
+            source_text="Hello",  # Provides a column to be dropped by column_order
             text="Hola",
             metadata=None,
         )
@@ -215,7 +211,6 @@ def test_csv_export_uses_source_columns(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
             text="Hola",
             metadata={"extra": {"emotion": "happy"}},
             source_columns=["line_id", "text", "source_text", "emotion"],
@@ -248,7 +243,6 @@ def test_export_expected_line_count_mismatch(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
             text="Hola",
             metadata=None,
         )
@@ -267,7 +261,6 @@ def test_jsonl_export_writes_lines(tmp_path: Path) -> None:
     lines = [
         TranslatedLine(
             line_id="line_1",
-            source_text="Hello",
             text="Hola",
             metadata={"note": "ok"},
         )
@@ -288,11 +281,7 @@ def test_txt_export_writes_lines(tmp_path: Path) -> None:
     target = ExportTarget(output_path=str(output), format=FileFormat.TXT)
     adapter = TxtExportAdapter()
 
-    lines = [
-        TranslatedLine(
-            line_id="line_1", source_text="Hello", text="Hola", metadata=None
-        )
-    ]
+    lines = [TranslatedLine(line_id="line_1", text="Hola", metadata=None)]
 
     result = asyncio.run(adapter.write_output(target, lines))
     assert result.summary.line_count == 1
@@ -310,9 +299,7 @@ def test_select_export_lines_prefers_edit_output() -> None:
     edit_output = EditPhaseOutput(
         run_id=RUN_ID,
         target_language="ja",
-        edited_lines=[
-            TranslatedLine(line_id="line_1", source_text="Hello", text="Hola")
-        ],
+        edited_lines=[TranslatedLine(line_id="line_1", text="Hola")],
         change_log=[
             LineEdit(
                 line_id="line_1",
@@ -325,9 +312,7 @@ def test_select_export_lines_prefers_edit_output() -> None:
     translate_output = TranslatePhaseOutput(
         run_id=RUN_ID,
         target_language="ja",
-        translated_lines=[
-            TranslatedLine(line_id="line_1", source_text="Hello", text="Ciao")
-        ],
+        translated_lines=[TranslatedLine(line_id="line_1", text="Ciao")],
     )
 
     lines = select_export_lines(
@@ -341,9 +326,7 @@ def test_select_export_lines_falls_back_to_translate_output() -> None:
     translate_output = TranslatePhaseOutput(
         run_id=RUN_ID,
         target_language="ja",
-        translated_lines=[
-            TranslatedLine(line_id="line_1", source_text="Hello", text="Hola")
-        ],
+        translated_lines=[TranslatedLine(line_id="line_1", text="Hola")],
     )
 
     lines = select_export_lines(translate_output=translate_output)

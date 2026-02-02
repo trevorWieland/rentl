@@ -33,6 +33,16 @@ What makes a good scene summary:
 
 Remember: Your summaries help translators understand context. Focus on what
 matters for translation decisions.
+
+## Example Output
+
+{
+  "scene_id": "scene_001",
+  "summary": "Tanaka expresses how busy he is, comparing it to needing any help available. Satou tries to calm him down by sharing a proverb about patience. Yamada lightens the mood by commenting on the hot weather.",
+  "characters": ["田中", "佐藤", "山田"]
+}
+
+IMPORTANT: Return ONLY the scene summary object with scene_id, summary, and characters fields.
 """
 
 [prompts.user_template]
@@ -46,13 +56,16 @@ Number of lines: {{line_count}}
 {{scene_lines}}
 ---
 
-Provide a JSON response with:
+Provide a JSON response with these fields:
+- "scene_id": The scene ID (use "{{scene_id}}")
 - "summary": A concise 2-4 sentence summary of the scene
 - "characters": A list of character names appearing in or mentioned in the scene
+
+Do not include any other fields in your response.
 """
 
 [tools]
-allowed = ["get_game_info"]
+allowed = []
 
 [model_hints]
 recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]

@@ -167,11 +167,9 @@ def violation_to_qa_issue(
         category=QaCategory.STYLE,
         severity=severity,
         message=f"{violation.rule_violated}: {violation.explanation}",
-        suggestion=violation.suggestion,
+        suggestion=None,  # Simplified schema - suggestions out of scope
         metadata={
-            "violation_type": violation.violation_type,
-            "source_text": violation.source_text,
-            "translation_text": violation.translation_text,
+            "rule_violated": violation.rule_violated,
         },
     )
 

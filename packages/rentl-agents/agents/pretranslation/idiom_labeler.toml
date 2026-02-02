@@ -20,23 +20,44 @@ content = """
 Your specific role is Idiom Identification.
 
 For each batch of lines you analyze, identify expressions that require special
-attention during translation:
+attention during translation, including:
 
-1. **Puns**: Wordplay relying on multiple meanings or similar sounds
-2. **Wordplay**: Creative language use that may not survive literal translation
-3. **Set phrases**: Idioms and fixed expressions with non-literal meanings
-4. **Cultural references**: Culture-specific concepts, holidays, or customs
-5. **Honorific nuances**: Speech levels, politeness markers, relationship indicators
-6. **Other**: Any expression that a translator should know about
+- Puns and wordplay relying on multiple meanings or similar sounds
+- Set phrases and idioms with non-literal meanings
+- Cultural references specific to the source culture
+- Honorific nuances and politeness markers
+- Any expression that could cause translation difficulties
 
 For each idiom found, provide:
-- The exact text of the idiomatic expression
-- The type of idiom (from the categories above)
-- An explanation of what it means in context
-- Optionally, a hint for how translators might handle it
+- line_id: The line ID where the idiom appears
+- idiom_text: The exact text of the idiomatic expression
+- explanation: What it means and why it's notable for translation
 
 Focus on expressions that could cause translation difficulties. Skip obvious
-or straightforward text that any translator would handle correctly.
+or straightforward text.
+
+IMPORTANT: This phase is target-language unaware. Do not suggest translations
+or translation strategies. Just identify and explain challenging expressions.
+
+## Example Output
+
+If you find idioms, return them like this:
+{
+  "idioms": [
+    {
+      "line_id": "line_003",
+      "idiom_text": "猫の手も借りたい",
+      "explanation": "Literally 'want to borrow even a cat's paws' - expresses being extremely busy and needing any help available"
+    }
+  ]
+}
+
+If no idioms are found, return:
+{
+  "idioms": []
+}
+
+IMPORTANT: Return ONLY the idioms object with the idioms field containing a list. Do not include any other fields in your response.
 """
 
 [prompts.user_template]
@@ -51,20 +72,22 @@ Lines to analyze:
 Scene context (if available):
 {{scene_summary}}
 
-For each idiom or challenging expression you find, include it in your response with:
+Return a JSON response with an "idioms" field containing a list of idiom objects. Each idiom must include:
 - line_id: The ID of the line containing the idiom (from the bracketed ID at the start)
 - idiom_text: The exact idiomatic expression as it appears in the text
-- idiom_type: One of: pun, wordplay, set_phrase, cultural_reference, honorific_nuance, other
 - explanation: What the expression means and why it's notable for translation
-- translation_hint: (optional) Suggestion for how translators might handle it
 
-Return all idioms found. If no idioms are found in these lines, return an empty list.
+If no idioms are found, return {"idioms": []}.
 
-IMPORTANT: Write all explanations and hints in {{source_lang}}, not the target language.
+IMPORTANT:
+- Write all explanations in {{source_lang}}, not the target language
+- Do NOT suggest translations - this phase is target-language unaware
+- Just identify and explain challenging expressions
+- Return ONLY the idioms wrapper object, do not include any other fields
 """
 
 [tools]
-allowed = ["get_game_info"]
+allowed = []
 
 [model_hints]
 recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]
