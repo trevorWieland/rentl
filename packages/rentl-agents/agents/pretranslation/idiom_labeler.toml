@@ -75,7 +75,7 @@ Scene context (if available):
 Return a JSON response with an "idioms" field containing a list of idiom objects. Each idiom must include:
 - line_id: The ID of the line containing the idiom (from the bracketed ID at the start)
 - idiom_text: The exact idiomatic expression as it appears in the text
-- explanation: What the expression means and why it's notable for translation
+- explanation: What the expression means and why it's notable for translation, written in {{source_lang}}
 
 If no idioms are found, return {"idioms": []}.
 
