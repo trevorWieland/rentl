@@ -14,6 +14,7 @@ from rentl_schemas.primitives import (
     LanguageCode,
     PhaseName,
     PhaseWorkStrategy,
+    QaSeverity,
     ReasoningEffort,
 )
 from rentl_schemas.version import VersionInfo
@@ -256,6 +257,28 @@ class PhaseExecutionConfig(BaseSchema):
         ):
             raise ValueError("chunk_size/scene_batch_size not allowed for route")
         return self
+
+
+class DeterministicQaCheckConfig(BaseSchema):
+    """Configuration for a single deterministic QA check."""
+
+    check_name: str = Field(
+        ..., min_length=1, description="Check identifier (e.g., 'line_length')"
+    )
+    enabled: bool = Field(True, description="Whether this check runs")
+    severity: QaSeverity = Field(..., description="Severity for issues from this check")
+    parameters: dict[str, JsonValue] | None = Field(
+        None, description="Check-specific parameters"
+    )
+
+
+class DeterministicQaConfig(BaseSchema):
+    """Configuration for the deterministic QA check suite."""
+
+    enabled: bool = Field(True, description="Enable deterministic QA checks")
+    checks: list[DeterministicQaCheckConfig] = Field(
+        ..., min_length=1, description="Configured checks"
+    )
 
 
 class PipelineConfig(BaseSchema):

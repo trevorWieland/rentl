@@ -33,8 +33,14 @@ from rentl_core.ports.orchestrator import (
     build_run_started_log,
 )
 from rentl_core.ports.storage import ArtifactStoreProtocol, RunStateStoreProtocol
+from rentl_core.qa.runner import DeterministicQaRunner
 from rentl_schemas.base import BaseSchema
-from rentl_schemas.config import PhaseConfig, PhaseExecutionConfig, RunConfig
+from rentl_schemas.config import (
+    DeterministicQaConfig,
+    PhaseConfig,
+    PhaseExecutionConfig,
+    RunConfig,
+)
 from rentl_schemas.events import PhaseEventSuffix, ProgressEvent
 from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
 from rentl_schemas.logs import LogEntry
@@ -780,46 +786,54 @@ class PipelineOrchestrator:
         target_language: LanguageCode,
         execution: PhaseExecutionConfig | None,
     ) -> PhaseRunRecord:
-        if self._qa_agents is None:
-            raise OrchestrationError(
-                OrchestrationErrorInfo(
-                    code=OrchestrationErrorCode.INVALID_STATE,
-                    message="QA agent pool is not configured",
-                    details=OrchestrationErrorDetails(
-                        phase=PhaseName.QA,
-                        target_language=target_language,
-                    ),
+        # Run deterministic checks first (if configured)
+        deterministic_config = _get_deterministic_qa_config(run.config)
+        deterministic_issues: list[QaIssue] = []
+
+        if deterministic_config and deterministic_config.enabled:
+            translate_output = run.translate_outputs.get(target_language)
+            if translate_output is not None:
+                runner = _build_deterministic_qa_runner(deterministic_config)
+                deterministic_issues = runner.run_checks(
+                    translate_output.translated_lines
                 )
-            )
-        chunks = _build_work_chunks(run.source_lines or [], execution, PhaseName.QA)
-        inputs = [_build_qa_input(run, target_language, chunk) for chunk in chunks]
-        total_units = len(run.source_lines or [])
-        completed_units = 0
 
-        async def _on_batch(
-            batch_inputs: list[QaPhaseInput],
-            _batch_outputs: list[QaPhaseOutput],
-        ) -> None:
-            nonlocal completed_units
-            completed_units += sum(
-                len(payload.source_lines) for payload in batch_inputs
-            )
-            await self._emit_phase_progress_update(
-                run,
-                PhaseName.QA,
-                "lines_checked",
-                ProgressUnit.LINES,
-                completed_units,
-                total_units,
+        # Run LLM-based QA agents (if configured)
+        agent_outputs: list[QaPhaseOutput] = []
+        if self._qa_agents is not None:
+            chunks = _build_work_chunks(run.source_lines or [], execution, PhaseName.QA)
+            inputs = [_build_qa_input(run, target_language, chunk) for chunk in chunks]
+            total_units = len(run.source_lines or [])
+            completed_units = 0
+
+            async def _on_batch(
+                batch_inputs: list[QaPhaseInput],
+                _batch_outputs: list[QaPhaseOutput],
+            ) -> None:
+                nonlocal completed_units
+                completed_units += sum(
+                    len(payload.source_lines) for payload in batch_inputs
+                )
+                await self._emit_phase_progress_update(
+                    run,
+                    PhaseName.QA,
+                    "lines_checked",
+                    ProgressUnit.LINES,
+                    completed_units,
+                    total_units,
+                )
+
+            agent_outputs = await _run_agent_pool(
+                self._qa_agents,
+                inputs,
+                execution.max_parallel_agents if execution else None,
+                on_batch=_on_batch,
             )
 
-        outputs = await _run_agent_pool(
-            self._qa_agents,
-            inputs,
-            execution.max_parallel_agents if execution else None,
-            on_batch=_on_batch,
+        # Merge all QA outputs (deterministic + agent-based)
+        merged_output = _merge_qa_outputs_with_deterministic(
+            run, target_language, agent_outputs, deterministic_issues
         )
-        merged_output = _merge_qa_outputs(run, target_language, outputs)
         run.qa_outputs[target_language] = merged_output
         artifact_ids = await self._persist_phase_artifact(
             run,
@@ -1378,6 +1392,51 @@ def _get_phase_config(config: RunConfig, phase: PhaseName) -> PhaseConfig | None
     return None
 
 
+def _get_deterministic_qa_config(config: RunConfig) -> DeterministicQaConfig | None:
+    """Extract deterministic QA config from phase parameters.
+
+    Args:
+        config: Run configuration.
+
+    Returns:
+        DeterministicQaConfig if configured and enabled, None otherwise.
+    """
+    phase_config = _get_phase_config(config, PhaseName.QA)
+    if phase_config is None or phase_config.parameters is None:
+        return None
+
+    deterministic_params = phase_config.parameters.get("deterministic")
+    if deterministic_params is None:
+        return None
+
+    return DeterministicQaConfig.model_validate(deterministic_params)
+
+
+def _build_deterministic_qa_runner(
+    config: DeterministicQaConfig,
+) -> DeterministicQaRunner:
+    """Build configured deterministic QA runner from config.
+
+    Args:
+        config: Deterministic QA configuration.
+
+    Returns:
+        Configured DeterministicQaRunner ready to run checks.
+    """
+    runner = DeterministicQaRunner()
+
+    for check_config in config.checks:
+        if not check_config.enabled:
+            continue
+        runner.configure_check(
+            check_name=check_config.check_name,
+            severity=check_config.severity,
+            parameters=check_config.parameters,
+        )
+
+    return runner
+
+
 def _resolve_target_language(
     run: PipelineRunContext,
     phase: PhaseName,
@@ -1934,6 +1993,45 @@ def _merge_qa_outputs(
         phase=PhaseName.QA,
         target_language=target_language,
         issues=issues,
+        summary=summary,
+    )
+
+
+def _merge_qa_outputs_with_deterministic(
+    run: PipelineRunContext,
+    target_language: LanguageCode,
+    agent_outputs: list[QaPhaseOutput],
+    deterministic_issues: list[QaIssue],
+) -> QaPhaseOutput:
+    """Merge QA outputs from both agent-based and deterministic checks.
+
+    Args:
+        run: Pipeline run context.
+        target_language: Target language for the output.
+        agent_outputs: QA outputs from LLM-based agents.
+        deterministic_issues: Issues from deterministic checks.
+
+    Returns:
+        Merged QaPhaseOutput with all issues.
+    """
+    line_order = _build_line_index(run.source_lines or [])
+    agent_issues = _merge_qa_issues(agent_outputs, line_order, target_language)
+
+    # Combine deterministic issues first, then agent issues
+    # Sort deterministic issues by line order for consistency
+    sorted_deterministic = sorted(
+        deterministic_issues,
+        key=lambda issue: line_order.get(issue.line_id, float("inf")),
+    )
+
+    all_issues = sorted_deterministic + agent_issues
+    summary = _build_qa_summary(all_issues)
+
+    return QaPhaseOutput(
+        run_id=run.run_id,
+        phase=PhaseName.QA,
+        target_language=target_language,
+        issues=all_issues,
         summary=summary,
     )
 

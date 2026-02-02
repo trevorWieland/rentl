@@ -1,0 +1,82 @@
+"""Protocol and result types for deterministic QA checks."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
+
+from rentl_schemas.io import TranslatedLine
+from rentl_schemas.primitives import (
+    JsonValue,
+    LineId,
+    QaCategory,
+    QaSeverity,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DeterministicCheckResult:
+    """Result of a single check on a single line.
+
+    Attributes:
+        line_id: Identifier of the checked line.
+        category: QA category for this issue.
+        severity: Severity level for this issue.
+        message: Human-readable description of the issue.
+        suggestion: Optional suggestion for fixing the issue.
+        metadata: Optional structured metadata about the issue.
+    """
+
+    line_id: LineId
+    category: QaCategory
+    severity: QaSeverity
+    message: str
+    suggestion: str | None = None
+    metadata: dict[str, JsonValue] | None = None
+
+
+@runtime_checkable
+class DeterministicCheck(Protocol):
+    """Protocol for deterministic QA checks.
+
+    Deterministic checks identify issues that can be detected without
+    LLM reasoning, such as line length violations, invalid characters,
+    empty translations, and whitespace issues.
+    """
+
+    @property
+    def check_name(self) -> str:
+        """Unique identifier for this check."""
+        ...
+
+    @property
+    def category(self) -> QaCategory:
+        """QA category for issues from this check."""
+        ...
+
+    def configure(self, parameters: dict[str, JsonValue] | None) -> None:
+        """Configure the check with parameters from config.
+
+        Args:
+            parameters: Check-specific parameters.
+
+        Raises:
+            ValueError: If required parameters are missing or invalid.
+        """
+        ...
+
+    def check_line(
+        self,
+        line: TranslatedLine,
+        severity: QaSeverity,
+    ) -> list[DeterministicCheckResult]:
+        """Run check on a single translated line.
+
+        Args:
+            line: Translated line to check.
+            severity: Configured severity for issues.
+
+        Returns:
+            List of check results (empty if line passes).
+        """
+        ...

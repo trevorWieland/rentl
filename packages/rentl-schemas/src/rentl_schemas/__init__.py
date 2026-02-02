@@ -17,6 +17,8 @@ from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import (
     CacheConfig,
     ConcurrencyConfig,
+    DeterministicQaCheckConfig,
+    DeterministicQaConfig,
     EndpointSetConfig,
     FormatConfig,
     LanguageConfig,
@@ -209,6 +211,8 @@ __all__ = [
     "ContextNote",
     "ContextPhaseInput",
     "ContextPhaseOutput",
+    "DeterministicQaCheckConfig",
+    "DeterministicQaConfig",
     "EditPhaseInput",
     "EditPhaseOutput",
     "EndpointSetConfig",
