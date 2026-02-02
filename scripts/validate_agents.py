@@ -4,6 +4,7 @@
 This script validates the pipeline agents by running them in sequence:
 1. Scene Summarizer (context phase) - produces scene summaries
 2. Idiom Labeler (pretranslation phase) - identifies idioms using summaries
+3. Direct Translator (translate phase) - produces translated lines
 
 Usage:
     uv run python scripts/validate_agents.py [--input FILE] [--model MODEL]
@@ -15,14 +16,17 @@ Examples:
     # Validate with real LLM (requires API key)
     uv run python scripts/validate_agents.py --model gpt-4o-mini
 
-    # Validate with JSONL input file (3 scenes processed concurrently)
+    # Validate with JSONL input file (full pipeline)
     uv run python scripts/validate_agents.py --input sample_scenes.jsonl
 
     # Run only scene summarizer
     uv run python scripts/validate_agents.py --phase context
 
-    # Run only idiom labeler (requires prior scene summaries or skips)
+    # Run only idiom labeler
     uv run python scripts/validate_agents.py --phase pretranslation
+
+    # Run only translator
+    uv run python scripts/validate_agents.py --phase translate
 """
 
 from __future__ import annotations
@@ -47,7 +51,11 @@ sys.path.insert(
 )
 
 if TYPE_CHECKING:
-    from rentl_schemas.phases import ContextPhaseOutput, SceneSummary
+    from rentl_schemas.phases import (
+        ContextPhaseOutput,
+        PretranslationAnnotation,
+        SceneSummary,
+    )
 
 
 def normalize_id(value: str) -> str:
@@ -71,48 +79,81 @@ def normalize_id(value: str) -> str:
     return f"{letters}_{numbers}"
 
 
-def load_config() -> tuple[str, str | None, str | None, str, str]:
+class ConfigError(Exception):
+    """Error loading configuration."""
+
+    pass
+
+
+def load_config() -> tuple[str, str, str, str, str]:
     """Load configuration from rentl.toml.
 
     Returns:
         Tuple of (api_key_env, base_url, model_id, source_lang, target_lang).
+
+    Raises:
+        ConfigError: If rentl.toml is missing or cannot be parsed.
     """
     rentl_toml_path = Path("rentl.toml")
-    api_key_env = "RENTL_LOCAL_API_KEY"
-    base_url_from_config = None
-    model_from_config = None
+
+    if not rentl_toml_path.exists():
+        raise ConfigError(
+            "rentl.toml not found in current directory.\n"
+            "Either create rentl.toml or provide --model and --base-url CLI arguments."
+        )
+
+    import tomllib
+
+    try:
+        with rentl_toml_path.open("rb") as f:
+            config = tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        raise ConfigError(f"Failed to parse rentl.toml: {e}") from e
+
+    # Extract endpoint settings (required)
+    if "endpoint" not in config:
+        raise ConfigError(
+            "rentl.toml missing [endpoint] section.\n"
+            "Required keys: base_url, api_key_env"
+        )
+
+    endpoint = config["endpoint"]
+    if "base_url" not in endpoint:
+        raise ConfigError("rentl.toml [endpoint] missing 'base_url'")
+    if "api_key_env" not in endpoint:
+        raise ConfigError("rentl.toml [endpoint] missing 'api_key_env'")
+
+    base_url = endpoint["base_url"]
+    api_key_env = endpoint["api_key_env"]
+
+    # Extract model settings (required)
+    if "pipeline" not in config or "default_model" not in config["pipeline"]:
+        raise ConfigError(
+            "rentl.toml missing [pipeline.default_model] section.\n"
+            "Required keys: model_id"
+        )
+
+    default_model = config["pipeline"]["default_model"]
+    if "model_id" not in default_model:
+        raise ConfigError("rentl.toml [pipeline.default_model] missing 'model_id'")
+
+    model_id = default_model["model_id"]
+
+    # Extract language settings (optional, with defaults)
     source_lang = "ja"
     target_lang = "en"
 
-    if rentl_toml_path.exists():
-        try:
-            import tomllib
-
-            with rentl_toml_path.open("rb") as f:
-                config = tomllib.load(f)
-            if "endpoint" in config:
-                endpoint = config["endpoint"]
-                if "api_key_env" in endpoint:
-                    api_key_env = endpoint["api_key_env"]
-                if "base_url" in endpoint:
-                    base_url_from_config = endpoint["base_url"]
-            if "pipeline" in config and "default_model" in config["pipeline"]:
-                default_model = config["pipeline"]["default_model"]
-                if "model_id" in default_model:
-                    model_from_config = default_model["model_id"]
-            if "project" in config and "languages" in config["project"]:
-                languages = config["project"]["languages"]
-                if "source_language" in languages:
-                    source_lang = languages["source_language"]
-                if languages.get("target_languages"):
-                    target_lang = languages["target_languages"][0]
-        except Exception:
-            pass
+    if "project" in config and "languages" in config["project"]:
+        languages = config["project"]["languages"]
+        if "source_language" in languages:
+            source_lang = languages["source_language"]
+        if languages.get("target_languages"):
+            target_lang = languages["target_languages"][0]
 
     return (
         api_key_env,
-        base_url_from_config,
-        model_from_config,
+        base_url,
+        model_id,
         source_lang,
         target_lang,
     )
@@ -137,7 +178,7 @@ def main() -> int:
         "--model",
         type=str,
         default=None,
-        help="Model ID to use (default: from rentl.toml, fallback: gpt-4o-mini)",
+        help="Model ID to use (default: from rentl.toml)",
     )
     parser.add_argument(
         "--mock",
@@ -153,26 +194,35 @@ def main() -> int:
         "--base-url",
         type=str,
         default=None,
-        help="API base URL (default: from rentl.toml, fallback: OpenAI)",
+        help="API base URL (default: from rentl.toml)",
     )
     parser.add_argument(
         "--phase",
         type=str,
-        choices=["all", "context", "pretranslation"],
+        choices=["all", "context", "pretranslation", "translate"],
         default="all",
         help="Which phase(s) to run (default: all)",
     )
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=50,
-        help="Lines per chunk for pretranslation (default: 50)",
+        default=10,
+        help="Lines per chunk for translation/pretranslation (default: 10)",
     )
     parser.add_argument(
         "--concurrency",
         type=int,
         default=1,
         help="Max concurrent LLM requests (default: 1)",
+    )
+    parser.add_argument(
+        "--output-mode",
+        type=str,
+        choices=["auto", "tool", "prompted"],
+        default="auto",
+        help="Structured output mode: 'auto' (detect from provider), "
+        "'prompted' (json_schema, for OpenRouter), "
+        "'tool' (tool_choice:required, for LM Studio/OpenAI). Default: auto",
     )
 
     args = parser.parse_args()
@@ -200,12 +250,14 @@ def main() -> int:
     from rentl_agents.wiring import (
         create_context_agent_from_profile,
         create_pretranslation_agent_from_profile,
+        create_translate_agent_from_profile,
     )
     from rentl_schemas.io import SourceLine
     from rentl_schemas.phases import (
         ContextPhaseInput,
         ContextPhaseOutput,
         PretranslationPhaseInput,
+        TranslatePhaseInput,
     )
 
     print("=" * 70)
@@ -213,15 +265,49 @@ def main() -> int:
     print("=" * 70)
 
     # Load configuration
-    api_key_env, base_url_config, model_config, source_lang, target_lang = load_config()
     import os
 
+    # Try to load from rentl.toml first
+    config_api_key_env: str | None = None
+    config_base_url: str | None = None
+    config_model_id: str | None = None
+    source_lang = "ja"
+    target_lang = "en"
+
+    try:
+        (
+            config_api_key_env,
+            config_base_url,
+            config_model_id,
+            source_lang,
+            target_lang,
+        ) = load_config()
+        print("\n  ✓ Loaded config from rentl.toml")
+    except ConfigError as e:
+        # Config loading failed - check if CLI args provide what we need
+        if not args.model or not args.base_url:
+            print(f"\n  ✗ Configuration error: {e}")
+            print("\n  Either fix rentl.toml or provide both --model and --base-url")
+            return 1
+        print("\n  ⚠ rentl.toml not loaded, using CLI arguments")
+
+    # Resolve final values - CLI args override config
+    api_key_env = config_api_key_env or "RENTL_LOCAL_API_KEY"
+    base_url = args.base_url or config_base_url
+    model_id = args.model or config_model_id
+
+    # Final validation - these must be set
+    if not base_url:
+        print("\n  ✗ No base_url configured. Set in rentl.toml or use --base-url")
+        return 1
+    if not model_id:
+        print("\n  ✗ No model_id configured. Set in rentl.toml or use --model")
+        return 1
+
     api_key = args.api_key or os.environ.get(api_key_env, "")
-    base_url = args.base_url or base_url_config or "https://api.openai.com/v1"
-    model_id = args.model or model_config or "gpt-4o-mini"
 
     # Step 1: Load input data
-    print("\n[1/5] Loading input data...")
+    print("\n[1/6] Loading input data...")
     if args.input:
         print(f"  Loading from: {args.input}")
         source_lines: list[SourceLine] = []
@@ -280,12 +366,13 @@ def main() -> int:
         print(f"  ✓ Created {len(source_lines)} sample lines")
 
     # Step 2: Load profiles
-    print("\n[2/5] Loading agent profiles...")
+    print("\n[2/6] Loading agent profiles...")
     agents_dir = get_default_agents_dir()
     prompts_dir = get_default_prompts_dir()
 
     scene_summarizer_path = agents_dir / "context" / "scene_summarizer.toml"
     idiom_labeler_path = agents_dir / "pretranslation" / "idiom_labeler.toml"
+    direct_translator_path = agents_dir / "translate" / "direct_translator.toml"
 
     try:
         scene_profile = load_agent_profile(scene_summarizer_path)
@@ -297,12 +384,17 @@ def main() -> int:
         name = idiom_profile.meta.name
         version = idiom_profile.meta.version
         print(f"  ✓ Idiom Labeler: {name} v{version}")
+
+        translate_profile = load_agent_profile(direct_translator_path)
+        name = translate_profile.meta.name
+        version = translate_profile.meta.version
+        print(f"  ✓ Direct Translator: {name} v{version}")
     except Exception as e:
         print(f"  ✗ Failed to load profiles: {e}")
         return 1
 
     # Step 3: Validate input for context phase
-    print("\n[3/5] Validating input...")
+    print("\n[3/6] Validating input...")
     try:
         validate_scene_input(source_lines)
         print("  ✓ All lines have scene_id")
@@ -322,15 +414,18 @@ def main() -> int:
 
     # Check for mock mode
     if args.mock:
-        print("\n[4/5] Context phase (mock)...")
+        print("\n[4/6] Context phase (mock)...")
         print("  ⊘ Mock mode - skipping LLM calls")
 
-        print("\n[5/5] Pretranslation phase (mock)...")
+        print("\n[5/6] Pretranslation phase (mock)...")
+        print("  ⊘ Mock mode - skipping LLM calls")
+
+        print("\n[6/6] Translate phase (mock)...")
         print("  ⊘ Mock mode - skipping LLM calls")
 
         # Show what would be processed
         chunks = chunk_lines(source_lines, args.chunk_size)
-        print(f"\n  Would process {len(chunks)} chunk(s) for idiom labeling")
+        print(f"\n  Would process {len(chunks)} chunk(s) for translation")
         for i, chunk in enumerate(chunks[:2]):
             formatted = format_lines_for_prompt(chunk)
             print(f"\n  Chunk {i + 1} preview ({len(chunk)} lines):")
@@ -351,19 +446,21 @@ def main() -> int:
 
     print(f"\n  Model: {model_id}")
     print(f"  Base URL: {base_url}")
+    print(f"  Output mode: {args.output_mode}")
     print(f"  Source: {source_lang} → Target: {target_lang}")
 
     config = ProfileAgentConfig(
         api_key=api_key,
         base_url=base_url,
         model_id=model_id,
+        output_mode=args.output_mode,
     )
 
     # Step 4: Run Context Phase (Scene Summarizer)
     scene_summaries: list[SceneSummary] = []
 
     if args.phase in ["all", "context"]:
-        print("\n[4/5] Context phase (Scene Summarizer)...")
+        print("\n[4/6] Context phase (Scene Summarizer)...")
         concurrency = args.concurrency
         print(f"  Running {len(scene_groups)} scene(s) (concurrency={concurrency})...")
 
@@ -442,11 +539,13 @@ def main() -> int:
             traceback.print_exc()
             return 1
     else:
-        print("\n[4/5] Context phase (skipped)")
+        print("\n[4/6] Context phase (skipped)")
 
     # Step 5: Run Pretranslation Phase (Idiom Labeler)
+    pretranslation_annotations: list[PretranslationAnnotation] = []
+
     if args.phase in ["all", "pretranslation"]:
-        print("\n[5/5] Pretranslation phase (Idiom Labeler)...")
+        print("\n[5/6] Pretranslation phase (Idiom Labeler)...")
 
         try:
             agent = create_pretranslation_agent_from_profile(
@@ -468,6 +567,9 @@ def main() -> int:
             print(f"  Processing {len(chunks)} chunk(s)...")
 
             result = asyncio.run(agent.run(payload))
+
+            # Save annotations for translate phase
+            pretranslation_annotations = result.annotations
 
             print(f"  ✓ Found {len(result.annotations)} idiom(s)")
 
@@ -493,7 +595,58 @@ def main() -> int:
             traceback.print_exc()
             return 1
     else:
-        print("\n[5/5] Pretranslation phase (skipped)")
+        print("\n[5/6] Pretranslation phase (skipped)")
+
+    # Step 6: Run Translate Phase (Direct Translator)
+    if args.phase in ["all", "translate"]:
+        print("\n[6/6] Translate phase (Direct Translator)...")
+
+        try:
+            agent = create_translate_agent_from_profile(
+                profile_path=direct_translator_path,
+                prompts_dir=prompts_dir,
+                config=config,
+                chunk_size=args.chunk_size,
+                source_lang=source_lang,
+                target_lang=target_lang,
+            )
+
+            payload = TranslatePhaseInput(
+                run_id=uuid7(),
+                target_language=target_lang,
+                source_lines=source_lines,
+                scene_summaries=scene_summaries or None,
+                pretranslation_annotations=pretranslation_annotations or None,
+            )
+
+            chunks = chunk_lines(source_lines, args.chunk_size)
+            print(f"  Processing {len(chunks)} chunk(s)...")
+
+            result = asyncio.run(agent.run(payload))
+
+            print(f"  ✓ Translated {len(result.translated_lines)} line(s)")
+
+            if result.translated_lines:
+                print("\n  Sample translations:")
+                for line in result.translated_lines[:5]:
+                    print(f"\n  [{line.line_id}]")
+                    source_preview = (
+                        line.source_text[:50] if line.source_text else "N/A"
+                    )
+                    print(f"    Source: {source_preview}...")
+                    translation_preview = line.text[:50] if line.text else "N/A"
+                    print(f"    Translation: {translation_preview}...")
+                if len(result.translated_lines) > 5:
+                    print(f"\n  ... and {len(result.translated_lines) - 5} more")
+
+        except Exception as e:
+            print(f"  ✗ Translate phase failed: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return 1
+    else:
+        print("\n[6/6] Translate phase (skipped)")
 
     print("\n" + "=" * 70)
     print("✓ Agent validation complete!")

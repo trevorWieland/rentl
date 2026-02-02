@@ -67,6 +67,30 @@ class IdiomAnnotationList(BaseSchema):
     )
 
 
+class TranslationResultLine(BaseSchema):
+    """Single translated line in LLM output format.
+
+    This is the structured output from the translator for a single line.
+    """
+
+    line_id: LineId = Field(..., description="Line identifier matching the source")
+    text: str = Field(..., min_length=1, description="Translated text content")
+
+
+class TranslationResultList(BaseSchema):
+    """List of translation results from a single chunk analysis.
+
+    This wrapper schema allows the LLM to return multiple translated lines
+    from a batch of source lines.
+    """
+
+    translations: list[TranslationResultLine] = Field(
+        ...,
+        min_length=1,
+        description="List of translated lines",
+    )
+
+
 class ContextNote(BaseSchema):
     """Context note associated with a line or scene."""
 

@@ -7,11 +7,15 @@ defined by TOML profiles.
 from __future__ import annotations
 
 import asyncio
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
+from pydantic_ai.output import PromptedOutput
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.usage import UsageLimits
 
 from rentl_agents.layers import PromptComposer, PromptLayerRegistry
 from rentl_agents.templates import TemplateContext
@@ -22,6 +26,18 @@ from rentl_schemas.base import BaseSchema
 
 InputT = TypeVar("InputT", bound=BaseSchema)
 OutputT = TypeVar("OutputT", bound=BaseSchema)
+
+# Output mode for structured output
+# - "auto": Auto-detect based on provider (recommended)
+# - "prompted": Uses response_format with json_schema (OpenRouter, most cloud APIs)
+# - "tool": Uses tool calling with tool_choice:required (LM Studio, OpenAI)
+# - "native": Uses model's native structured output (OpenAI only)
+#
+# Provider compatibility:
+# - OpenRouter: "prompted" (no tool_choice:required support)
+# - LM Studio: "tool" (has tool_choice:required, json_schema may have issues)
+# - OpenAI: both work, "tool" is default pydantic-ai behavior
+OutputMode = Literal["auto", "prompted", "tool", "native"]
 
 
 class ProfileAgentConfig(BaseSchema):
@@ -38,6 +54,12 @@ class ProfileAgentConfig(BaseSchema):
     timeout_s: float = 180.0
     max_retries: int = 3
     retry_base_delay: float = 2.0
+    output_mode: OutputMode = "auto"  # Auto-detect based on provider
+    # Safeguards against infinite loops
+    max_requests_per_run: int = (
+        5  # Max API requests per single run (default 50 is too high)
+    )
+    max_output_retries: int = 2  # Max retries for structured output validation
 
 
 class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
@@ -131,6 +153,9 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
 
         Returns:
             Agent output.
+
+        Raises:
+            RuntimeError: If usage limits exceeded (likely infinite loop).
         """
         # Build prompts from layers
         system_prompt = self._composer.compose_system_prompt(
@@ -148,11 +173,20 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             self._profile.tools.allowed
         )
 
+        # Detect provider from base_url
+        base_url = self._config.base_url
+        is_openrouter = "openrouter.ai" in base_url
+        # LM Studio detection: default port 1234, any host (localhost, WSL IP, etc.)
+        is_lmstudio = ":1234" in base_url
+
         # Create pydantic-ai provider and model
-        provider = OpenAIProvider(
-            base_url=self._config.base_url,
-            api_key=self._config.api_key,
-        )
+        if is_openrouter:
+            provider = OpenRouterProvider(api_key=self._config.api_key)
+        else:
+            provider = OpenAIProvider(
+                base_url=base_url,
+                api_key=self._config.api_key,
+            )
         model = OpenAIChatModel(self._config.model_id, provider=provider)
 
         model_settings: OpenAIChatModelSettings = {
@@ -161,14 +195,53 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             "timeout": self._config.timeout_s,
         }
 
+        # Resolve output mode - auto-detect based on provider if "auto"
+        output_mode = self._config.output_mode
+        if output_mode == "auto":
+            if is_openrouter:
+                # OpenRouter doesn't support tool_choice:required
+                output_mode = "prompted"
+            elif is_lmstudio:
+                # LM Studio supports tool_choice:required (llama.cpp)
+                output_mode = "tool"
+            else:
+                # Default to tool for OpenAI and other providers
+                output_mode = "tool"
+
+        # Configure output type based on resolved output mode
+        if output_mode == "prompted":
+            output_type = PromptedOutput(self._output_type)
+        else:
+            # Tool-based output (default pydantic-ai behavior)
+            output_type = self._output_type
+
         # Create agent with structured output
         # Note: type ignore needed due to pydantic-ai typing limitations with generics
         agent: Agent[None, OutputT] = Agent(  # type: ignore[assignment]
             model=model,
             instructions=system_prompt,
-            output_type=self._output_type,
+            output_type=output_type,
             tools=tool_callables,
+            output_retries=self._config.max_output_retries,
         )
 
-        result = await agent.run(user_prompt, model_settings=model_settings)
-        return result.output
+        # Set usage limits to prevent infinite loops
+        # pydantic-ai default is 50 requests which can burn through tokens
+        usage_limits = UsageLimits(
+            request_limit=self._config.max_requests_per_run,
+        )
+
+        try:
+            result = await agent.run(
+                user_prompt,
+                model_settings=model_settings,
+                usage_limits=usage_limits,
+            )
+            return result.output
+        except UsageLimitExceeded as e:
+            limit = self._config.max_requests_per_run
+            raise RuntimeError(
+                f"Agent {self.name} hit request limit ({limit}). "
+                f"Model may be failing to produce valid structured output. "
+                f"Try a different model or output_mode. Details: {e}"
+            ) from e

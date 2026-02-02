@@ -105,6 +105,7 @@ TRANSLATE_AGENT_VARIABLES: frozenset[str] = frozenset({
     "scene_id",
     "line_count",
     "source_lines",
+    "annotated_source_lines",
     "scene_summary",
     "pretranslation_notes",
     "glossary_terms",

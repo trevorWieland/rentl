@@ -1,0 +1,62 @@
+# Direct Translator Agent Profile
+# Produces translated lines using simple direct translation.
+
+[meta]
+name = "direct_translator"
+version = "1.0.0"
+phase = "translate"
+description = "Produces translated lines using simple direct translation with context awareness"
+output_schema = "TranslationResultList"
+
+[requirements]
+scene_id_required = false
+
+[orchestration]
+priority = 10
+depends_on = []
+
+[prompts.agent]
+content = """
+Your specific role is Direct Translation.
+
+For each batch of source lines, produce accurate translations that:
+1. Preserve the original meaning and intent
+2. Sound natural in the target language
+3. Maintain character voice and speaking patterns
+4. Consider pretranslation annotations for idioms and special expressions
+
+Translation guidelines:
+- Match the formality level of the original
+- Preserve punctuation style appropriate to the target language
+- Keep line lengths reasonable for game text display
+- Maintain consistency with previous translations in the same scene
+
+For each line, provide:
+- line_id: The exact ID from the source line (do not modify)
+- text: Your translation of the source text
+"""
+
+[prompts.user_template]
+content = """
+Translate the following lines from {{source_lang}} to {{target_lang}}.
+
+Scene context:
+{{scene_summary}}
+
+Source lines ({{line_count}} total):
+---
+{{annotated_source_lines}}
+---
+
+Return your translations as a list. Each translation must include:
+- line_id: The exact line ID from the source
+- text: Your translation in {{target_lang}}
+"""
+
+[tools]
+allowed = ["get_game_info"]
+
+[model_hints]
+recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]
+min_context_tokens = 16384
+benefits_from_reasoning = false

@@ -59,11 +59,29 @@ from rentl_agents.tools.registry import (
     ToolRegistry,
     get_default_registry,
 )
+from rentl_agents.translate import (
+    chunk_lines as translate_chunk_lines,
+)
+from rentl_agents.translate import (
+    format_annotated_lines_for_prompt,
+    format_glossary_terms,
+    format_pretranslation_annotations,
+    merge_translated_lines,
+    translation_result_to_lines,
+)
+from rentl_agents.translate import (
+    format_lines_for_prompt as translate_format_lines,
+)
+from rentl_agents.translate import (
+    get_scene_summary_for_lines as translate_get_scene_summary,
+)
 from rentl_agents.wiring import (
     ContextSceneSummarizerAgent,
     PretranslationIdiomLabelerAgent,
+    TranslateDirectTranslatorAgent,
     create_context_agent_from_profile,
     create_pretranslation_agent_from_profile,
+    create_translate_agent_from_profile,
     get_default_agents_dir,
     get_default_prompts_dir,
 )
@@ -98,12 +116,17 @@ __all__ = [
     "ToolNotFoundError",
     "ToolRegistry",
     "ToolResolutionError",
+    "TranslateDirectTranslatorAgent",
     "chunk_lines",
     "create_context_agent_from_profile",
     "create_pretranslation_agent_from_profile",
+    "create_translate_agent_from_profile",
     "discover_agent_profiles",
     "extract_template_variables",
+    "format_annotated_lines_for_prompt",
+    "format_glossary_terms",
     "format_lines_for_prompt",
+    "format_pretranslation_annotations",
     "format_scene_lines",
     "get_agents_for_phase",
     "get_allowed_variables_for_layer",
@@ -119,9 +142,14 @@ __all__ = [
     "load_root_prompt",
     "merge_idiom_annotations",
     "merge_scene_summaries",
+    "merge_translated_lines",
     "register_output_schema",
     "render_template",
     "resolve_output_schema",
+    "translate_chunk_lines",
+    "translate_format_lines",
+    "translate_get_scene_summary",
+    "translation_result_to_lines",
     "validate_agent_template",
     "validate_scene_input",
     "validate_template",

@@ -23,7 +23,7 @@ from rentl_schemas.primitives import RunId, SceneId
 
 def chunk_lines(
     source_lines: list[SourceLine],
-    chunk_size: int = 50,
+    chunk_size: int = 10,
 ) -> list[list[SourceLine]]:
     """Split source lines into chunks for batch processing.
 

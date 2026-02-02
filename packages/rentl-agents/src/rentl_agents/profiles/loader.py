@@ -130,7 +130,12 @@ def resolve_output_schema(name: str) -> type[BaseSchema]:
 def _init_schema_registry() -> None:
     """Initialize the schema registry with known output schemas."""
     # Import here to avoid circular imports
-    from rentl_schemas.phases import IdiomAnnotation, IdiomAnnotationList, SceneSummary
+    from rentl_schemas.phases import (
+        IdiomAnnotation,
+        IdiomAnnotationList,
+        SceneSummary,
+        TranslationResultList,
+    )
 
     # Register all known output schemas
     if "SceneSummary" not in SCHEMA_REGISTRY:
@@ -139,6 +144,8 @@ def _init_schema_registry() -> None:
         register_output_schema("IdiomAnnotation", IdiomAnnotation)
     if "IdiomAnnotationList" not in SCHEMA_REGISTRY:
         register_output_schema("IdiomAnnotationList", IdiomAnnotationList)
+    if "TranslationResultList" not in SCHEMA_REGISTRY:
+        register_output_schema("TranslationResultList", TranslationResultList)
 
 
 # Initialize on module load

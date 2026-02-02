@@ -18,6 +18,7 @@ from rentl_agents.profiles.loader import load_agent_profile
 from rentl_agents.runtime import ProfileAgent, ProfileAgentConfig
 from rentl_agents.templates import TemplateContext
 from rentl_agents.tools.registry import ToolRegistry, get_default_registry
+from rentl_schemas.io import TranslatedLine
 from rentl_schemas.phases import (
     ContextPhaseInput,
     ContextPhaseOutput,
@@ -26,6 +27,9 @@ from rentl_schemas.phases import (
     PretranslationPhaseInput,
     PretranslationPhaseOutput,
     SceneSummary,
+    TranslatePhaseInput,
+    TranslatePhaseOutput,
+    TranslationResultList,
 )
 from rentl_schemas.primitives import LanguageCode, PhaseName
 
@@ -212,7 +216,7 @@ class PretranslationIdiomLabelerAgent:
         self,
         profile_agent: ProfileAgent[PretranslationPhaseInput, IdiomAnnotationList],
         config: ProfileAgentConfig,
-        chunk_size: int = 50,
+        chunk_size: int = 10,
         source_lang: LanguageCode = "ja",
         target_lang: LanguageCode = "en",
     ) -> None:
@@ -294,7 +298,7 @@ def create_pretranslation_agent_from_profile(
     prompts_dir: Path,
     config: ProfileAgentConfig,
     tool_registry: ToolRegistry | None = None,
-    chunk_size: int = 50,
+    chunk_size: int = 10,
     source_lang: LanguageCode = "ja",
     target_lang: LanguageCode = "en",
 ) -> PretranslationIdiomLabelerAgent:
@@ -345,6 +349,172 @@ def create_pretranslation_agent_from_profile(
 
     # Wrap in PretranslationIdiomLabelerAgent
     return PretranslationIdiomLabelerAgent(
+        profile_agent=profile_agent,
+        config=config,
+        chunk_size=chunk_size,
+        source_lang=source_lang,
+        target_lang=target_lang,
+    )
+
+
+class TranslateDirectTranslatorAgent:
+    """Translate phase agent that produces translations using a ProfileAgent.
+
+    This agent:
+    1. Chunks source lines into batches for processing
+    2. Formats context (scene summaries, inline pretranslation annotations)
+    3. Runs ProfileAgent for each chunk to produce TranslationResultList
+    4. Converts results to TranslatedLine and merges into TranslatePhaseOutput
+    """
+
+    def __init__(
+        self,
+        profile_agent: ProfileAgent[TranslatePhaseInput, TranslationResultList],
+        config: ProfileAgentConfig,
+        chunk_size: int = 10,
+        source_lang: LanguageCode = "ja",
+        target_lang: LanguageCode = "en",
+    ) -> None:
+        """Initialize the translate direct translator agent.
+
+        Args:
+            profile_agent: Underlying ProfileAgent for translation.
+            config: Runtime configuration.
+            chunk_size: Number of lines per processing chunk.
+            source_lang: Source language name for prompts.
+            target_lang: Target language name for prompts.
+        """
+        self._profile_agent = profile_agent
+        self._config = config
+        self._chunk_size = chunk_size
+        self._source_lang = source_lang
+        self._target_lang = target_lang
+
+    async def run(self, payload: TranslatePhaseInput) -> TranslatePhaseOutput:
+        """Execute translate phase by translating lines in chunks.
+
+        Args:
+            payload: Translate phase input with source lines.
+
+        Returns:
+            Translate phase output with translated lines.
+        """
+        from rentl_agents.translate.lines import (
+            chunk_lines,
+            format_annotated_lines_for_prompt,
+            get_scene_summary_for_lines,
+            merge_translated_lines,
+            translation_result_to_lines,
+        )
+
+        # Chunk lines for batch processing
+        chunks = chunk_lines(payload.source_lines, self._chunk_size)
+
+        # Process each chunk
+        all_translated_lines: list[TranslatedLine] = []
+        for chunk in chunks:
+            # Format lines with inline annotations and context for prompt
+            annotated_lines_text = format_annotated_lines_for_prompt(
+                chunk, payload.pretranslation_annotations
+            )
+            scene_summary_text = get_scene_summary_for_lines(
+                chunk, payload.scene_summaries
+            )
+
+            # Update template context for this chunk
+            context = TemplateContext(
+                root_variables={},
+                phase_variables={
+                    "source_lang": self._source_lang,
+                    "target_lang": self._target_lang,
+                },
+                agent_variables={
+                    "annotated_source_lines": annotated_lines_text,
+                    "scene_summary": scene_summary_text,
+                    "line_count": str(len(chunk)),
+                },
+            )
+            self._profile_agent.update_context(context)
+
+            # Run the profile agent for this chunk
+            # ProfileAgent returns TranslationResultList with translated lines
+            try:
+                result = await self._profile_agent.run(payload)
+                translated_lines = translation_result_to_lines(result, chunk)
+                all_translated_lines.extend(translated_lines)
+            except Exception as e:
+                # Log the error with root cause
+                import sys
+
+                print(f"  ⚠ Chunk failed: {e}", file=sys.stderr)
+                if e.__cause__:
+                    print(f"    Caused by: {e.__cause__}", file=sys.stderr)
+                # Re-raise - we shouldn't silently lose translations
+                raise
+
+        return merge_translated_lines(
+            payload.run_id,
+            payload.target_language,
+            all_translated_lines,
+        )
+
+
+def create_translate_agent_from_profile(
+    profile_path: Path,
+    prompts_dir: Path,
+    config: ProfileAgentConfig,
+    tool_registry: ToolRegistry | None = None,
+    chunk_size: int = 10,
+    source_lang: LanguageCode = "ja",
+    target_lang: LanguageCode = "en",
+) -> TranslateDirectTranslatorAgent:
+    """Create a translate phase agent from a TOML profile.
+
+    Args:
+        profile_path: Path to the agent profile TOML file.
+        prompts_dir: Path to the prompts directory (containing root.toml, phases/).
+        config: Runtime configuration (API key, model settings, etc.).
+        tool_registry: Tool registry to use. Defaults to the default registry.
+        chunk_size: Number of lines per processing chunk.
+        source_lang: Source language name for prompts.
+        target_lang: Target language name for prompts.
+
+    Returns:
+        Translate phase agent ready for orchestrator.
+
+    Raises:
+        ValueError: If profile is not for translate phase.
+    """
+    # Load the profile
+    profile = load_agent_profile(profile_path)
+
+    # Verify it's a translate phase agent
+    if profile.meta.phase != PhaseName.TRANSLATE:
+        raise ValueError(
+            f"Profile {profile.meta.name} is for phase {profile.meta.phase.value}, "
+            f"expected translate"
+        )
+
+    # Load prompt layers
+    layer_registry = load_layer_registry(prompts_dir)
+
+    # Get tool registry
+    if tool_registry is None:
+        tool_registry = get_default_registry()
+
+    # Create the ProfileAgent
+    profile_agent: ProfileAgent[TranslatePhaseInput, TranslationResultList] = (
+        ProfileAgent(
+            profile=profile,
+            output_type=TranslationResultList,
+            layer_registry=layer_registry,
+            tool_registry=tool_registry,
+            config=config,
+        )
+    )
+
+    # Wrap in TranslateDirectTranslatorAgent
+    return TranslateDirectTranslatorAgent(
         profile_agent=profile_agent,
         config=config,
         chunk_size=chunk_size,
