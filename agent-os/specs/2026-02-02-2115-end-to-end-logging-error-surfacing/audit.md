@@ -6,64 +6,62 @@
 
 ## Overall Assessment
 
-**Weighted Score:** 4.6/5.0
+**Weighted Score:** 4.8/5.0
 **Status:** Conditional Pass
 
 **Summary:**
-Logging configuration, sink adapters, and CLI wiring are in place and aligned with the spec, with `make all` passing. The remaining gaps are schema stability in JSONL output and missing tests for CLI command-level logging events. Addressing these will bring the spec to full compliance.
+Logging configuration, sink adapters, and CLI wiring align with the spec, and JSONL log output now preserves a stable schema. The remaining gap is missing test coverage for command-level logging on `validate-connection` and `export`. Adding those tests should bring the spec to full compliance.
 
 ## Performance
 
-**Score:** 4/5
+**Score:** 5/5
 
 **Findings:**
-- No significant performance issues detected in logging paths.
-- Log sinks use lightweight writes; file I/O is offloaded via async storage adapter.
+- No performance issues detected in logging and storage paths.
+- Log writes are lightweight and use async offloading where appropriate.
 
 ## Intent
 
 **Score:** 5/5
 
 **Findings:**
-- Implementation matches the spec: mandatory logging config, sink types, command-level events, and run/phase failure payloads with `error_code`, `why`, and `next_action`.
-- Aligns with product mission for observability and transparent error surfacing.
+- Implementation matches the spec: mandatory logging config, sink types, command-level events, and structured error payloads.
+- Aligns with product goals for observability and actionable error surfacing.
 
 ## Completion
 
 **Score:** 4/5
 
 **Findings:**
-- Core logging config, sinks, and CLI wiring are implemented and validated.
-- Missing tests for CLI command-level log events (`command_started`, `command_completed`, `command_failed`).
+- Core logging config, sinks, CLI wiring, and schema updates are implemented and validated.
+- Missing tests for `validate-connection` and `export` command log events (`command_started`, `command_completed`, `command_failed`).
+  - `tests/unit/cli/test_main.py:112`
 
 ## Security
 
 **Score:** 5/5
 
 **Findings:**
-- No evidence of API key leakage in command logs; args are limited to safe fields.
-- Errors are structured without exposing sensitive data.
+- Command logs restrict args to safe fields; no API keys or secrets are logged.
+- Errors are structured without sensitive data exposure.
 
 ## Stability
 
 **Score:** 5/5
 
 **Findings:**
-- Error handling emits structured logs and preserves CLI response envelopes.
-- Storage-backed logging uses guarded I/O with clear error surfacing.
+- Orchestrator emits structured failure logs and preserves CLI response envelopes.
+- Storage-backed logging uses guarded I/O and consistent error surfacing.
 
 ## Standards Adherence
 
 ### Violations by Standard
 
-#### architecture/log-line-format
-- `packages/rentl-io/src/rentl_io/storage/log_sink.py:54` - JSONL output omits `phase`/`data` when `None` due to `exclude_none`, breaking schema stability.
-  - Standard requires: "All log lines use stable JSONL schema with `{timestamp, level, event, run_id, phase, message, data}` fields."
-- `packages/rentl-io/src/rentl_io/storage/filesystem.py:629` - File-backed JSONL appends omit `phase`/`data` when `None` due to `exclude_none`, breaking schema stability.
-  - Standard requires: "All log lines use stable JSONL schema with `{timestamp, level, event, run_id, phase, message, data}` fields."
+- None
 
 ### Compliant Standards
 
+- architecture/log-line-format ✓
 - ux/trust-through-transparency ✓
 - ux/progress-is-product ✓
 - architecture/api-response-format ✓
@@ -78,13 +76,9 @@ Logging configuration, sink adapters, and CLI wiring are in place and aligned wi
 
 These items will be addressed by running `/fix-spec`.
 
-1. [Priority: High] Preserve stable JSONL schema by always emitting `phase` and `data` fields (null when empty).
-   Location: packages/rentl-io/src/rentl_io/storage/log_sink.py:54; packages/rentl-io/src/rentl_io/storage/filesystem.py:629
-   Reason: architecture/log-line-format requires stable JSONL schema with `{timestamp, level, event, run_id, phase, message, data}` fields.
-
-2. [Priority: Medium] Add tests that verify command-level log events for CLI commands.
-   Location: tests/unit/cli/test_main.py:15
-   Reason: Task 6 requires coverage for `command_started`, `command_completed`, and `command_failed` logs.
+1. [Priority: Medium] Add tests that verify command-level log events for `validate-connection` and `export`.
+   Location: tests/unit/cli/test_main.py:112
+   Reason: Task 6 requires coverage for command-level logging events.
 
 ### Defer to Future Spec
 
@@ -96,15 +90,31 @@ These items will be addressed by running `/fix-spec`.
 
 ### Resolved (from previous audits)
 
-- None
+- Preserve stable JSONL schema by always emitting `phase` and `data` fields (null when empty).
+  - `packages/rentl-io/src/rentl_io/storage/log_sink.py:52`
+  - `packages/rentl-io/src/rentl_io/storage/filesystem.py:512`
 
 ## Final Recommendation
 
 **Status:** Conditional Pass
 
 **Reasoning:**
-Core logging and error surfacing are in place and `make all` passes, but the JSONL output currently violates the stable schema requirement and command-level logging lacks test coverage. Fixing these items should bring all rubric scores to 5/5.
+The core logging and error surfacing requirements are implemented and `make all` passes, but command-level logging tests are still missing for two CLI commands. Fixing these tests should bring all rubric scores to 5/5.
 
 **Next Steps:**
-1. Run `/fix-spec` to address the two "Fix Now" items.
+1. Run `/fix-spec` to address the "Fix Now" item.
 2. Run `/audit-spec` again to verify fixes and reach all 5/5 scores.
+
+## Audit History
+
+### 2026-02-02 (Audit Run #2)
+- Previous scores: Performance 4, Intent 5, Completion 4, Security 5, Stability 5
+- New scores: Performance 5, Intent 5, Completion 4, Security 5, Stability 5
+- Standards violations: 2 → 0
+- Action items: 2 → 1
+- Key changes: JSONL schema stability fixed in log sink and log store; command log coverage improved but still missing for `validate-connection` and `export`.
+
+### 2026-02-02 (Audit Run #1)
+- Initial audit
+- Scores summary: Performance 4, Intent 5, Completion 4, Security 5, Stability 5
+- Action items created

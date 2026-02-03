@@ -51,7 +51,7 @@ class ConsoleLogSink(LogSinkProtocol):
 
     async def emit_log(self, entry: LogEntry) -> None:
         """Write log entry JSONL to the output stream."""
-        payload = entry.model_dump_json(exclude_none=True)
+        payload = entry.model_dump_json(exclude_none=False)
         self._stream.write(payload + "\n")
         self._stream.flush()
 

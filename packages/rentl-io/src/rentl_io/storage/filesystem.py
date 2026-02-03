@@ -517,7 +517,7 @@ class FileSystemLogStore(LogStoreProtocol):
         """
         path = self._log_path(entry.run_id)
         try:
-            await asyncio.to_thread(_append_jsonl, path, entry)
+            await asyncio.to_thread(_append_jsonl, path, entry, exclude_none=False)
         except OSError as exc:
             raise StorageError(
                 StorageErrorInfo(
@@ -556,7 +556,9 @@ class FileSystemLogStore(LogStoreProtocol):
         run_id = next(iter(run_ids))
         path = self._log_path(run_id)
         try:
-            await asyncio.to_thread(_append_jsonl_many, path, entries)
+            await asyncio.to_thread(
+                _append_jsonl_many, path, entries, exclude_none=False
+            )
         except OSError as exc:
             raise StorageError(
                 StorageErrorInfo(
@@ -619,15 +621,19 @@ def _write_jsonl_file(path: Path, payload: Sequence[BaseSchema]) -> None:
         )
 
 
-def _append_jsonl(path: Path, payload: BaseSchema) -> None:
-    _append_jsonl_many(path, [payload])
+def _append_jsonl(
+    path: Path, payload: BaseSchema, *, exclude_none: bool = True
+) -> None:
+    _append_jsonl_many(path, [payload], exclude_none=exclude_none)
 
 
-def _append_jsonl_many(path: Path, payload: Sequence[BaseSchema]) -> None:
+def _append_jsonl_many(
+    path: Path, payload: Sequence[BaseSchema], *, exclude_none: bool = True
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as handle:
         handle.writelines(
-            item.model_dump_json(exclude_none=True) + "\n" for item in payload
+            item.model_dump_json(exclude_none=exclude_none) + "\n" for item in payload
         )
 
 
