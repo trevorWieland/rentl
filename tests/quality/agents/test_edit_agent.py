@@ -29,6 +29,7 @@ from tests.quality.agents.evaluators import (
     ListFieldMinLength,
     OutputFieldPresent,
     ToolCallCountAtLeast,
+    ToolInputSchemaValid,
     ToolResultHasKeys,
     assert_report_success,
 )
@@ -137,6 +138,7 @@ def given_edit_dataset(
             ListFieldMinLength(field_name="edited_lines", min_length=1),
             ListFieldMinLength(field_name="change_log", min_length=0),
             ToolCallCountAtLeast(min_calls=1),
+            ToolInputSchemaValid(tool_name="get_game_info", allowed_keys=()),
             ToolResultHasKeys(
                 required_keys=(
                     "game_name",

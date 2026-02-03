@@ -197,3 +197,236 @@ class ToolResultHasKeys(Evaluator[Any, AgentEvalOutput]):
                 reason=f"Missing tool result keys: {missing_text}",
             )
         return EvaluationReason(value=True, reason=None)
+
+
+@dataclass
+class ToolInputSchemaValid(Evaluator[Any, AgentEvalOutput]):
+    """Validate tool input arguments against expected schema.
+
+    Checks that tool call inputs conform to the expected schema
+    for the specified tool name.
+    """
+
+    tool_name: str
+    required_keys: tuple[str, ...] = ()
+    allowed_keys: tuple[str, ...] | None = None
+
+    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+        """Evaluate tool input schema compliance.
+
+        Args:
+            ctx: Evaluator context.
+
+        Returns:
+            Evaluation result with reason on failure.
+        """
+        tool_calls = None
+        if isinstance(ctx.output, AgentEvalOutput):
+            tool_calls = ctx.output.tool_calls
+        elif isinstance(ctx.output, dict):
+            maybe_calls = ctx.output.get("tool_calls")
+            if isinstance(maybe_calls, list):
+                tool_calls = maybe_calls
+
+        if not tool_calls:
+            return EvaluationReason(
+                value=False,
+                reason="No tool calls recorded",
+            )
+
+        # Find calls for the specified tool
+        matching_calls = [
+            call for call in tool_calls if call.tool_name == self.tool_name
+        ]
+
+        if not matching_calls:
+            return EvaluationReason(
+                value=False,
+                reason=f"No calls found for tool: {self.tool_name}",
+            )
+
+        # Validate each matching call
+        for call in matching_calls:
+            args = call.args if hasattr(call, "args") else None
+            if not isinstance(args, dict):
+                return EvaluationReason(
+                    value=False,
+                    reason=f"Tool {self.tool_name} args are not a dict",
+                )
+
+            # Check required keys
+            for key in self.required_keys:
+                if key not in args:
+                    return EvaluationReason(
+                        value=False,
+                        reason=f"Missing required key '{key}' in {self.tool_name} args",
+                    )
+
+            # Check allowed keys
+            if self.allowed_keys is not None:
+                for key in args:
+                    if key not in self.allowed_keys:
+                        return EvaluationReason(
+                            value=False,
+                            reason=f"Unexpected key '{key}' in {self.tool_name} args",
+                        )
+
+        return EvaluationReason(value=True, reason=None)
+
+
+@dataclass
+class ToolInputHasType(Evaluator[Any, AgentEvalOutput]):
+    """Validate a specific tool input argument has the expected type."""
+
+    tool_name: str
+    arg_name: str
+    expected_type: type
+
+    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+        """Evaluate tool argument type.
+
+        Args:
+            ctx: Evaluator context.
+
+        Returns:
+            Evaluation result with reason on failure.
+        """
+        tool_calls = None
+        if isinstance(ctx.output, AgentEvalOutput):
+            tool_calls = ctx.output.tool_calls
+        elif isinstance(ctx.output, dict):
+            maybe_calls = ctx.output.get("tool_calls")
+            if isinstance(maybe_calls, list):
+                tool_calls = maybe_calls
+
+        if not tool_calls:
+            return EvaluationReason(
+                value=False,
+                reason="No tool calls recorded",
+            )
+
+        # Find calls for the specified tool
+        matching_calls = [
+            call for call in tool_calls if call.tool_name == self.tool_name
+        ]
+
+        if not matching_calls:
+            return EvaluationReason(
+                value=False,
+                reason=f"No calls found for tool: {self.tool_name}",
+            )
+
+        for call in matching_calls:
+            args = call.args if hasattr(call, "args") else None
+            if not isinstance(args, dict):
+                return EvaluationReason(
+                    value=False,
+                    reason=f"Tool {self.tool_name} args are not a dict",
+                )
+
+            if self.arg_name not in args:
+                return EvaluationReason(
+                    value=False,
+                    reason=(
+                        f"Argument '{self.arg_name}' not found in {self.tool_name} args"
+                    ),
+                )
+
+            value = args[self.arg_name]
+            if value is not None and not isinstance(value, self.expected_type):
+                type_expected = self.expected_type.__name__
+                type_actual = type(value).__name__
+                return EvaluationReason(
+                    value=False,
+                    reason=(
+                        f"Argument '{self.arg_name}' in {self.tool_name} "
+                        f"has wrong type: expected {type_expected}, "
+                        f"got {type_actual}"
+                    ),
+                )
+
+        return EvaluationReason(value=True, reason=None)
+
+
+@dataclass
+class ToolInputStringMinLength(Evaluator[Any, AgentEvalOutput]):
+    """Validate a string tool input argument meets minimum length."""
+
+    tool_name: str
+    arg_name: str
+    min_length: int = 1
+
+    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+        """Evaluate string argument minimum length.
+
+        Args:
+            ctx: Evaluator context.
+
+        Returns:
+            Evaluation result with reason on failure.
+        """
+        tool_calls = None
+        if isinstance(ctx.output, AgentEvalOutput):
+            tool_calls = ctx.output.tool_calls
+        elif isinstance(ctx.output, dict):
+            maybe_calls = ctx.output.get("tool_calls")
+            if isinstance(maybe_calls, list):
+                tool_calls = maybe_calls
+
+        if not tool_calls:
+            return EvaluationReason(
+                value=False,
+                reason="No tool calls recorded",
+            )
+
+        # Find calls for the specified tool
+        matching_calls = [
+            call for call in tool_calls if call.tool_name == self.tool_name
+        ]
+
+        if not matching_calls:
+            return EvaluationReason(
+                value=False,
+                reason=f"No calls found for tool: {self.tool_name}",
+            )
+
+        for call in matching_calls:
+            args = call.args if hasattr(call, "args") else None
+            if not isinstance(args, dict):
+                return EvaluationReason(
+                    value=False,
+                    reason=f"Tool {self.tool_name} args are not a dict",
+                )
+
+            if self.arg_name not in args:
+                return EvaluationReason(
+                    value=False,
+                    reason=(
+                        f"Argument '{self.arg_name}' not found in {self.tool_name} args"
+                    ),
+                )
+
+            value = args[self.arg_name]
+            if value is None:
+                # Null values pass (optional fields)
+                continue
+
+            if not isinstance(value, str):
+                return EvaluationReason(
+                    value=False,
+                    reason=(
+                        f"Argument '{self.arg_name}' in {self.tool_name} "
+                        f"is not a string"
+                    ),
+                )
+
+            if len(value) < self.min_length:
+                return EvaluationReason(
+                    value=False,
+                    reason=(
+                        f"Argument '{self.arg_name}' in {self.tool_name} "
+                        f"is too short: {len(value)} < {self.min_length}"
+                    ),
+                )
+
+        return EvaluationReason(value=True, reason=None)

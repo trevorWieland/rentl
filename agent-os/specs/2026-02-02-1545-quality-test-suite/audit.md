@@ -6,11 +6,11 @@
 
 ## Overall Assessment
 
-**Weighted Score:** 4.2/5.0
+**Weighted Score:** 4.6/5.0
 **Status:** Conditional Pass
 
 **Summary:**
-The quality eval suite is in place with BDD scenarios, pydantic-evals datasets, and a shared harness for all five agents. Deterministic checks plus LLM-as-judge rubrics are implemented and time-bounded. The main gaps are missing tool-call instrumentation for context/glossary/style tools, lack of deterministic input schema validation, and the absence of multi-judge consensus per quality dimension.
+The real-LLM quality suite is in place with a shared harness, BDD features, and end-to-end coverage for all five agents, and `make all` passes. Deterministic tool input schema checks are still only enforced in the context suite, and multi-judge consensus remains deferred; cost guidance is intentionally ignored per prior decision.
 
 ## Performance
 
@@ -18,25 +18,25 @@ The quality eval suite is in place with BDD scenarios, pydantic-evals datasets, 
 
 **Findings:**
 - No issues found.
-- MaxDuration evaluators and minimal datasets keep quality runs bounded (e.g., `tests/quality/agents/test_context_agent.py:138`).
+- MaxDuration evaluators keep quality runs bounded (e.g., `tests/quality/agents/test_context_agent.py:140`).
 
 ## Intent
 
-**Score:** 3/5
+**Score:** 4/5
 
 **Findings:**
-- Aligns with the spec’s goal of real-LLM, BDD-style quality evals for all five agents (e.g., `tests/quality/agents/test_context_agent.py:41`, `tests/quality/features/agents/context_agent.feature:6`).
-- Best-practice guidance for multi-judge evaluations is not implemented (e.g., `tests/quality/agents/test_translate_agent.py:123`).
+- Aligns with real-LLM, BDD-style quality eval intent using pydantic-evals datasets (e.g., `tests/quality/agents/test_translate_agent.py:142`, `tests/quality/features/agents/translate_agent.feature:1`).
+- Multi-judge consensus per quality dimension is still deferred (e.g., `tests/quality/agents/test_context_agent.py:141`).
 
 ## Completion
 
-**Score:** 3/5
+**Score:** 4/5
 
 **Findings:**
-- `pydantic-evals` is included as a test dependency (e.g., `pyproject.toml:92`).
-- Shared harness, evaluators, and five agent datasets exist under `tests/quality/` (e.g., `tests/quality/agents/quality_harness.py:45`).
-- Tool-call instrumentation only registers `get_game_info`, missing required wrappers for `context_lookup`, `glossary_search`, and `style_guide_lookup` (e.g., `tests/quality/agents/tool_spy.py:75`).
-- Deterministic tool input schema validation is not implemented (e.g., `tests/quality/agents/evaluators.py:119`).
+- Shared harness, datasets, and five agent suites are present under `tests/quality/` (e.g., `tests/quality/agents/quality_harness.py:1`).
+- `make all` completes successfully, including quality tests (e.g., `Makefile:86`).
+- Tool input schema checks are only applied in the context dataset; other suites still lack ToolInputSchemaValid usage (e.g., `tests/quality/agents/test_pretranslation_agent.py:123`).
+- Cost guidance is not documented (intentionally ignored) (e.g., `docs/quality-evals.md:17`).
 
 ## Security
 
@@ -52,7 +52,7 @@ The quality eval suite is in place with BDD scenarios, pydantic-evals datasets, 
 
 **Findings:**
 - No issues found.
-- Timeouts are enforced at both pytest and evaluator levels (e.g., `pyproject.toml:68`, `tests/quality/agents/test_context_agent.py:138`).
+- Timeouts are enforced at evaluator and test runner levels (e.g., `tests/quality/agents/test_context_agent.py:140`, `pyproject.toml:64`).
 
 ## Standards Adherence
 
@@ -95,36 +95,59 @@ The quality eval suite is in place with BDD scenarios, pydantic-evals datasets, 
 
 These items will be addressed by running `/fix-spec`.
 
-1. [Priority: High] Add tool-call wrappers for `context_lookup`, `glossary_search`, and `style_guide_lookup` and instrument their calls in quality tests.
-   Location: `tests/quality/agents/tool_spy.py:75`
-   Reason: Task 4 requires deterministic tool-call instrumentation for these tools.
-
-2. [Priority: Medium] Add deterministic evaluators to validate tool input schemas (args) in addition to existing output checks.
-   Location: `tests/quality/agents/evaluators.py:119`
-   Reason: Task 4 requires input schema compliance checks for tool calls.
-
-3. [Priority: Medium] Add multi-judge evaluation per quality dimension (multiple LLM judges per rubric).
-   Location: `tests/quality/agents/test_translate_agent.py:123`
-   Reason: Task 2 calls for multiple judges per quality dimension to reduce variance.
+1. [Priority: Medium] Add tool input schema checks to the remaining quality datasets (pretranslation/translate/QA/edit).
+   Location: `tests/quality/agents/test_pretranslation_agent.py:123`
+   Reason: Task 4 requires deterministic tool input schema compliance checks for tool calls; only the context suite enforces this today.
 
 ### Defer to Future Spec
 
-- None
+These items have been added to the roadmap.
+
+2. [Priority: Medium] Add multi-judge consensus per quality dimension (multiple LLM judges per rubric).
+   Location: `tests/quality/agents/test_context_agent.py:141`
+   Deferred to: v0.2: Quality Leap
+   Reason: Task 2 calls for multiple judges per quality dimension to reduce variance.
 
 ### Ignore
 
-- None
+These items were reviewed and intentionally not actioned.
+
+- Add expected cost guidance to the quality eval docs.
+  Location: `docs/quality-evals.md:17`
+  Reason: Cost guidance for tests is an overly complex topic right now, when we don't have a fully establish stack of tests.
 
 ### Resolved (from previous audits)
 
-- None
+- Add deterministic tool input schema checks to the context dataset.
+  Location: `tests/quality/agents/test_context_agent.py:131`
 
 ## Final Recommendation
 
 **Status:** Conditional Pass
 
 **Reasoning:**
-Core quality eval coverage exists and aligns with the spec’s real-LLM, BDD-style requirements. However, missing tool-call instrumentation and input validation leave deterministic coverage incomplete, and multi-judge consensus was an explicit best-practice requirement.
+The suite meets the core real-LLM and BDD requirements with stable runtime bounds and a passing `make all` gate. Deterministic tool input schema checks still need to be applied across the remaining datasets to fully satisfy Task 4. Multi-judge consensus remains appropriately deferred to v0.2.
 
 **Next Steps:**
-Run `/fix-spec` to address the three Fix Now items, then re-run `/audit-spec` to verify the improvements.
+Run `/fix-spec` to address the Fix Now item, then re-run `/audit-spec` to verify the improvements.
+
+## Audit History
+
+### 2026-02-02 (Audit Run #3)
+- Previous scores: Performance 5, Intent 4, Completion 4, Security 5, Stability 5
+- New scores: Performance 5, Intent 4, Completion 4, Security 5, Stability 5
+- Standards violations: 0 → 0
+- Action items: 3 → 3
+- Key changes: Verified `make all` passes; tool input schema validation now applied in context dataset; remaining datasets still need checks.
+
+### 2026-02-02 (Audit Run #2)
+- Previous scores: Performance 5, Intent 3, Completion 3, Security 5, Stability 5
+- New scores: Performance 5, Intent 4, Completion 4, Security 5, Stability 5
+- Standards violations: 0 → 0
+- Action items: 3 → 3
+- Key changes: Tool-call wrappers implemented; input schema validation and multi-judge consensus still outstanding.
+
+### 2026-02-02 (Audit Run #1)
+- Initial audit
+- Scores summary: Performance 5, Intent 3, Completion 3, Security 5, Stability 5
+- Action items created: 3

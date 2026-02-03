@@ -27,6 +27,7 @@ from tests.quality.agents.evaluators import (
     ListFieldMinLength,
     OutputFieldPresent,
     ToolCallCountAtLeast,
+    ToolInputSchemaValid,
     ToolResultHasKeys,
     assert_report_success,
 )
@@ -138,6 +139,7 @@ def given_qa_dataset(
             OutputFieldPresent(field_name="summary"),
             ListFieldMinLength(field_name="issues", min_length=0),
             ToolCallCountAtLeast(min_calls=1),
+            ToolInputSchemaValid(tool_name="get_game_info", allowed_keys=()),
             ToolResultHasKeys(
                 required_keys=(
                     "game_name",

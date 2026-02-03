@@ -78,6 +78,7 @@
 - Enhanced QA reporting with granular issue categorization
 - Improved agent iteration visibility and control
 - Functional onboarding refinements
+- Multi-judge consensus for quality eval rubrics to reduce variance
 
 **Spec List (Expanded):**
 - (26) Agent Roster & Per-Phase Composition — Let users configure which agents run in a phase and in what mix. **Depends on:** 14, 15–20.

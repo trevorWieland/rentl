@@ -27,6 +27,7 @@ from tests.quality.agents.evaluators import (
     ListFieldMinLength,
     OutputFieldPresent,
     ToolCallCountAtLeast,
+    ToolInputSchemaValid,
     ToolResultHasKeys,
     assert_report_success,
 )
@@ -115,9 +116,28 @@ def given_translate_dataset(
             tool_calls=recorder.calls,
         )
 
-    rubric = (
-        "The output_text is written primarily in English and reasonably "
-        "translates the input lines. Minor errors are acceptable."
+    # Multi-judge evaluation for different quality dimensions
+    # Each judge evaluates a specific aspect of translation quality
+
+    language_rubric = (
+        "The translation is written in proper, grammatically correct English. "
+        "It reads naturally and fluently as if written by a native speaker. "
+        "Score: PASS if language is correct, FAIL if there are "
+        "significant grammar or fluency issues."
+    )
+
+    accuracy_rubric = (
+        "The translation accurately conveys the meaning of the original "
+        "Japanese text. No key information is lost or significantly altered. "
+        "Score: PASS if meaning is preserved, FAIL if the translation "
+        "deviates significantly from the source."
+    )
+
+    style_rubric = (
+        "The translation matches an appropriate tone and style for a visual "
+        "novel/game dialogue. It feels natural for the context and character. "
+        "Score: PASS if style is appropriate, FAIL if tone feels wrong "
+        "or out of place."
     )
 
     dataset = Dataset(
@@ -126,6 +146,7 @@ def given_translate_dataset(
             OutputFieldPresent(field_name="translated_lines"),
             ListFieldMinLength(field_name="translated_lines", min_length=1),
             ToolCallCountAtLeast(min_calls=1),
+            ToolInputSchemaValid(tool_name="get_game_info", allowed_keys=()),
             ToolResultHasKeys(
                 required_keys=(
                     "game_name",
@@ -135,13 +156,36 @@ def given_translate_dataset(
                 )
             ),
             MaxDuration(seconds=25.0),
+            # Multi-judge evaluation: Language/Fluency
             LLMJudge(
-                rubric=rubric,
+                rubric=language_rubric,
                 include_input=True,
                 model=quality_judge_model,
                 model_settings=quality_judge_settings,
                 assertion={
-                    "evaluation_name": "translate_language_ok",
+                    "evaluation_name": "translate_language_judge",
+                    "include_reason": True,
+                },
+            ),
+            # Multi-judge evaluation: Accuracy
+            LLMJudge(
+                rubric=accuracy_rubric,
+                include_input=True,
+                model=quality_judge_model,
+                model_settings=quality_judge_settings,
+                assertion={
+                    "evaluation_name": "translate_accuracy_judge",
+                    "include_reason": True,
+                },
+            ),
+            # Multi-judge evaluation: Style/Tone
+            LLMJudge(
+                rubric=style_rubric,
+                include_input=True,
+                model=quality_judge_model,
+                model_settings=quality_judge_settings,
+                assertion={
+                    "evaluation_name": "translate_style_judge",
                     "include_reason": True,
                 },
             ),
