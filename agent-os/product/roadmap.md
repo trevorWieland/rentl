@@ -47,7 +47,7 @@
 - (22) Functional Onboarding — Guide users to a first successful run with defaults and validation. **Depends on:** 11, 13, 15–20.
 - ✅ (23) Unit Test Coverage Gate (>80%) — Enforce unit test coverage threshold across core and CLI packages. **Depends on:** 01–13.
 - ✅ (24) Integration Test Suite — Validate CLI workflows and runtime wiring across storage and BYOK endpoints. **Depends on:** 11, 12, 13, 23.
-- (25) Quality Test Suite — Real-LLM smoke tests for runtime and agent behaviors. **Depends on:** 14, 15–20, 23.
+- ✅ (25) Quality Test Suite — Real-LLM smoke tests for runtime and agent behaviors. **Depends on:** 14, 15–20, 23.
 - (25a) Standards Review: Declarative Agent Config — Lock in agent configuration conventions and documentation. **Depends on:** 14–16.
 - (25b) End-to-End Logging & Error Surfacing — Ensure full logging coverage and raise actionable errors instead of silent failures. **Depends on:** 06, 07, 14–16.
 
