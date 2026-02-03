@@ -4,7 +4,7 @@ project_name = "local-validate"
 
 [project.paths]
 workspace_dir = "."
-input_path = "input.txt"
+input_path = "sample_scenes.jsonl"
 output_dir = "out"
 logs_dir = "logs"
 
@@ -15,9 +15,13 @@ type = "file"
 [[logging.sinks]]
 type = "console"
 
+[agents]
+prompts_dir = "packages/rentl-agents/prompts"
+agents_dir = "packages/rentl-agents/agents"
+
 [project.formats]
-input_format = "txt"
-output_format = "txt"
+input_format = "jsonl"
+output_format = "jsonl"
 
 [project.languages]
 source_language = "ja"
@@ -38,18 +42,23 @@ phase = "ingest"
 
 [[pipeline.phases]]
 phase = "context"
+agents = ["scene_summarizer"]
 
 [[pipeline.phases]]
 phase = "pretranslation"
+agents = ["idiom_labeler"]
 
 [[pipeline.phases]]
 phase = "translate"
+agents = ["direct_translator"]
 
 [[pipeline.phases]]
 phase = "qa"
+agents = ["style_guide_critic"]
 
 [[pipeline.phases]]
 phase = "edit"
+agents = ["basic_editor"]
 
 [[pipeline.phases]]
 phase = "export"

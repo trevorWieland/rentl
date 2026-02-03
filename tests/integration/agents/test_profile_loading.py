@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
@@ -275,8 +276,6 @@ def when_run_agent(ctx: ProfileLoadingContext) -> None:
     """Run the agent (should fail)."""
     assert ctx.agent is not None
     assert ctx.source_lines is not None
-
-    import asyncio
 
     payload = ContextPhaseInput(
         run_id=uuid7(),

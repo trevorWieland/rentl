@@ -7,6 +7,8 @@ import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
@@ -14,8 +16,7 @@ import rentl_cli.main as cli_main
 from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
-    import pytest
-    from click.testing import Result
+    pass
 
 # Link feature file
 scenarios("../features/cli/run_pipeline.feature")
@@ -51,6 +52,10 @@ def _write_pipeline_config(config_path: Path, workspace_dir: Path) -> Path:
         [[logging.sinks]]
         type = "file"
 
+        [agents]
+        prompts_dir = "{workspace_dir}/prompts"
+        agents_dir = "{workspace_dir}/agents"
+
         [endpoints]
         default = "primary"
 
@@ -70,22 +75,27 @@ def _write_pipeline_config(config_path: Path, workspace_dir: Path) -> Path:
         [[pipeline.phases]]
         phase = "context"
         enabled = false
+        agents = ["context_agent"]
 
         [[pipeline.phases]]
         phase = "pretranslation"
         enabled = false
+        agents = ["pretranslation_agent"]
 
         [[pipeline.phases]]
         phase = "translate"
         enabled = false
+        agents = ["translate_agent"]
 
         [[pipeline.phases]]
         phase = "qa"
         enabled = false
+        agents = ["qa_agent"]
 
         [[pipeline.phases]]
         phase = "edit"
         enabled = false
+        agents = ["edit_agent"]
 
         [[pipeline.phases]]
         phase = "export"

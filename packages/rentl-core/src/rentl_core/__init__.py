@@ -30,12 +30,15 @@ from rentl_core.ports import (
     build_ingest_failed_log,
     build_ingest_started_log,
 )
+from rentl_core.status import build_status_result
+from rentl_core.telemetry import AgentTelemetryEmitter
 from rentl_core.version import VERSION
 
 __version__ = "0.1.0"
 
 __all__ = [
     "VERSION",
+    "AgentTelemetryEmitter",
     "ExportAdapterProtocol",
     "ExportBatchError",
     "ExportError",
@@ -61,5 +64,6 @@ __all__ = [
     "build_ingest_completed_log",
     "build_ingest_failed_log",
     "build_ingest_started_log",
+    "build_status_result",
     "hydrate_run_context",
 ]

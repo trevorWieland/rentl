@@ -184,7 +184,7 @@ class TestFormatSceneLines:
         """Test formatting empty list."""
         result = format_scene_lines([])
 
-        assert result == ""
+        assert not result
 
 
 class TestMergeSceneSummaries:

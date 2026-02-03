@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from json import JSONDecodeError
 from pathlib import Path
-from typing import Protocol, TypeVar, cast
+from typing import Protocol, TypeVar
 
 from pydantic import ValidationError
 
@@ -36,9 +36,9 @@ from rentl_schemas.storage import (
 ModelT = TypeVar("ModelT", bound=BaseSchema)
 
 
-class _SchemaModel(Protocol):
+class _SchemaModel(Protocol[ModelT]):
     @classmethod
-    def model_validate_json(cls, json_data: str) -> BaseSchema: ...
+    def model_validate_json(cls, json_data: str) -> ModelT: ...
 
 
 class FileSystemRunStateStore(RunStateStoreProtocol):
@@ -382,8 +382,7 @@ class FileSystemArtifactStore(ArtifactStoreProtocol):
             )
         path = _location_path(metadata)
         try:
-            payload = await asyncio.to_thread(_read_json_model, path, model)
-            return cast(ModelT, payload)
+            return await asyncio.to_thread(_read_json_model, path, model)
         except (ValidationError, JSONDecodeError, ValueError) as exc:
             error_info = _build_artifact_payload_error_info(
                 "load_artifact_json",
@@ -458,8 +457,7 @@ class FileSystemArtifactStore(ArtifactStoreProtocol):
             )
         path = _location_path(metadata)
         try:
-            payload = await asyncio.to_thread(_read_jsonl_models, path, model)
-            return cast(list[ModelT], payload)
+            return await asyncio.to_thread(_read_jsonl_models, path, model)
         except (ValidationError, JSONDecodeError, ValueError) as exc:
             error_info = _build_artifact_payload_error_info(
                 "load_artifact_jsonl",
@@ -637,13 +635,19 @@ def _append_jsonl_many(
         )
 
 
-def _read_json_model(path: Path, model: _SchemaModel) -> BaseSchema:
+def _read_json_model[ModelT: BaseSchema](
+    path: Path,
+    model: _SchemaModel[ModelT],
+) -> ModelT:
     payload = path.read_text(encoding="utf-8")
     return model.model_validate_json(payload)
 
 
-def _read_jsonl_models(path: Path, model: _SchemaModel) -> list[BaseSchema]:
-    results: list[BaseSchema] = []
+def _read_jsonl_models[ModelT: BaseSchema](
+    path: Path,
+    model: _SchemaModel[ModelT],
+) -> list[ModelT]:
+    results: list[ModelT] = []
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():

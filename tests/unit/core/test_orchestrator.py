@@ -21,6 +21,7 @@ from rentl_core.ports.orchestrator import (
 from rentl_core.ports.storage import ArtifactStoreProtocol
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import (
+    AgentsConfig,
     CacheConfig,
     ConcurrencyConfig,
     FormatConfig,
@@ -266,17 +267,33 @@ def _build_run_config() -> RunConfig:
         default_model=ModelSettings(model_id="gpt-4"),
         phases=[
             PhaseConfig(phase=PhaseName.INGEST),
-            PhaseConfig(phase=PhaseName.CONTEXT),
-            PhaseConfig(phase=PhaseName.PRETRANSLATION),
-            PhaseConfig(phase=PhaseName.TRANSLATE),
-            PhaseConfig(phase=PhaseName.QA),
-            PhaseConfig(phase=PhaseName.EDIT),
+            PhaseConfig(
+                phase=PhaseName.CONTEXT,
+                agents=["scene_summarizer"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.PRETRANSLATION,
+                agents=["idiom_labeler"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.TRANSLATE,
+                agents=["direct_translator"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.QA,
+                agents=["style_guide_critic"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.EDIT,
+                agents=["basic_editor"],
+            ),
             PhaseConfig(phase=PhaseName.EXPORT),
         ],
     )
     return RunConfig(
         project=project,
         logging=LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.NOOP)]),
+        agents=_agents_config(),
         endpoint=ModelEndpointConfig(
             provider_name="test",
             base_url="http://localhost",
@@ -286,6 +303,13 @@ def _build_run_config() -> RunConfig:
         concurrency=ConcurrencyConfig(),
         retry=RetryConfig(),
         cache=CacheConfig(),
+    )
+
+
+def _agents_config() -> AgentsConfig:
+    return AgentsConfig(
+        prompts_dir="/tmp/prompts",
+        agents_dir="/tmp/agents",
     )
 
 
@@ -423,7 +447,7 @@ async def test_orchestrator_rejects_route_strategy_without_route_ids() -> None:
     orchestrator = PipelineOrchestrator(
         log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
-        context_agents=_RecordingContextPool(),
+        context_agents=[("context_agent", _RecordingContextPool())],
     )
     run = orchestrator.create_run(run_id=run_id, config=config)
 
@@ -498,7 +522,7 @@ async def test_orchestrator_routes_sharded_by_route_id() -> None:
     orchestrator = PipelineOrchestrator(
         log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
-        context_agents=pool,
+        context_agents=[("context_agent", pool)],
     )
     run = orchestrator.create_run(run_id=run_id, config=config)
 
@@ -537,8 +561,10 @@ async def test_orchestrator_blocks_qa_without_translation() -> None:
     orchestrator = PipelineOrchestrator(
         log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
-        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
-        qa_agents=PhaseAgentPool(agents=[_StubQaAgent()]),
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
+        qa_agents=[("qa_agent", PhaseAgentPool(agents=[_StubQaAgent()]))],
     )
     run = orchestrator.create_run(run_id=run_id, config=config)
 
@@ -580,9 +606,18 @@ async def test_orchestrator_marks_stale_on_upstream_change() -> None:
     orchestrator = PipelineOrchestrator(
         log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
-        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
-        pretranslation_agents=PhaseAgentPool(agents=[_StubPretranslationAgent()]),
-        translate_agents=PhaseAgentPool(agents=[_StubTranslateAgent()]),
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
+        pretranslation_agents=[
+            (
+                "pretranslation_agent",
+                PhaseAgentPool(agents=[_StubPretranslationAgent()]),
+            ),
+        ],
+        translate_agents=[
+            ("translate_agent", PhaseAgentPool(agents=[_StubTranslateAgent()])),
+        ],
     )
     run = orchestrator.create_run(run_id=run_id, config=config)
 
@@ -633,9 +668,18 @@ async def test_orchestrator_emits_invalidation_event_on_upstream_change() -> Non
     log_sink = _StubLogSink()
     orchestrator = PipelineOrchestrator(
         ingest_adapter=ingest_adapter,
-        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
-        pretranslation_agents=PhaseAgentPool(agents=[_StubPretranslationAgent()]),
-        translate_agents=PhaseAgentPool(agents=[_StubTranslateAgent()]),
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
+        pretranslation_agents=[
+            (
+                "pretranslation_agent",
+                PhaseAgentPool(agents=[_StubPretranslationAgent()]),
+            ),
+        ],
+        translate_agents=[
+            ("translate_agent", PhaseAgentPool(agents=[_StubTranslateAgent()])),
+        ],
         log_sink=log_sink,
     )
     run = orchestrator.create_run(run_id=run_id, config=config)
@@ -682,8 +726,12 @@ async def test_orchestrator_blocks_translate_without_pretranslation() -> None:
     orchestrator = PipelineOrchestrator(
         log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
-        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
-        translate_agents=PhaseAgentPool(agents=[_StubTranslateAgent()]),
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
+        translate_agents=[
+            ("translate_agent", PhaseAgentPool(agents=[_StubTranslateAgent()])),
+        ],
     )
     run = orchestrator.create_run(run_id=run_id, config=config)
 
@@ -717,9 +765,18 @@ async def test_orchestrator_blocks_export_without_edit_when_enabled() -> None:
     orchestrator = PipelineOrchestrator(
         log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
-        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
-        pretranslation_agents=PhaseAgentPool(agents=[_StubPretranslationAgent()]),
-        translate_agents=PhaseAgentPool(agents=[_StubTranslateAgent()]),
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
+        pretranslation_agents=[
+            (
+                "pretranslation_agent",
+                PhaseAgentPool(agents=[_StubPretranslationAgent()]),
+            ),
+        ],
+        translate_agents=[
+            ("translate_agent", PhaseAgentPool(agents=[_StubTranslateAgent()])),
+        ],
     )
     run = orchestrator.create_run(run_id=run_id, config=config)
 
@@ -791,7 +848,9 @@ async def test_orchestrator_emits_run_started_and_completed_events() -> None:
     log_sink = _StubLogSink()
     progress_sink = _StubProgressSink()
     orchestrator = PipelineOrchestrator(
-        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
         log_sink=log_sink,
         progress_sink=progress_sink,
     )
@@ -826,7 +885,9 @@ async def test_orchestrator_emits_run_failed_events() -> None:
     log_sink = _StubLogSink()
     progress_sink = _StubProgressSink()
     orchestrator = PipelineOrchestrator(
-        translate_agents=PhaseAgentPool(agents=[_StubTranslateAgent()]),
+        translate_agents=[
+            ("translate_agent", PhaseAgentPool(agents=[_StubTranslateAgent()])),
+        ],
         log_sink=log_sink,
         progress_sink=progress_sink,
     )
@@ -880,7 +941,9 @@ async def test_orchestrator_records_phase_summary_and_logs() -> None:
     log_sink = _StubLogSink()
     orchestrator = PipelineOrchestrator(
         ingest_adapter=ingest_adapter,
-        context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
         log_sink=log_sink,
     )
     run = orchestrator.create_run(run_id=run_id, config=config)

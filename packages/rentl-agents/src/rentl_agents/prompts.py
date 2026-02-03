@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 from functools import cache
-from typing import Any
 
 from pydantic import Field, field_validator, model_validator
 
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.primitives import JsonValue
 
 # Module-level cached function to avoid memory leak from lru_cache on methods
 _VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\}\}")
@@ -48,7 +48,7 @@ class PromptTemplate(BaseSchema):
     variables: dict[str, str] = Field(
         default_factory=dict, description="Variable type definitions"
     )
-    default_values: dict[str, Any] = Field(
+    default_values: dict[str, JsonValue] = Field(
         default_factory=dict, description="Default values for optional variables"
     )
     version: str = Field(default="1.0.0", description="Template version")
@@ -124,7 +124,7 @@ class PromptRenderer:
     def render_template(
         self,
         template: str,
-        context: dict[str, Any],
+        context: dict[str, JsonValue],
         strict: bool = True,
     ) -> str:
         """Render template with variable substitution.
@@ -169,7 +169,7 @@ class PromptRenderer:
     def render_template_object(
         self,
         prompt_template: PromptTemplate,
-        context: dict[str, Any],
+        context: dict[str, JsonValue],
     ) -> str:
         """Render a PromptTemplate object with context.
 
@@ -189,11 +189,11 @@ class PromptRenderer:
 
     def build_context(
         self,
-        base_context: dict[str, Any],
+        base_context: dict[str, JsonValue],
         project_context: str | None = None,
         style_guide: str | None = None,
-        glossary: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
+        glossary: list[JsonValue] | None = None,
+    ) -> dict[str, JsonValue]:
         """Build context with optional injected fields.
 
         Args:

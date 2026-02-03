@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import csv
 import json
-from typing import cast
 
 from pydantic import ValidationError
 
@@ -118,7 +117,7 @@ def _load_csv_sync(source: IngestSource) -> list[SourceLine]:
                 try:
                     line_id_value = row.get("line_id")
                     text_value = row.get("text")
-                    if line_id_value is None or line_id_value == "":
+                    if not line_id_value:
                         raise IngestError(
                             IngestErrorInfo(
                                 code=IngestErrorCode.MISSING_FIELD,
@@ -132,7 +131,7 @@ def _load_csv_sync(source: IngestSource) -> list[SourceLine]:
                                 ),
                             )
                         )
-                    if text_value is None or text_value == "":
+                    if not text_value:
                         raise IngestError(
                             IngestErrorInfo(
                                 code=IngestErrorCode.MISSING_FIELD,
@@ -204,7 +203,7 @@ def _load_csv_sync(source: IngestSource) -> list[SourceLine]:
 def _optional_str(value: str | None) -> str | None:
     if value is None:
         return None
-    if value == "":
+    if not value:
         return None
     return value
 
@@ -215,7 +214,7 @@ def _parse_metadata(
     if value is None:
         return None
     try:
-        parsed: object = json.loads(value)
+        parsed: JsonValue = json.loads(value)
     except json.JSONDecodeError as exc:
         raise IngestError(
             IngestErrorInfo(
@@ -245,7 +244,23 @@ def _parse_metadata(
             )
         )
 
-    return cast(dict[str, JsonValue], parsed)
+    converted: dict[str, JsonValue] = {}
+    for key, item in parsed.items():
+        if not isinstance(key, str):
+            raise IngestError(
+                IngestErrorInfo(
+                    code=IngestErrorCode.VALIDATION_ERROR,
+                    message="CSV metadata keys must be strings",
+                    details=IngestErrorDetails(
+                        field="metadata",
+                        row_number=row_number,
+                        column_name="metadata",
+                        source_path=source_path,
+                    ),
+                )
+            )
+        converted[key] = _as_json_value(item, row_number, source_path)
+    return converted
 
 
 def _extract_extra_metadata(
@@ -315,3 +330,42 @@ def _merge_metadata(
 
     merged["extra"] = extra_container
     return merged
+
+
+def _as_json_value(value: JsonValue, row_number: int, source_path: str) -> JsonValue:
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [_as_json_value(item, row_number, source_path) for item in value]
+    if isinstance(value, dict):
+        converted: dict[str, JsonValue] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise IngestError(
+                    IngestErrorInfo(
+                        code=IngestErrorCode.VALIDATION_ERROR,
+                        message="CSV metadata keys must be strings",
+                        details=IngestErrorDetails(
+                            field="metadata",
+                            row_number=row_number,
+                            column_name="metadata",
+                            source_path=source_path,
+                        ),
+                    )
+                )
+            converted[key] = _as_json_value(item, row_number, source_path)
+        return converted
+    raise IngestError(
+        IngestErrorInfo(
+            code=IngestErrorCode.VALIDATION_ERROR,
+            message="CSV metadata value is not JSON-serializable",
+            details=IngestErrorDetails(
+                field="metadata",
+                row_number=row_number,
+                column_name="metadata",
+                source_path=source_path,
+            ),
+        )
+    )

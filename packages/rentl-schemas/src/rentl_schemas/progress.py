@@ -11,6 +11,7 @@ from rentl_schemas.base import BaseSchema
 from rentl_schemas.events import ProgressEvent
 from rentl_schemas.primitives import (
     EVENT_NAME_PATTERN,
+    LanguageCode,
     PhaseName,
     PhaseStatus,
     RunId,
@@ -19,6 +20,8 @@ from rentl_schemas.primitives import (
 )
 
 type ProgressMetricKey = Annotated[str, Field(pattern=EVENT_NAME_PATTERN)]
+type AgentRunId = Annotated[str, Field(pattern=EVENT_NAME_PATTERN)]
+type AgentName = Annotated[str, Field(pattern=EVENT_NAME_PATTERN)]
 
 
 class ProgressUnit(StrEnum):
@@ -29,6 +32,59 @@ class ProgressUnit(StrEnum):
     CHARACTERS = "characters"
     ISSUES = "issues"
     EDITS = "edits"
+
+
+class AgentStatus(StrEnum):
+    """Lifecycle status values for agent telemetry."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class AgentUsageTotals(BaseSchema):
+    """Aggregate usage totals for an agent invocation."""
+
+    input_tokens: int = Field(0, ge=0, description="Input tokens consumed")
+    output_tokens: int = Field(0, ge=0, description="Output tokens consumed")
+    total_tokens: int = Field(0, ge=0, description="Total tokens consumed")
+    request_count: int = Field(0, ge=0, description="Total requests made")
+    tool_calls: int = Field(0, ge=0, description="Total tool calls issued")
+
+
+class AgentTelemetry(BaseSchema):
+    """Telemetry snapshot for a single agent invocation."""
+
+    agent_run_id: AgentRunId = Field(
+        ..., description="Unique agent invocation identifier"
+    )
+    agent_name: AgentName = Field(..., description="Agent name in snake_case")
+    phase: PhaseName = Field(..., description="Phase associated with the agent")
+    target_language: LanguageCode | None = Field(
+        None, description="Target language if applicable"
+    )
+    status: AgentStatus = Field(..., description="Agent status")
+    attempt: int | None = Field(None, ge=1, description="Attempt number")
+    started_at: Timestamp | None = Field(
+        None, description="Agent invocation start timestamp"
+    )
+    completed_at: Timestamp | None = Field(
+        None, description="Agent invocation completion timestamp"
+    )
+    usage: AgentUsageTotals | None = Field(
+        None, description="Usage totals for the invocation"
+    )
+    message: str | None = Field(None, description="Optional status message")
+
+
+class AgentTelemetrySummary(BaseSchema):
+    """Rollup summary for agent telemetry."""
+
+    total: int = Field(0, ge=0, description="Total agent invocations")
+    by_status: dict[AgentStatus, int] = Field(
+        default_factory=dict, description="Counts by status"
+    )
+    usage: AgentUsageTotals | None = Field(None, description="Aggregate usage totals")
 
 
 PHASE_METRIC_DEFINITIONS: dict[PhaseName, dict[ProgressMetricKey, ProgressUnit]] = {
@@ -280,20 +336,30 @@ class ProgressUpdate(BaseSchema):
     metric: ProgressMetric | None = Field(
         None, description="Optional metric update payload"
     )
+    agent_update: AgentTelemetry | None = Field(
+        None, description="Optional agent telemetry payload"
+    )
     message: str | None = Field(None, description="Optional progress message")
 
     @model_validator(mode="after")
     def _validate_payload(self) -> ProgressUpdate:
-        if not (self.run_progress or self.phase_progress or self.metric):
+        if not (
+            self.run_progress or self.phase_progress or self.metric or self.agent_update
+        ):
             raise ValueError(
-                "progress update must include run_progress, phase_progress, or metric"
+                "progress update must include run_progress, phase_progress, metric, or "
+                "agent_update"
             )
-        if self.phase is None and (self.phase_progress or self.metric):
-            raise ValueError("phase is required when phase progress is provided")
+        if self.phase is None and (
+            self.phase_progress or self.metric or self.agent_update
+        ):
+            raise ValueError("phase is required when phase data is provided")
         if self.phase_status is not None and self.phase is None:
             raise ValueError("phase is required when phase_status is provided")
         if self.phase_progress and self.phase != self.phase_progress.phase:
             raise ValueError("phase does not match phase_progress.phase")
+        if self.agent_update and self.phase != self.agent_update.phase:
+            raise ValueError("phase does not match agent_update.phase")
         if (
             self.phase_progress
             and self.phase_status is not None

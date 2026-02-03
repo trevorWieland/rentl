@@ -24,8 +24,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
+from click.testing import Result
+
 if TYPE_CHECKING:
-    from click.testing import Result
+    pass
 
 
 class CliContextProtocol(Protocol):

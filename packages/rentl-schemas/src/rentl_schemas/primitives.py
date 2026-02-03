@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import AfterValidator, Field
 
-HUMAN_ID_PATTERN = r"^[a-z]+_[0-9]+$"
+HUMAN_ID_PATTERN = r"^[a-z]+(?:_[0-9]+)+$"
 ISO_8601_PATTERN = (
     r"^\d{4}-\d{2}-\d{2}T"
     r"\d{2}:\d{2}:\d{2}"

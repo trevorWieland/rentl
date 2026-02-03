@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from rentl_agents.prompts import PromptRenderer, PromptTemplate
 
@@ -46,8 +47,6 @@ class TestPromptTemplate:
 
     def test_create_template_with_empty_name(self) -> None:
         """Test creating template raises error for empty name."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="name"):
             PromptTemplate(
                 name="",
@@ -57,8 +56,6 @@ class TestPromptTemplate:
 
     def test_create_template_with_empty_template_string(self) -> None:
         """Test creating template raises error for empty template string."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="template"):
             PromptTemplate(
                 name="translate",

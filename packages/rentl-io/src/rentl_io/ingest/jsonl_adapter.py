@@ -17,8 +17,15 @@ from rentl_core.ports.ingest import (
 from rentl_schemas.io import IngestSource, SourceLine
 from rentl_schemas.primitives import FileFormat, JsonValue
 
-ALLOWED_KEYS = {"line_id", "scene_id", "speaker", "text", "metadata"}
-EXPECTED_FIELDS = ["line_id", "text", "scene_id", "speaker", "metadata"]
+ALLOWED_KEYS = {"line_id", "route_id", "scene_id", "speaker", "text", "metadata"}
+EXPECTED_FIELDS = [
+    "line_id",
+    "text",
+    "route_id",
+    "scene_id",
+    "speaker",
+    "metadata",
+]
 JSONL_EXAMPLE = (
     '{"line_id":"line_1","text":"Hello","scene_id":"scene_1",'
     '"speaker":"Alice","metadata":{"tone":"calm"}}'
@@ -78,10 +85,10 @@ def _load_jsonl_sync(source: IngestSource) -> list[SourceLine]:
     try:
         with open(source.input_path, encoding="utf-8") as handle:
             for line_number, raw_line in enumerate(handle, start=1):
-                if raw_line.strip() == "":
+                if not raw_line.strip():
                     continue
                 try:
-                    parsed: object = json.loads(raw_line)
+                    parsed: JsonValue = json.loads(raw_line)
                 except json.JSONDecodeError:
                     errors.append(
                         IngestErrorInfo(
@@ -127,7 +134,7 @@ def _load_jsonl_sync(source: IngestSource) -> list[SourceLine]:
                     )
                     continue
 
-                json_obj: dict[str, object] = {
+                json_obj: dict[str, JsonValue] = {
                     key: value for key, value in parsed.items() if isinstance(key, str)
                 }
                 unknown_keys = [key for key in json_obj if key not in ALLOWED_KEYS]
@@ -154,6 +161,12 @@ def _load_jsonl_sync(source: IngestSource) -> list[SourceLine]:
                     text_value = _require_str(
                         json_obj, "text", line_number, source.input_path
                     )
+                    route_id_value = _optional_str_value(
+                        json_obj.get("route_id"),
+                        "route_id",
+                        line_number,
+                        source.input_path,
+                    )
                     scene_id_value = _optional_str_value(
                         json_obj.get("scene_id"),
                         "scene_id",
@@ -172,6 +185,7 @@ def _load_jsonl_sync(source: IngestSource) -> list[SourceLine]:
 
                     source_line = SourceLine(
                         line_id=line_id_value,
+                        route_id=route_id_value,
                         scene_id=scene_id_value,
                         speaker=speaker_value,
                         text=text_value,
@@ -210,7 +224,7 @@ def _load_jsonl_sync(source: IngestSource) -> list[SourceLine]:
 
 
 def _require_str(
-    payload: dict[str, object],
+    payload: dict[str, JsonValue],
     field: str,
     line_number: int,
     source_path: str,
@@ -248,7 +262,7 @@ def _require_str(
 
 
 def _optional_str_value(
-    value: object,
+    value: JsonValue | None,
     field: str,
     line_number: int,
     source_path: str,
@@ -273,7 +287,7 @@ def _optional_str_value(
 
 
 def _optional_metadata(
-    payload: dict[str, object],
+    payload: dict[str, JsonValue],
     line_number: int,
     source_path: str,
 ) -> dict[str, JsonValue] | None:
@@ -286,7 +300,7 @@ def _optional_metadata(
 
 
 def _require_json_object(
-    value: object, line_number: int, source_path: str
+    value: JsonValue, line_number: int, source_path: str
 ) -> dict[str, JsonValue]:
     json_value = _as_json_value(value, line_number, source_path)
     if not isinstance(json_value, dict):
@@ -302,7 +316,7 @@ def _require_json_object(
     return json_value
 
 
-def _as_json_value(value: object, line_number: int, source_path: str) -> JsonValue:
+def _as_json_value(value: JsonValue, line_number: int, source_path: str) -> JsonValue:
     if value is None:
         return None
     if isinstance(value, (str, int, float, bool)):

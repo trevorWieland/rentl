@@ -7,15 +7,15 @@ import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
+from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
-    from click.testing import Result
-
-    from tests.integration.conftest import FakeLlmRuntime
+    pass
 
 # Link feature file
 scenarios("../features/cli/validate_connection.feature")
@@ -51,6 +51,10 @@ def _write_rentl_config(config_path: Path, workspace_dir: Path) -> Path:
         [[logging.sinks]]
         type = "file"
 
+        [agents]
+        prompts_dir = "{workspace_dir}/prompts"
+        agents_dir = "{workspace_dir}/agents"
+
         [endpoints]
         default = "primary"
 
@@ -78,12 +82,15 @@ def _write_rentl_config(config_path: Path, workspace_dir: Path) -> Path:
 
         [[pipeline.phases]]
         phase = "context"
+        agents = ["context_agent"]
 
         [[pipeline.phases]]
         phase = "pretranslation"
+        agents = ["pretranslation_agent"]
 
         [[pipeline.phases]]
         phase = "translate"
+        agents = ["translate_agent"]
 
         [pipeline.phases.model]
         model_id = "gpt-4"
@@ -91,9 +98,11 @@ def _write_rentl_config(config_path: Path, workspace_dir: Path) -> Path:
 
         [[pipeline.phases]]
         phase = "qa"
+        agents = ["qa_agent"]
 
         [[pipeline.phases]]
         phase = "edit"
+        agents = ["edit_agent"]
 
         [[pipeline.phases]]
         phase = "export"

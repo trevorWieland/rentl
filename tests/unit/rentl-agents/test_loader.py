@@ -10,9 +10,9 @@ from rentl_agents.profiles.loader import (
     AgentProfileLoadError,
     SchemaResolutionError,
     ToolResolutionError,
-    _load_agent_profile_sync,
     load_agent_profile,
     load_agent_profile_async,
+    load_agent_profile_sync,
     resolve_output_schema,
 )
 from rentl_schemas.agents import AgentProfileConfig
@@ -223,7 +223,7 @@ content = "Scene: {{scene_id}}"
         profile_path = tmp_path / "sync_agent.toml"
         profile_path.write_text(profile_content)
 
-        profile = _load_agent_profile_sync(profile_path)
+        profile = load_agent_profile_sync(profile_path)
 
         assert isinstance(profile, AgentProfileConfig)
         assert profile.meta.name == "sync_test_agent"

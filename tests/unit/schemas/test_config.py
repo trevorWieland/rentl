@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from rentl_schemas.config import (
+    AgentsConfig,
     CacheConfig,
     ConcurrencyConfig,
     EndpointSetConfig,
@@ -54,11 +55,26 @@ def test_pipeline_config_enforces_phase_order() -> None:
         PipelineConfig(
             default_model=ModelSettings(model_id="gpt-4"),
             phases=[
-                PhaseConfig(phase=PhaseName.TRANSLATE),
-                PhaseConfig(phase=PhaseName.CONTEXT),
-                PhaseConfig(phase=PhaseName.PRETRANSLATION),
-                PhaseConfig(phase=PhaseName.QA),
-                PhaseConfig(phase=PhaseName.EDIT),
+                PhaseConfig(
+                    phase=PhaseName.TRANSLATE,
+                    agents=["direct_translator"],
+                ),
+                PhaseConfig(
+                    phase=PhaseName.CONTEXT,
+                    agents=["scene_summarizer"],
+                ),
+                PhaseConfig(
+                    phase=PhaseName.PRETRANSLATION,
+                    agents=["idiom_labeler"],
+                ),
+                PhaseConfig(
+                    phase=PhaseName.QA,
+                    agents=["style_guide_critic"],
+                ),
+                PhaseConfig(
+                    phase=PhaseName.EDIT,
+                    agents=["basic_editor"],
+                ),
             ],
         )
 
@@ -69,11 +85,26 @@ def test_pipeline_config_requires_default_model() -> None:
         PipelineConfig(
             default_model=None,
             phases=[
-                PhaseConfig(phase=PhaseName.CONTEXT),
-                PhaseConfig(phase=PhaseName.PRETRANSLATION),
-                PhaseConfig(phase=PhaseName.TRANSLATE),
-                PhaseConfig(phase=PhaseName.QA),
-                PhaseConfig(phase=PhaseName.EDIT),
+                PhaseConfig(
+                    phase=PhaseName.CONTEXT,
+                    agents=["scene_summarizer"],
+                ),
+                PhaseConfig(
+                    phase=PhaseName.PRETRANSLATION,
+                    agents=["idiom_labeler"],
+                ),
+                PhaseConfig(
+                    phase=PhaseName.TRANSLATE,
+                    agents=["direct_translator"],
+                ),
+                PhaseConfig(
+                    phase=PhaseName.QA,
+                    agents=["style_guide_critic"],
+                ),
+                PhaseConfig(
+                    phase=PhaseName.EDIT,
+                    agents=["basic_editor"],
+                ),
             ],
         )
 
@@ -214,6 +245,7 @@ def test_run_config_rejects_endpoint_ref_without_endpoints() -> None:
         RunConfig(
             project=_base_project_config(),
             logging=_base_logging_config(),
+            agents=_base_agents_config(),
             endpoint=ModelEndpointConfig(
                 provider_name="legacy",
                 base_url="http://localhost:8002/api/v1",
@@ -244,6 +276,7 @@ def test_run_config_rejects_both_endpoint_modes() -> None:
         RunConfig(
             project=_base_project_config(),
             logging=_base_logging_config(),
+            agents=_base_agents_config(),
             endpoint=ModelEndpointConfig(
                 provider_name="legacy",
                 base_url="http://localhost:8002/api/v1",
@@ -276,6 +309,7 @@ def test_run_config_rejects_unknown_endpoint_ref() -> None:
         RunConfig(
             project=_base_project_config(),
             logging=_base_logging_config(),
+            agents=_base_agents_config(),
             endpoint=None,
             endpoints=endpoints,
             pipeline=pipeline,
@@ -303,6 +337,7 @@ def test_run_config_accepts_multi_endpoints() -> None:
     config = RunConfig(
         project=_base_project_config(),
         logging=_base_logging_config(),
+        agents=_base_agents_config(),
         endpoint=None,
         endpoints=endpoints,
         pipeline=pipeline,
@@ -332,14 +367,36 @@ def _base_logging_config() -> LoggingConfig:
     return LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.FILE)])
 
 
+def _base_agents_config() -> AgentsConfig:
+    return AgentsConfig(
+        prompts_dir="/tmp/prompts",
+        agents_dir="/tmp/agents",
+    )
+
+
 def _base_pipeline_config(default_model: ModelSettings) -> PipelineConfig:
     return PipelineConfig(
         default_model=default_model,
         phases=[
-            PhaseConfig(phase=PhaseName.CONTEXT),
-            PhaseConfig(phase=PhaseName.PRETRANSLATION),
-            PhaseConfig(phase=PhaseName.TRANSLATE),
-            PhaseConfig(phase=PhaseName.QA),
-            PhaseConfig(phase=PhaseName.EDIT),
+            PhaseConfig(
+                phase=PhaseName.CONTEXT,
+                agents=["scene_summarizer"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.PRETRANSLATION,
+                agents=["idiom_labeler"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.TRANSLATE,
+                agents=["direct_translator"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.QA,
+                agents=["style_guide_critic"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.EDIT,
+                agents=["basic_editor"],
+            ),
         ],
     )

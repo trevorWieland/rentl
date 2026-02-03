@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from pydantic_ai import Tool
+
+from rentl_agents.tools.game_info import GameInfoTool
+from rentl_schemas.primitives import JsonValue
 
 
 @runtime_checkable
@@ -31,7 +34,7 @@ class AgentToolProtocol(Protocol):
         """Tool description for LLM."""
         ...
 
-    def execute(self, **kwargs: object) -> dict[str, Any]:
+    def execute(self, **kwargs: JsonValue) -> dict[str, JsonValue]:
         """Execute the tool.
 
         Args:
@@ -151,7 +154,7 @@ class ToolRegistry:
     def get_tool_callables(
         self,
         allowed_tool_names: list[str],
-    ) -> list[Callable[..., dict[str, Any]] | Tool]:
+    ) -> list[Callable[..., dict[str, JsonValue]] | Tool]:
         """Get tool execute methods for pydantic-ai registration.
 
         Args:
@@ -197,8 +200,5 @@ def _register_default_tools(registry: ToolRegistry) -> None:
     Args:
         registry: Registry to populate.
     """
-    # Import here to avoid circular imports
-    from rentl_agents.tools.game_info import GameInfoTool
-
     # Create tool with empty context - will be replaced at runtime
     registry.register(GameInfoTool())

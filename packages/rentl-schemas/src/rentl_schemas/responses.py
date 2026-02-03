@@ -6,8 +6,19 @@ from pydantic import Field
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.pipeline import PhaseRunRecord, RunState
-from rentl_schemas.primitives import RequestId, RunId, RunStatus, Timestamp
-from rentl_schemas.progress import ProgressSummary
+from rentl_schemas.primitives import (
+    PhaseName,
+    RequestId,
+    RunId,
+    RunStatus,
+    Timestamp,
+)
+from rentl_schemas.progress import (
+    AgentTelemetry,
+    AgentTelemetrySummary,
+    ProgressSummary,
+    RunProgress,
+)
 from rentl_schemas.storage import LogFileReference, StorageReference
 
 
@@ -63,4 +74,27 @@ class RunExecutionResult(BaseSchema):
     )
     phase_record: PhaseRunRecord | None = Field(
         None, description="Phase run record when running a single phase"
+    )
+
+
+class RunStatusResult(BaseSchema):
+    """Result payload for CLI status command."""
+
+    run_id: RunId = Field(..., description="Run identifier")
+    status: RunStatus = Field(..., description="Run status")
+    current_phase: PhaseName | None = Field(None, description="Current phase")
+    updated_at: Timestamp = Field(..., description="Status snapshot timestamp")
+    progress: RunProgress | None = Field(
+        None, description="Latest run progress snapshot"
+    )
+    run_state: RunState | None = Field(None, description="Latest run state snapshot")
+    agent_summary: AgentTelemetrySummary | None = Field(
+        None, description="Agent telemetry summary"
+    )
+    agents: list[AgentTelemetry] | None = Field(
+        None, description="Latest agent telemetry snapshots"
+    )
+    log_file: LogFileReference | None = Field(None, description="Log file reference")
+    progress_file: StorageReference | None = Field(
+        None, description="Progress stream file reference"
     )

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TypeVar, cast
+from typing import TypeVar
 from uuid import uuid7
 
 from rentl_core.ports.export import (
@@ -194,6 +196,9 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT]):
 
         Returns:
             list[OutputT]: Outputs aligned to input order.
+
+        Raises:
+            OrchestrationError: If agent pool produces empty result.
         """
         if not payloads:
             return []
@@ -211,7 +216,18 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT]):
             for index, payload in enumerate(payloads):
                 group.create_task(_run(index, payload))
 
-        return [cast(OutputT, result) for result in results]
+        resolved: list[OutputT] = []
+        for result in results:
+            if result is None:
+                raise OrchestrationError(
+                    OrchestrationErrorInfo(
+                        code=OrchestrationErrorCode.INVALID_STATE,
+                        message="Agent pool produced empty result",
+                        details=OrchestrationErrorDetails(),
+                    )
+                )
+            resolved.append(result)
+        return resolved
 
 
 @dataclass(slots=True)
@@ -250,11 +266,13 @@ class PipelineOrchestrator:
         log_sink: LogSinkProtocol,
         ingest_adapter: IngestAdapterProtocol | None = None,
         export_adapter: ExportAdapterProtocol | None = None,
-        context_agents: ContextAgentPoolProtocol | None = None,
-        pretranslation_agents: PretranslationAgentPoolProtocol | None = None,
-        translate_agents: TranslateAgentPoolProtocol | None = None,
-        qa_agents: QaAgentPoolProtocol | None = None,
-        edit_agents: EditAgentPoolProtocol | None = None,
+        context_agents: Sequence[tuple[str, ContextAgentPoolProtocol]] | None = None,
+        pretranslation_agents: Sequence[tuple[str, PretranslationAgentPoolProtocol]]
+        | None = None,
+        translate_agents: Sequence[tuple[str, TranslateAgentPoolProtocol]]
+        | None = None,
+        qa_agents: Sequence[tuple[str, QaAgentPoolProtocol]] | None = None,
+        edit_agents: Sequence[tuple[str, EditAgentPoolProtocol]] | None = None,
         progress_sink: ProgressSinkProtocol | None = None,
         run_state_store: RunStateStoreProtocol | None = None,
         artifact_store: ArtifactStoreProtocol | None = None,
@@ -266,11 +284,11 @@ class PipelineOrchestrator:
             log_sink: Log sink for JSONL entries.
             ingest_adapter: Adapter for ingest phase.
             export_adapter: Adapter for export phase.
-            context_agents: Context agent pool.
-            pretranslation_agents: Pretranslation agent pool.
-            translate_agents: Translate agent pool.
-            qa_agents: QA agent pool.
-            edit_agents: Edit agent pool.
+            context_agents: Ordered context agent pools.
+            pretranslation_agents: Ordered pretranslation agent pools.
+            translate_agents: Ordered translate agent pools.
+            qa_agents: Ordered QA agent pools.
+            edit_agents: Ordered edit agent pools.
             progress_sink: Optional progress sink.
             run_state_store: Optional run state store.
             artifact_store: Optional artifact store.
@@ -278,11 +296,13 @@ class PipelineOrchestrator:
         """
         self._ingest_adapter = ingest_adapter
         self._export_adapter = export_adapter
-        self._context_agents = context_agents
-        self._pretranslation_agents = pretranslation_agents
-        self._translate_agents = translate_agents
-        self._qa_agents = qa_agents
-        self._edit_agents = edit_agents
+        self._context_agents = list(context_agents) if context_agents else []
+        self._pretranslation_agents = (
+            list(pretranslation_agents) if pretranslation_agents else []
+        )
+        self._translate_agents = list(translate_agents) if translate_agents else []
+        self._qa_agents = list(qa_agents) if qa_agents else []
+        self._edit_agents = list(edit_agents) if edit_agents else []
         self._log_sink = log_sink
         self._progress_sink = progress_sink
         self._run_state_store = run_state_store
@@ -455,19 +475,19 @@ class PipelineOrchestrator:
                 record = await self._run_pretranslation(run, phase_config.execution)
             elif phase == PhaseName.TRANSLATE:
                 record = await self._run_translate(
-                    run, cast(LanguageCode, language), phase_config.execution
+                    run, _require_language(language, phase), phase_config.execution
                 )
             elif phase == PhaseName.QA:
                 record = await self._run_qa(
-                    run, cast(LanguageCode, language), phase_config.execution
+                    run, _require_language(language, phase), phase_config.execution
                 )
             elif phase == PhaseName.EDIT:
                 record = await self._run_edit(
-                    run, cast(LanguageCode, language), phase_config.execution
+                    run, _require_language(language, phase), phase_config.execution
                 )
             elif phase == PhaseName.EXPORT:
                 record = await self._run_export(
-                    run, cast(LanguageCode, language), export_target
+                    run, _require_language(language, phase), export_target
                 )
             else:
                 raise OrchestrationError(
@@ -593,7 +613,7 @@ class PipelineOrchestrator:
         run: PipelineRunContext,
         execution: PhaseExecutionConfig | None,
     ) -> PhaseRunRecord:
-        if self._context_agents is None:
+        if not self._context_agents:
             raise OrchestrationError(
                 OrchestrationErrorInfo(
                     code=OrchestrationErrorCode.INVALID_STATE,
@@ -621,40 +641,48 @@ class PipelineOrchestrator:
         }
         use_scenes = bool(scene_ids)
         total_units = len(scene_ids) if use_scenes else len(run.source_lines or [])
-        completed_units = 0
-        processed_scenes: set[str] = set()
 
-        async def _on_batch(
-            batch_inputs: list[ContextPhaseInput],
-            _batch_outputs: list[ContextPhaseOutput],
-        ) -> None:
-            nonlocal completed_units
-            if use_scenes:
-                for payload in batch_inputs:
-                    for line in payload.source_lines:
-                        if line.scene_id is not None:
-                            processed_scenes.add(line.scene_id)
-                completed_units = len(processed_scenes)
-            else:
-                completed_units += sum(
-                    len(payload.source_lines) for payload in batch_inputs
+        agent_outputs: list[ContextPhaseOutput] = []
+        for agent_name, pool in self._context_agents:
+            completed_units = 0
+            processed_scenes: set[str] = set()
+
+            async def _on_batch(
+                batch_inputs: list[ContextPhaseInput],
+                _batch_outputs: list[ContextPhaseOutput],
+                _agent_name: str = agent_name,
+                _processed_scenes: set[str] = processed_scenes,
+            ) -> None:
+                nonlocal completed_units
+                if use_scenes:
+                    for payload in batch_inputs:
+                        for line in payload.source_lines:
+                            if line.scene_id is not None:
+                                _processed_scenes.add(line.scene_id)
+                    completed_units = len(_processed_scenes)
+                else:
+                    completed_units += sum(
+                        len(payload.source_lines) for payload in batch_inputs
+                    )
+                await self._emit_phase_progress_update(
+                    run,
+                    PhaseName.CONTEXT,
+                    "scenes_summarized",
+                    ProgressUnit.SCENES,
+                    completed_units,
+                    total_units,
+                    message=_agent_name,
                 )
-            await self._emit_phase_progress_update(
-                run,
-                PhaseName.CONTEXT,
-                "scenes_summarized",
-                ProgressUnit.SCENES,
-                completed_units,
-                total_units,
-            )
 
-        outputs = await _run_agent_pool(
-            self._context_agents,
-            inputs,
-            execution.max_parallel_agents if execution else None,
-            on_batch=_on_batch,
-        )
-        run.context_output = _merge_context_outputs(run, outputs)
+            outputs = await _run_agent_pool(
+                pool,
+                inputs,
+                execution.max_parallel_agents if execution else None,
+                on_batch=_on_batch,
+            )
+            agent_outputs.append(_merge_context_outputs(run, outputs))
+
+        run.context_output = _merge_context_outputs_across_agents(agent_outputs)
         artifact_ids = await self._persist_phase_artifact(
             run,
             PhaseName.CONTEXT,
@@ -685,7 +713,7 @@ class PipelineOrchestrator:
         run: PipelineRunContext,
         execution: PhaseExecutionConfig | None,
     ) -> PhaseRunRecord:
-        if self._pretranslation_agents is None:
+        if not self._pretranslation_agents:
             raise OrchestrationError(
                 OrchestrationErrorInfo(
                     code=OrchestrationErrorCode.INVALID_STATE,
@@ -698,32 +726,41 @@ class PipelineOrchestrator:
         )
         inputs = [_build_pretranslation_input(run, chunk) for chunk in chunks]
         total_units = len(run.source_lines or [])
-        completed_units = 0
 
-        async def _on_batch(
-            batch_inputs: list[PretranslationPhaseInput],
-            _batch_outputs: list[PretranslationPhaseOutput],
-        ) -> None:
-            nonlocal completed_units
-            completed_units += sum(
-                len(payload.source_lines) for payload in batch_inputs
-            )
-            await self._emit_phase_progress_update(
-                run,
-                PhaseName.PRETRANSLATION,
-                "lines_annotated",
-                ProgressUnit.LINES,
-                completed_units,
-                total_units,
-            )
+        agent_outputs: list[PretranslationPhaseOutput] = []
+        for agent_name, pool in self._pretranslation_agents:
+            completed_units = 0
 
-        outputs = await _run_agent_pool(
-            self._pretranslation_agents,
-            inputs,
-            execution.max_parallel_agents if execution else None,
-            on_batch=_on_batch,
+            async def _on_batch(
+                batch_inputs: list[PretranslationPhaseInput],
+                _batch_outputs: list[PretranslationPhaseOutput],
+                _agent_name: str = agent_name,
+            ) -> None:
+                nonlocal completed_units
+                completed_units += sum(
+                    len(payload.source_lines) for payload in batch_inputs
+                )
+                await self._emit_phase_progress_update(
+                    run,
+                    PhaseName.PRETRANSLATION,
+                    "lines_annotated",
+                    ProgressUnit.LINES,
+                    completed_units,
+                    total_units,
+                    message=_agent_name,
+                )
+
+            outputs = await _run_agent_pool(
+                pool,
+                inputs,
+                execution.max_parallel_agents if execution else None,
+                on_batch=_on_batch,
+            )
+            agent_outputs.append(_merge_pretranslation_outputs(run, outputs))
+
+        run.pretranslation_output = _merge_pretranslation_outputs_across_agents(
+            run, agent_outputs
         )
-        run.pretranslation_output = _merge_pretranslation_outputs(run, outputs)
         artifact_ids = await self._persist_phase_artifact(
             run,
             PhaseName.PRETRANSLATION,
@@ -755,7 +792,7 @@ class PipelineOrchestrator:
         target_language: LanguageCode,
         execution: PhaseExecutionConfig | None,
     ) -> PhaseRunRecord:
-        if self._translate_agents is None:
+        if not self._translate_agents:
             raise OrchestrationError(
                 OrchestrationErrorInfo(
                     code=OrchestrationErrorCode.INVALID_STATE,
@@ -773,32 +810,43 @@ class PipelineOrchestrator:
             _build_translate_input(run, target_language, chunk) for chunk in chunks
         ]
         total_units = len(run.source_lines or [])
-        completed_units = 0
 
-        async def _on_batch(
-            batch_inputs: list[TranslatePhaseInput],
-            _batch_outputs: list[TranslatePhaseOutput],
-        ) -> None:
-            nonlocal completed_units
-            completed_units += sum(
-                len(payload.source_lines) for payload in batch_inputs
+        agent_outputs: list[TranslatePhaseOutput] = []
+        for agent_name, pool in self._translate_agents:
+            completed_units = 0
+
+            async def _on_batch(
+                batch_inputs: list[TranslatePhaseInput],
+                _batch_outputs: list[TranslatePhaseOutput],
+                _agent_name: str = agent_name,
+            ) -> None:
+                nonlocal completed_units
+                completed_units += sum(
+                    len(payload.source_lines) for payload in batch_inputs
+                )
+                await self._emit_phase_progress_update(
+                    run,
+                    PhaseName.TRANSLATE,
+                    "lines_translated",
+                    ProgressUnit.LINES,
+                    completed_units,
+                    total_units,
+                    message=_agent_name,
+                )
+
+            outputs = await _run_agent_pool(
+                pool,
+                inputs,
+                execution.max_parallel_agents if execution else None,
+                on_batch=_on_batch,
             )
-            await self._emit_phase_progress_update(
-                run,
-                PhaseName.TRANSLATE,
-                "lines_translated",
-                ProgressUnit.LINES,
-                completed_units,
-                total_units,
+            agent_outputs.append(
+                _merge_translate_outputs(run, target_language, outputs)
             )
 
-        outputs = await _run_agent_pool(
-            self._translate_agents,
-            inputs,
-            execution.max_parallel_agents if execution else None,
-            on_batch=_on_batch,
+        merged_output = _merge_translate_outputs_across_agents(
+            run, target_language, agent_outputs
         )
-        merged_output = _merge_translate_outputs(run, target_language, outputs)
         run.translate_outputs[target_language] = merged_output
         artifact_ids = await self._persist_phase_artifact(
             run,
@@ -845,35 +893,40 @@ class PipelineOrchestrator:
 
         # Run LLM-based QA agents (if configured)
         agent_outputs: list[QaPhaseOutput] = []
-        if self._qa_agents is not None:
+        if self._qa_agents:
             chunks = _build_work_chunks(run.source_lines or [], execution, PhaseName.QA)
             inputs = [_build_qa_input(run, target_language, chunk) for chunk in chunks]
             total_units = len(run.source_lines or [])
-            completed_units = 0
 
-            async def _on_batch(
-                batch_inputs: list[QaPhaseInput],
-                _batch_outputs: list[QaPhaseOutput],
-            ) -> None:
-                nonlocal completed_units
-                completed_units += sum(
-                    len(payload.source_lines) for payload in batch_inputs
-                )
-                await self._emit_phase_progress_update(
-                    run,
-                    PhaseName.QA,
-                    "lines_checked",
-                    ProgressUnit.LINES,
-                    completed_units,
-                    total_units,
-                )
+            for agent_name, pool in self._qa_agents:
+                completed_units = 0
 
-            agent_outputs = await _run_agent_pool(
-                self._qa_agents,
-                inputs,
-                execution.max_parallel_agents if execution else None,
-                on_batch=_on_batch,
-            )
+                async def _on_batch(
+                    batch_inputs: list[QaPhaseInput],
+                    _batch_outputs: list[QaPhaseOutput],
+                    _agent_name: str = agent_name,
+                ) -> None:
+                    nonlocal completed_units
+                    completed_units += sum(
+                        len(payload.source_lines) for payload in batch_inputs
+                    )
+                    await self._emit_phase_progress_update(
+                        run,
+                        PhaseName.QA,
+                        "lines_checked",
+                        ProgressUnit.LINES,
+                        completed_units,
+                        total_units,
+                        message=_agent_name,
+                    )
+
+                outputs = await _run_agent_pool(
+                    pool,
+                    inputs,
+                    execution.max_parallel_agents if execution else None,
+                    on_batch=_on_batch,
+                )
+                agent_outputs.append(_merge_qa_outputs(run, target_language, outputs))
 
         # Merge all QA outputs (deterministic + agent-based)
         merged_output = _merge_qa_outputs_with_deterministic(
@@ -911,7 +964,7 @@ class PipelineOrchestrator:
         target_language: LanguageCode,
         execution: PhaseExecutionConfig | None,
     ) -> PhaseRunRecord:
-        if self._edit_agents is None:
+        if not self._edit_agents:
             raise OrchestrationError(
                 OrchestrationErrorInfo(
                     code=OrchestrationErrorCode.INVALID_STATE,
@@ -925,32 +978,41 @@ class PipelineOrchestrator:
         chunks = _build_work_chunks(run.source_lines or [], execution, PhaseName.EDIT)
         inputs = [_build_edit_input(run, target_language, chunk) for chunk in chunks]
         total_units = len(run.source_lines or [])
-        completed_units = 0
 
-        async def _on_batch(
-            batch_inputs: list[EditPhaseInput],
-            _batch_outputs: list[EditPhaseOutput],
-        ) -> None:
-            nonlocal completed_units
-            completed_units += sum(
-                len(payload.translated_lines) for payload in batch_inputs
-            )
-            await self._emit_phase_progress_update(
-                run,
-                PhaseName.EDIT,
-                "lines_edited",
-                ProgressUnit.LINES,
-                completed_units,
-                total_units,
-            )
+        agent_outputs: list[EditPhaseOutput] = []
+        for agent_name, pool in self._edit_agents:
+            completed_units = 0
 
-        outputs = await _run_agent_pool(
-            self._edit_agents,
-            inputs,
-            execution.max_parallel_agents if execution else None,
-            on_batch=_on_batch,
+            async def _on_batch(
+                batch_inputs: list[EditPhaseInput],
+                _batch_outputs: list[EditPhaseOutput],
+                _agent_name: str = agent_name,
+            ) -> None:
+                nonlocal completed_units
+                completed_units += sum(
+                    len(payload.translated_lines) for payload in batch_inputs
+                )
+                await self._emit_phase_progress_update(
+                    run,
+                    PhaseName.EDIT,
+                    "lines_edited",
+                    ProgressUnit.LINES,
+                    completed_units,
+                    total_units,
+                    message=_agent_name,
+                )
+
+            outputs = await _run_agent_pool(
+                pool,
+                inputs,
+                execution.max_parallel_agents if execution else None,
+                on_batch=_on_batch,
+            )
+            agent_outputs.append(_merge_edit_outputs(run, target_language, outputs))
+
+        merged_output = _merge_edit_outputs_across_agents(
+            run, target_language, agent_outputs
         )
-        merged_output = _merge_edit_outputs(run, target_language, outputs)
         run.edit_outputs[target_language] = merged_output
         artifact_ids = await self._persist_phase_artifact(
             run,
@@ -1088,10 +1150,17 @@ class PipelineOrchestrator:
         phase: PhaseName,
         event: ProgressEvent,
         timestamp: Timestamp | None = None,
+        message: str | None = None,
     ) -> None:
         if self._progress_sink is None:
             return
-        update = _build_progress_update(run, phase, event, timestamp or self._clock())
+        update = _build_progress_update(
+            run,
+            phase,
+            event,
+            timestamp or self._clock(),
+            message=message,
+        )
         await self._progress_sink.emit_progress(update)
 
     async def _emit_phase_progress_update(
@@ -1102,6 +1171,7 @@ class PipelineOrchestrator:
         unit: ProgressUnit,
         completed_units: int,
         total_units: int,
+        message: str | None = None,
     ) -> None:
         phase_progress = next(
             progress for progress in run.progress.phases if progress.phase == phase
@@ -1125,7 +1195,13 @@ class PipelineOrchestrator:
         run.progress.summary = compute_run_summary(
             run.progress.phases, run.progress.phase_weights
         )
-        await self._emit_progress(run, phase, ProgressEvent.PHASE_PROGRESS, now)
+        await self._emit_progress(
+            run,
+            phase,
+            ProgressEvent.PHASE_PROGRESS,
+            now,
+            message=message,
+        )
 
     async def _emit_phase_failure(
         self,
@@ -1537,6 +1613,21 @@ def _resolve_target_language(
             details=OrchestrationErrorDetails(phase=phase),
         )
     )
+
+
+def _require_language(
+    language: LanguageCode | None,
+    phase: PhaseName,
+) -> LanguageCode:
+    if language is None:
+        raise OrchestrationError(
+            OrchestrationErrorInfo(
+                code=OrchestrationErrorCode.MISSING_DEPENDENCY,
+                message=f"Target language is required for {phase.value}",
+                details=OrchestrationErrorDetails(phase=phase),
+            )
+        )
+    return language
 
 
 def _require_source_lines(run: PipelineRunContext, phase: PhaseName) -> None:
@@ -2023,6 +2114,20 @@ def _merge_context_outputs(
     )
 
 
+def _merge_context_outputs_across_agents(
+    outputs: list[ContextPhaseOutput],
+) -> ContextPhaseOutput:
+    if not outputs:
+        raise OrchestrationError(
+            OrchestrationErrorInfo(
+                code=OrchestrationErrorCode.INVALID_STATE,
+                message="Context output is empty",
+                details=OrchestrationErrorDetails(phase=PhaseName.CONTEXT),
+            )
+        )
+    return outputs[-1]
+
+
 def _merge_pretranslation_outputs(
     run: PipelineRunContext, outputs: list[PretranslationPhaseOutput]
 ) -> PretranslationPhaseOutput:
@@ -2041,6 +2146,33 @@ def _merge_pretranslation_outputs(
     )
 
 
+def _merge_pretranslation_outputs_across_agents(
+    run: PipelineRunContext,
+    outputs: list[PretranslationPhaseOutput],
+) -> PretranslationPhaseOutput:
+    if not outputs:
+        raise OrchestrationError(
+            OrchestrationErrorInfo(
+                code=OrchestrationErrorCode.INVALID_STATE,
+                message="Pretranslation output is empty",
+                details=OrchestrationErrorDetails(phase=PhaseName.PRETRANSLATION),
+            )
+        )
+    line_order = _build_line_index(run.source_lines or [])
+    annotations = _merge_annotations_relaxed(
+        [output.annotations for output in outputs], line_order
+    )
+    term_candidates = _merge_term_candidates_replace([
+        output.term_candidates for output in outputs
+    ])
+    return PretranslationPhaseOutput(
+        run_id=run.run_id,
+        phase=PhaseName.PRETRANSLATION,
+        annotations=annotations,
+        term_candidates=term_candidates,
+    )
+
+
 def _merge_translate_outputs(
     run: PipelineRunContext,
     target_language: LanguageCode,
@@ -2048,6 +2180,34 @@ def _merge_translate_outputs(
 ) -> TranslatePhaseOutput:
     line_order = _build_line_index(run.source_lines or [])
     translated_lines = _merge_translated_lines(outputs, line_order, target_language)
+    return TranslatePhaseOutput(
+        run_id=run.run_id,
+        phase=PhaseName.TRANSLATE,
+        target_language=target_language,
+        translated_lines=translated_lines,
+    )
+
+
+def _merge_translate_outputs_across_agents(
+    run: PipelineRunContext,
+    target_language: LanguageCode,
+    outputs: list[TranslatePhaseOutput],
+) -> TranslatePhaseOutput:
+    if not outputs:
+        raise OrchestrationError(
+            OrchestrationErrorInfo(
+                code=OrchestrationErrorCode.INVALID_STATE,
+                message="Translate output is empty",
+                details=OrchestrationErrorDetails(
+                    phase=PhaseName.TRANSLATE,
+                    target_language=target_language,
+                ),
+            )
+        )
+    line_order = _build_line_index(run.source_lines or [])
+    translated_lines = _merge_translated_lines_relaxed(
+        outputs, line_order, target_language
+    )
     return TranslatePhaseOutput(
         run_id=run.run_id,
         phase=PhaseName.TRANSLATE,
@@ -2091,7 +2251,7 @@ def _merge_qa_outputs_with_deterministic(
         Merged QaPhaseOutput with all issues.
     """
     line_order = _build_line_index(run.source_lines or [])
-    agent_issues = _merge_qa_issues(agent_outputs, line_order, target_language)
+    agent_issues = _merge_qa_issues_relaxed(agent_outputs, line_order, target_language)
 
     # Combine deterministic issues first, then agent issues
     # Sort deterministic issues by line order for consistency
@@ -2100,7 +2260,16 @@ def _merge_qa_outputs_with_deterministic(
         key=lambda issue: line_order.get(issue.line_id, float("inf")),
     )
 
-    all_issues = sorted_deterministic + agent_issues
+    merged: dict[str, QaIssue] = {}
+    for issue in sorted_deterministic:
+        merged[_issue_merge_key(issue)] = issue
+    for issue in agent_issues:
+        merged[_issue_merge_key(issue)] = issue
+
+    all_issues = sorted(
+        merged.values(),
+        key=lambda issue: line_order.get(issue.line_id, 10**9),
+    )
     summary = _build_qa_summary(all_issues)
 
     return QaPhaseOutput(
@@ -2119,6 +2288,36 @@ def _merge_edit_outputs(
 ) -> EditPhaseOutput:
     line_order = _build_line_index(run.source_lines or [])
     edited_lines = _merge_edited_lines(outputs, line_order, target_language)
+    change_log = _merge_change_log(
+        [output.change_log for output in outputs], line_order
+    )
+    return EditPhaseOutput(
+        run_id=run.run_id,
+        phase=PhaseName.EDIT,
+        target_language=target_language,
+        edited_lines=edited_lines,
+        change_log=change_log,
+    )
+
+
+def _merge_edit_outputs_across_agents(
+    run: PipelineRunContext,
+    target_language: LanguageCode,
+    outputs: list[EditPhaseOutput],
+) -> EditPhaseOutput:
+    if not outputs:
+        raise OrchestrationError(
+            OrchestrationErrorInfo(
+                code=OrchestrationErrorCode.INVALID_STATE,
+                message="Edit output is empty",
+                details=OrchestrationErrorDetails(
+                    phase=PhaseName.EDIT,
+                    target_language=target_language,
+                ),
+            )
+        )
+    line_order = _build_line_index(run.source_lines or [])
+    edited_lines = _merge_edited_lines_relaxed(outputs, line_order, target_language)
     change_log = _merge_change_log(
         [output.change_log for output in outputs], line_order
     )
@@ -2225,6 +2424,20 @@ def _merge_annotations(
     )
 
 
+def _merge_annotations_relaxed(
+    annotations: list[list[PretranslationAnnotation]],
+    line_order: dict[LineId, int],
+) -> list[PretranslationAnnotation]:
+    merged: dict[str, PretranslationAnnotation] = {}
+    for annotation_list in annotations:
+        for annotation in annotation_list:
+            merged[_annotation_merge_key(annotation)] = annotation
+    return sorted(
+        merged.values(),
+        key=lambda annotation: line_order.get(annotation.line_id, 10**9),
+    )
+
+
 def _merge_term_candidates(
     candidates: list[list[TermCandidate]],
 ) -> list[TermCandidate]:
@@ -2232,6 +2445,16 @@ def _merge_term_candidates(
     for candidate_list in candidates:
         for candidate in candidate_list:
             merged.setdefault(candidate.term, candidate)
+    return list(merged.values())
+
+
+def _merge_term_candidates_replace(
+    candidates: list[list[TermCandidate]],
+) -> list[TermCandidate]:
+    merged: dict[str, TermCandidate] = {}
+    for candidate_list in candidates:
+        for candidate in candidate_list:
+            merged[candidate.term] = candidate
     return list(merged.values())
 
 
@@ -2259,6 +2482,29 @@ def _merge_translated_lines(
                         details=OrchestrationErrorDetails(phase=PhaseName.TRANSLATE),
                     )
                 )
+            merged[line.line_id] = line
+    return sorted(
+        merged.values(),
+        key=lambda line: line_order.get(line.line_id, 10**9),
+    )
+
+
+def _merge_translated_lines_relaxed(
+    outputs: list[TranslatePhaseOutput],
+    line_order: dict[LineId, int],
+    target_language: str,
+) -> list[TranslatedLine]:
+    merged: dict[LineId, TranslatedLine] = {}
+    for output in outputs:
+        if output.target_language != target_language:
+            raise OrchestrationError(
+                OrchestrationErrorInfo(
+                    code=OrchestrationErrorCode.INVALID_STATE,
+                    message="Mismatched target language in translate output",
+                    details=OrchestrationErrorDetails(phase=PhaseName.TRANSLATE),
+                )
+            )
+        for line in output.translated_lines:
             merged[line.line_id] = line
     return sorted(
         merged.values(),
@@ -2297,6 +2543,29 @@ def _merge_qa_issues(
     )
 
 
+def _merge_qa_issues_relaxed(
+    outputs: list[QaPhaseOutput],
+    line_order: dict[LineId, int],
+    target_language: LanguageCode,
+) -> list[QaIssue]:
+    merged: dict[str, QaIssue] = {}
+    for output in outputs:
+        if output.target_language != target_language:
+            raise OrchestrationError(
+                OrchestrationErrorInfo(
+                    code=OrchestrationErrorCode.INVALID_STATE,
+                    message="Mismatched target language in QA output",
+                    details=OrchestrationErrorDetails(phase=PhaseName.QA),
+                )
+            )
+        for issue in output.issues:
+            merged[_issue_merge_key(issue)] = issue
+    return sorted(
+        merged.values(),
+        key=lambda issue: line_order.get(issue.line_id, 10**9),
+    )
+
+
 def _merge_edited_lines(
     outputs: list[EditPhaseOutput],
     line_order: dict[LineId, int],
@@ -2326,6 +2595,67 @@ def _merge_edited_lines(
         merged.values(),
         key=lambda line: line_order.get(line.line_id, 10**9),
     )
+
+
+def _merge_edited_lines_relaxed(
+    outputs: list[EditPhaseOutput],
+    line_order: dict[LineId, int],
+    target_language: LanguageCode,
+) -> list[TranslatedLine]:
+    merged: dict[LineId, TranslatedLine] = {}
+    for output in outputs:
+        if output.target_language != target_language:
+            raise OrchestrationError(
+                OrchestrationErrorInfo(
+                    code=OrchestrationErrorCode.INVALID_STATE,
+                    message="Mismatched target language in edit output",
+                    details=OrchestrationErrorDetails(phase=PhaseName.EDIT),
+                )
+            )
+        for line in output.edited_lines:
+            merged[line.line_id] = line
+    return sorted(
+        merged.values(),
+        key=lambda line: line_order.get(line.line_id, 10**9),
+    )
+
+
+def _annotation_merge_key(annotation: PretranslationAnnotation) -> str:
+    if annotation.annotation_id:
+        return str(annotation.annotation_id)
+    metadata = (
+        json.dumps(annotation.metadata, sort_keys=True)
+        if annotation.metadata is not None
+        else ""
+    )
+    return _stable_merge_key([
+        str(annotation.line_id),
+        str(annotation.annotation_type),
+        annotation.value or "",
+        annotation.notes or "",
+        metadata,
+    ])
+
+
+def _issue_merge_key(issue: QaIssue) -> str:
+    if issue.issue_id:
+        return str(issue.issue_id)
+    metadata = (
+        json.dumps(issue.metadata, sort_keys=True) if issue.metadata is not None else ""
+    )
+    return _stable_merge_key([
+        str(issue.line_id),
+        str(issue.category),
+        str(issue.severity),
+        issue.message,
+        issue.suggestion or "",
+        metadata,
+    ])
+
+
+def _stable_merge_key(parts: list[str]) -> str:
+    joined = "|".join(parts)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 
 def _merge_change_log(
@@ -2555,6 +2885,7 @@ def _build_progress_update(
     phase: PhaseName,
     event: ProgressEvent,
     timestamp: Timestamp,
+    message: str | None = None,
 ) -> ProgressUpdate:
     phase_progress = next(
         progress for progress in run.progress.phases if progress.phase == phase
@@ -2569,7 +2900,7 @@ def _build_progress_update(
         run_progress=run.progress,
         phase_progress=phase_progress,
         metric=None,
-        message=None,
+        message=message,
     )
 
 

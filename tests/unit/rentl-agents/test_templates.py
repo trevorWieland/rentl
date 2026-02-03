@@ -206,7 +206,7 @@ class TestRenderTemplate:
         """Test rendering empty template."""
         result = render_template("", {"name": "World"})
 
-        assert result == ""
+        assert not result
 
     def test_render_no_variables(self) -> None:
         """Test rendering template with no variables."""

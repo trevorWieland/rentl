@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_schemas.config import (
+    AgentsConfig,
     CacheConfig,
     ConcurrencyConfig,
     EndpointSetConfig,
@@ -94,6 +95,7 @@ def _build_config() -> RunConfig:
     return RunConfig(
         project=_base_project_config(),
         logging=_logging_config(),
+        agents=_agents_config(),
         endpoint=None,
         endpoints=_endpoints_config(),
         pipeline=_pipeline_config(),
@@ -142,6 +144,7 @@ def _pipeline_config() -> PipelineConfig:
             PhaseConfig(
                 phase=PhaseName.CONTEXT,
                 enabled=True,
+                agents=["scene_summarizer"],
                 model=None,
                 concurrency=None,
                 retry=None,
@@ -151,6 +154,7 @@ def _pipeline_config() -> PipelineConfig:
             PhaseConfig(
                 phase=PhaseName.PRETRANSLATION,
                 enabled=True,
+                agents=["idiom_labeler"],
                 model=None,
                 concurrency=None,
                 retry=None,
@@ -160,6 +164,7 @@ def _pipeline_config() -> PipelineConfig:
             PhaseConfig(
                 phase=PhaseName.TRANSLATE,
                 enabled=True,
+                agents=["direct_translator"],
                 model=_model_settings("gpt-4", "secondary"),
                 concurrency=None,
                 retry=None,
@@ -169,6 +174,7 @@ def _pipeline_config() -> PipelineConfig:
             PhaseConfig(
                 phase=PhaseName.QA,
                 enabled=True,
+                agents=["style_guide_critic"],
                 model=None,
                 concurrency=None,
                 retry=None,
@@ -178,6 +184,7 @@ def _pipeline_config() -> PipelineConfig:
             PhaseConfig(
                 phase=PhaseName.EDIT,
                 enabled=True,
+                agents=["basic_editor"],
                 model=None,
                 concurrency=None,
                 retry=None,
@@ -185,6 +192,13 @@ def _pipeline_config() -> PipelineConfig:
                 parameters=None,
             ),
         ],
+    )
+
+
+def _agents_config() -> AgentsConfig:
+    return AgentsConfig(
+        prompts_dir="/tmp/prompts",
+        agents_dir="/tmp/agents",
     )
 
 

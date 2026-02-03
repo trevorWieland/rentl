@@ -7,7 +7,9 @@ defined by TOML profiles.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Literal, TypeVar
+from uuid import UUID, uuid7
 
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
@@ -17,14 +19,18 @@ from pydantic_ai.output import PromptedOutput
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.tools import RunContext, ToolDefinition
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 
 from rentl_agents.layers import PromptComposer, PromptLayerRegistry
 from rentl_agents.templates import TemplateContext
 from rentl_agents.tools.registry import ToolRegistry
+from rentl_core import AgentTelemetryEmitter
 from rentl_core.ports.orchestrator import PhaseAgentProtocol
 from rentl_schemas.agents import AgentProfileConfig
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.events import ProgressEvent
+from rentl_schemas.primitives import PhaseName, RunId
+from rentl_schemas.progress import AgentStatus, AgentTelemetry, AgentUsageTotals
 
 InputT = TypeVar("InputT", bound=BaseSchema)
 OutputT = TypeVar("OutputT", bound=BaseSchema)
@@ -89,6 +95,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
         tool_registry: ToolRegistry,
         config: ProfileAgentConfig,
         template_context: TemplateContext | None = None,
+        telemetry_emitter: AgentTelemetryEmitter | None = None,
     ) -> None:
         """Initialize the profile agent.
 
@@ -99,6 +106,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             tool_registry: Tool registry.
             config: Runtime configuration.
             template_context: Template context for prompt rendering.
+            telemetry_emitter: Optional telemetry emitter for agent status.
         """
         self._profile = profile
         self._output_type = output_type
@@ -107,6 +115,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
         self._config = config
         self._template_context = template_context or TemplateContext()
         self._composer = PromptComposer(registry=layer_registry)
+        self._telemetry_emitter = telemetry_emitter
 
     @property
     def profile(self) -> AgentProfileConfig:
@@ -140,11 +149,77 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
                 or usage limits exceeded). Error message indicates the cause.
         """
         last_error: Exception | None = None
+        run_id = _extract_run_id(payload) if self._telemetry_emitter else None
+        agent_run_id = _build_agent_run_id(self._profile.meta.name)
+        phase = PhaseName(self._profile.meta.phase)
+        target_language = getattr(payload, "target_language", None)
+        started_at = _now_timestamp()
+        if self._telemetry_emitter is not None:
+            await _emit_agent_update(
+                self._telemetry_emitter,
+                run_id=_ensure_run_id(run_id),
+                event=ProgressEvent.AGENT_STARTED,
+                update=AgentTelemetry(
+                    agent_run_id=agent_run_id,
+                    agent_name=self._profile.meta.name,
+                    phase=phase,
+                    target_language=target_language,
+                    status=AgentStatus.RUNNING,
+                    attempt=1,
+                    started_at=started_at,
+                    completed_at=None,
+                    usage=None,
+                    message="Agent started",
+                ),
+                timestamp=started_at,
+            )
 
-        for attempt in range(self._config.max_retries + 1):
+        max_attempts = self._config.max_retries + 1
+        for attempt in range(1, max_attempts + 1):
             try:
-                return await self._execute(payload)
+                output, usage = await self._execute(payload)
+                completed_at = _now_timestamp()
+                if self._telemetry_emitter is not None:
+                    await _emit_agent_update(
+                        self._telemetry_emitter,
+                        run_id=_ensure_run_id(run_id),
+                        event=ProgressEvent.AGENT_COMPLETED,
+                        update=AgentTelemetry(
+                            agent_run_id=agent_run_id,
+                            agent_name=self._profile.meta.name,
+                            phase=phase,
+                            target_language=target_language,
+                            status=AgentStatus.COMPLETED,
+                            attempt=attempt,
+                            started_at=started_at,
+                            completed_at=completed_at,
+                            usage=usage,
+                            message="Agent completed",
+                        ),
+                        timestamp=completed_at,
+                    )
+                return output
             except UsageLimitExceeded as e:
+                completed_at = _now_timestamp()
+                if self._telemetry_emitter is not None:
+                    await _emit_agent_update(
+                        self._telemetry_emitter,
+                        run_id=_ensure_run_id(run_id),
+                        event=ProgressEvent.AGENT_FAILED,
+                        update=AgentTelemetry(
+                            agent_run_id=agent_run_id,
+                            agent_name=self._profile.meta.name,
+                            phase=phase,
+                            target_language=target_language,
+                            status=AgentStatus.FAILED,
+                            attempt=attempt,
+                            started_at=started_at,
+                            completed_at=completed_at,
+                            usage=None,
+                            message=f"Agent hit request limit: {e}",
+                        ),
+                        timestamp=completed_at,
+                    )
                 # Model failed to produce valid output within request limit
                 # This is a LOUD failure - don't retry, report clearly
                 limit = self._config.max_requests_per_run
@@ -156,6 +231,26 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
                     f"Details: {e}"
                 ) from e
             except UnexpectedModelBehavior as e:
+                completed_at = _now_timestamp()
+                if self._telemetry_emitter is not None:
+                    await _emit_agent_update(
+                        self._telemetry_emitter,
+                        run_id=_ensure_run_id(run_id),
+                        event=ProgressEvent.AGENT_FAILED,
+                        update=AgentTelemetry(
+                            agent_run_id=agent_run_id,
+                            agent_name=self._profile.meta.name,
+                            phase=phase,
+                            target_language=target_language,
+                            status=AgentStatus.FAILED,
+                            attempt=attempt,
+                            started_at=started_at,
+                            completed_at=completed_at,
+                            usage=None,
+                            message=f"Agent produced invalid output: {e}",
+                        ),
+                        timestamp=completed_at,
+                    )
                 # Model produced invalid output that couldn't be parsed
                 # This is a LOUD failure - don't retry, report clearly
                 raise RuntimeError(
@@ -166,16 +261,58 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             except Exception as exc:
                 # Transient errors (network, rate limits) - retry with backoff
                 last_error = exc
-                if attempt < self._config.max_retries:
-                    delay = self._config.retry_base_delay * (2**attempt)
+                if attempt < max_attempts:
+                    next_attempt = attempt + 1
+                    if self._telemetry_emitter is not None:
+                        await _emit_agent_update(
+                            self._telemetry_emitter,
+                            run_id=_ensure_run_id(run_id),
+                            event=ProgressEvent.AGENT_PROGRESS,
+                            update=AgentTelemetry(
+                                agent_run_id=agent_run_id,
+                                agent_name=self._profile.meta.name,
+                                phase=phase,
+                                target_language=target_language,
+                                status=AgentStatus.RUNNING,
+                                attempt=next_attempt,
+                                started_at=started_at,
+                                completed_at=None,
+                                usage=None,
+                                message=f"Retrying after error: {exc}",
+                            ),
+                            timestamp=_now_timestamp(),
+                        )
+                    delay = self._config.retry_base_delay * (2 ** (attempt - 1))
                     await asyncio.sleep(delay)
+                    continue
+                completed_at = _now_timestamp()
+                if self._telemetry_emitter is not None:
+                    await _emit_agent_update(
+                        self._telemetry_emitter,
+                        run_id=_ensure_run_id(run_id),
+                        event=ProgressEvent.AGENT_FAILED,
+                        update=AgentTelemetry(
+                            agent_run_id=agent_run_id,
+                            agent_name=self._profile.meta.name,
+                            phase=phase,
+                            target_language=target_language,
+                            status=AgentStatus.FAILED,
+                            attempt=attempt,
+                            started_at=started_at,
+                            completed_at=completed_at,
+                            usage=None,
+                            message=f"Agent execution failed: {exc}",
+                        ),
+                        timestamp=completed_at,
+                    )
 
         raise RuntimeError(
-            f"Agent {self.name} execution failed after "
-            f"{self._config.max_retries + 1} attempts"
+            f"Agent {self.name} execution failed after {max_attempts} attempts"
         ) from last_error
 
-    async def _execute(self, payload: InputT) -> OutputT:
+    async def _execute(
+        self, payload: InputT
+    ) -> tuple[OutputT, AgentUsageTotals | None]:
         """Execute a single agent invocation.
 
         May raise UsageLimitExceeded or UnexpectedModelBehavior from pydantic-ai
@@ -270,9 +407,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
 
             prepare_output_tools = _prepare_output_tools
 
-        # Create agent with structured output
-        # Note: type ignore needed due to pydantic-ai typing limitations with generics
-        agent: Agent[None, OutputT] = Agent(  # type: ignore[assignment]
+        agent: Agent[None, OutputT] = Agent(
             model=model,
             instructions=system_prompt,
             output_type=output_type,
@@ -298,4 +433,61 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             model_settings=model_settings,
             usage_limits=usage_limits,
         )
-        return result.output
+        usage = _build_usage_totals(result.usage())
+        return result.output, usage
+
+
+def _build_usage_totals(usage: RunUsage | None) -> AgentUsageTotals | None:
+    if usage is None or not usage.has_values():
+        return None
+    return AgentUsageTotals(
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        total_tokens=usage.total_tokens,
+        request_count=usage.requests,
+        tool_calls=usage.tool_calls,
+    )
+
+
+def _build_agent_run_id(agent_name: str) -> str:
+    return f"{agent_name}_{uuid7().hex}"
+
+
+def _now_timestamp() -> str:
+    timestamp = datetime.now(UTC).isoformat()
+    return timestamp.replace("+00:00", "Z")
+
+
+def _extract_run_id(payload: BaseSchema) -> RunId:
+    value = getattr(payload, "run_id", None)
+    if value is None:
+        raise ValueError("payload is missing run_id")
+    if not isinstance(value, UUID):
+        raise ValueError("run_id must be a UUID")
+    return value
+
+
+def _ensure_run_id(run_id: RunId | None) -> RunId:
+    if run_id is None:
+        raise ValueError("run_id is required for telemetry")
+    return run_id
+
+
+async def _emit_agent_update(
+    emitter: AgentTelemetryEmitter | None,
+    *,
+    run_id: RunId,
+    event: ProgressEvent,
+    update: AgentTelemetry,
+    timestamp: str | None = None,
+    message: str | None = None,
+) -> None:
+    if emitter is None:
+        return
+    await emitter.emit(
+        run_id=run_id,
+        event=event,
+        update=update,
+        timestamp=timestamp,
+        message=message,
+    )

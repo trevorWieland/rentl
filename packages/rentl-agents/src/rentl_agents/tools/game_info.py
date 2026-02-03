@@ -6,7 +6,8 @@ Provides project/game information to agents during execution.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+
+from rentl_schemas.primitives import JsonValue
 
 
 @dataclass
@@ -50,7 +51,7 @@ class GameInfoTool:
             "Returns game name, synopsis, source language, and target languages."
         )
 
-    def execute(self, **kwargs: object) -> dict[str, Any]:
+    def execute(self, **kwargs: JsonValue) -> dict[str, JsonValue]:
         """Execute the tool.
 
         Args:

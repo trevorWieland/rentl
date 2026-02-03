@@ -46,6 +46,10 @@ class ProgressEvent(StrEnum):
     PHASE_PROGRESS = "phase_progress"
     PHASE_COMPLETED = "phase_completed"
     PHASE_FAILED = "phase_failed"
+    AGENT_STARTED = "agent_started"
+    AGENT_PROGRESS = "agent_progress"
+    AGENT_COMPLETED = "agent_completed"
+    AGENT_FAILED = "agent_failed"
 
 
 class IngestEvent(StrEnum):
@@ -70,6 +74,15 @@ class CommandEvent(StrEnum):
     STARTED = "command_started"
     COMPLETED = "command_completed"
     FAILED = "command_failed"
+
+
+class AgentEvent(StrEnum):
+    """Event names for agent telemetry logs."""
+
+    STARTED = "agent_started"
+    PROGRESS = "agent_progress"
+    COMPLETED = "agent_completed"
+    FAILED = "agent_failed"
 
 
 class ArtifactEvent(StrEnum):

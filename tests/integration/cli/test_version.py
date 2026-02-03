@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from click.testing import Result
 from pytest_bdd import scenarios, then, when
 from typer.testing import CliRunner
 
@@ -11,7 +12,7 @@ import rentl_cli.main as cli_main
 from rentl_core import VERSION
 
 if TYPE_CHECKING:
-    from click.testing import Result
+    pass
 
 # Link feature file
 scenarios("../features/cli/version.feature")

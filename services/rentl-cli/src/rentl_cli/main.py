@@ -5,18 +5,35 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
+import time
 import tomllib
+from dataclasses import replace
 from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, TypeVar, cast
+from typing import NamedTuple, TypeVar
 from uuid import UUID, uuid7
 
 import typer
 from dotenv import load_dotenv
 from pydantic import ValidationError
 from rich import print as rprint
+from rich.console import Console, Group, RenderableType
+from rich.live import Live
+from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskID,
+    TextColumn,
+    TimeRemainingColumn,
+)
+from rich.table import Table
 
-from rentl_core import VERSION
+from rentl_agents.wiring import build_agent_pools
+from rentl_core import VERSION, AgentTelemetryEmitter, build_status_result
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.orchestrator import (
     PipelineOrchestrator,
@@ -25,7 +42,11 @@ from rentl_core.orchestrator import (
 )
 from rentl_core.ports.export import ExportBatchError, ExportError, ExportResult
 from rentl_core.ports.ingest import IngestBatchError, IngestError
-from rentl_core.ports.orchestrator import LogSinkProtocol, OrchestrationError
+from rentl_core.ports.orchestrator import (
+    LogSinkProtocol,
+    OrchestrationError,
+    ProgressSinkProtocol,
+)
 from rentl_core.ports.storage import StorageBatchError, StorageError
 from rentl_io import write_output
 from rentl_io.export.router import get_export_adapter
@@ -44,27 +65,39 @@ from rentl_schemas.events import (
     CommandEvent,
     CommandFailedData,
     CommandStartedData,
+    ProgressEvent,
 )
 from rentl_schemas.io import ExportTarget, IngestSource, TranslatedLine
 from rentl_schemas.llm import LlmConnectionReport, LlmEndpointTarget
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.pipeline import PhaseRunRecord, RunState
 from rentl_schemas.primitives import (
+    PIPELINE_PHASE_ORDER,
     FileFormat,
     JsonValue,
     LanguageCode,
     LogLevel,
     PhaseName,
     RunId,
+    RunStatus,
     UntranslatedPolicy,
 )
-from rentl_schemas.progress import ProgressSummary
+from rentl_schemas.progress import (
+    AgentStatus,
+    PhaseProgress,
+    ProgressMetric,
+    ProgressSummary,
+    ProgressUpdate,
+    RunProgress,
+)
 from rentl_schemas.responses import (
     ApiResponse,
     ErrorResponse,
     MetaInfo,
     RunExecutionResult,
+    RunStatusResult,
 )
+from rentl_schemas.results import PhaseResultMetric, ResultMetricUnit
 from rentl_schemas.storage import LogFileReference, StorageBackend, StorageReference
 from rentl_schemas.validation import validate_run_config
 
@@ -148,7 +181,7 @@ def validate_connection(
     try:
         config = _load_resolved_config(config_path)
         log_sink = _build_command_log_sink(config)
-        args = cast(dict[str, JsonValue], {"config_path": str(config_path)})
+        args: dict[str, JsonValue] = {"config_path": str(config_path)}
         _emit_command_log_sync(
             log_sink,
             _build_command_started_log(
@@ -211,21 +244,18 @@ def export(
     try:
         config = _load_resolved_config(config_path)
         log_sink = _build_command_log_sink(config)
-        args = cast(
-            dict[str, JsonValue],
-            {
-                "config_path": str(config_path),
-                "input_path": str(input_path),
-                "output_path": str(output_path),
-                "format": format.value,
-                "untranslated_policy": untranslated_policy.value,
-                "include_source_text": include_source_text,
-                "include_scene_id": include_scene_id,
-                "include_speaker": include_speaker,
-                "column_order": column_order,
-                "expected_line_count": expected_line_count,
-            },
-        )
+        args: dict[str, JsonValue] = {
+            "config_path": str(config_path),
+            "input_path": str(input_path),
+            "output_path": str(output_path),
+            "format": format.value,
+            "untranslated_policy": untranslated_policy.value,
+            "include_source_text": include_source_text,
+            "include_scene_id": include_scene_id,
+            "include_speaker": include_speaker,
+            "column_order": _as_json_list(column_order),
+            "expected_line_count": expected_line_count,
+        }
         _emit_command_log_sync(
             log_sink,
             _build_command_started_log(
@@ -326,20 +356,31 @@ def run_pipeline(
     """Run the full pipeline plan."""
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
+    progress: Progress | None = None
+    console: Console | None = None
     try:
         config = _load_resolved_config(config_path)
         resolved_run_id = _resolve_run_id(run_id)
         command_run_id = resolved_run_id
         bundle = _build_storage_bundle(config, resolved_run_id)
+        if _should_render_progress():
+            console = Console(stderr=True)
+            progress = _build_progress(console)
+            reporter = _ProgressReporter(bundle.progress_sink, progress, console)
+            bundle = _StorageBundle(
+                run_state_store=bundle.run_state_store,
+                artifact_store=bundle.artifact_store,
+                log_store=bundle.log_store,
+                log_sink=bundle.log_sink,
+                progress_sink=reporter,
+                progress_path=bundle.progress_path,
+            )
         log_sink = bundle.log_sink
-        args = cast(
-            dict[str, JsonValue],
-            {
-                "config_path": str(config_path),
-                "run_id": str(resolved_run_id),
-                "target_languages": target_languages,
-            },
-        )
+        args: dict[str, JsonValue] = {
+            "config_path": str(config_path),
+            "run_id": str(resolved_run_id),
+            "target_languages": _as_json_list(target_languages),
+        }
         _emit_command_log_sync(
             log_sink,
             _build_command_started_log(
@@ -349,14 +390,25 @@ def run_pipeline(
                 args=args,
             ),
         )
-        result = asyncio.run(
-            _run_pipeline_async(
-                config=config,
-                bundle=bundle,
-                run_id=resolved_run_id,
-                target_languages=target_languages,
+        if progress is not None:
+            with progress:
+                result = asyncio.run(
+                    _run_pipeline_async(
+                        config=config,
+                        bundle=bundle,
+                        run_id=resolved_run_id,
+                        target_languages=target_languages,
+                    )
+                )
+        else:
+            result = asyncio.run(
+                _run_pipeline_async(
+                    config=config,
+                    bundle=bundle,
+                    run_id=resolved_run_id,
+                    target_languages=target_languages,
+                )
             )
-        )
         _emit_command_log_sync(
             log_sink,
             _build_command_completed_log(
@@ -402,17 +454,14 @@ def run_phase(
         command_run_id = resolved_run_id
         bundle = _build_storage_bundle(config, resolved_run_id)
         log_sink = bundle.log_sink
-        args = cast(
-            dict[str, JsonValue],
-            {
-                "config_path": str(config_path),
-                "run_id": str(resolved_run_id),
-                "phase": phase.value,
-                "target_language": target_language,
-                "input_path": str(input_path) if input_path else None,
-                "output_path": str(output_path) if output_path else None,
-            },
-        )
+        args: dict[str, JsonValue] = {
+            "config_path": str(config_path),
+            "run_id": str(resolved_run_id),
+            "phase": phase.value,
+            "target_language": target_language,
+            "input_path": str(input_path) if input_path else None,
+            "output_path": str(output_path) if output_path else None,
+        }
         _emit_command_log_sync(
             log_sink,
             _build_command_started_log(
@@ -460,6 +509,58 @@ def run_phase(
     print(response.model_dump_json())
 
 
+@app.command("status")
+def status(
+    config_path: Path = CONFIG_OPTION,
+    run_id: str | None = RUN_ID_OPTION,
+    watch: bool = typer.Option(False, "--watch", "-w", help="Watch progress"),
+    json_output: bool = typer.Option(False, "--json", help="Output status as JSON"),
+) -> None:
+    """Show run status and progress.
+
+    Raises:
+        ValueError: If arguments are incompatible or no runs are found.
+        typer.Exit: If rendering fails in non-JSON mode.
+    """
+    try:
+        if watch and json_output:
+            raise ValueError("--json is not supported with --watch")
+        config = _load_resolved_config(config_path)
+        resolved_run_id = _resolve_status_run_id(config, run_id)
+        bundle = _build_storage_bundle(config, resolved_run_id)
+        if watch:
+            _watch_status(bundle, resolved_run_id)
+            return
+        run_state = asyncio.run(_load_run_state(bundle, resolved_run_id))
+        log_reference = asyncio.run(bundle.log_store.get_log_reference(resolved_run_id))
+        progress_updates = _read_progress_updates(bundle.progress_path)
+        progress_file = _build_progress_reference(bundle.progress_path)
+        status_result = build_status_result(
+            run_id=resolved_run_id,
+            run_state=run_state,
+            progress_updates=progress_updates,
+            log_reference=log_reference,
+            progress_file=progress_file,
+        )
+        if json_output:
+            response: ApiResponse[RunStatusResult] = ApiResponse(
+                data=status_result,
+                error=None,
+                meta=MetaInfo(timestamp=_now_timestamp()),
+            )
+            print(response.model_dump_json())
+            return
+        _render_status(status_result)
+    except Exception as exc:
+        error = _error_from_exception(exc)
+        if json_output:
+            response = _error_response(error)
+            print(response.model_dump_json())
+            return
+        rprint(f"[red]Error:[/red] {error.message}")
+        raise typer.Exit(code=1) from None
+
+
 ResponseT = TypeVar("ResponseT")
 
 _LLM_PHASES = {
@@ -486,7 +587,7 @@ class _StorageBundle(NamedTuple):
     artifact_store: FileSystemArtifactStore
     log_store: FileSystemLogStore
     log_sink: LogSinkProtocol
-    progress_sink: FileSystemProgressSink
+    progress_sink: ProgressSinkProtocol
     progress_path: Path
 
 
@@ -495,9 +596,97 @@ def _now_timestamp() -> str:
     return timestamp.replace("+00:00", "Z")
 
 
+class _ProgressReporter(ProgressSinkProtocol):
+    def __init__(
+        self,
+        sink: ProgressSinkProtocol,
+        progress: Progress,
+        console: Console,
+    ) -> None:
+        self._sink = sink
+        self._progress = progress
+        self._console = console
+        self._tasks: dict[str, TaskID] = {}
+
+    async def emit_progress(self, update: ProgressUpdate) -> None:
+        await self._sink.emit_progress(update)
+        self._handle_update(update)
+
+    def _handle_update(self, update: ProgressUpdate) -> None:
+        if update.event == ProgressEvent.PHASE_STARTED and update.phase is not None:
+            self._console.print(f"Starting {update.phase.value}")
+        if update.event == ProgressEvent.PHASE_COMPLETED and update.phase is not None:
+            self._console.print(f"{update.phase.value} complete")
+        if update.event == ProgressEvent.PHASE_FAILED and update.phase is not None:
+            self._console.print(f"{update.phase.value} failed")
+
+        phase_progress = update.phase_progress
+        if phase_progress is None or not phase_progress.metrics:
+            return
+        metric = phase_progress.metrics[0]
+        phase_name = update.phase.value if update.phase else "phase"
+        agent_name = update.message or "agent"
+        task_key = f"{phase_name}:{agent_name}"
+        description = f"{phase_name}/{agent_name}"
+        total = metric.total_units or 0
+
+        task_id = self._tasks.get(task_key)
+        if task_id is None:
+            task_id = self._progress.add_task(
+                description,
+                total=total,
+                completed=metric.completed_units,
+            )
+            self._tasks[task_key] = task_id
+        else:
+            self._progress.update(
+                task_id,
+                total=total,
+                completed=metric.completed_units,
+            )
+
+
+def _should_render_progress() -> bool:
+    return sys.stderr.isatty()
+
+
+def _build_progress(console: Console) -> Progress:
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeRemainingColumn(),
+        console=console,
+    )
+
+
+def _as_json_list(values: list[str] | None) -> list[JsonValue] | None:
+    if values is None:
+        return None
+    return list(values)
+
+
 def _load_resolved_config(config_path: Path) -> RunConfig:
     config = _load_run_config(config_path)
-    return _resolve_project_paths(config, config_path)
+    config = _resolve_project_paths(config, config_path)
+    return _resolve_agent_paths(config)
+
+
+def _resolve_agent_paths(config: RunConfig) -> RunConfig:
+    workspace_dir = Path(config.project.paths.workspace_dir)
+    agents_config = config.agents
+    updated_agents = agents_config.model_copy(
+        update={
+            "prompts_dir": str(
+                _resolve_path(Path(agents_config.prompts_dir), workspace_dir)
+            ),
+            "agents_dir": str(
+                _resolve_path(Path(agents_config.agents_dir), workspace_dir)
+            ),
+        }
+    )
+    return config.model_copy(update={"agents": updated_agents})
 
 
 def _build_command_log_sink(config: RunConfig) -> LogSinkProtocol:
@@ -595,7 +784,7 @@ def _load_translated_lines_sync(path: Path) -> list[TranslatedLine]:
     try:
         with path.open("r", encoding="utf-8") as handle:
             for line_number, raw_line in enumerate(handle, start=1):
-                if raw_line.strip() == "":
+                if not raw_line.strip():
                     continue
                 try:
                     payload = json.loads(raw_line)
@@ -829,7 +1018,11 @@ def _ensure_api_key(config: RunConfig, phases: list[PhaseName]) -> None:
             )
 
 
-def _build_storage_bundle(config: RunConfig, run_id: RunId) -> _StorageBundle:
+def _build_storage_bundle(
+    config: RunConfig,
+    run_id: RunId,
+    progress_sink: ProgressSinkProtocol | None = None,
+) -> _StorageBundle:
     workspace_dir = Path(config.project.paths.workspace_dir)
     base_dir = workspace_dir / ".rentl"
     run_state_dir = base_dir / "run_state"
@@ -837,12 +1030,13 @@ def _build_storage_bundle(config: RunConfig, run_id: RunId) -> _StorageBundle:
     log_store = FileSystemLogStore(logs_dir=config.project.paths.logs_dir)
     progress_path = _progress_path(config.project.paths.logs_dir, run_id)
     log_sink = build_log_sink(config.logging, log_store)
+    file_progress_sink = FileSystemProgressSink(str(progress_path))
     return _StorageBundle(
         run_state_store=FileSystemRunStateStore(base_dir=str(run_state_dir)),
         artifact_store=FileSystemArtifactStore(base_dir=str(artifact_dir)),
         log_store=log_store,
         log_sink=log_sink,
-        progress_sink=FileSystemProgressSink(str(progress_path)),
+        progress_sink=progress_sink or file_progress_sink,
         progress_path=progress_path,
     )
 
@@ -852,11 +1046,33 @@ def _progress_path(logs_dir: str, run_id: RunId) -> Path:
 
 
 def _build_orchestrator(
-    config: RunConfig, bundle: _StorageBundle
+    config: RunConfig, bundle: _StorageBundle, phases: list[PhaseName]
 ) -> PipelineOrchestrator:
+    agent_pools = None
+    if any(phase in _LLM_PHASES for phase in phases):
+        telemetry_emitter = AgentTelemetryEmitter(
+            progress_sink=bundle.progress_sink,
+            log_sink=bundle.log_sink,
+            clock=_now_timestamp,
+        )
+        try:
+            agent_pools = build_agent_pools(
+                config=config,
+                telemetry_emitter=telemetry_emitter,
+                phases=phases,
+            )
+        except ValueError as exc:
+            raise _ConfigError(str(exc)) from exc
     return PipelineOrchestrator(
         ingest_adapter=get_ingest_adapter(config.project.formats.input_format),
         export_adapter=get_export_adapter(config.project.formats.output_format),
+        context_agents=agent_pools.context_agents if agent_pools else None,
+        pretranslation_agents=agent_pools.pretranslation_agents
+        if agent_pools
+        else None,
+        translate_agents=agent_pools.translate_agents if agent_pools else None,
+        qa_agents=agent_pools.qa_agents if agent_pools else None,
+        edit_agents=agent_pools.edit_agents if agent_pools else None,
         log_sink=bundle.log_sink,
         progress_sink=bundle.progress_sink,
         run_state_store=bundle.run_state_store,
@@ -949,7 +1165,7 @@ async def _run_pipeline_async(
         raise ValueError("No enabled phases configured")
     languages = _resolve_target_languages(config, target_languages)
     _ensure_api_key(config, phases)
-    orchestrator = _build_orchestrator(config, bundle)
+    orchestrator = _build_orchestrator(config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=None)
     export_targets = _build_export_targets(
@@ -987,7 +1203,7 @@ async def _run_phase_async(
     phases = _resolve_phase_plan(config, phase)
     languages = _resolve_phase_languages(config, phase, target_language)
     _ensure_api_key(config, phases)
-    orchestrator = _build_orchestrator(config, bundle)
+    orchestrator = _build_orchestrator(config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=input_path)
     export_targets = _build_export_targets(
@@ -1039,6 +1255,380 @@ def _build_progress_reference(path: Path | None) -> StorageReference | None:
     if path is None:
         return None
     return StorageReference(backend=StorageBackend.FILESYSTEM, path=str(path))
+
+
+def _resolve_status_run_id(config: RunConfig, run_id: str | None) -> RunId:
+    if run_id is not None:
+        return _parse_run_id(run_id)
+    workspace_dir = Path(config.project.paths.workspace_dir)
+    run_state_dir = workspace_dir / ".rentl" / "run_state"
+    store = FileSystemRunStateStore(base_dir=str(run_state_dir))
+    records = asyncio.run(store.list_run_index(limit=1))
+    if not records:
+        raise ValueError("No runs found")
+    return records[0].metadata.run_id
+
+
+def _read_progress_updates(path: Path) -> list[ProgressUpdate]:
+    if not path.exists():
+        return []
+    updates: list[ProgressUpdate] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            updates.append(ProgressUpdate.model_validate_json(line))
+    return updates
+
+
+def _read_progress_updates_since(
+    path: Path, offset: int
+) -> tuple[list[ProgressUpdate], int]:
+    if not path.exists():
+        return [], offset
+    updates: list[ProgressUpdate] = []
+    with path.open("r", encoding="utf-8") as handle:
+        handle.seek(offset)
+        for line in handle:
+            if not line.strip():
+                continue
+            updates.append(ProgressUpdate.model_validate_json(line))
+        new_offset = handle.tell()
+    return updates, new_offset
+
+
+def _watch_status(bundle: _StorageBundle, run_id: RunId) -> None:
+    updates: list[ProgressUpdate] = []
+    offset = 0
+    log_reference = asyncio.run(bundle.log_store.get_log_reference(run_id))
+    progress_file = _build_progress_reference(bundle.progress_path)
+    final_status = None
+    no_state_count = 0
+    max_no_state_iterations = 20  # 10 seconds of no state before warning
+
+    with Live(refresh_per_second=4) as live:
+        while True:
+            run_state = asyncio.run(_load_run_state(bundle, run_id))
+            new_updates, offset = _read_progress_updates_since(
+                bundle.progress_path, offset
+            )
+            if new_updates:
+                updates.extend(new_updates)
+            status_result = build_status_result(
+                run_id=run_id,
+                run_state=run_state,
+                progress_updates=updates,
+                log_reference=log_reference,
+                progress_file=progress_file,
+            )
+            live.update(_build_status_panel(status_result))
+
+            # Determine terminal status from status snapshot
+            terminal_status = status_result.status
+            if run_state is not None:
+                no_state_count = 0
+            else:
+                no_state_count += 1
+
+            # Check for terminal states
+            if _format_enum(terminal_status) in {
+                RunStatus.COMPLETED.value,
+                RunStatus.FAILED.value,
+                RunStatus.CANCELLED.value,
+            }:
+                final_status = terminal_status
+                break
+
+            # If no state for too long, show warning in the panel
+            if no_state_count > max_no_state_iterations:
+                # Force update with warning that no state exists
+                warning_result = _build_no_state_warning_result(
+                    run_id, status_result, no_state_count
+                )
+                live.update(_build_status_panel(warning_result))
+                final_status = RunStatus.FAILED
+                break
+
+            time.sleep(0.5)
+
+    if final_status is None:
+        final_status = status_result.status
+    rprint(f"Run {run_id} {final_status.value}")
+    if _format_enum(final_status) == RunStatus.FAILED.value:
+        raise typer.Exit(code=1)
+
+
+def _render_status(result: RunStatusResult) -> None:
+    panel = _build_status_panel(result)
+    rprint(panel)
+
+
+def _build_status_panel(result: RunStatusResult) -> Panel:
+    header = Table.grid(padding=(0, 1))
+    header.add_column(justify="right", style="bold")
+    header.add_column()
+    header.add_row("Run ID", str(result.run_id))
+    header.add_row("Status", _format_enum(result.status))
+    header.add_row(
+        "Current Phase",
+        _format_enum(result.current_phase) if result.current_phase else "n/a",
+    )
+    header.add_row("Updated", result.updated_at)
+    if result.progress is not None:
+        header.add_row(
+            "Run Progress",
+            _format_percent(result.progress.summary.percent_complete),
+        )
+        header.add_row(
+            "Run ETA",
+            _format_eta(result.progress.summary.eta_seconds),
+        )
+
+    phases_table = _build_phase_table(result.progress)
+    agent_table = _build_agent_summary_table(result)
+    active_agents = _build_active_agent_table(result)
+    phase_summary = _build_phase_summary_table(result.run_state)
+    error_table = _build_error_table(result.run_state)
+
+    renderables: list[RenderableType] = [header, phases_table]
+    if agent_table is not None:
+        renderables.append(agent_table)
+    if active_agents is not None:
+        renderables.append(active_agents)
+    if phase_summary is not None:
+        renderables.append(phase_summary)
+    if error_table is not None:
+        renderables.append(error_table)
+
+    return Panel(Group(*renderables), title="rentl status", expand=True)
+
+
+def _build_phase_table(progress: RunProgress | None) -> Table:
+    table = Table(title="Phases", show_lines=False)
+    table.add_column("Phase")
+    table.add_column("Status")
+    table.add_column("Progress")
+    table.add_column("ETA")
+    if progress is None:
+        table.add_row("n/a", "n/a", "n/a", "n/a")
+        return table
+    for phase in progress.phases:
+        table.add_row(
+            _format_enum(phase.phase),
+            _format_enum(phase.status),
+            _format_phase_progress(phase),
+            _format_eta(phase.summary.eta_seconds),
+        )
+    return table
+
+
+def _build_agent_summary_table(result: RunStatusResult) -> Table | None:
+    if result.agent_summary is None:
+        return None
+    table = Table(title="Agents")
+    table.add_column("Status")
+    table.add_column("Count", justify="right")
+    by_status = {
+        str(key): value for key, value in result.agent_summary.by_status.items()
+    }
+    for status in AgentStatus:
+        count = by_status.get(status.value, 0)
+        if count:
+            table.add_row(status.value, str(count))
+    table.add_row("total", str(result.agent_summary.total))
+    if result.agent_summary.usage is not None:
+        table.add_row(
+            "tokens",
+            str(result.agent_summary.usage.total_tokens),
+        )
+        table.add_row(
+            "requests",
+            str(result.agent_summary.usage.request_count),
+        )
+    return table
+
+
+def _build_active_agent_table(result: RunStatusResult) -> Table | None:
+    if not result.agents:
+        return None
+    running = [agent for agent in result.agents if agent.status == AgentStatus.RUNNING]
+    if not running:
+        return None
+    table = Table(title="Active Agents")
+    table.add_column("Agent")
+    table.add_column("Phase")
+    table.add_column("Target")
+    table.add_column("Attempt", justify="right")
+    table.add_column("Started")
+    for agent in running[:5]:
+        table.add_row(
+            agent.agent_name,
+            _format_enum(agent.phase),
+            agent.target_language or "-",
+            str(agent.attempt or "-"),
+            agent.started_at or "-",
+        )
+    if len(running) > 5:
+        table.add_row(
+            f"+{len(running) - 5} more",
+            "",
+            "",
+            "",
+            "",
+        )
+    return table
+
+
+def _build_phase_summary_table(run_state: RunState | None) -> Table | None:
+    if run_state is None or not run_state.phase_history:
+        return None
+    latest: dict[tuple[PhaseName, str | None], PhaseRunRecord] = {}
+    for record in run_state.phase_history:
+        if record.summary is None:
+            continue
+        key = (record.phase, record.target_language)
+        latest[key] = record
+    if not latest:
+        return None
+    table = Table(title="Phase Summaries")
+    table.add_column("Phase")
+    table.add_column("Target")
+    table.add_column("Metrics")
+    order = {phase.value: index for index, phase in enumerate(PIPELINE_PHASE_ORDER)}
+    for key in sorted(
+        latest.keys(),
+        key=lambda item: order.get(_format_enum(item[0]), 0),
+    ):
+        record = latest[key]
+        summary = record.summary
+        if summary is None:
+            continue
+        metrics = _format_result_metrics(summary.metrics)
+        table.add_row(
+            _format_enum(record.phase),
+            record.target_language or "-",
+            metrics,
+        )
+    return table
+
+
+def _build_error_table(run_state: RunState | None) -> Table | None:
+    if run_state is None or run_state.last_error is None:
+        return None
+    error = run_state.last_error
+    details = error.details or {}
+    table = Table(title="Run Error")
+    table.add_column("Field")
+    table.add_column("Value")
+    table.add_row("code", error.code)
+    table.add_row("message", error.message)
+    phase = details.get("phase")
+    if phase:
+        table.add_row("phase", str(phase))
+    target_language = details.get("target_language")
+    if target_language:
+        table.add_row("target_language", str(target_language))
+    missing = details.get("missing_phases")
+    if missing:
+        if isinstance(missing, list):
+            table.add_row(
+                "missing_phases",
+                ", ".join(str(item) for item in missing),
+            )
+        else:
+            table.add_row("missing_phases", str(missing))
+    next_action = details.get("next_action")
+    if next_action:
+        table.add_row("next_action", str(next_action))
+    return table
+
+
+def _format_phase_progress(phase: PhaseProgress) -> str:
+    percent = phase.summary.percent_complete
+    metric = _format_progress_metric(phase.metrics)
+    if percent is None:
+        return metric or "n/a"
+    if metric:
+        return f"{percent:.1f}% ({metric})"
+    return f"{percent:.1f}%"
+
+
+def _format_progress_metric(metrics: list[ProgressMetric] | None) -> str | None:
+    if not metrics:
+        return None
+    metric = metrics[0]
+    unit_value = _format_enum(metric.unit)
+    if metric.total_units is None:
+        return f"{metric.completed_units} {unit_value}"
+    return f"{metric.completed_units}/{metric.total_units} {unit_value}"
+
+
+def _build_no_state_warning_result(
+    run_id: RunId,
+    base_result: RunStatusResult,
+    iterations: int,
+) -> RunStatusResult:
+    """Build a status result with warning when no run state exists.
+
+    Args:
+        run_id: The run identifier being watched.
+        base_result: The original status result.
+        iterations: Number of iterations without state.
+
+    Returns:
+        RunStatusResult with warning information.
+    """
+    # If we have a run_state, update its error; otherwise the error table won't show
+    # Instead, we'll add this to the phase summary or create a synthetic status
+    if base_result.run_state is None:
+        # Return result with failed status to surface the issue
+        return replace(
+            base_result,
+            status=RunStatus.FAILED,
+            run_state=None,
+        )
+    return base_result
+
+
+def _format_result_metrics(metrics: list[PhaseResultMetric]) -> str:
+    parts: list[str] = []
+    for metric in metrics:
+        value = metric.value
+        if metric.unit == ResultMetricUnit.RATIO:
+            formatted = f"{float(value) * 100:.1f}%"
+            parts.append(f"{metric.metric_key}: {formatted}")
+            continue
+        else:
+            formatted = f"{int(value)}"
+        parts.append(f"{metric.metric_key}: {formatted} {_format_enum(metric.unit)}")
+    return ", ".join(parts)
+
+
+def _format_eta(seconds: float | None) -> str:
+    if seconds is None:
+        return "n/a"
+    remaining = int(seconds)
+    if remaining <= 0:
+        return "0s"
+    minutes, seconds = divmod(remaining, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {seconds}s"
+    return f"{seconds}s"
+
+
+def _format_percent(percent: float | None) -> str:
+    if percent is None:
+        return "n/a"
+    return f"{percent:.1f}%"
+
+
+def _format_enum(value: Enum | str | int | float | bool | None) -> str:
+    if isinstance(value, Enum):
+        return str(value.value)
+    return str(value)
 
 
 def _build_run_execution_result(

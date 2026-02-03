@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import textwrap
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from rentl_core.llm.connection import LlmConnectionTarget, build_connection_plan
@@ -14,7 +16,7 @@ from rentl_schemas.llm import LlmEndpointTarget
 from rentl_schemas.validation import validate_run_config
 
 if TYPE_CHECKING:
-    import pytest
+    pass
 
 # Link feature file
 scenarios("../features/byok/openai_runtime.feature")
@@ -50,6 +52,10 @@ def _write_byok_config(config_path: Path, workspace_dir: Path) -> Path:
         [[logging.sinks]]
         type = "file"
 
+        [agents]
+        prompts_dir = "{workspace_dir}/prompts"
+        agents_dir = "{workspace_dir}/agents"
+
         [endpoints]
         default = "primary"
 
@@ -77,12 +83,15 @@ def _write_byok_config(config_path: Path, workspace_dir: Path) -> Path:
 
         [[pipeline.phases]]
         phase = "context"
+        agents = ["context_agent"]
 
         [[pipeline.phases]]
         phase = "pretranslation"
+        agents = ["pretranslation_agent"]
 
         [[pipeline.phases]]
         phase = "translate"
+        agents = ["translate_agent"]
 
         [pipeline.phases.model]
         model_id = "gpt-4"
@@ -90,9 +99,11 @@ def _write_byok_config(config_path: Path, workspace_dir: Path) -> Path:
 
         [[pipeline.phases]]
         phase = "qa"
+        agents = ["qa_agent"]
 
         [[pipeline.phases]]
         phase = "edit"
+        agents = ["edit_agent"]
 
         [[pipeline.phases]]
         phase = "export"
@@ -121,8 +132,6 @@ def _load_run_config(config_path: Path) -> RunConfig:
     Returns:
         Parsed and validated RunConfig.
     """
-    import tomllib
-
     with open(config_path, "rb") as handle:
         payload = tomllib.load(handle)
     return validate_run_config(payload)

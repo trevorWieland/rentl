@@ -10,13 +10,13 @@ from rentl_agents.layers import (
     LayerLoadError,
     PromptComposer,
     PromptLayerRegistry,
-    _load_phase_prompt_sync,
-    _load_root_prompt_sync,
     load_layer_registry,
     load_phase_prompt,
     load_phase_prompt_async,
+    load_phase_prompt_sync,
     load_root_prompt,
     load_root_prompt_async,
+    load_root_prompt_sync,
 )
 from rentl_agents.templates import TemplateContext
 from rentl_schemas.agents import (
@@ -159,7 +159,7 @@ content = "Sync root prompt"
         root_path = tmp_path / "root.toml"
         root_path.write_text(root_content)
 
-        config = _load_root_prompt_sync(root_path)
+        config = load_root_prompt_sync(root_path)
 
         assert isinstance(config, RootPromptConfig)
 
@@ -255,7 +255,7 @@ content = "Sync phase prompt"
         phase_path = tmp_path / "context.toml"
         phase_path.write_text(phase_content)
 
-        config = _load_phase_prompt_sync(phase_path)
+        config = load_phase_prompt_sync(phase_path)
 
         assert isinstance(config, PhasePromptConfig)
 

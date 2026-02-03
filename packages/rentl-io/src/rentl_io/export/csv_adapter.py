@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import json
-from typing import cast
+from typing import TypeGuard
 
 from rentl_core.ports.export import (
     ExportBatchError,
@@ -22,6 +22,20 @@ from rentl_schemas.primitives import FileFormat, JsonValue, UntranslatedPolicy
 REQUIRED_COLUMNS = ("line_id", "text")
 OPTIONAL_COLUMNS = ("scene_id", "speaker", "source_text", "metadata")
 RESERVED_COLUMNS = set(REQUIRED_COLUMNS + OPTIONAL_COLUMNS)
+
+
+def _is_str_jsonvalue_dict(value: JsonValue) -> TypeGuard[dict[str, JsonValue]]:
+    """Type guard to verify value is a dict with string keys and JsonValue values.
+
+    Args:
+        value: The value to check.
+
+    Returns:
+        True if value is a dict with string keys, False otherwise.
+    """
+    if not isinstance(value, dict):
+        return False
+    return all(isinstance(key, str) for key in value)
 
 
 class CsvExportAdapter:
@@ -419,25 +433,13 @@ def _split_metadata(
     extra: dict[str, JsonValue]
     if extra_value is None:
         extra = {}
-    elif isinstance(extra_value, dict):
-        if not all(isinstance(key, str) for key in extra_value):
-            raise ExportError(
-                ExportErrorInfo(
-                    code=ExportErrorCode.VALIDATION_ERROR,
-                    message="CSV metadata.extra keys must be strings",
-                    details=ExportErrorDetails(
-                        field="metadata.extra",
-                        row_number=row_number,
-                        output_path=output_path,
-                    ),
-                )
-            )
-        extra = cast(dict[str, JsonValue], extra_value)
+    elif _is_str_jsonvalue_dict(extra_value):
+        extra = extra_value
     else:
         raise ExportError(
             ExportErrorInfo(
                 code=ExportErrorCode.VALIDATION_ERROR,
-                message="CSV metadata.extra must be an object",
+                message="CSV metadata.extra must be an object with string keys",
                 details=ExportErrorDetails(
                     field="metadata.extra",
                     row_number=row_number,

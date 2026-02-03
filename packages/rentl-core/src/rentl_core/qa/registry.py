@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from rentl_core.qa.checks.empty_translation import EmptyTranslationCheck
+from rentl_core.qa.checks.line_length import LineLengthCheck
+from rentl_core.qa.checks.unsupported_chars import UnsupportedCharacterCheck
+from rentl_core.qa.checks.whitespace import WhitespaceCheck
 from rentl_core.qa.protocol import DeterministicCheck
 
 type CheckFactory = Callable[[], DeterministicCheck]
@@ -67,11 +71,6 @@ def get_default_registry() -> CheckRegistry:
     Returns:
         CheckRegistry with all standard checks registered.
     """
-    from rentl_core.qa.checks.empty_translation import EmptyTranslationCheck
-    from rentl_core.qa.checks.line_length import LineLengthCheck
-    from rentl_core.qa.checks.unsupported_chars import UnsupportedCharacterCheck
-    from rentl_core.qa.checks.whitespace import WhitespaceCheck
-
     registry = CheckRegistry()
     registry.register("line_length", LineLengthCheck)
     registry.register("empty_translation", EmptyTranslationCheck)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from rentl_agents.tools.game_info import GameInfoTool, ProjectContext
 from rentl_agents.tools.legacy import (
@@ -13,6 +12,7 @@ from rentl_agents.tools.legacy import (
 )
 from rentl_agents.tools.registry import ToolRegistry
 from rentl_schemas.phases import ContextNote, GlossaryTerm, SceneSummary
+from rentl_schemas.primitives import JsonValue
 from tests.quality.agents.eval_types import ToolCallRecord
 
 
@@ -25,8 +25,8 @@ class ToolCallRecorder:
     def record(
         self,
         tool_name: str,
-        args: dict[str, Any],
-        result: dict[str, Any],
+        args: dict[str, JsonValue],
+        result: dict[str, JsonValue],
     ) -> None:
         """Record a tool call.
 
@@ -67,14 +67,14 @@ class InstrumentedGameInfoTool:
         """Tool description for LLM."""
         return self._tool.description
 
-    def execute(self, **kwargs: object) -> dict[str, Any]:
+    def execute(self, **kwargs: JsonValue) -> dict[str, JsonValue]:
         """Execute tool and record the call.
 
         Returns:
             Tool result payload.
         """
         result = self._tool.execute(**kwargs)
-        args: dict[str, Any] = dict(kwargs)
+        args: dict[str, JsonValue] = dict(kwargs)
         self._recorder.record(self._tool.name, args, result)
         return result
 
@@ -106,13 +106,13 @@ class InstrumentedContextLookupTool:
         """Tool description for LLM."""
         return self._tool.description
 
-    def execute(self, **kwargs: object) -> dict[str, Any]:
+    def execute(self, **kwargs: JsonValue) -> dict[str, JsonValue]:
         """Execute tool and record the call.
 
         Returns:
             Tool result payload.
         """
-        args: dict[str, Any] = dict(kwargs)
+        args: dict[str, JsonValue] = dict(kwargs)
         result = self._tool.execute(args)
         self._recorder.record(self._tool.name, args, result)
         return result
@@ -145,13 +145,13 @@ class InstrumentedGlossarySearchTool:
         """Tool description for LLM."""
         return self._tool.description
 
-    def execute(self, **kwargs: object) -> dict[str, Any]:
+    def execute(self, **kwargs: JsonValue) -> dict[str, JsonValue]:
         """Execute tool and record the call.
 
         Returns:
             Tool result payload.
         """
-        args: dict[str, Any] = dict(kwargs)
+        args: dict[str, JsonValue] = dict(kwargs)
         result = self._tool.execute(args)
         self._recorder.record(self._tool.name, args, result)
         return result
@@ -184,13 +184,13 @@ class InstrumentedStyleGuideLookupTool:
         """Tool description for LLM."""
         return self._tool.description
 
-    def execute(self, **kwargs: object) -> dict[str, Any]:
+    def execute(self, **kwargs: JsonValue) -> dict[str, JsonValue]:
         """Execute tool and record the call.
 
         Returns:
             Tool result payload.
         """
-        args: dict[str, Any] = dict(kwargs)
+        args: dict[str, JsonValue] = dict(kwargs)
         result = self._tool.execute(args)
         self._recorder.record(self._tool.name, args, result)
         return result

@@ -183,7 +183,7 @@ class TestFormatLinesForPrompt:
         """Test formatting empty list."""
         result = format_lines_for_prompt([])
 
-        assert result == ""
+        assert not result
 
 
 class TestFormatAnnotatedLinesForPrompt:
@@ -277,7 +277,7 @@ class TestFormatAnnotatedLinesForPrompt:
         """Test formatting empty lines list."""
         result = format_annotated_lines_for_prompt([], None)
 
-        assert result == ""
+        assert not result
 
     def test_format_multiple_annotations_per_line(self) -> None:
         """Test formatting multiple annotations for the same line."""

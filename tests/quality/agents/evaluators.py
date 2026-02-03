@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
 
 from pydantic_evals.evaluators import (
     EvaluationReason,
@@ -13,6 +12,8 @@ from pydantic_evals.evaluators import (
 )
 from pydantic_evals.reporting import EvaluationReport
 
+from rentl_schemas.base import BaseSchema
+from rentl_schemas.primitives import JsonValue
 from tests.quality.agents.eval_types import AgentEvalOutput
 
 
@@ -41,23 +42,27 @@ def assert_report_success(report: EvaluationReport) -> None:
                 )
 
 
-def _get_output_data(output: object) -> dict[str, Any] | None:
+def _get_output_data(
+    output: AgentEvalOutput | dict[str, JsonValue],
+) -> dict[str, JsonValue] | None:
     if isinstance(output, AgentEvalOutput):
         return output.output_data
     if isinstance(output, dict):
-        data = cast(dict[str, Any], output).get("output_data")
+        data = output.get("output_data")
         if isinstance(data, dict):
             return data
     return None
 
 
 @dataclass
-class OutputFieldPresent(Evaluator[Any, AgentEvalOutput]):
+class OutputFieldPresent(Evaluator[BaseSchema, AgentEvalOutput]):
     """Ensure a field exists in output_data."""
 
     field_name: str
 
-    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
         """Evaluate whether the field is present.
 
         Args:
@@ -80,13 +85,15 @@ class OutputFieldPresent(Evaluator[Any, AgentEvalOutput]):
 
 
 @dataclass
-class ListFieldMinLength(Evaluator[Any, AgentEvalOutput]):
+class ListFieldMinLength(Evaluator[BaseSchema, AgentEvalOutput]):
     """Ensure a list field has at least the given length."""
 
     field_name: str
     min_length: int = 1
 
-    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
         """Evaluate list length requirement.
 
         Args:
@@ -117,12 +124,14 @@ class ListFieldMinLength(Evaluator[Any, AgentEvalOutput]):
 
 
 @dataclass
-class ToolCallCountAtLeast(Evaluator[Any, AgentEvalOutput]):
+class ToolCallCountAtLeast(Evaluator[BaseSchema, AgentEvalOutput]):
     """Ensure at least N tool calls were recorded."""
 
     min_calls: int = 1
 
-    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
         """Evaluate minimum tool call count.
 
         Args:
@@ -156,12 +165,14 @@ class ToolCallCountAtLeast(Evaluator[Any, AgentEvalOutput]):
 
 
 @dataclass
-class ToolResultHasKeys(Evaluator[Any, AgentEvalOutput]):
+class ToolResultHasKeys(Evaluator[BaseSchema, AgentEvalOutput]):
     """Ensure the first tool call contains required result keys."""
 
     required_keys: tuple[str, ...]
 
-    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
         """Evaluate tool result key coverage.
 
         Args:
@@ -200,7 +211,7 @@ class ToolResultHasKeys(Evaluator[Any, AgentEvalOutput]):
 
 
 @dataclass
-class ToolInputSchemaValid(Evaluator[Any, AgentEvalOutput]):
+class ToolInputSchemaValid(Evaluator[BaseSchema, AgentEvalOutput]):
     """Validate tool input arguments against expected schema.
 
     Checks that tool call inputs conform to the expected schema
@@ -211,7 +222,9 @@ class ToolInputSchemaValid(Evaluator[Any, AgentEvalOutput]):
     required_keys: tuple[str, ...] = ()
     allowed_keys: tuple[str, ...] | None = None
 
-    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
         """Evaluate tool input schema compliance.
 
         Args:
@@ -275,14 +288,16 @@ class ToolInputSchemaValid(Evaluator[Any, AgentEvalOutput]):
 
 
 @dataclass
-class ToolInputHasType(Evaluator[Any, AgentEvalOutput]):
+class ToolInputHasType(Evaluator[BaseSchema, AgentEvalOutput]):
     """Validate a specific tool input argument has the expected type."""
 
     tool_name: str
     arg_name: str
     expected_type: type
 
-    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
         """Evaluate tool argument type.
 
         Args:
@@ -349,14 +364,16 @@ class ToolInputHasType(Evaluator[Any, AgentEvalOutput]):
 
 
 @dataclass
-class ToolInputStringMinLength(Evaluator[Any, AgentEvalOutput]):
+class ToolInputStringMinLength(Evaluator[BaseSchema, AgentEvalOutput]):
     """Validate a string tool input argument meets minimum length."""
 
     tool_name: str
     arg_name: str
     min_length: int = 1
 
-    def evaluate(self, ctx: EvaluatorContext[Any, AgentEvalOutput]) -> EvaluationReason:
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
         """Evaluate string argument minimum length.
 
         Args:

@@ -47,6 +47,7 @@ select = [
     "DOC",    # pydoclint
     "ANN",    # flake8-annotations
     "FURB",   # refurb
+    "PLC",    # convention
 ]
 ignore = []
 

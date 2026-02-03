@@ -10,10 +10,18 @@ from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
 from rentl_cli.main import app
-from rentl_schemas.events import CommandEvent
+from rentl_schemas.events import CommandEvent, ProgressEvent
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 from rentl_schemas.logs import LogEntry
-from rentl_schemas.responses import ApiResponse, RunExecutionResult
+from rentl_schemas.primitives import PhaseName, PhaseStatus
+from rentl_schemas.progress import (
+    PhaseProgress,
+    ProgressPercentMode,
+    ProgressSummary,
+    ProgressUpdate,
+    RunProgress,
+)
+from rentl_schemas.responses import ApiResponse, RunExecutionResult, RunStatusResult
 
 runner = CliRunner()
 
@@ -223,12 +231,81 @@ def test_validate_connection_emits_command_logs(
 def test_run_pipeline_errors_when_agents_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Run-pipeline returns structured error when agents are missing."""
+    """Run-pipeline returns config error when agents are missing."""
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     input_path = workspace_dir / "input.txt"
     input_path.write_text("Hello\n", encoding="utf-8")
-    config_path = _write_config(tmp_path, workspace_dir)
+    config_path = tmp_path / "rentl.toml"
+    config_path.write_text(
+        textwrap.dedent(
+            f"""
+            [project]
+            schema_version = {{ major = 0, minor = 1, patch = 0 }}
+            project_name = "test-project"
+
+            [project.paths]
+            workspace_dir = "{workspace_dir}"
+            input_path = "input.txt"
+            output_dir = "out"
+            logs_dir = "logs"
+
+            [project.formats]
+            input_format = "txt"
+            output_format = "txt"
+
+            [project.languages]
+            source_language = "en"
+            target_languages = ["ja"]
+
+            [logging]
+            [[logging.sinks]]
+            type = "file"
+
+            [endpoint]
+            provider_name = "test"
+            base_url = "http://localhost"
+            api_key_env = "TEST_KEY"
+
+            [pipeline.default_model]
+            model_id = "gpt-4"
+
+            [[pipeline.phases]]
+            phase = "context"
+            agents = ["context_agent"]
+
+            [[pipeline.phases]]
+            phase = "pretranslation"
+            agents = ["pretranslation_agent"]
+
+            [[pipeline.phases]]
+            phase = "translate"
+            agents = ["translate_agent"]
+
+            [[pipeline.phases]]
+            phase = "qa"
+            agents = ["qa_agent"]
+
+            [[pipeline.phases]]
+            phase = "edit"
+            agents = ["edit_agent"]
+
+            [concurrency]
+            max_parallel_requests = 1
+            max_parallel_scenes = 1
+
+            [retry]
+            max_retries = 1
+            backoff_s = 1.0
+            max_backoff_s = 2.0
+
+            [cache]
+            enabled = false
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
 
     monkeypatch.setenv("TEST_KEY", "fake-key")
 
@@ -241,12 +318,7 @@ def test_run_pipeline_errors_when_agents_missing(
     assert result.exit_code == 0
     response = ApiResponse[RunExecutionResult].model_validate_json(result.stdout)
     assert response.error is not None
-    assert response.error.code == "invalid_state"
-    log_path = workspace_dir / "logs" / f"{run_id}.jsonl"
-    assert log_path.exists()
-    events = _log_event_names(_read_log_entries(log_path))
-    assert CommandEvent.STARTED.value in events
-    assert CommandEvent.FAILED.value in events
+    assert response.error.code == "validation_error"
 
 
 def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:
@@ -259,6 +331,69 @@ def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:
     assert result.exit_code == 0
     response = json.loads(result.stdout)
     assert response["error"]["code"] == "config_error"
+
+
+def test_status_command_outputs_snapshot(tmp_path: Path) -> None:
+    """Status command returns a JSON status snapshot."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+    run_id = uuid7()
+
+    logs_dir = workspace_dir / "logs"
+    progress_dir = logs_dir / "progress"
+    progress_dir.mkdir(parents=True)
+    progress_path = progress_dir / f"{run_id}.jsonl"
+
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress = PhaseProgress(
+        phase=PhaseName.INGEST,
+        status=PhaseStatus.RUNNING,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_progress = RunProgress(
+        phases=[phase_progress],
+        summary=summary,
+        phase_weights=None,
+    )
+    update = ProgressUpdate(
+        run_id=run_id,
+        event=ProgressEvent.RUN_STARTED,
+        timestamp="2026-02-03T10:00:00Z",
+        phase=PhaseName.INGEST,
+        phase_status=PhaseStatus.RUNNING,
+        run_progress=run_progress,
+        phase_progress=phase_progress,
+        metric=None,
+        message="Run started",
+    )
+    progress_path.write_text(update.model_dump_json() + "\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "status",
+            "--config",
+            str(config_path),
+            "--run-id",
+            str(run_id),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    response = ApiResponse[RunStatusResult].model_validate_json(result.stdout)
+    assert response.error is None
+    assert response.data is not None
+    assert response.data.run_id == run_id
 
 
 def test_run_pipeline_errors_on_missing_endpoint_key(tmp_path: Path) -> None:
@@ -303,6 +438,10 @@ def _write_config(tmp_path: Path, workspace_dir: Path) -> Path:
         [[logging.sinks]]
         type = "file"
 
+        [agents]
+        prompts_dir = "{workspace_dir}/prompts"
+        agents_dir = "{workspace_dir}/agents"
+
         [endpoint]
         provider_name = "test"
         base_url = "http://localhost"
@@ -316,18 +455,23 @@ def _write_config(tmp_path: Path, workspace_dir: Path) -> Path:
 
         [[pipeline.phases]]
         phase = "context"
+        agents = ["context_agent"]
 
         [[pipeline.phases]]
         phase = "pretranslation"
+        agents = ["pretranslation_agent"]
 
         [[pipeline.phases]]
         phase = "translate"
+        agents = ["translate_agent"]
 
         [[pipeline.phases]]
         phase = "qa"
+        agents = ["qa_agent"]
 
         [[pipeline.phases]]
         phase = "edit"
+        agents = ["edit_agent"]
 
         [[pipeline.phases]]
         phase = "export"
@@ -374,6 +518,10 @@ def _write_multi_endpoint_config(tmp_path: Path, workspace_dir: Path) -> Path:
         [logging]
         [[logging.sinks]]
         type = "file"
+
+        [agents]
+        prompts_dir = "{workspace_dir}/prompts"
+        agents_dir = "{workspace_dir}/agents"
 
         [endpoints]
         default = "primary"

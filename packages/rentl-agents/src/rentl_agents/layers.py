@@ -8,6 +8,7 @@ This module provides:
 
 from __future__ import annotations
 
+import asyncio
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -124,13 +125,23 @@ def load_root_prompt(path: Path) -> RootPromptConfig:
         This is a sync convenience wrapper. For async contexts, use
         load_root_prompt_async() instead. May raise LayerLoadError.
     """
-    import asyncio
-
     try:
         asyncio.get_running_loop()
-        return _load_root_prompt_sync(path)
+        return load_root_prompt_sync(path)
     except RuntimeError:
         return asyncio.run(load_root_prompt_async(path))
+
+
+def load_root_prompt_sync(path: Path) -> RootPromptConfig:
+    """Load root prompt configuration synchronously.
+
+    Args:
+        path: Path to root.toml file.
+
+    Returns:
+        Validated root prompt configuration.
+    """
+    return _load_root_prompt_sync(path)
 
 
 def _load_root_prompt_sync(path: Path) -> RootPromptConfig:
@@ -252,13 +263,23 @@ def load_phase_prompt(path: Path) -> PhasePromptConfig:
         This is a sync convenience wrapper. For async contexts, use
         load_phase_prompt_async() instead. May raise LayerLoadError.
     """
-    import asyncio
-
     try:
         asyncio.get_running_loop()
-        return _load_phase_prompt_sync(path)
+        return load_phase_prompt_sync(path)
     except RuntimeError:
         return asyncio.run(load_phase_prompt_async(path))
+
+
+def load_phase_prompt_sync(path: Path) -> PhasePromptConfig:
+    """Load phase prompt configuration synchronously.
+
+    Args:
+        path: Path to phase TOML file.
+
+    Returns:
+        Validated phase prompt configuration.
+    """
+    return _load_phase_prompt_sync(path)
 
 
 def _load_phase_prompt_sync(path: Path) -> PhasePromptConfig:

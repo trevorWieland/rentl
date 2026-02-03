@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from rentl_agents.factory import AgentConfig, AgentFactory
 from rentl_agents.harness import AgentHarness
 from rentl_agents.tools import AgentTool, ContextLookupTool
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.primitives import JsonValue
 
 
 class MockInput(BaseSchema):
@@ -34,7 +36,7 @@ class MockTool(AgentTool):
             description="Mock tool for testing",
         )
 
-    def execute(self, input_data: dict[str, object]) -> dict[str, object]:
+    def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Execute mock tool and return success result.
 
         Args:
@@ -87,8 +89,6 @@ class TestAgentConfig:
 
     def test_create_config_with_empty_system_prompt(self) -> None:
         """Test creating config raises error for empty system prompt."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="system_prompt"):
             AgentConfig(
                 model_endpoint_ref="default",
@@ -98,8 +98,6 @@ class TestAgentConfig:
 
     def test_create_config_with_empty_user_prompt_template(self) -> None:
         """Test creating config raises error for empty user prompt template."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="user_prompt_template"):
             AgentConfig(
                 model_endpoint_ref="default",
@@ -119,8 +117,6 @@ class TestAgentConfig:
 
     def test_create_config_with_invalid_max_retries(self) -> None:
         """Test creating config raises error for negative max_retries."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="max_retries"):
             AgentConfig(
                 model_endpoint_ref="default",
@@ -131,8 +127,6 @@ class TestAgentConfig:
 
     def test_create_config_with_invalid_retry_base_delay(self) -> None:
         """Test creating config raises error for non-positive retry_base_delay."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="retry_base_delay"):
             AgentConfig(
                 model_endpoint_ref="default",

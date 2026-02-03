@@ -15,6 +15,7 @@ from rentl_schemas.agents import (
 )
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import (
+    AgentsConfig,
     CacheConfig,
     ConcurrencyConfig,
     DeterministicQaCheckConfig,
@@ -35,6 +36,7 @@ from rentl_schemas.config import (
     RunConfig,
 )
 from rentl_schemas.events import (
+    AgentEvent,
     ArtifactEvent,
     ArtifactPersistedData,
     ArtifactPersistFailedData,
@@ -126,6 +128,12 @@ from rentl_schemas.primitives import (
 )
 from rentl_schemas.progress import (
     PHASE_METRIC_DEFINITIONS,
+    AgentName,
+    AgentRunId,
+    AgentStatus,
+    AgentTelemetry,
+    AgentTelemetrySummary,
+    AgentUsageTotals,
     PhaseProgress,
     ProgressMetric,
     ProgressMetricKey,
@@ -146,6 +154,7 @@ from rentl_schemas.responses import (
     ErrorResponse,
     MetaInfo,
     RunExecutionResult,
+    RunStatusResult,
 )
 from rentl_schemas.results import (
     PHASE_RESULT_METRIC_DEFINITIONS,
@@ -194,12 +203,20 @@ __version__ = "0.1.0"
 __all__ = [
     "PHASE_METRIC_DEFINITIONS",
     "PHASE_RESULT_METRIC_DEFINITIONS",
+    "AgentEvent",
+    "AgentName",
     "AgentOrchestration",
     "AgentProfileConfig",
     "AgentProfileMeta",
     "AgentPromptConfig",
     "AgentPromptContent",
     "AgentRequirements",
+    "AgentRunId",
+    "AgentStatus",
+    "AgentTelemetry",
+    "AgentTelemetrySummary",
+    "AgentUsageTotals",
+    "AgentsConfig",
     "AnnotationId",
     "AnnotationType",
     "ApiResponse",
@@ -328,6 +345,7 @@ __all__ = [
     "RunState",
     "RunStateRecord",
     "RunStatus",
+    "RunStatusResult",
     "SceneId",
     "SceneSummary",
     "SourceLine",

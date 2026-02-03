@@ -143,7 +143,7 @@ class TestFormatLinesForPrompt:
         """Test formatting empty list."""
         result = format_lines_for_prompt([])
 
-        assert result == ""
+        assert not result
 
     def test_format_preserves_line_ids(self) -> None:
         """Test that line IDs are included in output."""
@@ -210,7 +210,7 @@ class TestGetSceneSummaryForLines:
 
         result = get_scene_summary_for_lines(lines, None)
 
-        assert result == ""
+        assert not result
 
     def test_get_summary_empty_summaries(self) -> None:
         """Test when summaries list is empty."""
@@ -220,7 +220,7 @@ class TestGetSceneSummaryForLines:
 
         result = get_scene_summary_for_lines(lines, [])
 
-        assert result == ""
+        assert not result
 
     def test_get_summary_no_scene_ids_in_lines(self) -> None:
         """Test when lines have no scene_id."""
@@ -238,7 +238,7 @@ class TestGetSceneSummaryForLines:
 
         result = get_scene_summary_for_lines(lines, summaries)
 
-        assert result == ""
+        assert not result
 
     def test_get_summary_missing_scene_in_summaries(self) -> None:
         """Test when scene_id not found in summaries."""
@@ -255,7 +255,7 @@ class TestGetSceneSummaryForLines:
 
         result = get_scene_summary_for_lines(lines, summaries)
 
-        assert result == ""
+        assert not result
 
 
 class TestIdiomToAnnotation:

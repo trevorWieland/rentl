@@ -138,7 +138,7 @@ class TestFormatLinesForQaPrompt:
         """Test formatting empty list."""
         result = format_lines_for_qa_prompt([], [])
 
-        assert result == ""
+        assert not result
 
 
 class TestGetSceneSummaryForQa:
@@ -170,7 +170,7 @@ class TestGetSceneSummaryForQa:
 
         result = get_scene_summary_for_qa(source_lines, None)
 
-        assert result == ""
+        assert not result
 
 
 class TestViolationToQaIssue:

@@ -210,11 +210,23 @@ class CacheConfig(BaseSchema):
     max_entries: int | None = Field(None, gt=0, description="Maximum cache entries")
 
 
+class AgentsConfig(BaseSchema):
+    """Agent discovery and prompt configuration."""
+
+    prompts_dir: str = Field(..., min_length=1, description="Prompts directory")
+    agents_dir: str = Field(..., min_length=1, description="Agents directory")
+
+
 class PhaseConfig(BaseSchema):
     """Configuration for a single pipeline phase."""
 
     phase: PhaseName = Field(..., description="Phase name")
     enabled: bool = Field(True, description="Whether the phase runs")
+    agents: list[str] | None = Field(
+        None,
+        min_length=1,
+        description="Ordered agent names to execute for this phase",
+    )
     model: ModelSettings | None = Field(
         None, description="Phase-specific model settings"
     )
@@ -361,6 +373,24 @@ class PipelineConfig(BaseSchema):
             for phase in self.phases:
                 if phase.enabled and phase.model is None:
                     raise ValueError("default_model required when phase.model is unset")
+
+        llm_phases = {
+            PhaseName.CONTEXT,
+            PhaseName.PRETRANSLATION,
+            PhaseName.TRANSLATE,
+            PhaseName.QA,
+            PhaseName.EDIT,
+        }
+        for phase in self.phases:
+            if phase.phase in llm_phases:
+                if phase.enabled and not phase.agents:
+                    raise ValueError(
+                        f"agents must be configured for {phase.phase.value} phase"
+                    )
+            elif phase.agents is not None:
+                raise ValueError(
+                    f"agents are not allowed for {phase.phase.value} phase"
+                )
         return self
 
 
@@ -379,6 +409,7 @@ class RunConfig(BaseSchema):
 
     project: ProjectConfig = Field(..., description="Project settings")
     logging: LoggingConfig = Field(..., description="Logging configuration")
+    agents: AgentsConfig = Field(..., description="Agent discovery configuration")
     endpoint: ModelEndpointConfig | None = Field(
         None, description="Legacy model endpoint settings"
     )

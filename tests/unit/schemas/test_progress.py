@@ -8,6 +8,8 @@ from pydantic import ValidationError
 from rentl_schemas.events import ProgressEvent
 from rentl_schemas.primitives import PhaseName, PhaseStatus, RunId
 from rentl_schemas.progress import (
+    AgentStatus,
+    AgentTelemetry,
     PhaseProgress,
     ProgressMetric,
     ProgressPercentMode,
@@ -205,6 +207,37 @@ def test_progress_update_rejects_phase_status_mismatch() -> None:
             metric=None,
             message=None,
         )
+
+
+def test_progress_update_accepts_agent_update() -> None:
+    """Ensure agent telemetry updates are accepted."""
+    agent_update = AgentTelemetry(
+        agent_run_id="scene_summarizer_001",
+        agent_name="scene_summarizer",
+        phase=PhaseName.CONTEXT,
+        target_language=None,
+        status=AgentStatus.RUNNING,
+        attempt=1,
+        started_at="2026-01-25T12:00:00Z",
+        completed_at=None,
+        usage=None,
+        message="Agent started",
+    )
+
+    update = ProgressUpdate(
+        run_id=RUN_ID,
+        event=ProgressEvent.AGENT_STARTED,
+        timestamp="2026-01-25T12:00:00Z",
+        phase=PhaseName.CONTEXT,
+        phase_status=None,
+        run_progress=None,
+        phase_progress=None,
+        metric=None,
+        agent_update=agent_update,
+        message=None,
+    )
+
+    assert update.agent_update is not None
 
 
 def test_phase_weights_must_sum_to_one() -> None:

@@ -71,7 +71,7 @@ def _load_txt_sync(source: IngestSource) -> list[SourceLine]:
         with open(source.input_path, encoding="utf-8") as handle:
             for line_number, raw_line in enumerate(handle, start=1):
                 text_value = _strip_line_ending(raw_line)
-                if text_value == "":
+                if not text_value:
                     errors.append(
                         IngestErrorInfo(
                             code=IngestErrorCode.MISSING_FIELD,

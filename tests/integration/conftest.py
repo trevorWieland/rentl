@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import textwrap
+from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -13,7 +14,7 @@ import rentl_cli.main as cli_main
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    pass
 
 # Apply integration marker to all tests in this directory
 pytestmark = pytest.mark.integration
@@ -114,7 +115,21 @@ def write_rentl_config(
             "export",
         ]
 
-    phase_config = "\n".join(f'[[pipeline.phases]]\nphase = "{p}"' for p in phases)
+    agent_map = {
+        "context": "context_agent",
+        "pretranslation": "pretranslation_agent",
+        "translate": "translate_agent",
+        "qa": "qa_agent",
+        "edit": "edit_agent",
+    }
+    phase_entries: list[str] = []
+    for phase in phases:
+        entry = f'[[pipeline.phases]]\nphase = "{phase}"'
+        agent_name = agent_map.get(phase)
+        if agent_name:
+            entry += f'\nagents = ["{agent_name}"]'
+        phase_entries.append(entry)
+    phase_config = "\n".join(phase_entries)
 
     content = textwrap.dedent(
         f"""\
@@ -139,6 +154,10 @@ def write_rentl_config(
         [logging]
         [[logging.sinks]]
         type = "file"
+
+        [agents]
+        prompts_dir = "{workspace_dir}/prompts"
+        agents_dir = "{workspace_dir}/agents"
 
         [endpoints]
         default = "primary"

@@ -6,6 +6,7 @@ strict validation at load time.
 
 from __future__ import annotations
 
+import asyncio
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,10 +19,20 @@ from rentl_agents.templates import (
     validate_template,
 )
 from rentl_schemas.agents import AgentProfileConfig
+from rentl_schemas.base import BaseSchema
+from rentl_schemas.phases import (
+    IdiomAnnotation,
+    IdiomAnnotationList,
+    SceneSummary,
+    StyleGuideViolation,
+    StyleGuideViolationList,
+    TranslationResultLine,
+    TranslationResultList,
+)
 from rentl_schemas.primitives import PhaseName
 
 if TYPE_CHECKING:
-    from rentl_schemas.base import BaseSchema
+    pass
 
 
 class AgentProfileLoadError(Exception):
@@ -129,17 +140,6 @@ def resolve_output_schema(name: str) -> type[BaseSchema]:
 
 def _init_schema_registry() -> None:
     """Initialize the schema registry with known output schemas."""
-    # Import here to avoid circular imports
-    from rentl_schemas.phases import (
-        IdiomAnnotation,
-        IdiomAnnotationList,
-        SceneSummary,
-        StyleGuideViolation,
-        StyleGuideViolationList,
-        TranslationResultLine,
-        TranslationResultList,
-    )
-
     # Register all known output schemas
     if "SceneSummary" not in SCHEMA_REGISTRY:
         register_output_schema("SceneSummary", SceneSummary)
@@ -180,17 +180,27 @@ def load_agent_profile(path: Path) -> AgentProfileConfig:
         This is a sync convenience wrapper. For async contexts, use
         load_agent_profile_async() instead. May raise AgentProfileLoadError.
     """
-    import asyncio
-
     # Check if there's a running event loop
     try:
         asyncio.get_running_loop()
         # If we get here, there's a running loop - use nest_asyncio pattern
         # or just run synchronously for simplicity
-        return _load_agent_profile_sync(path)
+        return load_agent_profile_sync(path)
     except RuntimeError:
         # No event loop running, safe to use asyncio.run
         return asyncio.run(load_agent_profile_async(path))
+
+
+def load_agent_profile_sync(path: Path) -> AgentProfileConfig:
+    """Synchronously load an agent profile.
+
+    Args:
+        path: Path to agent TOML file.
+
+    Returns:
+        Validated agent profile configuration.
+    """
+    return _load_agent_profile_sync(path)
 
 
 def _load_agent_profile_sync(path: Path) -> AgentProfileConfig:

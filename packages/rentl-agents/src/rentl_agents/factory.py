@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable
-from typing import TypeVar
+from dataclasses import dataclass
+from typing import TypeGuard
 
 from pydantic import Field, field_validator, model_validator
 
@@ -14,9 +17,6 @@ from rentl_core.ports.orchestrator import (
     PhaseAgentPoolProtocol,
 )
 from rentl_schemas.base import BaseSchema
-
-InputT = TypeVar("InputT", bound=BaseSchema)
-OutputT = TypeVar("OutputT", bound=BaseSchema)
 
 
 class AgentConfig(BaseSchema):
@@ -97,25 +97,42 @@ class AgentConfig(BaseSchema):
         return self
 
 
-class AgentFactory:
-    """Factory for creating agent instances and pools.
+@dataclass
+class _AgentCacheEntry[OutputT: BaseSchema]:
+    """Type-erased cache entry for agent instances.
 
-    This factory provides:
-    - Agent instance creation from configuration
-    - Agent pool creation for concurrent execution
-    - Agent instance caching for performance
-    - Tool registry management
-
-    Usage:
-        factory = AgentFactory()
-        agent = factory.create_agent[InputType, OutputType](config)
-        pool = factory.create_pool[InputType, OutputType](config, count=4)
+    Stores the agent harness with runtime type information for safe retrieval.
     """
 
-    def __init__(self) -> None:
-        """Initialize the agent factory."""
-        self._tool_registry: dict[str, Callable[[], AgentTool]] = {}
-        self._instance_cache: dict[str, AgentHarness[BaseSchema, BaseSchema]] = {}
+    agent: AgentHarness[BaseSchema, OutputT]
+    output_type: type[OutputT]
+
+
+def _entry_matches_output_type[OutputT: BaseSchema](
+    entry: _AgentCacheEntry[BaseSchema],
+    output_type: type[OutputT],
+) -> TypeGuard[_AgentCacheEntry[OutputT]]:
+    return entry.output_type is output_type
+
+
+class AgentFactory:
+    """Factory for creating and caching agent instances.
+
+    This factory manages agent lifecycle and provides caching for
+    performance optimization.
+    """
+
+    def __init__(
+        self, tool_registry: dict[str, Callable[[], AgentTool]] | None = None
+    ) -> None:
+        """Initialize the factory with a tool registry.
+
+        Args:
+            tool_registry: Dictionary mapping tool names to tool factories.
+                Defaults to empty dict if not provided.
+        """
+        self._tool_registry = tool_registry if tool_registry is not None else {}
+        self._instance_cache: dict[str, _AgentCacheEntry[BaseSchema]] = {}
 
     def register_tool(
         self,
@@ -145,13 +162,12 @@ class AgentFactory:
             del self._tool_registry[name]
 
     def create_agent[
-        InputT: BaseSchema,
         OutputT: BaseSchema,
     ](
         self,
         config: AgentConfig,
         output_type: type[OutputT],
-    ) -> AgentHarness[InputT, OutputT]:
+    ) -> AgentHarness[BaseSchema, OutputT]:
         """Create an agent instance from configuration.
 
         Args:
@@ -163,14 +179,13 @@ class AgentFactory:
         """
         cache_key = self._build_cache_key(config, output_type)
 
-        if cache_key in self._instance_cache:
-            # The cache stores AgentHarness[BaseSchema, BaseSchema] but we know
-            # the specific types based on the cache key
-            return self._instance_cache[cache_key]  # type: ignore[return-value]
+        cached = self._instance_cache.get(cache_key)
+        if cached is not None and _entry_matches_output_type(cached, output_type):
+            return cached.agent
 
         tool_callables = self._build_tool_list(config.tools)
 
-        agent: AgentHarness[InputT, OutputT] = AgentHarness(
+        agent: AgentHarness[BaseSchema, OutputT] = AgentHarness(
             system_prompt=config.system_prompt,
             user_prompt_template=config.user_prompt_template,
             output_type=output_type,
@@ -179,11 +194,13 @@ class AgentFactory:
             retry_base_delay=config.retry_base_delay,
         )
 
-        self._instance_cache[cache_key] = agent  # type: ignore[assignment]
+        self._instance_cache[cache_key] = _AgentCacheEntry(
+            agent=agent,
+            output_type=output_type,
+        )
         return agent
 
     def create_pool[
-        InputT: BaseSchema,
         OutputT: BaseSchema,
     ](
         self,
@@ -191,7 +208,7 @@ class AgentFactory:
         output_type: type[OutputT],
         count: int,
         max_parallel: int | None = None,
-    ) -> PhaseAgentPoolProtocol[InputT, OutputT]:
+    ) -> PhaseAgentPoolProtocol[BaseSchema, OutputT]:
         """Create an agent pool from configuration.
 
         Args:
@@ -209,7 +226,7 @@ class AgentFactory:
         if count <= 0:
             raise ValueError("count must be positive")
 
-        def factory() -> AgentHarness[InputT, OutputT]:
+        def factory() -> AgentHarness[BaseSchema, OutputT]:
             return self.create_agent(config, output_type)
 
         return PhaseAgentPool.from_factory(
@@ -238,9 +255,6 @@ class AgentFactory:
         Returns:
             Cache key string.
         """
-        import hashlib
-        import json
-
         config_dict = config.model_dump(mode="json")
         config_str = json.dumps(config_dict, sort_keys=True)
         type_name = output_type.__name__
@@ -274,8 +288,6 @@ class AgentFactory:
             tool_factory = self._tool_registry[tool_name]
             tool = tool_factory()
 
-            # pydantic-ai tools can be any callable - the execute method
-            # signature varies by tool implementation
-            tool_list.append(tool.execute)  # type: ignore[arg-type]
+            tool_list.append(tool.execute)
 
         return tool_list

@@ -6,18 +6,69 @@ and wire them to the pipeline orchestrator.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rentl_agents.context.scene import (
     format_scene_lines,
     group_lines_by_scene,
+    validate_scene_input,
 )
 from rentl_agents.layers import load_layer_registry
+from rentl_agents.pretranslation.lines import (
+    chunk_lines as chunk_pretranslation_lines,
+)
+from rentl_agents.pretranslation.lines import (
+    format_lines_for_prompt,
+    merge_idiom_annotations,
+)
+from rentl_agents.pretranslation.lines import (
+    get_scene_summary_for_lines as get_scene_summary_for_pretranslation_lines,
+)
 from rentl_agents.profiles.loader import load_agent_profile
+from rentl_agents.qa.lines import (
+    chunk_qa_lines,
+    empty_qa_output,
+    format_lines_for_qa_prompt,
+    merge_qa_agent_outputs,
+    violation_to_qa_issue,
+)
 from rentl_agents.runtime import ProfileAgent, ProfileAgentConfig
 from rentl_agents.templates import TemplateContext
 from rentl_agents.tools.registry import ToolRegistry, get_default_registry
+from rentl_agents.translate.lines import (
+    chunk_lines as chunk_translate_lines,
+)
+from rentl_agents.translate.lines import (
+    format_annotated_lines_for_prompt,
+    merge_translated_lines,
+    translation_result_to_lines,
+)
+from rentl_agents.translate.lines import (
+    get_scene_summary_for_lines as get_scene_summary_for_translate_lines,
+)
+from rentl_core import AgentTelemetryEmitter
+from rentl_core.orchestrator import PhaseAgentPool
+from rentl_core.ports.orchestrator import (
+    ContextAgentPoolProtocol,
+    EditAgentPoolProtocol,
+    PhaseAgentPoolProtocol,
+    PretranslationAgentPoolProtocol,
+    QaAgentPoolProtocol,
+    TranslateAgentPoolProtocol,
+)
+from rentl_schemas.agents import AgentProfileConfig
+from rentl_schemas.config import (
+    ModelEndpointConfig,
+    ModelSettings,
+    PhaseConfig,
+    PhaseExecutionConfig,
+    RetryConfig,
+    RunConfig,
+)
 from rentl_schemas.io import TranslatedLine
 from rentl_schemas.phases import (
     ContextPhaseInput,
@@ -83,8 +134,6 @@ class ContextSceneSummarizerAgent:
         Returns:
             Context phase output with scene summaries.
         """
-        from rentl_agents.context.scene import validate_scene_input
-
         # Validate all lines have scene_id
         validate_scene_input(payload.source_lines)
 
@@ -133,6 +182,7 @@ def create_context_agent_from_profile(
     tool_registry: ToolRegistry | None = None,
     source_lang: LanguageCode = "ja",
     target_lang: LanguageCode = "en",
+    telemetry_emitter: AgentTelemetryEmitter | None = None,
 ) -> ContextSceneSummarizerAgent:
     """Create a context phase agent from a TOML profile.
 
@@ -143,6 +193,7 @@ def create_context_agent_from_profile(
         tool_registry: Tool registry to use. Defaults to the default registry.
         source_lang: Source language name for prompts.
         target_lang: Target language name for prompts.
+        telemetry_emitter: Optional telemetry emitter for agent status.
 
     Returns:
         Context phase agent ready for orchestrator.
@@ -174,6 +225,7 @@ def create_context_agent_from_profile(
         layer_registry=layer_registry,
         tool_registry=tool_registry,
         config=config,
+        telemetry_emitter=telemetry_emitter,
     )
 
     # Wrap in ContextSceneSummarizerAgent
@@ -252,22 +304,15 @@ class PretranslationIdiomLabelerAgent:
         Returns:
             Pretranslation phase output with idiom annotations.
         """
-        from rentl_agents.pretranslation.lines import (
-            chunk_lines,
-            format_lines_for_prompt,
-            get_scene_summary_for_lines,
-            merge_idiom_annotations,
-        )
-
         # Chunk lines for batch processing
-        chunks = chunk_lines(payload.source_lines, self._chunk_size)
+        chunks = chunk_pretranslation_lines(payload.source_lines, self._chunk_size)
 
         # Process each chunk
         all_idioms: list[IdiomAnnotation] = []
         for chunk in chunks:
             # Format lines for prompt
             source_lines_text = format_lines_for_prompt(chunk)
-            scene_summary_text = get_scene_summary_for_lines(
+            scene_summary_text = get_scene_summary_for_pretranslation_lines(
                 chunk, payload.scene_summaries
             )
 
@@ -302,6 +347,7 @@ def create_pretranslation_agent_from_profile(
     chunk_size: int = 10,
     source_lang: LanguageCode = "ja",
     target_lang: LanguageCode = "en",
+    telemetry_emitter: AgentTelemetryEmitter | None = None,
 ) -> PretranslationIdiomLabelerAgent:
     """Create a pretranslation phase agent from a TOML profile.
 
@@ -313,6 +359,7 @@ def create_pretranslation_agent_from_profile(
         chunk_size: Number of lines per processing chunk.
         source_lang: Source language name for prompts.
         target_lang: Target language name for prompts.
+        telemetry_emitter: Optional telemetry emitter for agent status.
 
     Returns:
         Pretranslation phase agent ready for orchestrator.
@@ -345,6 +392,7 @@ def create_pretranslation_agent_from_profile(
             layer_registry=layer_registry,
             tool_registry=tool_registry,
             config=config,
+            telemetry_emitter=telemetry_emitter,
         )
     )
 
@@ -400,16 +448,8 @@ class TranslateDirectTranslatorAgent:
         Returns:
             Translate phase output with translated lines.
         """
-        from rentl_agents.translate.lines import (
-            chunk_lines,
-            format_annotated_lines_for_prompt,
-            get_scene_summary_for_lines,
-            merge_translated_lines,
-            translation_result_to_lines,
-        )
-
         # Chunk lines for batch processing
-        chunks = chunk_lines(payload.source_lines, self._chunk_size)
+        chunks = chunk_translate_lines(payload.source_lines, self._chunk_size)
 
         # Process each chunk
         all_translated_lines: list[TranslatedLine] = []
@@ -418,7 +458,7 @@ class TranslateDirectTranslatorAgent:
             annotated_lines_text = format_annotated_lines_for_prompt(
                 chunk, payload.pretranslation_annotations
             )
-            scene_summary_text = get_scene_summary_for_lines(
+            scene_summary_text = get_scene_summary_for_translate_lines(
                 chunk, payload.scene_summaries
             )
 
@@ -458,6 +498,7 @@ def create_translate_agent_from_profile(
     chunk_size: int = 10,
     source_lang: LanguageCode = "ja",
     target_lang: LanguageCode = "en",
+    telemetry_emitter: AgentTelemetryEmitter | None = None,
 ) -> TranslateDirectTranslatorAgent:
     """Create a translate phase agent from a TOML profile.
 
@@ -469,6 +510,7 @@ def create_translate_agent_from_profile(
         chunk_size: Number of lines per processing chunk.
         source_lang: Source language name for prompts.
         target_lang: Target language name for prompts.
+        telemetry_emitter: Optional telemetry emitter for agent status.
 
     Returns:
         Translate phase agent ready for orchestrator.
@@ -501,6 +543,7 @@ def create_translate_agent_from_profile(
             layer_registry=layer_registry,
             tool_registry=tool_registry,
             config=config,
+            telemetry_emitter=telemetry_emitter,
         )
     )
 
@@ -559,14 +602,6 @@ class QaStyleGuideCriticAgent:
         Returns:
             QA phase output with style guide violations as issues.
         """
-        from rentl_agents.qa.lines import (
-            chunk_qa_lines,
-            empty_qa_output,
-            format_lines_for_qa_prompt,
-            merge_qa_agent_outputs,
-            violation_to_qa_issue,
-        )
-
         # Return empty output if no style guide provided
         if not payload.style_guide or not payload.style_guide.strip():
             return empty_qa_output(payload.run_id, payload.target_language)
@@ -622,6 +657,7 @@ def create_qa_agent_from_profile(
     source_lang: LanguageCode = "ja",
     target_lang: LanguageCode = "en",
     severity: QaSeverity = QaSeverity.MAJOR,
+    telemetry_emitter: AgentTelemetryEmitter | None = None,
 ) -> QaStyleGuideCriticAgent:
     """Create a QA phase agent from a TOML profile.
 
@@ -634,6 +670,7 @@ def create_qa_agent_from_profile(
         source_lang: Source language name for prompts.
         target_lang: Target language name for prompts.
         severity: Severity level for style violations.
+        telemetry_emitter: Optional telemetry emitter for agent status.
 
     Returns:
         QA phase agent ready for orchestrator.
@@ -665,6 +702,7 @@ def create_qa_agent_from_profile(
         layer_registry=layer_registry,
         tool_registry=tool_registry,
         config=config,
+        telemetry_emitter=telemetry_emitter,
     )
 
     # Wrap in QaStyleGuideCriticAgent
@@ -819,6 +857,7 @@ def create_edit_agent_from_profile(
     tool_registry: ToolRegistry | None = None,
     source_lang: LanguageCode = "ja",
     target_lang: LanguageCode = "en",
+    telemetry_emitter: AgentTelemetryEmitter | None = None,
 ) -> EditBasicEditorAgent:
     """Create an edit phase agent from a TOML profile.
 
@@ -829,6 +868,7 @@ def create_edit_agent_from_profile(
         tool_registry: Tool registry to use. Defaults to the default registry.
         source_lang: Source language name for prompts.
         target_lang: Target language name for prompts.
+        telemetry_emitter: Optional telemetry emitter for agent status.
 
     Returns:
         Edit phase agent ready for orchestrator.
@@ -855,6 +895,7 @@ def create_edit_agent_from_profile(
         layer_registry=layer_registry,
         tool_registry=tool_registry,
         config=config,
+        telemetry_emitter=telemetry_emitter,
     )
 
     return EditBasicEditorAgent(
@@ -862,4 +903,380 @@ def create_edit_agent_from_profile(
         config=config,
         source_lang=source_lang,
         target_lang=target_lang,
+    )
+
+
+@dataclass(slots=True)
+class AgentPoolBundle:
+    """Agent pools wired for pipeline execution."""
+
+    context_agents: list[tuple[str, ContextAgentPoolProtocol]]
+    pretranslation_agents: list[tuple[str, PretranslationAgentPoolProtocol]]
+    translate_agents: list[tuple[str, TranslateAgentPoolProtocol]]
+    qa_agents: list[tuple[str, QaAgentPoolProtocol]]
+    edit_agents: list[tuple[str, EditAgentPoolProtocol]]
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentProfileSpec:
+    name: str
+    profile: AgentProfileConfig
+    path: Path
+
+
+def build_agent_pools(
+    *,
+    config: RunConfig,
+    telemetry_emitter: AgentTelemetryEmitter | None = None,
+    phases: Sequence[PhaseName] | None = None,
+) -> AgentPoolBundle:
+    """Build agent pools from run configuration.
+
+    Args:
+        config: Run configuration with agent profile paths.
+        telemetry_emitter: Optional telemetry emitter for agent status.
+        phases: Optional phase list to limit agent wiring.
+
+    Returns:
+        AgentPoolBundle: Configured agent pools.
+    """
+    agents_config = config.agents
+    workspace_dir = Path(config.project.paths.workspace_dir)
+    prompts_dir = _resolve_agent_path(agents_config.prompts_dir, workspace_dir)
+    agents_dir = _resolve_agent_path(agents_config.agents_dir, workspace_dir)
+    source_lang = config.project.languages.source_language
+    target_lang = _resolve_primary_target_language(config)
+    tool_registry = get_default_registry()
+    profile_specs = _discover_agent_profile_specs(agents_dir)
+    phases_to_load = (
+        set(phases)
+        if phases is not None
+        else {phase.phase for phase in config.pipeline.phases if phase.enabled}
+    )
+
+    context_agents = _build_phase_agent_entries(
+        PhaseName.CONTEXT,
+        phases_to_load,
+        config,
+        profile_specs,
+        prompts_dir,
+        tool_registry,
+        source_lang,
+        target_lang,
+        telemetry_emitter,
+    )
+    pretranslation_agents = _build_phase_agent_entries(
+        PhaseName.PRETRANSLATION,
+        phases_to_load,
+        config,
+        profile_specs,
+        prompts_dir,
+        tool_registry,
+        source_lang,
+        target_lang,
+        telemetry_emitter,
+    )
+    translate_agents = _build_phase_agent_entries(
+        PhaseName.TRANSLATE,
+        phases_to_load,
+        config,
+        profile_specs,
+        prompts_dir,
+        tool_registry,
+        source_lang,
+        target_lang,
+        telemetry_emitter,
+    )
+    qa_agents = _build_phase_agent_entries(
+        PhaseName.QA,
+        phases_to_load,
+        config,
+        profile_specs,
+        prompts_dir,
+        tool_registry,
+        source_lang,
+        target_lang,
+        telemetry_emitter,
+    )
+    edit_agents = _build_phase_agent_entries(
+        PhaseName.EDIT,
+        phases_to_load,
+        config,
+        profile_specs,
+        prompts_dir,
+        tool_registry,
+        source_lang,
+        target_lang,
+        telemetry_emitter,
+    )
+
+    return AgentPoolBundle(
+        context_agents=context_agents,
+        pretranslation_agents=pretranslation_agents,
+        translate_agents=translate_agents,
+        qa_agents=qa_agents,
+        edit_agents=edit_agents,
+    )
+
+
+def _resolve_agent_path(value: str, workspace_dir: Path) -> Path:
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return (workspace_dir / path).resolve()
+
+
+def _discover_agent_profile_specs(agents_dir: Path) -> dict[str, _AgentProfileSpec]:
+    specs: dict[str, _AgentProfileSpec] = {}
+    if not agents_dir.exists():
+        return specs
+    for phase in PhaseName:
+        if phase in {PhaseName.INGEST, PhaseName.EXPORT}:
+            continue
+        phase_dir = agents_dir / phase.value
+        if not phase_dir.exists():
+            continue
+        for toml_path in phase_dir.glob("*.toml"):
+            profile = load_agent_profile(toml_path)
+            if profile.meta.phase != phase:
+                raise ValueError(
+                    f"Agent {profile.meta.name} declares phase "
+                    f"{profile.meta.phase.value} but is in {phase.value}/"
+                )
+            name = profile.meta.name
+            if name in specs:
+                raise ValueError(f"Duplicate agent name: {name}")
+            specs[name] = _AgentProfileSpec(
+                name=name,
+                profile=profile,
+                path=toml_path,
+            )
+    return specs
+
+
+def _resolve_phase_agent_specs(
+    config: RunConfig,
+    specs: dict[str, _AgentProfileSpec],
+    phase: PhaseName,
+) -> list[_AgentProfileSpec]:
+    phase_config = _resolve_phase_config(config, phase)
+    if phase_config is None or not phase_config.enabled:
+        return []
+    if not phase_config.agents:
+        raise ValueError(f"agents must be configured for {phase.value} phase")
+    resolved: list[_AgentProfileSpec] = []
+    for agent_name in phase_config.agents:
+        spec = specs.get(agent_name)
+        if spec is None:
+            available = ", ".join(sorted(specs.keys())) or "none"
+            raise ValueError(
+                f"Unknown agent '{agent_name}' for phase {phase.value}. "
+                f"Available: {available}"
+            )
+        if spec.profile.meta.phase != phase:
+            raise ValueError(
+                f"Agent {agent_name} is for phase {spec.profile.meta.phase.value} "
+                f"but was configured for {phase.value}"
+            )
+        resolved.append(spec)
+    return resolved
+
+
+def _build_phase_agent_entries(
+    phase: PhaseName,
+    phases_to_load: set[PhaseName],
+    config: RunConfig,
+    profile_specs: dict[str, _AgentProfileSpec],
+    prompts_dir: Path,
+    tool_registry: ToolRegistry,
+    source_lang: LanguageCode,
+    target_lang: LanguageCode,
+    telemetry_emitter: AgentTelemetryEmitter | None,
+) -> list[tuple[str, PhaseAgentPoolProtocol]]:
+    if phase not in phases_to_load:
+        return []
+    resolved = _resolve_phase_agent_specs(config, profile_specs, phase)
+    if not resolved:
+        return []
+    execution = _resolve_phase_execution(config, phase)
+    agent_config = _build_profile_agent_config(config, phase)
+
+    entries: list[tuple[str, PhaseAgentPoolProtocol]] = []
+    for spec in resolved:
+        pool: PhaseAgentPoolProtocol
+        if phase == PhaseName.CONTEXT:
+            pool = PhaseAgentPool.from_factory(
+                factory=lambda path=spec.path: create_context_agent_from_profile(
+                    profile_path=path,
+                    prompts_dir=prompts_dir,
+                    config=agent_config,
+                    tool_registry=tool_registry,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    telemetry_emitter=telemetry_emitter,
+                ),
+                count=_resolve_agent_pool_size(execution),
+                max_parallel=_resolve_agent_pool_max_parallel(execution),
+            )
+        elif phase == PhaseName.PRETRANSLATION:
+            pool = PhaseAgentPool.from_factory(
+                factory=lambda path=spec.path: create_pretranslation_agent_from_profile(
+                    profile_path=path,
+                    prompts_dir=prompts_dir,
+                    config=agent_config,
+                    tool_registry=tool_registry,
+                    chunk_size=_resolve_chunk_size(execution),
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    telemetry_emitter=telemetry_emitter,
+                ),
+                count=_resolve_agent_pool_size(execution),
+                max_parallel=_resolve_agent_pool_max_parallel(execution),
+            )
+        elif phase == PhaseName.TRANSLATE:
+            pool = PhaseAgentPool.from_factory(
+                factory=lambda path=spec.path: create_translate_agent_from_profile(
+                    profile_path=path,
+                    prompts_dir=prompts_dir,
+                    config=agent_config,
+                    tool_registry=tool_registry,
+                    chunk_size=_resolve_chunk_size(execution),
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    telemetry_emitter=telemetry_emitter,
+                ),
+                count=_resolve_agent_pool_size(execution),
+                max_parallel=_resolve_agent_pool_max_parallel(execution),
+            )
+        elif phase == PhaseName.QA:
+            pool = PhaseAgentPool.from_factory(
+                factory=lambda path=spec.path: create_qa_agent_from_profile(
+                    profile_path=path,
+                    prompts_dir=prompts_dir,
+                    config=agent_config,
+                    tool_registry=tool_registry,
+                    chunk_size=_resolve_chunk_size(execution),
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    telemetry_emitter=telemetry_emitter,
+                ),
+                count=_resolve_agent_pool_size(execution),
+                max_parallel=_resolve_agent_pool_max_parallel(execution),
+            )
+        elif phase == PhaseName.EDIT:
+            pool = PhaseAgentPool.from_factory(
+                factory=lambda path=spec.path: create_edit_agent_from_profile(
+                    profile_path=path,
+                    prompts_dir=prompts_dir,
+                    config=agent_config,
+                    tool_registry=tool_registry,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    telemetry_emitter=telemetry_emitter,
+                ),
+                count=_resolve_agent_pool_size(execution),
+                max_parallel=_resolve_agent_pool_max_parallel(execution),
+            )
+        else:
+            raise ValueError(f"Unsupported phase: {phase.value}")
+        entries.append((spec.name, pool))
+    return entries
+
+
+def _resolve_primary_target_language(config: RunConfig) -> LanguageCode:
+    targets = config.project.languages.target_languages
+    if not targets:
+        raise ValueError("No target languages configured")
+    return targets[0]
+
+
+def _resolve_phase_execution(
+    config: RunConfig, phase: PhaseName
+) -> PhaseExecutionConfig | None:
+    phase_config = _resolve_phase_config(config, phase)
+    if phase_config is None:
+        return None
+    return phase_config.execution
+
+
+def _resolve_chunk_size(execution: PhaseExecutionConfig | None) -> int:
+    if execution and execution.chunk_size is not None:
+        return execution.chunk_size
+    return 10
+
+
+def _resolve_agent_pool_size(execution: PhaseExecutionConfig | None) -> int:
+    if execution and execution.max_parallel_agents is not None:
+        return execution.max_parallel_agents
+    return 1
+
+
+def _resolve_agent_pool_max_parallel(
+    execution: PhaseExecutionConfig | None,
+) -> int | None:
+    if execution and execution.max_parallel_agents is not None:
+        return execution.max_parallel_agents
+    return None
+
+
+def _resolve_phase_config(config: RunConfig, phase: PhaseName) -> PhaseConfig | None:
+    for entry in config.pipeline.phases:
+        if entry.phase == phase:
+            return entry
+    return None
+
+
+def _resolve_phase_model(config: RunConfig, phase: PhaseName) -> ModelSettings:
+    phase_config = _resolve_phase_config(config, phase)
+    if phase_config is not None and phase_config.model is not None:
+        return phase_config.model
+    if config.pipeline.default_model is None:
+        raise ValueError("default_model is required for agent phases")
+    return config.pipeline.default_model
+
+
+def _resolve_phase_retry(config: RunConfig, phase: PhaseName) -> RetryConfig:
+    phase_config = _resolve_phase_config(config, phase)
+    if phase_config is not None and phase_config.retry is not None:
+        return phase_config.retry
+    return config.retry
+
+
+def _resolve_endpoint_config(
+    config: RunConfig, model_settings: ModelSettings
+) -> ModelEndpointConfig:
+    if config.endpoints is None:
+        endpoint = config.endpoint
+        if endpoint is None:
+            raise ValueError("Endpoint configuration is required")
+        return endpoint
+    endpoint_ref = config.resolve_endpoint_ref(model=model_settings)
+    if endpoint_ref is None:
+        raise ValueError("Endpoint reference could not be resolved")
+    for endpoint in config.endpoints.endpoints:
+        if endpoint.provider_name == endpoint_ref:
+            return endpoint
+    raise ValueError(f"Unknown endpoint reference: {endpoint_ref}")
+
+
+def _build_profile_agent_config(
+    config: RunConfig, phase: PhaseName
+) -> ProfileAgentConfig:
+    model_settings = _resolve_phase_model(config, phase)
+    endpoint = _resolve_endpoint_config(config, model_settings)
+    api_key = os.getenv(endpoint.api_key_env)
+    if api_key is None:
+        raise ValueError(
+            f"Missing API key environment variable: {endpoint.api_key_env}"
+        )
+    retry_config = _resolve_phase_retry(config, phase)
+    return ProfileAgentConfig(
+        api_key=api_key,
+        base_url=endpoint.base_url,
+        model_id=model_settings.model_id,
+        temperature=model_settings.temperature,
+        top_p=model_settings.top_p,
+        timeout_s=endpoint.timeout_s,
+        max_retries=retry_config.max_retries,
+        retry_base_delay=retry_config.backoff_s,
     )

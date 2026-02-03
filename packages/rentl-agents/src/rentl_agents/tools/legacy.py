@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from pydantic import Field
 
@@ -12,7 +12,7 @@ from rentl_schemas.phases import (
     GlossaryTerm,
     SceneSummary,
 )
-from rentl_schemas.primitives import LineId, SceneId
+from rentl_schemas.primitives import JsonValue, LineId, SceneId
 
 
 @runtime_checkable
@@ -32,7 +32,7 @@ class AgentToolProtocol(Protocol):
         """Tool description for LLM."""
         raise NotImplementedError
 
-    def execute(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Execute the tool.
 
         Args:
@@ -47,7 +47,7 @@ class AgentToolProtocol(Protocol):
         raise NotImplementedError
 
     @property
-    def get_schema(self) -> dict[str, Any]:
+    def get_schema(self) -> dict[str, JsonValue]:
         """Tool input/output schemas.
 
         Returns:
@@ -61,7 +61,7 @@ class AgentToolProtocol(Protocol):
         raise NotImplementedError
 
     @property
-    def schema(self) -> dict[str, Any]:
+    def schema(self) -> dict[str, JsonValue]:
         """Tool input/output schemas.
 
         Returns:
@@ -74,7 +74,7 @@ class ToolInput(BaseSchema):
     """Base schema for tool inputs."""
 
     tool_name: str = Field(..., min_length=1, description="Tool identifier")
-    parameters: dict[str, Any] = Field(
+    parameters: dict[str, JsonValue] = Field(
         default_factory=dict, description="Tool parameters"
     )
 
@@ -83,7 +83,7 @@ class ToolOutput(BaseSchema):
     """Base schema for tool outputs."""
 
     tool_name: str = Field(..., min_length=1, description="Tool identifier")
-    result: dict[str, Any] = Field(
+    result: dict[str, JsonValue] = Field(
         default_factory=dict, description="Tool execution result"
     )
     success: bool = Field(..., description="Whether tool execution succeeded")
@@ -160,7 +160,7 @@ class AgentTool:
         self._name = name
         self._description = description
 
-    def execute(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Execute the tool.
 
         Args:
@@ -182,7 +182,7 @@ class AgentTool:
         return self._description
 
     @property
-    def schema(self) -> dict[str, Any]:
+    def schema(self) -> dict[str, JsonValue]:
         """Tool input/output schemas.
 
         Returns:
@@ -221,7 +221,7 @@ class ContextLookupTool(AgentTool):
         self._scene_summaries = scene_summaries or []
         self._context_notes = context_notes or []
 
-    def execute(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Execute context lookup.
 
         Args:
@@ -234,7 +234,7 @@ class ContextLookupTool(AgentTool):
             RuntimeError: If execution fails.
         """
         try:
-            parsed_input = ContextLookupToolInput(**input_data)
+            parsed_input = ContextLookupToolInput.model_validate(input_data)
         except Exception as exc:
             raise RuntimeError(f"Invalid input for context_lookup: {exc}") from exc
 
@@ -282,7 +282,7 @@ class GlossarySearchTool(AgentTool):
         )
         self._glossary_terms = glossary_terms or []
 
-    def execute(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Execute glossary search.
 
         Args:
@@ -295,7 +295,7 @@ class GlossarySearchTool(AgentTool):
             RuntimeError: If execution fails.
         """
         try:
-            parsed_input = GlossarySearchToolInput(**input_data)
+            parsed_input = GlossarySearchToolInput.model_validate(input_data)
         except Exception as exc:
             raise RuntimeError(f"Invalid input for glossary_search: {exc}") from exc
 
@@ -337,7 +337,7 @@ class StyleGuideLookupTool(AgentTool):
         )
         self._style_guide_content = style_guide_content
 
-    def execute(self, input_data: dict[str, Any]) -> dict[str, Any]:
+    def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Execute style guide lookup.
 
         Args:
@@ -350,7 +350,7 @@ class StyleGuideLookupTool(AgentTool):
             RuntimeError: If execution fails.
         """
         try:
-            parsed_input = StyleGuideLookupToolInput(**input_data)
+            parsed_input = StyleGuideLookupToolInput.model_validate(input_data)
         except Exception as exc:
             raise RuntimeError(f"Invalid input for style_guide_lookup: {exc}") from exc
 
