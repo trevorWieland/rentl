@@ -68,8 +68,12 @@ def _build_payload(run_id: RunId) -> ContextPhaseInput:
     )
 
 
-def _build_agent(telemetry_emitter: AgentTelemetryEmitter | None) -> ProfileAgent:
-    return ProfileAgent(
+def _build_agent(
+    telemetry_emitter: AgentTelemetryEmitter | None,
+    agent_cls: type[ProfileAgent[ContextPhaseInput, SceneSummary]] | None = None,
+) -> ProfileAgent[ContextPhaseInput, SceneSummary]:
+    resolved_cls = agent_cls or ProfileAgent
+    return resolved_cls(
         profile=_build_profile(),
         output_type=SceneSummary,
         layer_registry=PromptLayerRegistry(),
@@ -94,10 +98,9 @@ def test_profile_agent_emits_telemetry_on_success() -> None:
         log_sink=log_sink,
         clock=lambda: "2026-02-03T12:00:00Z",
     )
-    agent = _build_agent(emitter)
 
     async def _execute_stub(
-        _self: ProfileAgent, _payload: ContextPhaseInput
+        _payload: ContextPhaseInput,
     ) -> tuple[SceneSummary, AgentUsageTotals | None]:
         await asyncio.sleep(0)
         return (
@@ -115,12 +118,17 @@ def test_profile_agent_emits_telemetry_on_success() -> None:
             ),
         )
 
-    agent._execute = _execute_stub.__get__(agent, ProfileAgent)
+    class StubProfileAgent(ProfileAgent[ContextPhaseInput, SceneSummary]):
+        async def _execute(
+            self, payload: ContextPhaseInput
+        ) -> tuple[SceneSummary, AgentUsageTotals | None]:
+            return await _execute_stub(payload)
+
+    agent = _build_agent(emitter, StubProfileAgent)
 
     payload = _build_payload(uuid7())
     result = asyncio.run(agent.run(payload))
-
-    assert isinstance(result, SceneSummary)
+    assert result.scene_id == "scene_1"
     assert [update.event for update in progress_sink.updates] == [
         ProgressEvent.AGENT_STARTED,
         ProgressEvent.AGENT_COMPLETED,
@@ -135,11 +143,10 @@ def test_profile_agent_emits_retry_progress() -> None:
         log_sink=None,
         clock=lambda: "2026-02-03T12:00:00Z",
     )
-    agent = _build_agent(emitter)
     calls: dict[str, int] = {"count": 0}
 
     async def _execute_stub(
-        _self: ProfileAgent, _payload: ContextPhaseInput
+        _payload: ContextPhaseInput,
     ) -> tuple[SceneSummary, AgentUsageTotals | None]:
         await asyncio.sleep(0)
         calls["count"] += 1
@@ -154,12 +161,17 @@ def test_profile_agent_emits_retry_progress() -> None:
             None,
         )
 
-    agent._execute = _execute_stub.__get__(agent, ProfileAgent)
+    class StubProfileAgent(ProfileAgent[ContextPhaseInput, SceneSummary]):
+        async def _execute(
+            self, payload: ContextPhaseInput
+        ) -> tuple[SceneSummary, AgentUsageTotals | None]:
+            return await _execute_stub(payload)
+
+    agent = _build_agent(emitter, StubProfileAgent)
 
     payload = _build_payload(uuid7())
     result = asyncio.run(agent.run(payload))
-
-    assert isinstance(result, SceneSummary)
+    assert result.scene_id == "scene_1"
     events = [update.event for update in progress_sink.updates]
     assert events == [
         ProgressEvent.AGENT_STARTED,

@@ -60,11 +60,12 @@ class GameInfoTool:
         Returns:
             Dictionary with game information.
         """
+        target_languages: list[JsonValue] = list(self._context.target_languages)
         return {
             "game_name": self._context.game_name,
             "synopsis": self._context.synopsis or "No synopsis provided",
             "source_language": self._context.source_language,
-            "target_languages": self._context.target_languages,
+            "target_languages": target_languages,
         }
 
     def update_context(self, context: ProjectContext) -> None:

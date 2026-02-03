@@ -15,7 +15,7 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
-from pydantic_ai.output import PromptedOutput
+from pydantic_ai.output import OutputSpec, PromptedOutput
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.tools import RunContext, ToolDefinition
@@ -33,7 +33,7 @@ from rentl_schemas.primitives import PhaseName, RunId
 from rentl_schemas.progress import AgentStatus, AgentTelemetry, AgentUsageTotals
 
 InputT = TypeVar("InputT", bound=BaseSchema)
-OutputT = TypeVar("OutputT", bound=BaseSchema)
+OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
 
 # Output mode for structured output
 # - "auto": Auto-detect based on provider (recommended)
@@ -77,7 +77,7 @@ class ProfileAgentConfig(BaseSchema):
     required_tool_calls: list[str] | None = None
 
 
-class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
+class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
     """Generic agent driven by TOML profile configuration.
 
     This agent:
@@ -90,7 +90,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
     def __init__(
         self,
         profile: AgentProfileConfig,
-        output_type: type[OutputT],
+        output_type: type[OutputT_co],
         layer_registry: PromptLayerRegistry,
         tool_registry: ToolRegistry,
         config: ProfileAgentConfig,
@@ -135,7 +135,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
         """
         self._template_context = context
 
-    async def run(self, payload: InputT) -> OutputT:
+    async def run(self, payload: InputT) -> OutputT_co:
         """Execute the agent with the given payload.
 
         Args:
@@ -312,7 +312,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
 
     async def _execute(
         self, payload: InputT
-    ) -> tuple[OutputT, AgentUsageTotals | None]:
+    ) -> tuple[OutputT_co, AgentUsageTotals | None]:
         """Execute a single agent invocation.
 
         May raise UsageLimitExceeded or UnexpectedModelBehavior from pydantic-ai
@@ -377,11 +377,12 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             output_mode = "prompted" if is_openrouter else "tool"
 
         # Configure output type based on resolved output mode
+        output_spec: OutputSpec[OutputT_co]
         if output_mode == "prompted":
-            output_type = PromptedOutput(self._output_type)
+            output_spec = PromptedOutput(self._output_type)
         else:
             # Tool-based output (default pydantic-ai behavior)
-            output_type = self._output_type
+            output_spec = self._output_type
 
         prepare_output_tools = None
         if self._config.required_tool_calls:
@@ -407,10 +408,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
 
             prepare_output_tools = _prepare_output_tools
 
-        agent: Agent[None, OutputT] = Agent(
+        agent: Agent[None, OutputT_co] = Agent[None, OutputT_co](
             model=model,
             instructions=system_prompt,
-            output_type=output_type,
+            output_type=output_spec,
             tools=tool_callables,
             output_retries=self._config.max_output_retries,
             end_strategy=self._config.end_strategy,

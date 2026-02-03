@@ -178,6 +178,7 @@ def test_build_agent_pools_uses_execution_settings(
     assert isinstance(pretranslation_pool, PhaseAgentPool)
     assert len(pretranslation_pool._agents) == 2
     agent = pretranslation_pool._agents[0]
+    assert isinstance(agent, PretranslationIdiomLabelerAgent)
     assert agent._chunk_size == 5
 
 
@@ -262,6 +263,7 @@ def test_build_agent_pools_resolves_endpoint_and_retry(
     translate_pool = pools.translate_agents[0][1]
     assert isinstance(translate_pool, PhaseAgentPool)
     translate_agent = translate_pool._agents[0]
+    assert isinstance(translate_agent, TranslateDirectTranslatorAgent)
     assert translate_agent._config.base_url == "http://localhost:9999/v1"
     assert translate_agent._config.max_retries == 5
     assert translate_agent._config.retry_base_delay == 2.0

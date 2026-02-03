@@ -54,9 +54,10 @@ from rentl_agents import (
     load_agent_profile,
 )
 from rentl_agents.context import group_lines_by_scene, validate_scene_input
-from rentl_agents.runtime import ProfileAgentConfig
+from rentl_agents.runtime import OutputMode, ProfileAgentConfig
 from rentl_agents.wiring import (
     create_context_agent_from_profile,
+    create_edit_agent_from_profile,
     create_pretranslation_agent_from_profile,
     create_qa_agent_from_profile,
     create_translate_agent_from_profile,
@@ -72,6 +73,7 @@ from rentl_schemas.io import SourceLine, TranslatedLine
 from rentl_schemas.phases import (
     ContextPhaseInput,
     ContextPhaseOutput,
+    EditPhaseInput,
     PretranslationAnnotation,
     PretranslationPhaseInput,
     QaPhaseInput,
@@ -79,7 +81,7 @@ from rentl_schemas.phases import (
     TermCandidate,
     TranslatePhaseInput,
 )
-from rentl_schemas.primitives import PhaseName, QaSeverity
+from rentl_schemas.primitives import JsonValue, PhaseName, QaSeverity
 from rentl_schemas.qa import QaIssue
 from rentl_schemas.validation import validate_run_config
 
@@ -148,7 +150,7 @@ def load_config(config_path: Path) -> _ResolvedConfig:
 
     try:
         with config_path.open("rb") as handle:
-            payload = tomllib.load(handle)
+            payload: dict[str, JsonValue] = tomllib.load(handle)
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"Failed to parse rentl.toml: {exc}") from exc
     except OSError as exc:
@@ -298,7 +300,7 @@ def _build_profile_agent_config(
     api_key: str,
     base_url_override: str | None,
     model_override: str | None,
-    output_mode: str,
+    output_mode: OutputMode,
 ) -> ProfileAgentConfig:
     model_settings = _resolve_phase_model(config, phase)
     endpoint = _resolve_endpoint_config(config, model_settings)
@@ -378,7 +380,7 @@ def main() -> int:
     parser.add_argument(
         "--phase",
         type=str,
-        choices=["all", "context", "pretranslation", "translate", "qa"],
+        choices=["all", "context", "pretranslation", "translate", "qa", "edit"],
         default="all",
         help="Which phase(s) to run (default: all)",
     )
@@ -412,6 +414,16 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    output_mode: OutputMode
+    if args.output_mode == "auto":
+        output_mode = "auto"
+    elif args.output_mode == "prompted":
+        output_mode = "prompted"
+    elif args.output_mode == "tool":
+        output_mode = "tool"
+    else:
+        output_mode = "native"
+
     # Load .env file if present
     env_path = Path(".env")
     if env_path.exists():
@@ -443,7 +455,7 @@ def main() -> int:
         print("\n  ⚠ rentl.toml not loaded, using CLI arguments")
 
     # Step 1: Load input data
-    print("\n[1/6] Loading input data...")
+    print("\n[1/8] Loading input data...")
     input_path = args.input
     if input_path is None and resolved_config is not None:
         input_path = Path(resolved_config.config.project.paths.input_path)
@@ -457,7 +469,7 @@ def main() -> int:
         line_counter = 0
         with input_path.open() as f:
             for line in f:
-                data = json.loads(line)
+                data: dict[str, JsonValue] = json.loads(line)
                 # Normalize IDs to match HumanReadableId pattern
                 data["line_id"] = f"line_{line_counter:04d}"
                 if data.get("scene_id"):
@@ -509,7 +521,7 @@ def main() -> int:
         print(f"  ✓ Created {len(source_lines)} sample lines")
 
     # Step 2: Load profiles
-    print("\n[2/6] Loading agent profiles...")
+    print("\n[2/8] Loading agent profiles...")
     agent_specs = _discover_agent_profile_specs(agents_dir)
     if not agent_specs:
         print(f"  ✗ No agent profiles found in {agents_dir}")
@@ -520,6 +532,7 @@ def main() -> int:
         PhaseName.PRETRANSLATION: ["idiom_labeler"],
         PhaseName.TRANSLATE: ["direct_translator"],
         PhaseName.QA: ["style_guide_critic"],
+        PhaseName.EDIT: ["basic_editor"],
     }
 
     if resolved_config is not None:
@@ -531,6 +544,7 @@ def main() -> int:
             )
             translate_agents = _resolve_phase_agents(config, PhaseName.TRANSLATE)
             qa_agents = _resolve_phase_agents(config, PhaseName.QA)
+            edit_agents = _resolve_phase_agents(config, PhaseName.EDIT)
         except ConfigError as exc:
             print(f"  ✗ {exc}")
             return 1
@@ -539,6 +553,7 @@ def main() -> int:
         pretranslation_agents = default_agent_names[PhaseName.PRETRANSLATION]
         translate_agents = default_agent_names[PhaseName.TRANSLATE]
         qa_agents = default_agent_names[PhaseName.QA]
+        edit_agents = default_agent_names[PhaseName.EDIT]
 
     def resolve_specs(phase: PhaseName, names: list[str]) -> list[_AgentProfileSpec]:
         specs: list[_AgentProfileSpec] = []
@@ -565,6 +580,7 @@ def main() -> int:
         )
         translate_specs = resolve_specs(PhaseName.TRANSLATE, translate_agents)
         qa_specs = resolve_specs(PhaseName.QA, qa_agents)
+        edit_specs = resolve_specs(PhaseName.EDIT, edit_agents)
     except ConfigError as exc:
         print(f"  ✗ {exc}")
         return 1
@@ -574,6 +590,7 @@ def main() -> int:
         (PhaseName.PRETRANSLATION, pretranslation_specs),
         (PhaseName.TRANSLATE, translate_specs),
         (PhaseName.QA, qa_specs),
+        (PhaseName.EDIT, edit_specs),
     ):
         if not specs:
             print(f"  ⊘ {phase.value}: no agents configured")
@@ -592,11 +609,12 @@ def main() -> int:
         and _require_specs(PhaseName.PRETRANSLATION, pretranslation_specs)
         and _require_specs(PhaseName.TRANSLATE, translate_specs)
         and _require_specs(PhaseName.QA, qa_specs)
+        and _require_specs(PhaseName.EDIT, edit_specs)
     ):
         return 1
 
     # Step 3: Validate input for context phase
-    print("\n[3/6] Validating input...")
+    print("\n[3/8] Validating input...")
     try:
         validate_scene_input(source_lines)
         print("  ✓ All lines have scene_id")
@@ -616,13 +634,13 @@ def main() -> int:
 
     # Check for mock mode
     if args.mock:
-        print("\n[4/7] Context phase (mock)...")
+        print("\n[4/8] Context phase (mock)...")
         print("  ⊘ Mock mode - skipping LLM calls")
 
-        print("\n[5/7] Pretranslation phase (mock)...")
+        print("\n[5/8] Pretranslation phase (mock)...")
         print("  ⊘ Mock mode - skipping LLM calls")
 
-        print("\n[6/7] Translate phase (mock)...")
+        print("\n[6/8] Translate phase (mock)...")
         print("  ⊘ Mock mode - skipping LLM calls")
 
         # Show what would be processed
@@ -636,7 +654,7 @@ def main() -> int:
             if len(chunk) > 3:
                 print(f"    ... and {len(chunk) - 3} more")
 
-        print("\n[7/7] QA phase (mock)...")
+        print("\n[7/8] QA phase (mock)...")
         print("  ⊘ Mock mode - showing what would run:")
         print("  • Deterministic: line_length, empty_translation, whitespace")
         if qa_specs:
@@ -649,6 +667,14 @@ def main() -> int:
             print(f"  • Style guide: {args.style_guide}")
         else:
             print(f"  • Style guide: (not found at {args.style_guide})")
+
+        print("\n[8/8] Edit phase (mock)...")
+        if edit_specs:
+            print("  • LLM-based:")
+            for spec in edit_specs:
+                print(f"    - {spec.name}")
+        else:
+            print("  • LLM-based: (none configured)")
 
         print("\n" + "=" * 70)
         print("✓ Agent validation complete (structure only)")
@@ -663,6 +689,8 @@ def main() -> int:
         phases_to_run.append(PhaseName.TRANSLATE)
     if args.phase in ["all", "qa"]:
         phases_to_run.append(PhaseName.QA)
+    if args.phase in ["all", "edit"]:
+        phases_to_run.append(PhaseName.EDIT)
 
     if resolved_config is None:
         base_url = args.base_url
@@ -682,7 +710,7 @@ def main() -> int:
 
         print(f"\n  Model: {model_id}")
         print(f"  Base URL: {base_url}")
-        print(f"  Output mode: {args.output_mode}")
+        print(f"  Output mode: {output_mode}")
         print(f"  Source: {source_lang} → Target: {target_lang}")
 
         def build_phase_config(phase: PhaseName) -> ProfileAgentConfig:
@@ -690,7 +718,7 @@ def main() -> int:
                 api_key=api_key,
                 base_url=base_url,
                 model_id=model_id,
-                output_mode=args.output_mode,
+                output_mode=output_mode,
             )
 
     else:
@@ -713,7 +741,7 @@ def main() -> int:
         sample_base_url = args.base_url or sample_endpoint.base_url
         print(f"\n  Model: {sample_model}")
         print(f"  Base URL: {sample_base_url}")
-        print(f"  Output mode: {args.output_mode}")
+        print(f"  Output mode: {output_mode}")
         print(f"  Source: {source_lang} → Target: {target_lang}")
 
         def build_phase_config(phase: PhaseName) -> ProfileAgentConfig:
@@ -723,14 +751,14 @@ def main() -> int:
                 api_key=api_keys[phase],
                 base_url_override=args.base_url,
                 model_override=args.model,
-                output_mode=args.output_mode,
+                output_mode=output_mode,
             )
 
     # Step 4: Run Context Phase (Scene Summarizer)
     scene_summaries: list[SceneSummary] = []
 
     if args.phase in ["all", "context"]:
-        print("\n[4/7] Context phase (Scene Summarizer)...")
+        print("\n[4/8] Context phase (Scene Summarizer)...")
         concurrency = args.concurrency
         print(f"  Running {len(scene_groups)} scene(s) (concurrency={concurrency})...")
 
@@ -816,14 +844,14 @@ def main() -> int:
                 traceback.print_exc()
                 return 1
     else:
-        print("\n[4/7] Context phase (skipped)")
+        print("\n[4/8] Context phase (skipped)")
 
     # Step 5: Run Pretranslation Phase (Idiom Labeler)
     pretranslation_annotations: list[PretranslationAnnotation] = []
     term_candidates: list[TermCandidate] = []
 
     if args.phase in ["all", "pretranslation"]:
-        print("\n[5/7] Pretranslation phase (Idiom Labeler)...")
+        print("\n[5/8] Pretranslation phase (Idiom Labeler)...")
 
         try:
             for spec in pretranslation_specs:
@@ -875,13 +903,15 @@ def main() -> int:
             traceback.print_exc()
             return 1
     else:
-        print("\n[5/7] Pretranslation phase (skipped)")
+        print("\n[5/8] Pretranslation phase (skipped)")
 
     # Step 6: Run Translate Phase (Direct Translator)
     translated_lines: list[TranslatedLine] = []
+    all_issues: list[QaIssue] = []
+    style_guide_content = ""
 
     if args.phase in ["all", "translate"]:
-        print("\n[6/7] Translate phase (Direct Translator)...")
+        print("\n[6/8] Translate phase (Direct Translator)...")
 
         try:
             for spec in translate_specs:
@@ -933,14 +963,13 @@ def main() -> int:
             traceback.print_exc()
             return 1
     else:
-        print("\n[6/7] Translate phase (skipped)")
+        print("\n[6/8] Translate phase (skipped)")
 
     # Step 7: Run QA Phase (Deterministic + LLM-based)
     if args.phase in ["all", "qa"]:
-        print("\n[7/7] QA phase...")
+        print("\n[7/8] QA phase...")
 
         # Load style guide
-        style_guide_content = ""
         if args.style_guide.exists():
             style_guide_content = args.style_guide.read_text()
             print(f"  Loaded style guide: {args.style_guide}")
@@ -1034,7 +1063,61 @@ def main() -> int:
                 if len(all_issues) > 5:
                     print(f"\n  ... and {len(all_issues) - 5} more")
     else:
-        print("\n[7/7] QA phase (skipped)")
+        print("\n[7/8] QA phase (skipped)")
+
+    # Step 8: Run Edit Phase (Basic Editor)
+    edited_lines: list[TranslatedLine] = []
+    if args.phase in ["all", "edit"]:
+        print("\n[8/8] Edit phase (Basic Editor)...")
+
+        if not translated_lines:
+            print("  ⚠ No translated lines available - skipping edit")
+        else:
+            try:
+                for spec in edit_specs:
+                    phase_config = build_phase_config(PhaseName.EDIT)
+                    print(f"  Agent: {spec.name}")
+                    edit_agent = create_edit_agent_from_profile(
+                        profile_path=spec.path,
+                        prompts_dir=prompts_dir,
+                        config=phase_config,
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                    )
+
+                    edit_input = EditPhaseInput(
+                        run_id=uuid7(),
+                        target_language=target_lang,
+                        translated_lines=translated_lines,
+                        qa_issues=all_issues or None,
+                        reviewer_notes=None,
+                        scene_summaries=scene_summaries or None,
+                        context_notes=None,
+                        project_context=None,
+                        pretranslation_annotations=pretranslation_annotations or None,
+                        term_candidates=term_candidates or None,
+                        glossary=None,
+                        style_guide=style_guide_content or None,
+                    )
+
+                    edit_output = asyncio.run(edit_agent.run(edit_input))
+                    edited_lines = edit_output.edited_lines
+                    print(f"  ✓ Edited {len(edited_lines)} line(s)")
+
+                    if edit_output.change_log:
+                        print(f"  ✓ Applied {len(edit_output.change_log)} change(s)")
+                        for change in edit_output.change_log[:5]:
+                            print(
+                                f"    - {change.line_id}: {change.reason or 'edited'}"
+                            )
+                    else:
+                        print("  ⊘ No edits applied")
+            except Exception as exc:
+                print(f"  ✗ Edit phase failed: {exc}")
+                traceback.print_exc()
+                return 1
+    else:
+        print("\n[8/8] Edit phase (skipped)")
 
     print("\n" + "=" * 70)
     print("✓ Agent validation complete!")

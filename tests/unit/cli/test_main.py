@@ -545,18 +545,23 @@ def _write_multi_endpoint_config(tmp_path: Path, workspace_dir: Path) -> Path:
 
         [[pipeline.phases]]
         phase = "context"
+        agents = ["scene_summarizer"]
 
         [[pipeline.phases]]
         phase = "pretranslation"
+        agents = ["idiom_labeler"]
 
         [[pipeline.phases]]
         phase = "translate"
+        agents = ["direct_translator"]
 
         [[pipeline.phases]]
         phase = "qa"
+        agents = ["style_guide_critic"]
 
         [[pipeline.phases]]
         phase = "edit"
+        agents = ["basic_editor"]
 
         [[pipeline.phases]]
         phase = "export"

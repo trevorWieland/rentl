@@ -46,26 +46,26 @@ from rentl_schemas.responses import ErrorDetails, ErrorResponse
 from rentl_schemas.storage import ArtifactMetadata
 
 InputT = TypeVar("InputT", bound=BaseSchema)
-OutputT = TypeVar("OutputT", bound=BaseSchema)
+OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
 
 
 @runtime_checkable
-class PhaseAgentProtocol(Protocol[InputT, OutputT]):
+class PhaseAgentProtocol(Protocol[InputT, OutputT_co]):
     """Protocol for a single phase agent."""
 
-    async def run(self, payload: InputT) -> OutputT:
+    async def run(self, payload: InputT) -> OutputT_co:
         """Execute the phase logic for a single payload."""
         raise NotImplementedError
 
 
 @runtime_checkable
-class PhaseAgentPoolProtocol(Protocol[InputT, OutputT]):
+class PhaseAgentPoolProtocol(Protocol[InputT, OutputT_co]):
     """Protocol for a pool of phase agents executing in batch.
 
     Implementations must preserve output ordering aligned with the input payloads.
     """
 
-    async def run_batch(self, payloads: list[InputT]) -> list[OutputT]:
+    async def run_batch(self, payloads: list[InputT]) -> list[OutputT_co]:
         """Execute the phase logic for a batch of payloads."""
         raise NotImplementedError
 

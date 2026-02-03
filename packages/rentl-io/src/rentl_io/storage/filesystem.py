@@ -382,7 +382,11 @@ class FileSystemArtifactStore(ArtifactStoreProtocol):
             )
         path = _location_path(metadata)
         try:
-            return await asyncio.to_thread(_read_json_model, path, model)
+
+            def _load_model() -> ModelT:
+                return _read_json_model(path, model)
+
+            return await asyncio.to_thread(_load_model)
         except (ValidationError, JSONDecodeError, ValueError) as exc:
             error_info = _build_artifact_payload_error_info(
                 "load_artifact_json",
@@ -457,7 +461,11 @@ class FileSystemArtifactStore(ArtifactStoreProtocol):
             )
         path = _location_path(metadata)
         try:
-            return await asyncio.to_thread(_read_jsonl_models, path, model)
+
+            def _load_models() -> list[ModelT]:
+                return _read_jsonl_models(path, model)
+
+            return await asyncio.to_thread(_load_models)
         except (ValidationError, JSONDecodeError, ValueError) as exc:
             error_info = _build_artifact_payload_error_info(
                 "load_artifact_jsonl",

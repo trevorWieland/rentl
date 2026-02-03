@@ -10,6 +10,7 @@ from pydantic import Field
 
 from rentl_agents.harness import AgentHarness, AgentHarnessConfig
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.primitives import JsonValue
 
 
 class MockInput(BaseSchema):
@@ -202,8 +203,8 @@ class TestAgentHarness:
     async def test_tools_registered_with_harness(self) -> None:
         """Test tools are stored in harness during initialization."""
 
-        def mock_tool_fn(query: str) -> str:
-            return f"Result for {query}"
+        def mock_tool_fn(query: str) -> dict[str, JsonValue]:
+            return {"result": f"Result for {query}"}
 
         harness = AgentHarness(
             system_prompt="You are helpful.",
@@ -223,8 +224,8 @@ class TestAgentHarness:
     async def test_run_with_tools_executes_successfully(self) -> None:
         """Test agent run with tools registered completes successfully."""
 
-        def mock_tool_fn(query: str) -> str:
-            return f"Result for {query}"
+        def mock_tool_fn(query: str) -> dict[str, JsonValue]:
+            return {"result": f"Result for {query}"}
 
         harness = AgentHarness(
             system_prompt="You are helpful with tools.",
@@ -258,6 +259,18 @@ class TestAgentHarnessExecuteAgent:
     core execution logic is properly tested.
     """
 
+    @staticmethod
+    def _agent_shim(mock_agent_cls: MagicMock) -> type:
+        class AgentShim:
+            @classmethod
+            def __class_getitem__(cls, _params: object) -> type:
+                return cls
+
+            def __new__(cls, *args: object, **kwargs: object) -> MagicMock:
+                return mock_agent_cls(*args, **kwargs)
+
+        return AgentShim
+
     @pytest.mark.asyncio
     async def test_execute_agent_creates_provider_with_config(self) -> None:
         """Verify OpenAIProvider is created with correct base_url and api_key."""
@@ -279,10 +292,12 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance = MagicMock()
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
+        mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+
         with (
             patch("rentl_agents.harness.OpenAIProvider") as mock_provider_cls,
             patch("rentl_agents.harness.OpenAIChatModel") as mock_model_cls,
-            patch("rentl_agents.harness.Agent", return_value=mock_agent_instance),
+            patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
             mock_provider = MagicMock()
             mock_provider_cls.return_value = mock_provider
@@ -319,10 +334,12 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance = MagicMock()
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
+        mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+
         with (
             patch("rentl_agents.harness.OpenAIProvider") as mock_provider_cls,
             patch("rentl_agents.harness.OpenAIChatModel") as mock_model_cls,
-            patch("rentl_agents.harness.Agent", return_value=mock_agent_instance),
+            patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
             mock_provider = MagicMock()
             mock_provider_cls.return_value = mock_provider
@@ -340,7 +357,7 @@ class TestAgentHarnessExecuteAgent:
         are actually passed to the underlying pydantic-ai Agent.
         """
 
-        def mock_tool_fn(query: str) -> str:
+        def mock_tool_fn(query: str) -> dict[str, JsonValue]:
             """Mock tool function for testing.
 
             Args:
@@ -349,9 +366,9 @@ class TestAgentHarnessExecuteAgent:
             Returns:
                 A formatted result string.
             """
-            return f"Result for {query}"
+            return {"result": f"Result for {query}"}
 
-        tools_list: list[Callable[..., str]] = [mock_tool_fn]
+        tools_list: list[Callable[..., dict[str, JsonValue]]] = [mock_tool_fn]
 
         harness: AgentHarness[MockInput, MockOutput] = AgentHarness(
             system_prompt="You are a helpful assistant.",
@@ -369,12 +386,12 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance = MagicMock()
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
+        mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+
         with (
             patch("rentl_agents.harness.OpenAIProvider"),
             patch("rentl_agents.harness.OpenAIChatModel") as mock_model_cls,
-            patch(
-                "rentl_agents.harness.Agent", return_value=mock_agent_instance
-            ) as mock_agent_cls,
+            patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
             mock_model = MagicMock()
             mock_model_cls.return_value = mock_model
@@ -407,12 +424,12 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance = MagicMock()
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
+        mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+
         with (
             patch("rentl_agents.harness.OpenAIProvider"),
             patch("rentl_agents.harness.OpenAIChatModel") as mock_model_cls,
-            patch(
-                "rentl_agents.harness.Agent", return_value=mock_agent_instance
-            ) as mock_agent_cls,
+            patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
             mock_model = MagicMock()
             mock_model_cls.return_value = mock_model
@@ -450,10 +467,12 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance = MagicMock()
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
+        mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+
         with (
             patch("rentl_agents.harness.OpenAIProvider"),
             patch("rentl_agents.harness.OpenAIChatModel"),
-            patch("rentl_agents.harness.Agent", return_value=mock_agent_instance),
+            patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
             input_data = MockInput(text="Hello", target_lang="ja")
             await harness.run(input_data)
@@ -489,10 +508,12 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance = MagicMock()
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
+        mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+
         with (
             patch("rentl_agents.harness.OpenAIProvider"),
             patch("rentl_agents.harness.OpenAIChatModel"),
-            patch("rentl_agents.harness.Agent", return_value=mock_agent_instance),
+            patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
             input_data = MockInput(text="hello", target_lang="en")
             result = await harness.run(input_data)

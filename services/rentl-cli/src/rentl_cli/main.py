@@ -549,8 +549,12 @@ def status(
                 meta=MetaInfo(timestamp=_now_timestamp()),
             )
             print(response.model_dump_json())
+            if status_result.status in {RunStatus.FAILED, RunStatus.CANCELLED}:
+                raise typer.Exit(code=1)
             return
         _render_status(status_result)
+        if status_result.status in {RunStatus.FAILED, RunStatus.CANCELLED}:
+            raise typer.Exit(code=1)
     except Exception as exc:
         error = _error_from_exception(exc)
         if json_output:
@@ -866,7 +870,7 @@ def _load_run_config(config_path: Path) -> RunConfig:
         raise _ConfigError(f"Config not found: {config_path}")
     try:
         with open(config_path, "rb") as handle:
-            payload = tomllib.load(handle)
+            payload: dict[str, JsonValue] = tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise _ConfigError(f"Failed to read config: {exc}") from exc
     if not isinstance(payload, dict):
@@ -1354,7 +1358,10 @@ def _watch_status(bundle: _StorageBundle, run_id: RunId) -> None:
     if final_status is None:
         final_status = status_result.status
     rprint(f"Run {run_id} {final_status.value}")
-    if _format_enum(final_status) == RunStatus.FAILED.value:
+    if _format_enum(final_status) in {
+        RunStatus.FAILED.value,
+        RunStatus.CANCELLED.value,
+    }:
         raise typer.Exit(code=1)
 
 

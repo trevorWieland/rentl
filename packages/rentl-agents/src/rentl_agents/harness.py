@@ -14,16 +14,17 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from rentl_agents.prompts import PromptRenderer
 from rentl_core.ports.orchestrator import PhaseAgentProtocol
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.primitives import JsonValue
 
 InputT = TypeVar("InputT", bound=BaseSchema)
-OutputT = TypeVar("OutputT", bound=BaseSchema)
+OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
 
 
 @runtime_checkable
-class AgentHarnessProtocol(Protocol[InputT, OutputT]):
+class AgentHarnessProtocol(Protocol[InputT, OutputT_co]):
     """Protocol for agent harness implementation."""
 
-    async def run(self, payload: InputT) -> OutputT:
+    async def run(self, payload: InputT) -> OutputT_co:
         """Execute the agent with the given payload."""
         raise NotImplementedError
 
@@ -35,7 +36,7 @@ class AgentHarnessProtocol(Protocol[InputT, OutputT]):
         """Validate input schema."""
         raise NotImplementedError
 
-    def validate_output(self, output_data: OutputT) -> bool:
+    def validate_output(self, output_data: BaseSchema) -> bool:
         """Validate output schema."""
         raise NotImplementedError
 
@@ -51,7 +52,7 @@ class AgentHarnessConfig(BaseSchema):
     timeout_s: float = 30.0
 
 
-class AgentHarness(PhaseAgentProtocol[InputT, OutputT]):
+class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
     """Base agent harness with pydantic-ai integration.
 
     This harness wraps a pydantic-ai Agent with additional functionality:
@@ -73,8 +74,8 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT]):
         self,
         system_prompt: str,
         user_prompt_template: str,
-        output_type: type[OutputT],
-        tools: list[Callable[..., str]] | None = None,
+        output_type: type[OutputT_co],
+        tools: list[Callable[..., dict[str, JsonValue]]] | None = None,
         max_retries: int = 3,
         retry_base_delay: float = 1.0,
     ) -> None:
@@ -139,7 +140,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT]):
         input_data.model_validate(input_data.model_dump())
         return True
 
-    def validate_output(self, output_data: OutputT) -> bool:
+    def validate_output(self, output_data: BaseSchema) -> bool:
         """Validate output schema.
 
         Args:
@@ -156,7 +157,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT]):
         self._output_type.model_validate(output_data.model_dump())
         return True
 
-    async def run(self, payload: InputT) -> OutputT:
+    async def run(self, payload: InputT) -> OutputT_co:
         """Execute the agent with the given payload.
 
         Args:
@@ -198,7 +199,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT]):
 
         raise RuntimeError("Agent execution failed") from last_error
 
-    async def _execute_agent(self, user_prompt: str) -> OutputT:
+    async def _execute_agent(self, user_prompt: str) -> OutputT_co:
         """Execute the agent prompt using pydantic-ai.
 
         Creates a fresh Agent instance for each execution, following the
@@ -229,7 +230,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT]):
             "timeout": self._config.timeout_s,
         }
 
-        agent: Agent[None, OutputT] = Agent(
+        agent: Agent[None, OutputT_co] = Agent[None, OutputT_co](
             model=model,
             instructions=self._system_prompt,
             output_type=self._output_type,

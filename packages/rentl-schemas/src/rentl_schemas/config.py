@@ -385,12 +385,10 @@ class PipelineConfig(BaseSchema):
             if phase.phase in llm_phases:
                 if phase.enabled and not phase.agents:
                     raise ValueError(
-                        f"agents must be configured for {phase.phase.value} phase"
+                        f"agents must be configured for {phase.phase} phase"
                     )
             elif phase.agents is not None:
-                raise ValueError(
-                    f"agents are not allowed for {phase.phase.value} phase"
-                )
+                raise ValueError(f"agents are not allowed for {phase.phase} phase")
         return self
 
 

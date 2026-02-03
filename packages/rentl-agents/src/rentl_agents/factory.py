@@ -17,6 +17,7 @@ from rentl_core.ports.orchestrator import (
     PhaseAgentPoolProtocol,
 )
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.primitives import JsonValue
 
 
 class AgentConfig(BaseSchema):
@@ -194,7 +195,7 @@ class AgentFactory:
             retry_base_delay=config.retry_base_delay,
         )
 
-        self._instance_cache[cache_key] = _AgentCacheEntry(
+        self._instance_cache[cache_key] = _AgentCacheEntry[BaseSchema](
             agent=agent,
             output_type=output_type,
         )
@@ -267,7 +268,7 @@ class AgentFactory:
     def _build_tool_list(
         self,
         tool_names: list[str],
-    ) -> list[Callable[..., str]]:
+    ) -> list[Callable[..., dict[str, JsonValue]]]:
         """Build tool list from tool names.
 
         Args:
@@ -279,7 +280,7 @@ class AgentFactory:
         Raises:
             ValueError: If tool name is not registered.
         """
-        tool_list: list[Callable[..., str]] = []
+        tool_list: list[Callable[..., dict[str, JsonValue]]] = []
 
         for tool_name in tool_names:
             if tool_name not in self._tool_registry:

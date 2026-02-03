@@ -135,16 +135,16 @@ from rentl_schemas.storage import (
 )
 
 InputT = TypeVar("InputT", bound=BaseSchema)
-OutputT = TypeVar("OutputT", bound=BaseSchema)
+OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
 PhaseKey = tuple[PhaseName, LanguageCode | None]
 
 
-class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT]):
+class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
     """Simple concurrent agent pool for phase execution."""
 
     def __init__(
         self,
-        agents: list[PhaseAgentProtocol[InputT, OutputT]],
+        agents: list[PhaseAgentProtocol[InputT, OutputT_co]],
         max_parallel: int | None = None,
     ) -> None:
         """Initialize the agent pool.
@@ -160,16 +160,16 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT]):
             raise ValueError("agents must not be empty")
         if max_parallel is not None and max_parallel <= 0:
             raise ValueError("max_parallel must be positive")
-        self._agents = agents
-        self._max_parallel = max_parallel
+        self._agents: list[PhaseAgentProtocol[InputT, OutputT_co]] = agents
+        self._max_parallel: int | None = max_parallel
 
     @classmethod
     def from_factory(
         cls,
-        factory: Callable[[], PhaseAgentProtocol[InputT, OutputT]],
+        factory: Callable[[], PhaseAgentProtocol[InputT, OutputT_co]],
         count: int,
         max_parallel: int | None = None,
-    ) -> PhaseAgentPool[InputT, OutputT]:
+    ) -> PhaseAgentPool[InputT, OutputT_co]:
         """Create a pool by instantiating agents from a factory.
 
         Args:
@@ -188,7 +188,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT]):
         agents = [factory() for _ in range(count)]
         return cls(agents=agents, max_parallel=max_parallel)
 
-    async def run_batch(self, payloads: list[InputT]) -> list[OutputT]:
+    async def run_batch(self, payloads: list[InputT]) -> list[OutputT_co]:
         """Execute a batch of payloads concurrently.
 
         Args:
@@ -205,7 +205,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT]):
         max_parallel = self._max_parallel or len(self._agents)
         max_parallel = min(max_parallel, len(self._agents))
         semaphore = asyncio.Semaphore(max_parallel)
-        results: list[OutputT | None] = [None] * len(payloads)
+        results: list[OutputT_co | None] = [None] * len(payloads)
 
         async def _run(index: int, payload: InputT) -> None:
             agent = self._agents[index % len(self._agents)]
@@ -216,7 +216,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT]):
             for index, payload in enumerate(payloads):
                 group.create_task(_run(index, payload))
 
-        resolved: list[OutputT] = []
+        resolved: list[OutputT_co] = []
         for result in results:
             if result is None:
                 raise OrchestrationError(
@@ -1910,17 +1910,17 @@ class _WorkChunk:
 
 
 async def _run_agent_pool(
-    pool: PhaseAgentPoolProtocol[InputT, OutputT],
+    pool: PhaseAgentPoolProtocol[InputT, OutputT_co],
     payloads: list[InputT],
     max_parallel: int | None,
-    on_batch: Callable[[list[InputT], list[OutputT]], Awaitable[None]] | None = None,
-) -> list[OutputT]:
+    on_batch: Callable[[list[InputT], list[OutputT_co]], Awaitable[None]] | None = None,
+) -> list[OutputT_co]:
     if max_parallel is None or max_parallel <= 0 or max_parallel >= len(payloads):
         results = await pool.run_batch(payloads)
         if on_batch is not None:
             await on_batch(payloads, results)
         return results
-    results: list[OutputT] = []
+    results: list[OutputT_co] = []
     for index in range(0, len(payloads), max_parallel):
         batch = payloads[index : index + max_parallel]
         batch_results = await pool.run_batch(batch)

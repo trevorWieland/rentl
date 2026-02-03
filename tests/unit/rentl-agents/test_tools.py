@@ -9,10 +9,14 @@ import pytest
 from rentl_agents.tools import (
     AgentTool,
     ContextLookupTool,
+    ContextLookupToolOutput,
     GlossarySearchTool,
+    GlossarySearchToolOutput,
     StyleGuideLookupTool,
+    StyleGuideLookupToolOutput,
 )
 from rentl_schemas.phases import ContextNote, GlossaryTerm, SceneSummary
+from rentl_schemas.primitives import JsonValue
 
 
 class TestAgentTool:
@@ -22,7 +26,7 @@ class TestAgentTool:
         """Test creating a valid agent tool."""
 
         class MockTool(AgentTool):
-            def execute(self, input_data: dict) -> dict:
+            def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
                 return {"result": "success"}
 
         tool = MockTool(
@@ -37,7 +41,7 @@ class TestAgentTool:
         """Test creating tool raises error for empty name."""
 
         class MockTool(AgentTool):
-            def execute(self, input_data: dict) -> dict:
+            def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
                 return {"result": "success"}
 
         with pytest.raises(ValueError, match="Tool name must not be empty"):
@@ -50,7 +54,7 @@ class TestAgentTool:
         """Test creating tool raises error for empty description."""
 
         class MockTool(AgentTool):
-            def execute(self, input_data: dict) -> dict:
+            def execute(self, input_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
                 return {"result": "success"}
 
         with pytest.raises(ValueError, match="Tool description must not be empty"):
@@ -106,10 +110,10 @@ class TestContextLookupTool:
         tool = ContextLookupTool(scene_summaries=scene_summaries)
 
         result = tool.execute({"scene_id": "scene_1"})
+        output = ContextLookupToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert len(result["scene_summaries"]) == 1
-        assert result["scene_summaries"][0]["scene_id"] == "scene_1"
+        assert len(output.scene_summaries) == 1
+        assert output.scene_summaries[0].scene_id == "scene_1"
 
     def test_execute_with_line_id(self) -> None:
         """Test executing context lookup by line ID."""
@@ -129,10 +133,10 @@ class TestContextLookupTool:
         tool = ContextLookupTool(context_notes=context_notes)
 
         result = tool.execute({"line_id": "line_1"})
+        output = ContextLookupToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert len(result["context_notes"]) == 1
-        assert result["context_notes"][0]["line_id"] == "line_1"
+        assert len(output.context_notes) == 1
+        assert output.context_notes[0].line_id == "line_1"
 
     def test_execute_with_invalid_input(self) -> None:
         """Test executing tool with invalid input type raises error."""
@@ -148,10 +152,10 @@ class TestContextLookupTool:
         tool = ContextLookupTool()
 
         result = tool.execute({"scene_id": "other_1"})
+        output = ContextLookupToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert len(result["scene_summaries"]) == 0
-        assert len(result["context_notes"]) == 0
+        assert len(output.scene_summaries) == 0
+        assert len(output.context_notes) == 0
 
 
 class TestGlossarySearchTool:
@@ -183,10 +187,10 @@ class TestGlossarySearchTool:
         tool = GlossarySearchTool(glossary_terms=glossary_terms)
 
         result = tool.execute({"keyword": "hello"})
+        output = GlossarySearchToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert len(result["terms"]) == 1
-        assert result["terms"][0]["term"] == "Hello"
+        assert len(output.terms) == 1
+        assert output.terms[0].term == "Hello"
 
     def test_execute_with_exact_match(self) -> None:
         """Test executing glossary search with exact match."""
@@ -206,10 +210,10 @@ class TestGlossarySearchTool:
         tool = GlossarySearchTool(glossary_terms=glossary_terms)
 
         result = tool.execute({"keyword": "hello", "exact_match": True})
+        output = GlossarySearchToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert len(result["terms"]) == 1
-        assert result["terms"][0]["term"] == "Hello"
+        assert len(output.terms) == 1
+        assert output.terms[0].term == "Hello"
 
     def test_execute_with_partial_match(self) -> None:
         """Test executing glossary search with partial match."""
@@ -224,9 +228,9 @@ class TestGlossarySearchTool:
         tool = GlossarySearchTool(glossary_terms=glossary_terms)
 
         result = tool.execute({"keyword": "hello", "exact_match": False})
+        output = GlossarySearchToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert len(result["terms"]) == 1
+        assert len(output.terms) == 1
 
     def test_execute_with_invalid_input(self) -> None:
         """Test executing tool with invalid input raises error."""
@@ -240,9 +244,9 @@ class TestGlossarySearchTool:
         tool = GlossarySearchTool()
 
         result = tool.execute({"keyword": "nonexistent"})
+        output = GlossarySearchToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert len(result["terms"]) == 0
+        assert len(output.terms) == 0
 
 
 class TestStyleGuideLookupTool:
@@ -267,10 +271,10 @@ class TestStyleGuideLookupTool:
         tool = StyleGuideLookupTool(style_guide_content=content)
 
         result = tool.execute({"section": "Names"})
+        output = StyleGuideLookupToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert "Honorifics required" in result["content"]
-        assert result["section"] == "Names"
+        assert "Honorifics required" in output.content
+        assert output.section == "Names"
 
     def test_execute_with_keyword(self) -> None:
         """Test executing style guide lookup by keyword."""
@@ -281,9 +285,9 @@ class TestStyleGuideLookupTool:
         tool = StyleGuideLookupTool(style_guide_content=content)
 
         result = tool.execute({"keyword": "honorifics"})
+        output = StyleGuideLookupToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert "honorifics" in result["content"].lower()
+        assert "honorifics" in output.content.lower()
 
     def test_execute_without_filters(self) -> None:
         """Test executing style guide lookup without filters."""
@@ -291,9 +295,9 @@ class TestStyleGuideLookupTool:
         tool = StyleGuideLookupTool(style_guide_content=content)
 
         result = tool.execute({})
+        output = StyleGuideLookupToolOutput.model_validate(result)
 
-        assert isinstance(result, dict)
-        assert "Use formal tone" in result["content"]
+        assert "Use formal tone" in output.content
 
     def test_execute_with_invalid_input(self) -> None:
         """Test executing tool with invalid input type raises error."""
