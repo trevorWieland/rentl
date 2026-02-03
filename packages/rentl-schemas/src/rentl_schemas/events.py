@@ -10,6 +10,7 @@ from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import (
     ArtifactId,
     FileFormat,
+    JsonValue,
     LanguageCode,
     PhaseName,
     RunStatus,
@@ -61,6 +62,14 @@ class ExportEvent(StrEnum):
     STARTED = "export_started"
     COMPLETED = "export_completed"
     FAILED = "export_failed"
+
+
+class CommandEvent(StrEnum):
+    """Event names for CLI command execution."""
+
+    STARTED = "command_started"
+    COMPLETED = "command_completed"
+    FAILED = "command_failed"
 
 
 class ArtifactEvent(StrEnum):
@@ -150,6 +159,30 @@ class ExportFailedData(ExportStartedData):
     error_count: int | None = Field(
         None, ge=1, description="Optional total error count"
     )
+
+
+class CommandStartedData(BaseSchema):
+    """Payload for command start events."""
+
+    command: str = Field(..., min_length=1, description="CLI command name")
+    args: dict[str, JsonValue] | None = Field(
+        None, description="Command arguments (redacted)"
+    )
+
+
+class CommandCompletedData(BaseSchema):
+    """Payload for command completion events."""
+
+    command: str = Field(..., min_length=1, description="CLI command name")
+
+
+class CommandFailedData(BaseSchema):
+    """Payload for command failure events."""
+
+    command: str = Field(..., min_length=1, description="CLI command name")
+    error_code: str = Field(..., min_length=1, description="Error code")
+    error_message: str = Field(..., min_length=1, description="Error message")
+    next_action: str = Field(..., min_length=1, description="Suggested next action")
 
 
 class ArtifactPersistedData(BaseSchema):

@@ -12,6 +12,7 @@ from rentl_schemas.primitives import (
     FileFormat,
     JsonValue,
     LanguageCode,
+    LogSinkType,
     PhaseName,
     PhaseWorkStrategy,
     QaSeverity,
@@ -31,6 +32,35 @@ class ProjectPaths(BaseSchema):
         ..., min_length=1, description="Directory for export outputs"
     )
     logs_dir: str = Field(..., min_length=1, description="Directory for JSONL logs")
+
+
+class LogSinkConfig(BaseSchema):
+    """Configuration for a single log sink."""
+
+    type: LogSinkType = Field(..., description="Log sink type (console|file|noop)")
+
+
+class LoggingConfig(BaseSchema):
+    """Logging configuration for pipeline runs and CLI commands."""
+
+    sinks: list[LogSinkConfig] = Field(
+        ..., min_length=1, description="Log sinks to enable"
+    )
+
+    @model_validator(mode="after")
+    def validate_sink_types(self) -> LoggingConfig:
+        """Ensure log sink types are unique.
+
+        Returns:
+            LoggingConfig: Validated logging configuration.
+
+        Raises:
+            ValueError: If sink types are duplicated.
+        """
+        sink_types = [sink.type for sink in self.sinks]
+        if len(set(sink_types)) != len(sink_types):
+            raise ValueError("log sinks must not contain duplicates")
+        return self
 
 
 class FormatConfig(BaseSchema):
@@ -348,6 +378,7 @@ class RunConfig(BaseSchema):
     """Top-level configuration for executing a pipeline run."""
 
     project: ProjectConfig = Field(..., description="Project settings")
+    logging: LoggingConfig = Field(..., description="Logging configuration")
     endpoint: ModelEndpointConfig | None = Field(
         None, description="Legacy model endpoint settings"
     )

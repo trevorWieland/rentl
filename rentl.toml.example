@@ -8,6 +8,13 @@ input_path = "input.txt"
 output_dir = "out"
 logs_dir = "logs"
 
+[logging]
+[[logging.sinks]]
+type = "file"
+
+[[logging.sinks]]
+type = "console"
+
 [project.formats]
 input_format = "txt"
 output_format = "txt"

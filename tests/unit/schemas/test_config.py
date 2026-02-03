@@ -9,6 +9,8 @@ from rentl_schemas.config import (
     EndpointSetConfig,
     FormatConfig,
     LanguageConfig,
+    LoggingConfig,
+    LogSinkConfig,
     ModelEndpointConfig,
     ModelSettings,
     PhaseConfig,
@@ -19,7 +21,12 @@ from rentl_schemas.config import (
     RetryConfig,
     RunConfig,
 )
-from rentl_schemas.primitives import FileFormat, PhaseName, PhaseWorkStrategy
+from rentl_schemas.primitives import (
+    FileFormat,
+    LogSinkType,
+    PhaseName,
+    PhaseWorkStrategy,
+)
 from rentl_schemas.version import VersionInfo
 
 
@@ -102,6 +109,17 @@ def test_phase_execution_rejects_chunk_with_scene_batch_size() -> None:
             strategy=PhaseWorkStrategy.CHUNK,
             chunk_size=10,
             scene_batch_size=2,
+        )
+
+
+def test_logging_config_rejects_duplicate_sink_types() -> None:
+    """Ensure logging config rejects duplicate sink types."""
+    with pytest.raises(ValidationError):
+        LoggingConfig(
+            sinks=[
+                LogSinkConfig(type=LogSinkType.FILE),
+                LogSinkConfig(type=LogSinkType.FILE),
+            ]
         )
 
 
@@ -195,6 +213,7 @@ def test_run_config_rejects_endpoint_ref_without_endpoints() -> None:
     with pytest.raises(ValidationError):
         RunConfig(
             project=_base_project_config(),
+            logging=_base_logging_config(),
             endpoint=ModelEndpointConfig(
                 provider_name="legacy",
                 base_url="http://localhost:8002/api/v1",
@@ -224,6 +243,7 @@ def test_run_config_rejects_both_endpoint_modes() -> None:
     with pytest.raises(ValidationError):
         RunConfig(
             project=_base_project_config(),
+            logging=_base_logging_config(),
             endpoint=ModelEndpointConfig(
                 provider_name="legacy",
                 base_url="http://localhost:8002/api/v1",
@@ -255,6 +275,7 @@ def test_run_config_rejects_unknown_endpoint_ref() -> None:
     with pytest.raises(ValidationError):
         RunConfig(
             project=_base_project_config(),
+            logging=_base_logging_config(),
             endpoint=None,
             endpoints=endpoints,
             pipeline=pipeline,
@@ -281,6 +302,7 @@ def test_run_config_accepts_multi_endpoints() -> None:
     )
     config = RunConfig(
         project=_base_project_config(),
+        logging=_base_logging_config(),
         endpoint=None,
         endpoints=endpoints,
         pipeline=pipeline,
@@ -304,6 +326,10 @@ def _base_project_config() -> ProjectConfig:
         formats=FormatConfig(input_format=FileFormat.TXT, output_format=FileFormat.TXT),
         languages=LanguageConfig(source_language="en", target_languages=["ja"]),
     )
+
+
+def _base_logging_config() -> LoggingConfig:
+    return LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.FILE)])
 
 
 def _base_pipeline_config(default_model: ModelSettings) -> PipelineConfig:

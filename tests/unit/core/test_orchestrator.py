@@ -25,6 +25,8 @@ from rentl_schemas.config import (
     ConcurrencyConfig,
     FormatConfig,
     LanguageConfig,
+    LoggingConfig,
+    LogSinkConfig,
     ModelEndpointConfig,
     ModelSettings,
     PhaseConfig,
@@ -53,6 +55,7 @@ from rentl_schemas.pipeline import PhaseRunRecord, RunMetadata, RunState
 from rentl_schemas.primitives import (
     ArtifactId,
     FileFormat,
+    LogSinkType,
     PhaseName,
     PhaseStatus,
     PhaseWorkStrategy,
@@ -273,6 +276,7 @@ def _build_run_config() -> RunConfig:
     )
     return RunConfig(
         project=project,
+        logging=LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.NOOP)]),
         endpoint=ModelEndpointConfig(
             provider_name="test",
             base_url="http://localhost",
@@ -417,6 +421,7 @@ async def test_orchestrator_rejects_route_strategy_without_route_ids() -> None:
     ]
     ingest_adapter = _StubIngestAdapter(source_lines)
     orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
         context_agents=_RecordingContextPool(),
     )
@@ -491,6 +496,7 @@ async def test_orchestrator_routes_sharded_by_route_id() -> None:
     ingest_adapter = _StubIngestAdapter(source_lines)
     pool = _RecordingContextPool()
     orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
         context_agents=pool,
     )
@@ -529,6 +535,7 @@ async def test_orchestrator_blocks_qa_without_translation() -> None:
     ]
     ingest_adapter = _StubIngestAdapter(source_lines)
     orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
         context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
         qa_agents=PhaseAgentPool(agents=[_StubQaAgent()]),
@@ -571,6 +578,7 @@ async def test_orchestrator_marks_stale_on_upstream_change() -> None:
     ]
     ingest_adapter = _StubIngestAdapter(source_lines)
     orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
         context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
         pretranslation_agents=PhaseAgentPool(agents=[_StubPretranslationAgent()]),
@@ -672,6 +680,7 @@ async def test_orchestrator_blocks_translate_without_pretranslation() -> None:
     ]
     ingest_adapter = _StubIngestAdapter(source_lines)
     orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
         context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
         translate_agents=PhaseAgentPool(agents=[_StubTranslateAgent()]),
@@ -706,6 +715,7 @@ async def test_orchestrator_blocks_export_without_edit_when_enabled() -> None:
     ]
     ingest_adapter = _StubIngestAdapter(source_lines)
     orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
         context_agents=PhaseAgentPool(agents=[_StubContextAgent()]),
         pretranslation_agents=PhaseAgentPool(agents=[_StubPretranslationAgent()]),
@@ -744,6 +754,7 @@ async def test_orchestrator_persists_ingest_artifacts() -> None:
     ingest_adapter = _StubIngestAdapter(source_lines)
     artifact_store = _StubArtifactStore()
     orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
         ingest_adapter=ingest_adapter,
         artifact_store=artifact_store,
     )

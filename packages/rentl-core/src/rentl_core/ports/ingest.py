@@ -150,7 +150,7 @@ def build_ingest_started_log(
         message="Ingest started",
         data=IngestStartedData(
             source_path=source.input_path,
-            format=source.format,
+            format=_coerce_file_format(source.format),
         ).model_dump(exclude_none=True),
     )
 
@@ -181,7 +181,7 @@ def build_ingest_completed_log(
         message="Ingest completed",
         data=IngestCompletedData(
             source_path=source.input_path,
-            format=source.format,
+            format=_coerce_file_format(source.format),
             line_count=line_count,
         ).model_dump(exclude_none=True),
     )
@@ -208,7 +208,7 @@ def build_ingest_failed_log(
     """
     data = IngestFailedData(
         source_path=source.input_path,
-        format=source.format,
+        format=_coerce_file_format(source.format),
         error_code=str(error.code),
         error_message=error.message,
         error_count=error_count,
@@ -233,3 +233,9 @@ def _format_location(details: IngestErrorDetails | None) -> str | None:
     if details.line_number is not None:
         return f"line {details.line_number}"
     return None
+
+
+def _coerce_file_format(value: FileFormat | str) -> FileFormat:
+    if isinstance(value, FileFormat):
+        return value
+    return FileFormat(value)

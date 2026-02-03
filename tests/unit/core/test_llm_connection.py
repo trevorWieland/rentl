@@ -9,6 +9,8 @@ from rentl_schemas.config import (
     EndpointSetConfig,
     FormatConfig,
     LanguageConfig,
+    LoggingConfig,
+    LogSinkConfig,
     ModelEndpointConfig,
     ModelSettings,
     PhaseConfig,
@@ -24,7 +26,7 @@ from rentl_schemas.llm import (
     LlmPromptRequest,
     LlmPromptResponse,
 )
-from rentl_schemas.primitives import FileFormat, PhaseName
+from rentl_schemas.primitives import FileFormat, LogSinkType, PhaseName
 from rentl_schemas.version import VersionInfo
 
 
@@ -91,6 +93,7 @@ async def test_validate_connections_returns_report() -> None:
 def _build_config() -> RunConfig:
     return RunConfig(
         project=_base_project_config(),
+        logging=_logging_config(),
         endpoint=None,
         endpoints=_endpoints_config(),
         pipeline=_pipeline_config(),
@@ -110,6 +113,10 @@ def _build_config() -> RunConfig:
             max_entries=None,
         ),
     )
+
+
+def _logging_config() -> LoggingConfig:
+    return LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.NOOP)])
 
 
 def _base_project_config() -> ProjectConfig:

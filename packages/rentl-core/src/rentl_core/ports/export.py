@@ -178,7 +178,7 @@ def build_export_started_log(
         message="Export started",
         data=ExportStartedData(
             output_path=target.output_path,
-            format=target.format,
+            format=_coerce_file_format(target.format),
         ).model_dump(exclude_none=True),
     )
 
@@ -206,7 +206,7 @@ def build_export_completed_log(
     """
     data = ExportCompletedData(
         output_path=target.output_path,
-        format=target.format,
+        format=_coerce_file_format(target.format),
         line_count=line_count,
         untranslated_count=untranslated_count,
         column_count=column_count,
@@ -244,7 +244,7 @@ def build_export_failed_log(
     """
     data = ExportFailedData(
         output_path=target.output_path,
-        format=target.format,
+        format=_coerce_file_format(target.format),
         error_code=str(error.code),
         error_message=error.message,
         error_count=error_count,
@@ -269,3 +269,9 @@ def _format_location(details: ExportErrorDetails | None) -> str | None:
     if details.line_number is not None:
         return f"line {details.line_number}"
     return None
+
+
+def _coerce_file_format(value: FileFormat | str) -> FileFormat:
+    if isinstance(value, FileFormat):
+        return value
+    return FileFormat(value)

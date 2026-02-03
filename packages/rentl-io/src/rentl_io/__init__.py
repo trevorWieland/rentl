@@ -19,12 +19,15 @@ from rentl_io.ingest import (
 from rentl_io.storage import (
     CompositeLogSink,
     CompositeProgressSink,
+    ConsoleLogSink,
     FileSystemArtifactStore,
     FileSystemLogStore,
     FileSystemProgressSink,
     FileSystemRunStateStore,
     InMemoryProgressSink,
+    NoopLogSink,
     StorageLogSink,
+    build_log_sink,
 )
 
 __version__ = "0.1.0"
@@ -32,6 +35,7 @@ __version__ = "0.1.0"
 __all__ = [
     "CompositeLogSink",
     "CompositeProgressSink",
+    "ConsoleLogSink",
     "CsvExportAdapter",
     "CsvIngestAdapter",
     "FileSystemArtifactStore",
@@ -41,9 +45,11 @@ __all__ = [
     "InMemoryProgressSink",
     "JsonlExportAdapter",
     "JsonlIngestAdapter",
+    "NoopLogSink",
     "StorageLogSink",
     "TxtExportAdapter",
     "TxtIngestAdapter",
+    "build_log_sink",
     "get_export_adapter",
     "get_ingest_adapter",
     "load_source",

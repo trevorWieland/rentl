@@ -9,8 +9,23 @@ from datetime import UTC, datetime
 from typing import TypeVar, cast
 from uuid import uuid7
 
-from rentl_core.ports.export import ExportAdapterProtocol, ExportResult
-from rentl_core.ports.ingest import IngestAdapterProtocol
+from rentl_core.ports.export import (
+    ExportAdapterProtocol,
+    ExportBatchError,
+    ExportError,
+    ExportResult,
+    build_export_completed_log,
+    build_export_failed_log,
+    build_export_started_log,
+)
+from rentl_core.ports.ingest import (
+    IngestAdapterProtocol,
+    IngestBatchError,
+    IngestError,
+    build_ingest_completed_log,
+    build_ingest_failed_log,
+    build_ingest_started_log,
+)
 from rentl_core.ports.orchestrator import (
     ContextAgentPoolProtocol,
     EditAgentPoolProtocol,
@@ -231,6 +246,8 @@ class PipelineOrchestrator:
 
     def __init__(
         self,
+        *,
+        log_sink: LogSinkProtocol,
         ingest_adapter: IngestAdapterProtocol | None = None,
         export_adapter: ExportAdapterProtocol | None = None,
         context_agents: ContextAgentPoolProtocol | None = None,
@@ -238,7 +255,6 @@ class PipelineOrchestrator:
         translate_agents: TranslateAgentPoolProtocol | None = None,
         qa_agents: QaAgentPoolProtocol | None = None,
         edit_agents: EditAgentPoolProtocol | None = None,
-        log_sink: LogSinkProtocol | None = None,
         progress_sink: ProgressSinkProtocol | None = None,
         run_state_store: RunStateStoreProtocol | None = None,
         artifact_store: ArtifactStoreProtocol | None = None,
@@ -247,6 +263,7 @@ class PipelineOrchestrator:
         """Initialize the orchestrator.
 
         Args:
+            log_sink: Log sink for JSONL entries.
             ingest_adapter: Adapter for ingest phase.
             export_adapter: Adapter for export phase.
             context_agents: Context agent pool.
@@ -254,7 +271,6 @@ class PipelineOrchestrator:
             translate_agents: Translate agent pool.
             qa_agents: QA agent pool.
             edit_agents: Edit agent pool.
-            log_sink: Optional log sink.
             progress_sink: Optional progress sink.
             run_state_store: Optional run state store.
             artifact_store: Optional artifact store.
@@ -517,13 +533,42 @@ class PipelineOrchestrator:
                     details=OrchestrationErrorDetails(phase=PhaseName.INGEST),
                 )
             )
-        run.source_lines = await self._ingest_adapter.load_source(ingest_source)
+        await self._emit_log(
+            build_ingest_started_log(self._clock(), run.run_id, ingest_source)
+        )
+        try:
+            run.source_lines = await self._ingest_adapter.load_source(ingest_source)
+        except IngestBatchError as exc:
+            primary_error = exc.errors[0]
+            await self._emit_log(
+                build_ingest_failed_log(
+                    self._clock(),
+                    run.run_id,
+                    ingest_source,
+                    primary_error,
+                    error_count=len(exc.errors),
+                )
+            )
+            raise
+        except IngestError as exc:
+            await self._emit_log(
+                build_ingest_failed_log(
+                    self._clock(), run.run_id, ingest_source, exc.info
+                )
+            )
+            raise
+        line_count = len(run.source_lines)
         artifact_ids = await self._persist_phase_artifact(
             run,
             PhaseName.INGEST,
             run.source_lines,
             None,
             description="Ingest source lines",
+        )
+        await self._emit_log(
+            build_ingest_completed_log(
+                self._clock(), run.run_id, ingest_source, line_count
+            )
         )
         revision = _next_revision(run, PhaseName.INGEST, None)
         dependencies = _build_dependencies(run, PhaseName.INGEST, None)
@@ -961,9 +1006,32 @@ class PipelineOrchestrator:
                 )
             )
         translated_lines = _select_export_lines(run, target_language)
-        export_result = await self._export_adapter.write_output(
-            export_target, translated_lines
+        await self._emit_log(
+            build_export_started_log(self._clock(), run.run_id, export_target)
         )
+        try:
+            export_result = await self._export_adapter.write_output(
+                export_target, translated_lines
+            )
+        except ExportBatchError as exc:
+            primary_error = exc.errors[0]
+            await self._emit_log(
+                build_export_failed_log(
+                    self._clock(),
+                    run.run_id,
+                    export_target,
+                    primary_error,
+                    error_count=len(exc.errors),
+                )
+            )
+            raise
+        except ExportError as exc:
+            await self._emit_log(
+                build_export_failed_log(
+                    self._clock(), run.run_id, export_target, exc.info
+                )
+            )
+            raise
         run.export_results[target_language] = export_result
         artifact_ids = await self._persist_phase_artifact(
             run,
@@ -971,6 +1039,16 @@ class PipelineOrchestrator:
             export_result,
             target_language,
             description=f"Export result ({target_language})",
+        )
+        await self._emit_log(
+            build_export_completed_log(
+                self._clock(),
+                run.run_id,
+                export_target,
+                export_result.summary.line_count,
+                untranslated_count=export_result.summary.untranslated_count,
+                column_count=export_result.summary.column_count,
+            )
         )
         revision = _next_revision(run, PhaseName.EXPORT, target_language)
         dependencies = _build_dependencies(run, PhaseName.EXPORT, target_language)
@@ -991,8 +1069,6 @@ class PipelineOrchestrator:
         return record
 
     async def _emit_log(self, entry: LogEntry) -> None:
-        if self._log_sink is None:
-            return
         await self._log_sink.emit_log(entry)
 
     async def _emit_run_progress(
@@ -2411,7 +2487,7 @@ def _build_phase_record(
 
 async def _update_stale_flags(
     run: PipelineRunContext,
-    log_sink: LogSinkProtocol | None,
+    log_sink: LogSinkProtocol,
     clock: Callable[[], Timestamp],
 ) -> None:
     stale_before: dict[tuple[PhaseName, int, str | None], bool] = {
@@ -2425,8 +2501,6 @@ async def _update_stale_flags(
         if not record.stale:
             continue
         if stale_before.get(key) is True:
-            continue
-        if log_sink is None:
             continue
         data = {
             "revision": record.revision,

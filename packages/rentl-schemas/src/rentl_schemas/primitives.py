@@ -135,6 +135,14 @@ class LogLevel(StrEnum):
     ERROR = "error"
 
 
+class LogSinkType(StrEnum):
+    """Supported log sink types."""
+
+    CONSOLE = "console"
+    FILE = "file"
+    NOOP = "noop"
+
+
 class QaSeverity(StrEnum):
     """QA issue severity levels."""
 

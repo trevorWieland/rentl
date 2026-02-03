@@ -8,7 +8,7 @@ import os
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NamedTuple, TypeVar
+from typing import NamedTuple, TypeVar, cast
 from uuid import UUID, uuid7
 
 import typer
@@ -25,7 +25,7 @@ from rentl_core.orchestrator import (
 )
 from rentl_core.ports.export import ExportBatchError, ExportError, ExportResult
 from rentl_core.ports.ingest import IngestBatchError, IngestError
-from rentl_core.ports.orchestrator import OrchestrationError
+from rentl_core.ports.orchestrator import LogSinkProtocol, OrchestrationError
 from rentl_core.ports.storage import StorageBatchError, StorageError
 from rentl_io import write_output
 from rentl_io.export.router import get_export_adapter
@@ -35,16 +35,25 @@ from rentl_io.storage.filesystem import (
     FileSystemLogStore,
     FileSystemRunStateStore,
 )
-from rentl_io.storage.log_sink import StorageLogSink
+from rentl_io.storage.log_sink import build_log_sink
 from rentl_io.storage.progress_sink import FileSystemProgressSink
 from rentl_llm import OpenAICompatibleRuntime
 from rentl_schemas.config import LanguageConfig, ModelSettings, RunConfig
+from rentl_schemas.events import (
+    CommandCompletedData,
+    CommandEvent,
+    CommandFailedData,
+    CommandStartedData,
+)
 from rentl_schemas.io import ExportTarget, IngestSource, TranslatedLine
 from rentl_schemas.llm import LlmConnectionReport, LlmEndpointTarget
+from rentl_schemas.logs import LogEntry
 from rentl_schemas.pipeline import PhaseRunRecord, RunState
 from rentl_schemas.primitives import (
     FileFormat,
+    JsonValue,
     LanguageCode,
+    LogLevel,
     PhaseName,
     RunId,
     UntranslatedPolicy,
@@ -134,11 +143,33 @@ def validate_connection(
     config_path: Path = CONFIG_OPTION,
 ) -> None:
     """Validate connectivity for configured model endpoints."""
+    command_run_id = uuid7()
+    log_sink: LogSinkProtocol | None = None
     try:
+        config = _load_resolved_config(config_path)
+        log_sink = _build_command_log_sink(config)
+        args = cast(dict[str, JsonValue], {"config_path": str(config_path)})
+        _emit_command_log_sync(
+            log_sink,
+            _build_command_started_log(
+                timestamp=_now_timestamp(),
+                run_id=command_run_id,
+                command="validate-connection",
+                args=args,
+            ),
+        )
         result = asyncio.run(
             _validate_connection_async(
-                config_path=config_path,
+                config=config,
             )
+        )
+        _emit_command_log_sync(
+            log_sink,
+            _build_command_completed_log(
+                timestamp=_now_timestamp(),
+                run_id=command_run_id,
+                command="validate-connection",
+            ),
         )
         response: ApiResponse[LlmConnectionReport] = ApiResponse(
             data=result,
@@ -146,12 +177,24 @@ def validate_connection(
             meta=MetaInfo(timestamp=_now_timestamp()),
         )
     except Exception as exc:
-        response = _error_response(_error_from_exception(exc))
+        error = _error_from_exception(exc)
+        if log_sink is not None:
+            _emit_command_log_sync(
+                log_sink,
+                _build_command_failed_log(
+                    timestamp=_now_timestamp(),
+                    run_id=command_run_id,
+                    command="validate-connection",
+                    error=error,
+                ),
+            )
+        response = _error_response(error)
     print(response.model_dump_json())
 
 
 @app.command()
 def export(
+    config_path: Path = CONFIG_OPTION,
     input_path: Path = INPUT_OPTION,
     output_path: Path = OUTPUT_OPTION,
     format: FileFormat = FORMAT_OPTION,
@@ -163,7 +206,35 @@ def export(
     expected_line_count: int | None = EXPECTED_LINE_COUNT_OPTION,
 ) -> None:
     """Export translated lines to CSV/JSONL/TXT."""
+    command_run_id = uuid7()
+    log_sink: LogSinkProtocol | None = None
     try:
+        config = _load_resolved_config(config_path)
+        log_sink = _build_command_log_sink(config)
+        args = cast(
+            dict[str, JsonValue],
+            {
+                "config_path": str(config_path),
+                "input_path": str(input_path),
+                "output_path": str(output_path),
+                "format": format.value,
+                "untranslated_policy": untranslated_policy.value,
+                "include_source_text": include_source_text,
+                "include_scene_id": include_scene_id,
+                "include_speaker": include_speaker,
+                "column_order": column_order,
+                "expected_line_count": expected_line_count,
+            },
+        )
+        _emit_command_log_sync(
+            log_sink,
+            _build_command_started_log(
+                timestamp=_now_timestamp(),
+                run_id=command_run_id,
+                command="export",
+                args=args,
+            ),
+        )
         result = asyncio.run(
             _export_async(
                 input_path=input_path,
@@ -177,17 +248,71 @@ def export(
                 expected_line_count=expected_line_count,
             )
         )
+        _emit_command_log_sync(
+            log_sink,
+            _build_command_completed_log(
+                timestamp=_now_timestamp(),
+                run_id=command_run_id,
+                command="export",
+            ),
+        )
         response: ApiResponse[ExportResult] = ApiResponse(
             data=result, error=None, meta=MetaInfo(timestamp=_now_timestamp())
         )
     except ExportBatchError as exc:
-        response = _batch_error_response(exc)
-    except ExportError as exc:
-        response = _error_response(exc.info.to_error_response())
-    except ValueError as exc:
-        response = _error_response(
-            ErrorResponse(code="validation_error", message=str(exc), details=None)
+        error = _summarize_batch_error(
+            exc.errors[0].to_error_response(), len(exc.errors), "export"
         )
+        if log_sink is not None:
+            _emit_command_log_sync(
+                log_sink,
+                _build_command_failed_log(
+                    timestamp=_now_timestamp(),
+                    run_id=command_run_id,
+                    command="export",
+                    error=error,
+                ),
+            )
+        response = _error_response(error)
+    except ExportError as exc:
+        error = exc.info.to_error_response()
+        if log_sink is not None:
+            _emit_command_log_sync(
+                log_sink,
+                _build_command_failed_log(
+                    timestamp=_now_timestamp(),
+                    run_id=command_run_id,
+                    command="export",
+                    error=error,
+                ),
+            )
+        response = _error_response(error)
+    except ValueError as exc:
+        error = ErrorResponse(code="validation_error", message=str(exc), details=None)
+        if log_sink is not None:
+            _emit_command_log_sync(
+                log_sink,
+                _build_command_failed_log(
+                    timestamp=_now_timestamp(),
+                    run_id=command_run_id,
+                    command="export",
+                    error=error,
+                ),
+            )
+        response = _error_response(error)
+    except Exception as exc:
+        error = _error_from_exception(exc)
+        if log_sink is not None:
+            _emit_command_log_sync(
+                log_sink,
+                _build_command_failed_log(
+                    timestamp=_now_timestamp(),
+                    run_id=command_run_id,
+                    command="export",
+                    error=error,
+                ),
+            )
+        response = _error_response(error)
 
     print(response.model_dump_json())
 
@@ -199,19 +324,63 @@ def run_pipeline(
     target_languages: list[str] | None = TARGET_LANGUAGE_OPTION,
 ) -> None:
     """Run the full pipeline plan."""
+    command_run_id = uuid7()
+    log_sink: LogSinkProtocol | None = None
     try:
+        config = _load_resolved_config(config_path)
+        resolved_run_id = _resolve_run_id(run_id)
+        command_run_id = resolved_run_id
+        bundle = _build_storage_bundle(config, resolved_run_id)
+        log_sink = bundle.log_sink
+        args = cast(
+            dict[str, JsonValue],
+            {
+                "config_path": str(config_path),
+                "run_id": str(resolved_run_id),
+                "target_languages": target_languages,
+            },
+        )
+        _emit_command_log_sync(
+            log_sink,
+            _build_command_started_log(
+                timestamp=_now_timestamp(),
+                run_id=command_run_id,
+                command="run-pipeline",
+                args=args,
+            ),
+        )
         result = asyncio.run(
             _run_pipeline_async(
-                config_path=config_path,
-                run_id=run_id,
+                config=config,
+                bundle=bundle,
+                run_id=resolved_run_id,
                 target_languages=target_languages,
             )
+        )
+        _emit_command_log_sync(
+            log_sink,
+            _build_command_completed_log(
+                timestamp=_now_timestamp(),
+                run_id=command_run_id,
+                command="run-pipeline",
+            ),
         )
         response: ApiResponse[RunExecutionResult] = ApiResponse(
             data=result, error=None, meta=MetaInfo(timestamp=_now_timestamp())
         )
     except Exception as exc:
-        response = _error_response(_error_from_exception(exc))
+        error = _error_from_exception(exc)
+        if log_sink is not None:
+            _emit_command_log_sync(
+                log_sink,
+                _build_command_failed_log(
+                    timestamp=_now_timestamp(),
+                    run_id=command_run_id,
+                    command="run-pipeline",
+                    error=error,
+                ),
+            )
+        response = _error_response(error)
     print(response.model_dump_json())
 
 
@@ -225,22 +394,69 @@ def run_phase(
     output_path: Path | None = OUTPUT_PATH_OPTION,
 ) -> None:
     """Run a single phase (with required prerequisites)."""
+    command_run_id = uuid7()
+    log_sink: LogSinkProtocol | None = None
     try:
+        config = _load_resolved_config(config_path)
+        resolved_run_id = _resolve_run_id(run_id)
+        command_run_id = resolved_run_id
+        bundle = _build_storage_bundle(config, resolved_run_id)
+        log_sink = bundle.log_sink
+        args = cast(
+            dict[str, JsonValue],
+            {
+                "config_path": str(config_path),
+                "run_id": str(resolved_run_id),
+                "phase": phase.value,
+                "target_language": target_language,
+                "input_path": str(input_path) if input_path else None,
+                "output_path": str(output_path) if output_path else None,
+            },
+        )
+        _emit_command_log_sync(
+            log_sink,
+            _build_command_started_log(
+                timestamp=_now_timestamp(),
+                run_id=command_run_id,
+                command="run-phase",
+                args=args,
+            ),
+        )
         result = asyncio.run(
             _run_phase_async(
-                config_path=config_path,
+                config=config,
+                bundle=bundle,
+                run_id=resolved_run_id,
                 phase=phase,
-                run_id=run_id,
                 target_language=target_language,
                 input_path=input_path,
                 output_path=output_path,
             )
         )
+        _emit_command_log_sync(
+            log_sink,
+            _build_command_completed_log(
+                timestamp=_now_timestamp(),
+                run_id=command_run_id,
+                command="run-phase",
+            ),
+        )
         response: ApiResponse[RunExecutionResult] = ApiResponse(
             data=result, error=None, meta=MetaInfo(timestamp=_now_timestamp())
         )
     except Exception as exc:
-        response = _error_response(_error_from_exception(exc))
+        error = _error_from_exception(exc)
+        if log_sink is not None:
+            _emit_command_log_sync(
+                log_sink,
+                _build_command_failed_log(
+                    timestamp=_now_timestamp(),
+                    run_id=command_run_id,
+                    command="run-phase",
+                    error=error,
+                ),
+            )
+        response = _error_response(error)
     print(response.model_dump_json())
 
 
@@ -269,7 +485,7 @@ class _StorageBundle(NamedTuple):
     run_state_store: FileSystemRunStateStore
     artifact_store: FileSystemArtifactStore
     log_store: FileSystemLogStore
-    log_sink: StorageLogSink
+    log_sink: LogSinkProtocol
     progress_sink: FileSystemProgressSink
     progress_path: Path
 
@@ -277,6 +493,101 @@ class _StorageBundle(NamedTuple):
 def _now_timestamp() -> str:
     timestamp = datetime.now(UTC).isoformat()
     return timestamp.replace("+00:00", "Z")
+
+
+def _load_resolved_config(config_path: Path) -> RunConfig:
+    config = _load_run_config(config_path)
+    return _resolve_project_paths(config, config_path)
+
+
+def _build_command_log_sink(config: RunConfig) -> LogSinkProtocol:
+    log_store = FileSystemLogStore(logs_dir=config.project.paths.logs_dir)
+    return build_log_sink(config.logging, log_store)
+
+
+async def _emit_command_log(log_sink: LogSinkProtocol, entry: LogEntry) -> None:
+    await log_sink.emit_log(entry)
+
+
+def _emit_command_log_sync(log_sink: LogSinkProtocol, entry: LogEntry) -> None:
+    asyncio.run(_emit_command_log(log_sink, entry))
+
+
+def _build_command_started_log(
+    *,
+    timestamp: str,
+    run_id: RunId,
+    command: str,
+    args: dict[str, JsonValue] | None,
+) -> LogEntry:
+    return LogEntry(
+        timestamp=timestamp,
+        level=LogLevel.INFO,
+        event=CommandEvent.STARTED,
+        run_id=run_id,
+        phase=None,
+        message="Command started",
+        data=CommandStartedData(command=command, args=args).model_dump(
+            exclude_none=True
+        ),
+    )
+
+
+def _build_command_completed_log(
+    *,
+    timestamp: str,
+    run_id: RunId,
+    command: str,
+) -> LogEntry:
+    return LogEntry(
+        timestamp=timestamp,
+        level=LogLevel.INFO,
+        event=CommandEvent.COMPLETED,
+        run_id=run_id,
+        phase=None,
+        message="Command completed",
+        data=CommandCompletedData(command=command).model_dump(exclude_none=True),
+    )
+
+
+def _build_command_failed_log(
+    *,
+    timestamp: str,
+    run_id: RunId,
+    command: str,
+    error: ErrorResponse,
+) -> LogEntry:
+    next_action = _next_action_for_error(error)
+    return LogEntry(
+        timestamp=timestamp,
+        level=LogLevel.ERROR,
+        event=CommandEvent.FAILED,
+        run_id=run_id,
+        phase=None,
+        message="Command failed",
+        data=CommandFailedData(
+            command=command,
+            error_code=error.code,
+            error_message=error.message,
+            next_action=next_action,
+        ).model_dump(exclude_none=True),
+    )
+
+
+def _next_action_for_error(error: ErrorResponse) -> str:
+    actions = {
+        "config_error": "Fix the configuration and retry.",
+        "validation_error": "Fix the input or configuration and retry.",
+        "missing_dependency": (
+            "Provide required inputs or complete dependent phases, then retry."
+        ),
+        "phase_not_configured": "Enable the phase in the run configuration.",
+        "phase_disabled": "Enable the phase or remove it from the run configuration.",
+        "phase_execution_failed": "Review phase outputs and logs, then retry.",
+        "io_error": "Check file paths or permissions and retry.",
+        "runtime_error": "Review the logs and retry.",
+    }
+    return actions.get(error.code, "Review the logs and retry.")
 
 
 def _load_translated_lines_sync(path: Path) -> list[TranslatedLine]:
@@ -339,8 +650,7 @@ async def _export_async(
     return await write_output(target, lines)
 
 
-async def _validate_connection_async(config_path: Path) -> LlmConnectionReport:
-    config = _resolve_project_paths(_load_run_config(config_path), config_path)
+async def _validate_connection_async(config: RunConfig) -> LlmConnectionReport:
     runtime = _build_llm_runtime()
     targets, unused_endpoints = build_connection_plan(config)
     return await validate_connections(
@@ -526,11 +836,12 @@ def _build_storage_bundle(config: RunConfig, run_id: RunId) -> _StorageBundle:
     artifact_dir = base_dir / "artifacts"
     log_store = FileSystemLogStore(logs_dir=config.project.paths.logs_dir)
     progress_path = _progress_path(config.project.paths.logs_dir, run_id)
+    log_sink = build_log_sink(config.logging, log_store)
     return _StorageBundle(
         run_state_store=FileSystemRunStateStore(base_dir=str(run_state_dir)),
         artifact_store=FileSystemArtifactStore(base_dir=str(artifact_dir)),
         log_store=log_store,
-        log_sink=StorageLogSink(log_store),
+        log_sink=log_sink,
         progress_sink=FileSystemProgressSink(str(progress_path)),
         progress_path=progress_path,
     )
@@ -628,22 +939,18 @@ async def _load_run_state(bundle: _StorageBundle, run_id: RunId) -> RunState | N
 
 async def _run_pipeline_async(
     *,
-    config_path: Path,
-    run_id: str | None,
+    config: RunConfig,
+    bundle: _StorageBundle,
+    run_id: RunId,
     target_languages: list[str] | None,
 ) -> RunExecutionResult:
-    config = _resolve_project_paths(_load_run_config(config_path), config_path)
     phases = _resolve_enabled_phases(config)
     if not phases:
         raise ValueError("No enabled phases configured")
     languages = _resolve_target_languages(config, target_languages)
     _ensure_api_key(config, phases)
-    resolved_run_id = _resolve_run_id(run_id)
-    bundle = _build_storage_bundle(config, resolved_run_id)
     orchestrator = _build_orchestrator(config, bundle)
-    run = await _load_or_create_run_context(
-        orchestrator, bundle, resolved_run_id, config
-    )
+    run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=None)
     export_targets = _build_export_targets(
         config, phases, run.run_id, languages, output_path=None
@@ -669,23 +976,19 @@ async def _run_pipeline_async(
 
 async def _run_phase_async(
     *,
-    config_path: Path,
+    config: RunConfig,
+    bundle: _StorageBundle,
+    run_id: RunId,
     phase: PhaseName,
-    run_id: str | None,
     target_language: str | None,
     input_path: Path | None,
     output_path: Path | None,
 ) -> RunExecutionResult:
-    config = _resolve_project_paths(_load_run_config(config_path), config_path)
     phases = _resolve_phase_plan(config, phase)
     languages = _resolve_phase_languages(config, phase, target_language)
     _ensure_api_key(config, phases)
-    resolved_run_id = _resolve_run_id(run_id)
-    bundle = _build_storage_bundle(config, resolved_run_id)
     orchestrator = _build_orchestrator(config, bundle)
-    run = await _load_or_create_run_context(
-        orchestrator, bundle, resolved_run_id, config
-    )
+    run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=input_path)
     export_targets = _build_export_targets(
         config,

@@ -23,6 +23,7 @@ def test_export_command_outputs_warnings(tmp_path: Path) -> None:
     """Export command surfaces warnings in the response."""
     input_path = tmp_path / "translated.jsonl"
     output_path = tmp_path / "output.csv"
+    config_path = _write_config(tmp_path, tmp_path)
 
     payload = {
         "line_id": "line_1",
@@ -36,6 +37,8 @@ def test_export_command_outputs_warnings(tmp_path: Path) -> None:
         app,
         [
             "export",
+            "--config",
+            str(config_path),
             "--input",
             str(input_path),
             "--output",
@@ -157,6 +160,10 @@ def _write_config(tmp_path: Path, workspace_dir: Path) -> Path:
         source_language = "en"
         target_languages = ["ja"]
 
+        [logging]
+        [[logging.sinks]]
+        type = "file"
+
         [endpoint]
         provider_name = "test"
         base_url = "http://localhost"
@@ -224,6 +231,10 @@ def _write_multi_endpoint_config(tmp_path: Path, workspace_dir: Path) -> Path:
         [project.languages]
         source_language = "en"
         target_languages = ["ja"]
+
+        [logging]
+        [[logging.sinks]]
+        type = "file"
 
         [endpoints]
         default = "primary"

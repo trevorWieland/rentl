@@ -47,6 +47,10 @@ def _write_rentl_config(config_path: Path, workspace_dir: Path) -> Path:
         source_language = "ja"
         target_languages = ["en"]
 
+        [logging]
+        [[logging.sinks]]
+        type = "file"
+
         [endpoints]
         default = "primary"
 

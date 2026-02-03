@@ -5,7 +5,13 @@ from rentl_io.storage.filesystem import (
     FileSystemLogStore,
     FileSystemRunStateStore,
 )
-from rentl_io.storage.log_sink import CompositeLogSink, StorageLogSink
+from rentl_io.storage.log_sink import (
+    CompositeLogSink,
+    ConsoleLogSink,
+    NoopLogSink,
+    StorageLogSink,
+    build_log_sink,
+)
 from rentl_io.storage.progress_sink import (
     CompositeProgressSink,
     FileSystemProgressSink,
@@ -15,10 +21,13 @@ from rentl_io.storage.progress_sink import (
 __all__ = [
     "CompositeLogSink",
     "CompositeProgressSink",
+    "ConsoleLogSink",
     "FileSystemArtifactStore",
     "FileSystemLogStore",
     "FileSystemProgressSink",
     "FileSystemRunStateStore",
     "InMemoryProgressSink",
+    "NoopLogSink",
     "StorageLogSink",
+    "build_log_sink",
 ]
