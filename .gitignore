@@ -90,3 +90,4 @@ ipython_config.py
 
 *.xlsx
 sample_scenes.jsonl
+logs/
