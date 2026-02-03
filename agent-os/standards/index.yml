@@ -19,8 +19,12 @@ architecture:
 global:
   address-deprecations-immediately:
     description: Deprecation warnings must be addressed immediately; never defer to future work
+  agent-tool-registration:
+    description: Register tools with explicit names via pydantic_ai.Tool to prevent prompt/tool mismatches
   prefer-dependency-updates:
     description: Prefer frequent dependency updates; use compatible ranges instead of exact pins
+  required-tool-gating:
+    description: Gate output tools until required function tools are called; use exhaustive end_strategy
 
 python:
   async-first-design:

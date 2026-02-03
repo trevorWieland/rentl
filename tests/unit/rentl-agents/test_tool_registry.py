@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic_ai import Tool
 
 from rentl_agents.tools import (
     GameInfoTool,
@@ -107,7 +108,8 @@ class TestToolRegistry:
         callables = registry.get_tool_callables(["get_game_info"])
 
         assert len(callables) == 1
-        assert callable(callables[0])
+        assert isinstance(callables[0], Tool)
+        assert callables[0].name == "get_game_info"
 
 
 class TestGameInfoTool:

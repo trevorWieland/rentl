@@ -2316,12 +2316,14 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pydantic-evals" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-bdd" },
     { name = "pytest-cov" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
+    { name = "python-dotenv" },
     { name = "rentl-agents" },
     { name = "rentl-api" },
     { name = "rentl-cli" },
@@ -2342,12 +2344,14 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pydantic-evals", specifier = ">=0.1.0" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=1.0" },
     { name = "pytest-bdd", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=6" },
     { name = "pytest-timeout", specifier = ">=2" },
     { name = "pytest-xdist", specifier = ">=3" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "rentl-agents", editable = "packages/rentl-agents" },
     { name = "rentl-api", editable = "services/rentl-api" },
     { name = "rentl-cli", editable = "services/rentl-cli" },

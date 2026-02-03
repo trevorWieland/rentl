@@ -90,6 +90,7 @@ all:
 	@$(MAKE) type --no-print-directory
 	@$(MAKE) unit --no-print-directory
 	@$(MAKE) integration --no-print-directory
+	@$(MAKE) quality --no-print-directory
 	@echo "🎉 All Checks Passed!"
 
 # Clean build artifacts

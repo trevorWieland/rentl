@@ -22,6 +22,8 @@ from rentl_schemas.io import TranslatedLine
 from rentl_schemas.phases import (
     ContextPhaseInput,
     ContextPhaseOutput,
+    EditPhaseInput,
+    EditPhaseOutput,
     IdiomAnnotation,
     IdiomAnnotationList,
     PretranslationPhaseInput,
@@ -32,9 +34,11 @@ from rentl_schemas.phases import (
     StyleGuideViolationList,
     TranslatePhaseInput,
     TranslatePhaseOutput,
+    TranslationResultLine,
     TranslationResultList,
 )
 from rentl_schemas.primitives import LanguageCode, PhaseName, QaSeverity
+from rentl_schemas.qa import LineEdit, QaIssue
 
 if TYPE_CHECKING:
     pass
@@ -113,6 +117,7 @@ class ContextSceneSummarizerAgent:
 
         return ContextPhaseOutput(
             run_id=payload.run_id,
+            phase=PhaseName.CONTEXT,
             scene_summaries=summaries,
             context_notes=[],
             project_context=payload.project_context,
@@ -561,7 +566,6 @@ class QaStyleGuideCriticAgent:
             merge_qa_agent_outputs,
             violation_to_qa_issue,
         )
-        from rentl_schemas.qa import QaIssue
 
         # Return empty output if no style guide provided
         if not payload.style_guide or not payload.style_guide.strip():
@@ -671,4 +675,191 @@ def create_qa_agent_from_profile(
         source_lang=source_lang,
         target_lang=target_lang,
         severity=severity,
+    )
+
+
+class EditBasicEditorAgent:
+    """Edit phase agent that applies targeted edits with a ProfileAgent."""
+
+    def __init__(
+        self,
+        profile_agent: ProfileAgent[EditPhaseInput, TranslationResultLine],
+        config: ProfileAgentConfig,
+        source_lang: LanguageCode = "ja",
+        target_lang: LanguageCode = "en",
+    ) -> None:
+        """Initialize the edit agent.
+
+        Args:
+            profile_agent: Underlying ProfileAgent for editing.
+            config: Runtime configuration.
+            source_lang: Source language name for prompts.
+            target_lang: Target language name for prompts.
+        """
+        self._profile_agent = profile_agent
+        self._config = config
+        self._source_lang = source_lang
+        self._target_lang = target_lang
+
+    async def run(self, payload: EditPhaseInput) -> EditPhaseOutput:
+        """Execute edit phase by applying fixes to each translated line.
+
+        Args:
+            payload: Edit phase input with translated lines and QA issues.
+
+        Returns:
+            Edit phase output with edited lines and change log.
+        """
+        edited_lines: list[TranslatedLine] = []
+        change_log: list[LineEdit] = []
+
+        for line in payload.translated_lines:
+            qa_text = self._format_qa_issues(payload.qa_issues, line.line_id)
+            scene_summary = self._find_scene_summary(
+                payload.scene_summaries, line.scene_id
+            )
+
+            context = TemplateContext(
+                root_variables={},
+                phase_variables={
+                    "source_lang": self._source_lang,
+                    "target_lang": self._target_lang,
+                },
+                agent_variables={
+                    "line_id": line.line_id,
+                    "source_text": line.source_text or "N/A",
+                    "translated_text": line.text,
+                    "qa_issues": qa_text,
+                    "scene_summary": scene_summary,
+                },
+            )
+            self._profile_agent.update_context(context)
+
+            result = await self._profile_agent.run(payload)
+            edited_text = result.text
+
+            edited_lines.append(
+                TranslatedLine(
+                    line_id=line.line_id,
+                    route_id=line.route_id,
+                    scene_id=line.scene_id,
+                    speaker=line.speaker,
+                    source_text=line.source_text,
+                    text=edited_text,
+                    metadata=line.metadata,
+                    source_columns=line.source_columns,
+                )
+            )
+
+            if edited_text != line.text:
+                change_log.append(
+                    LineEdit(
+                        line_id=line.line_id,
+                        original_text=line.text,
+                        edited_text=edited_text,
+                        reason=self._edit_reason(payload.qa_issues, line.line_id),
+                    )
+                )
+
+        return EditPhaseOutput(
+            run_id=payload.run_id,
+            phase=PhaseName.EDIT,
+            target_language=payload.target_language,
+            edited_lines=edited_lines,
+            change_log=change_log,
+        )
+
+    @staticmethod
+    def _format_qa_issues(issues: list[QaIssue] | None, line_id: str) -> str:
+        if not issues:
+            return "None"
+        matches = [issue for issue in issues if issue.line_id == line_id]
+        if not matches:
+            return "None"
+        formatted = []
+        for issue in matches:
+            severity = (
+                issue.severity.value
+                if hasattr(issue.severity, "value")
+                else str(issue.severity)
+            )
+            category = (
+                issue.category.value
+                if hasattr(issue.category, "value")
+                else str(issue.category)
+            )
+            formatted.append(f"- [{severity}/{category}] {issue.message}")
+        return "\n".join(formatted)
+
+    @staticmethod
+    def _edit_reason(issues: list[QaIssue] | None, line_id: str) -> str | None:
+        if not issues:
+            return None
+        matches = [issue for issue in issues if issue.line_id == line_id]
+        if not matches:
+            return None
+        return "; ".join(issue.message for issue in matches)
+
+    @staticmethod
+    def _find_scene_summary(
+        summaries: list[SceneSummary] | None, scene_id: str | None
+    ) -> str:
+        if not summaries or not scene_id:
+            return "None"
+        for summary in summaries:
+            if summary.scene_id == scene_id:
+                return summary.summary
+        return "None"
+
+
+def create_edit_agent_from_profile(
+    profile_path: Path,
+    prompts_dir: Path,
+    config: ProfileAgentConfig,
+    tool_registry: ToolRegistry | None = None,
+    source_lang: LanguageCode = "ja",
+    target_lang: LanguageCode = "en",
+) -> EditBasicEditorAgent:
+    """Create an edit phase agent from a TOML profile.
+
+    Args:
+        profile_path: Path to the agent profile TOML file.
+        prompts_dir: Path to the prompts directory (containing root.toml, phases/).
+        config: Runtime configuration (API key, model settings, etc.).
+        tool_registry: Tool registry to use. Defaults to the default registry.
+        source_lang: Source language name for prompts.
+        target_lang: Target language name for prompts.
+
+    Returns:
+        Edit phase agent ready for orchestrator.
+
+    Raises:
+        ValueError: If profile is not for edit phase.
+    """
+    profile = load_agent_profile(profile_path)
+
+    if profile.meta.phase != PhaseName.EDIT:
+        raise ValueError(
+            f"Profile {profile.meta.name} is for phase {profile.meta.phase.value}, "
+            f"expected edit"
+        )
+
+    layer_registry = load_layer_registry(prompts_dir)
+
+    if tool_registry is None:
+        tool_registry = get_default_registry()
+
+    profile_agent: ProfileAgent[EditPhaseInput, TranslationResultLine] = ProfileAgent(
+        profile=profile,
+        output_type=TranslationResultLine,
+        layer_registry=layer_registry,
+        tool_registry=tool_registry,
+        config=config,
+    )
+
+    return EditBasicEditorAgent(
+        profile_agent=profile_agent,
+        config=config,
+        source_lang=source_lang,
+        target_lang=target_lang,
     )

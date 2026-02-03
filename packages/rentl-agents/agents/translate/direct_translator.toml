@@ -35,6 +35,10 @@ For each line, provide:
 - line_id: The exact ID from the source line (do not modify)
 - text: Your translation of the source text
 
+IMPORTANT: Before you produce translations, you MUST call the get_game_info
+tool once to confirm the project context. Do not include tool output in your
+final response.
+
 ## Example Output
 
 {
@@ -55,6 +59,8 @@ IMPORTANT: Return ONLY the translations object with a list of translations. Each
 
 [prompts.user_template]
 content = """
+Before you translate, call the get_game_info tool once.
+
 Translate the following lines from {{source_lang}} to {{target_lang}}.
 
 Scene context:
@@ -73,7 +79,7 @@ Do not include any other fields in your response.
 """
 
 [tools]
-allowed = []
+allowed = ["get_game_info"]
 
 [model_hints]
 recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]

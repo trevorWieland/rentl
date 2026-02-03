@@ -57,10 +57,16 @@ IMPORTANT:
 - Do NOT suggest corrections - that's out of scope for QA
 - Source and translation text are already available in context - don't copy them
 - Return ONLY the violations object with these 3 fields per violation
+
+IMPORTANT: Before you produce the violations list, you MUST call the
+get_game_info tool once to confirm the project context. Do not include tool
+output in your final response.
 """
 
 [prompts.user_template]
 content = """
+Before you review the translations, call the get_game_info tool once.
+
 Review the following translations against the style guide.
 
 ## Style Guide
@@ -76,7 +82,7 @@ Identify any style guide violations in the translations above.
 """
 
 [tools]
-allowed = []
+allowed = ["get_game_info"]
 
 [model_hints]
 recommended = ["gpt-4o", "claude-3.5-sonnet", "claude-3-opus"]

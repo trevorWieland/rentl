@@ -39,6 +39,10 @@ or straightforward text.
 IMPORTANT: This phase is target-language unaware. Do not suggest translations
 or translation strategies. Just identify and explain challenging expressions.
 
+IMPORTANT: Before you produce the idioms list, you MUST call the get_game_info
+tool once to confirm the project context. Do not include tool output in your
+final response.
+
 ## Example Output
 
 If you find idioms, return them like this:
@@ -62,6 +66,8 @@ IMPORTANT: Return ONLY the idioms object with the idioms field containing a list
 
 [prompts.user_template]
 content = """
+Before you analyze the lines, call the get_game_info tool once.
+
 Analyze the following lines for idiomatic expressions and translation challenges.
 
 Lines to analyze:
@@ -87,7 +93,7 @@ IMPORTANT:
 """
 
 [tools]
-allowed = []
+allowed = ["get_game_info"]
 
 [model_hints]
 recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]

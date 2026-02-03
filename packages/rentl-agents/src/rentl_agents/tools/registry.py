@@ -11,6 +11,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
+from pydantic_ai import Tool
+
 
 @runtime_checkable
 class AgentToolProtocol(Protocol):
@@ -149,17 +151,25 @@ class ToolRegistry:
     def get_tool_callables(
         self,
         allowed_tool_names: list[str],
-    ) -> list[Callable[..., dict[str, Any]]]:
+    ) -> list[Callable[..., dict[str, Any]] | Tool]:
         """Get tool execute methods for pydantic-ai registration.
 
         Args:
             allowed_tool_names: List of tool names from agent profile.
 
         Returns:
-            List of tool execute callables.
+            List of tool callables or Tool wrappers.
         """
         tools = self.get_tools_for_agent(allowed_tool_names)
-        return [tool.execute for tool in tools]
+        return [
+            Tool(
+                tool.execute,
+                name=tool.name,
+                description=tool.description,
+                takes_ctx=False,
+            )
+            for tool in tools
+        ]
 
 
 # Global default registry

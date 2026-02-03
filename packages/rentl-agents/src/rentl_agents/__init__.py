@@ -86,10 +86,12 @@ from rentl_agents.translate import (
 )
 from rentl_agents.wiring import (
     ContextSceneSummarizerAgent,
+    EditBasicEditorAgent,
     PretranslationIdiomLabelerAgent,
     QaStyleGuideCriticAgent,
     TranslateDirectTranslatorAgent,
     create_context_agent_from_profile,
+    create_edit_agent_from_profile,
     create_pretranslation_agent_from_profile,
     create_qa_agent_from_profile,
     create_translate_agent_from_profile,
@@ -107,6 +109,7 @@ __all__ = [
     "AgentToolProtocol",
     "ContextLookupTool",
     "ContextSceneSummarizerAgent",
+    "EditBasicEditorAgent",
     "GameInfoTool",
     "GlossarySearchTool",
     "LayerLoadError",
@@ -133,6 +136,7 @@ __all__ = [
     "chunk_lines",
     "chunk_qa_lines",
     "create_context_agent_from_profile",
+    "create_edit_agent_from_profile",
     "create_pretranslation_agent_from_profile",
     "create_qa_agent_from_profile",
     "create_translate_agent_from_profile",

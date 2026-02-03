@@ -11,10 +11,12 @@ from typing import Literal, TypeVar
 
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
+from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.output import PromptedOutput
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.usage import UsageLimits
 
 from rentl_agents.layers import PromptComposer, PromptLayerRegistry
@@ -63,6 +65,10 @@ class ProfileAgentConfig(BaseSchema):
     )
     # Output validation retries (pydantic-ai provides feedback to model)
     max_output_retries: int = 5
+    # Strategy for handling tool calls after an output tool is found
+    end_strategy: Literal["early", "exhaustive"] = "early"
+    # Optional list of tool names that must be called before output tools are allowed
+    required_tool_calls: list[str] | None = None
 
 
 class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
@@ -240,6 +246,30 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             # Tool-based output (default pydantic-ai behavior)
             output_type = self._output_type
 
+        prepare_output_tools = None
+        if self._config.required_tool_calls:
+            required_tools = set(self._config.required_tool_calls)
+
+            async def _prepare_output_tools(
+                ctx: RunContext[None],
+                tool_defs: list[ToolDefinition],
+            ) -> list[ToolDefinition]:
+                await asyncio.sleep(0)
+                remaining = set(required_tools)
+                for message in ctx.messages:
+                    if isinstance(message, ModelResponse):
+                        for part in message.parts:
+                            if (
+                                isinstance(part, ToolCallPart)
+                                and part.tool_name in remaining
+                            ):
+                                remaining.discard(part.tool_name)
+                if remaining:
+                    return []
+                return tool_defs
+
+            prepare_output_tools = _prepare_output_tools
+
         # Create agent with structured output
         # Note: type ignore needed due to pydantic-ai typing limitations with generics
         agent: Agent[None, OutputT] = Agent(  # type: ignore[assignment]
@@ -248,6 +278,8 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT]):
             output_type=output_type,
             tools=tool_callables,
             output_retries=self._config.max_output_retries,
+            end_strategy=self._config.end_strategy,
+            prepare_output_tools=prepare_output_tools,
         )
 
         # Note: We rely on pydantic-ai's built-in validation with output_retries

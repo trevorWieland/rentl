@@ -34,6 +34,10 @@ What makes a good scene summary:
 Remember: Your summaries help translators understand context. Focus on what
 matters for translation decisions.
 
+IMPORTANT: Before you produce the summary, you MUST call the get_game_info tool
+once to confirm the project context. Do not include tool output in your final
+response.
+
 ## Example Output
 
 {
@@ -47,6 +51,8 @@ IMPORTANT: Return ONLY the scene summary object with scene_id, summary, and char
 
 [prompts.user_template]
 content = """
+Before you analyze the scene, call the get_game_info tool once.
+
 Analyze and summarize the following scene.
 
 Scene ID: {{scene_id}}
@@ -65,7 +71,7 @@ Do not include any other fields in your response.
 """
 
 [tools]
-allowed = []
+allowed = ["get_game_info"]
 
 [model_hints]
 recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]

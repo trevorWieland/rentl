@@ -136,6 +136,7 @@ def _init_schema_registry() -> None:
         SceneSummary,
         StyleGuideViolation,
         StyleGuideViolationList,
+        TranslationResultLine,
         TranslationResultList,
     )
 
@@ -148,6 +149,8 @@ def _init_schema_registry() -> None:
         register_output_schema("IdiomAnnotationList", IdiomAnnotationList)
     if "TranslationResultList" not in SCHEMA_REGISTRY:
         register_output_schema("TranslationResultList", TranslationResultList)
+    if "TranslationResultLine" not in SCHEMA_REGISTRY:
+        register_output_schema("TranslationResultLine", TranslationResultLine)
     if "StyleGuideViolation" not in SCHEMA_REGISTRY:
         register_output_schema("StyleGuideViolation", StyleGuideViolation)
     if "StyleGuideViolationList" not in SCHEMA_REGISTRY:
