@@ -1,74 +1,102 @@
-.PHONY: help validate context translate clean test lint format typecheck check-full
+.PHONY: install format lint lint-check lint-fix type unit integration quality test all clean
 
-# Default project path for development
-PROJECT ?= examples/tiny_vn
+# output styling
+ECHO_CHECK = @echo "  Checking... "
+ECHO_PASS = echo "✅ $@ Passed"
+ECHO_FAIL = echo "❌ $@ Failed"
 
-help:
-	@echo "rentl Development Makefile"
-	@echo ""
-	@echo "Pipeline Commands:"
-	@echo "  make validate       - Validate project structure and metadata"
-	@echo "  make context        - Run Context Builder pipeline (enrich metadata)"
-	@echo "  make translate      - Run Translator pipeline (translate scenes)"
-	@echo ""
-	@echo "Quality Commands:"
-	@echo "  make test           - Run test suite"
-	@echo "  make lint           - Run linter (ruff)"
-	@echo "  make format         - Format code (ruff)"
-	@echo "  make typecheck      - Run type checker (ty)"
-	@echo "  make check          - Run all quality checks"
-	@echo "  make check-full     - Run all checks + llm_live tests (requires OPENAI_* env + RENTL_LLM_TESTS)"
-	@echo ""
-	@echo "Options:"
-	@echo "  PROJECT=<path>      - Set project path (default: examples/tiny_vn)"
-	@echo "  VERBOSE=1           - Enable verbose logging"
-	@echo "  OVERWRITE=1         - Allow overwriting existing data"
+# Helper to run command cleanly
+# Usage: $(call run_clean, command, log_file)
+define run_clean
+	$(ECHO_CHECK)
+	@if $1 > $2 2>&1; then \
+		$(ECHO_PASS); \
+		rm -f $2; \
+	else \
+		$(ECHO_FAIL); \
+		cat $2; \
+		rm -f $2; \
+		exit 1; \
+	fi
+endef
 
-# Build verbose and overwrite flags
-VERBOSE_FLAG := $(if $(VERBOSE),--verbose,)
-OVERWRITE_FLAG := $(if $(OVERWRITE),--overwrite,)
+# Helper to run tests cleanly and extract summary
+# Usage: $(call run_test, command, log_file, label)
+define run_test
+	$(ECHO_CHECK)
+	@if $1 > $2 2>&1; then \
+		SUMMARY=$$(grep -o '[0-9]\+ passed' $2 | tail -n 1); \
+		if [ -z "$$SUMMARY" ]; then SUMMARY="Passed"; fi; \
+		echo "✅ $3 $$SUMMARY"; \
+		rm -f $2; \
+	else \
+		echo "❌ $3 Failed"; \
+		cat $2; \
+		rm -f $2; \
+		exit 1; \
+	fi
+endef
 
-# Core pipeline commands
-validate:
-	uv run python -m rentl_cli validate --project-path $(PROJECT) $(VERBOSE_FLAG)
+# Install dependencies
+install:
+	@echo "📦 Installing dependencies..."
+	@uv sync > /dev/null
+	@echo "✅ Install Complete"
 
-context:
-	uv run python -m rentl_cli context --project-path $(PROJECT) $(OVERWRITE_FLAG) $(VERBOSE_FLAG)
-
-translate:
-	uv run python -m rentl_cli translate --project-path $(PROJECT) $(OVERWRITE_FLAG) $(VERBOSE_FLAG)
-
-# Quality commands
-test:
-	uv run pytest --cov=rentl_core --cov=rentl_agents --cov=rentl_pipelines --cov-report=term-missing
-
-lint:
-	uv run ruff check --fix
-
-lint-check:
-	uv run ruff check
-
+# Format code with ruff
 format:
-	uv run ruff format
+	@echo "🎨 Formatting code..."
+	$(call run_clean, uv run ruff format ., .format.log)
 
-format-check:
-	uv run ruff format --check
+# Check linting rule compliance (strict, no autofix)
+lint-check:
+	@echo "🔍 checking lints (strict)..."
+	$(call run_clean, uv run ruff check ., .lint.log)
 
+# Fix auto-fixable lint issues
+lint:
+	@echo "🛠️  Fixing lints..."
+	$(call run_clean, uv run ruff check --fix ., .lint-fix.log)
+
+# Type check with ty
 type:
-	uv run ty check
+	@echo "types checking types..."
+	$(call run_clean, uv run ty check, .type.log)
 
-fix: format lint
+# Run unit tests with coverage enforcement
+unit:
+	@echo "🧪 Running unit tests with coverage..."
+	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1 --cov=packages --cov=services --cov-fail-under=80, .unit.log, Unit Tests)
 
-check: format-check lint-check type test
-	@echo "All checks passed!"
+# Run integration tests
+integration:
+	@echo "🔌 Running integration tests..."
+	$(call run_test, uv run pytest tests/integration -q --tb=short --timeout=5, .integration.log, Integration Tests)
 
-check-full: format-check lint-check type
-	RENTL_LLM_TESTS=1 uv run pytest --cov=rentl_core --cov=rentl_agents --cov=rentl_pipelines --cov-report=term-missing
+# Run quality tests
+quality:
+	@echo "💎 Running quality tests..."
+	$(call run_test, uv run pytest tests/quality -q --tb=short --timeout=30, .quality.log, Quality Tests)
 
-# Cleanup
+# Run all tests with coverage
+test:
+	@uv run pytest --cov=packages --cov=services --cov-report=term-missing
+
+# Run all checks (format, lint, type, unit, integration)
+all: 
+	@echo "🚀 Starting Full Verification..."
+	@$(MAKE) format --no-print-directory
+	@$(MAKE) lint --no-print-directory
+	@$(MAKE) type --no-print-directory
+	@$(MAKE) unit --no-print-directory
+	@$(MAKE) integration --no-print-directory
+	@$(MAKE) quality --no-print-directory
+	@echo "🎉 All Checks Passed!"
+
+# Clean build artifacts
 clean:
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
-	@echo "Cleaned up cache directories"
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@rm -f .*.log

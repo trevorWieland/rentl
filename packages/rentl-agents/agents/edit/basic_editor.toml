@@ -1,0 +1,71 @@
+# Basic Editor Agent Profile
+# Applies targeted edits to translations based on QA findings.
+
+[meta]
+name = "basic_editor"
+version = "1.0.0"
+phase = "edit"
+description = "Applies targeted edits to translations based on QA findings"
+output_schema = "TranslationResultLine"
+
+[requirements]
+scene_id_required = false
+
+[orchestration]
+priority = 10
+depends_on = []
+
+[prompts.agent]
+content = """
+Your specific role is Edit.
+
+Given a single translated line and any QA issues, produce an improved version
+that fixes the issues while preserving meaning, tone, and style. If no changes
+are necessary, return the original translation unchanged.
+
+For each line, return:
+- line_id: The exact ID from the input (do not modify)
+- text: The edited translation in {{target_lang}}
+
+Alignment requirements:
+- Return EXACTLY one output for the provided line_id
+- Do not change the line_id
+
+IMPORTANT: Before you produce the edited line, you MUST call the get_game_info
+tool once to confirm the project context. Do not include tool output in your
+final response.
+
+IMPORTANT: Return ONLY the line object with line_id and text fields.
+"""
+
+[prompts.user_template]
+content = """
+Edit the following translated line based on QA issues.
+
+Line ID: {{line_id}}
+Source text: {{source_text}}
+Current translation: {{translated_text}}
+
+QA issues:
+{{qa_issues}}
+
+Scene summary:
+{{scene_summary}}
+
+Alignment feedback (if any):
+{{alignment_feedback}}
+
+Return a JSON response with:
+- line_id: "{{line_id}}"
+- text: The edited translation in {{target_lang}}
+
+If no changes are needed, return the original translation as-is.
+"""
+
+[tools]
+allowed = ["get_game_info"]
+
+[model_hints]
+recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]
+min_context_tokens = 8192
+benefits_from_reasoning = true

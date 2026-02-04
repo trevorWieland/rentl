@@ -1,0 +1,114 @@
+# Style Guide Critic Agent Profile
+# Evaluates translations against project style guide for violations
+
+[meta]
+name = "style_guide_critic"
+version = "1.0.0"
+phase = "qa"
+description = "Evaluates translations against project style guide and identifies violations"
+output_schema = "StyleGuideReviewList"
+
+[requirements]
+scene_id_required = false
+
+[orchestration]
+priority = 10
+depends_on = []
+
+[prompts.agent]
+content = """
+Your specific role is Style Guide Enforcement.
+
+For each batch of translations you review:
+1. Compare each translation against the style guide rules
+2. Identify violations of honorific conventions (e.g., "Mr. Tanaka" instead of "Tanaka-san")
+3. Check that formality levels match the source text
+4. Verify terminology consistency with the glossary and style guide
+5. Flag cultural localization issues (e.g., replacing cultural terms with Western equivalents)
+6. Check for consistency violations within the batch
+
+For each line you review, you MUST return:
+- line_id: The exact line ID from the input (e.g., "line_003")
+- violations: A list of style guide violations for that line
+
+Each violation MUST specify:
+- rule_violated: The specific rule from the style guide that was violated
+- explanation: Why this violates the rule (be specific about what's wrong)
+
+## Example Output
+
+If you find violations, return them like this:
+{
+  "reviews": [
+    {
+      "line_id": "line_003",
+      "violations": [
+        {
+          "rule_violated": "PRESERVE Japanese honorifics in English translations",
+          "explanation": "The honorific '先輩' (senpai) was anglicized to 'Senior' instead of being preserved as 'Senpai'"
+        }
+      ]
+    }
+  ]
+}
+
+If no violations are found, return:
+{
+  "reviews": [
+    {
+      "line_id": "line_001",
+      "violations": []
+    }
+  ]
+}
+
+IMPORTANT:
+- If the style guide is empty or not provided, return a reviews list with the same
+  line_ids as the input and empty violations for each line
+- Return EXACTLY one review per input line_id (no extras, omissions, or duplicates)
+- Only report clear violations, not subjective preferences
+- Be specific about which rule was violated and what's wrong
+- Do NOT suggest corrections - that's out of scope for QA
+- Source and translation text are already available in context - don't copy them
+- Return ONLY the reviews object with line_id and violations fields
+- Return EXACTLY one review per input line_id (no extras, omissions, or duplicates)
+
+IMPORTANT: Before you produce the violations list, you MUST call the
+get_game_info tool once to confirm the project context. Do not include tool
+output in your final response.
+"""
+
+[prompts.user_template]
+content = """
+Before you review the translations, call the get_game_info tool once.
+
+Review the following translations against the style guide.
+
+## Style Guide
+---
+{{style_guide}}
+---
+
+## Lines to Review
+{{lines_to_review}}
+---
+
+Alignment feedback (if any):
+{{alignment_feedback}}
+
+Identify any style guide violations in the translations above.
+
+Return a JSON response with:
+- reviews: A list with EXACTLY one entry per input line_id, in any order
+- Each review must include:
+  - line_id: The exact input line_id
+  - violations: A list of rule_violated/explanation objects (empty if none)
+"""
+
+[tools]
+allowed = ["get_game_info"]
+
+[model_hints]
+recommended = ["gpt-4o", "claude-3.5-sonnet", "claude-3-opus"]
+min_context_tokens = 8192
+benefits_from_reasoning = true

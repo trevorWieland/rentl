@@ -1,0 +1,63 @@
+# Agent OS Standards Index
+
+architecture:
+  adapter-interface-protocol:
+    description: Never access infrastructure adapters directly; access protocols defined in the Core Domain
+  api-response-format:
+    description: All responses use pydantic-based {data, error, meta} envelopes
+  id-formats:
+    description: UUIDv7 vs human-readable ID formats
+  log-line-format:
+    description: All log lines use stable JSONL pydantic-based schema with {timestamp, level, event, run_id, phase, message, data} fields
+  naming-conventions:
+    description: Use consistent naming conventions across all code; snake_case for modules/functions/variables, PascalCase for classes/types
+  none-vs-empty:
+    description: Meaning of None vs empty lists in schemas
+  thin-adapter-pattern:
+    description: Surface layers (CLI, TUI, API) are thin adapters; all business logic lives in the Core Domain
+
+global:
+  address-deprecations-immediately:
+    description: Deprecation warnings must be addressed immediately; never defer to future work
+  agent-tool-registration:
+    description: Register tools with explicit names via pydantic_ai.Tool to prevent prompt/tool mismatches
+  prefer-dependency-updates:
+    description: Prefer frequent dependency updates; use compatible ranges instead of exact pins
+  required-tool-gating:
+    description: Gate output tools until required function tools are called; use exhaustive end_strategy
+
+python:
+  async-first-design:
+    description: Design all APIs around async/await for parallel agent execution and efficient LLM network IO
+  modern-python-314:
+    description: Use Python 3.14 modern features; avoid legacy constructs and outdated patterns
+  pydantic-only-schemas:
+    description: Never use dataclasses or plain classes; all schemas must use Pydantic with Field and validators
+  strict-typing-enforcement:
+    description: Never use Any or object in types; all Pydantic fields use Field with description and built-in validators
+
+testing:
+  bdd-for-integration-quality:
+    description: Integration and quality tests must use BDD-style (Given/When/Then)
+  make-all-gate:
+    description: Require make all to pass before finalizing work
+  mandatory-coverage:
+    description: Coverage mandatory for all features; tests must exercise actual behavior
+  no-mocks-for-quality-tests:
+    description: Quality tests use real LLMs; integration tests mock LLMs
+  no-test-skipping:
+    description: Never skip tests within a tier; tests either run and pass or run and fail
+  test-timing-rules:
+    description: "Strict timing limits per tier: unit <250ms, integration <5s, quality <30s"
+  three-tier-test-structure:
+    description: "All tests in unit/integration/quality folders; unit <250ms, integration <5s, quality <30s"
+
+ux:
+  frictionless-by-default:
+    description: Guided setup and safe defaults for effortless first runs
+  progress-is-product:
+    description: Status, phase completion, and QA visibility must be immediate and unambiguous
+  speed-with-guardrails:
+    description: Fast iterations without sacrificing determinism or quality; speed and quality aren't tradeoffs
+  trust-through-transparency:
+    description: No silent stalls; every phase, error, and status must be visible and explainable

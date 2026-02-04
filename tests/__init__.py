@@ -1,1 +1,1 @@
-"""Test package marker for relative imports."""
+"""Test package for rentl."""

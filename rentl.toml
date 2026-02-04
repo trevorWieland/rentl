@@ -1,0 +1,271 @@
+[project]
+schema_version = { major = 0, minor = 1, patch = 0 }
+project_name = "local-validate"
+
+[project.paths]
+workspace_dir = "."
+input_path = "sample_scenes.jsonl"
+output_dir = "out"
+logs_dir = "logs"
+
+[project.formats]
+input_format = "jsonl"
+output_format = "jsonl"
+
+[project.languages]
+source_language = "ja"
+target_languages = ["en"]
+
+[logging]
+[[logging.sinks]]
+type = "file"
+
+[[logging.sinks]]
+type = "console"
+
+[agents]
+prompts_dir = "packages/rentl-agents/prompts"
+agents_dir = "packages/rentl-agents/agents"
+
+[endpoint]
+provider_name = "local"
+base_url = "http://172.20.192.1:1234/v1"
+api_key_env = "RENTL_LOCAL_API_KEY"
+timeout_s = 180
+
+# Optional multi-endpoint configuration (commented out; enable by removing [endpoint])
+# [endpoints]
+# default = "local"
+#
+# [[endpoints.endpoints]]
+# provider_name = "local"
+# base_url = "http://172.20.192.1:1234/v1"
+# api_key_env = "RENTL_LOCAL_API_KEY"
+# timeout_s = 180
+
+[pipeline.default_model]
+model_id = "google/gemma-3-27b"
+temperature = 0.2
+max_output_tokens = 4096
+reasoning_effort = "medium"
+top_p = 1.0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+[[pipeline.phases]]
+phase = "ingest"
+enabled = true
+
+[pipeline.phases.execution]
+strategy = "full"
+
+[pipeline.phases.concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[pipeline.phases.retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[pipeline.phases.parameters]
+notes = "ingest-parameters"
+
+[[pipeline.phases]]
+phase = "context"
+enabled = true
+agents = ["scene_summarizer"]
+
+[pipeline.phases.model]
+model_id = "google/gemma-3-27b"
+temperature = 0.2
+max_output_tokens = 4096
+reasoning_effort = "medium"
+top_p = 1.0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+# endpoint_ref = "local"
+
+[pipeline.phases.execution]
+strategy = "scene"
+scene_batch_size = 1
+max_parallel_agents = 1
+
+[pipeline.phases.concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[pipeline.phases.retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[pipeline.phases.parameters]
+notes = "context-phase-parameters"
+
+[[pipeline.phases]]
+phase = "pretranslation"
+enabled = true
+agents = ["idiom_labeler"]
+
+[pipeline.phases.model]
+model_id = "google/gemma-3-27b"
+temperature = 0.2
+max_output_tokens = 4096
+reasoning_effort = "medium"
+top_p = 1.0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+[pipeline.phases.execution]
+strategy = "chunk"
+chunk_size = 10
+max_parallel_agents = 1
+
+[pipeline.phases.concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[pipeline.phases.retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[pipeline.phases.parameters]
+notes = "pretranslation-parameters"
+
+[[pipeline.phases]]
+phase = "translate"
+enabled = true
+agents = ["direct_translator"]
+
+[pipeline.phases.model]
+model_id = "google/gemma-3-27b"
+temperature = 0.2
+max_output_tokens = 4096
+reasoning_effort = "medium"
+top_p = 1.0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+[pipeline.phases.execution]
+strategy = "chunk"
+chunk_size = 10
+max_parallel_agents = 1
+
+[pipeline.phases.concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[pipeline.phases.retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[pipeline.phases.parameters]
+notes = "translate-parameters"
+
+[[pipeline.phases]]
+phase = "qa"
+enabled = true
+agents = ["style_guide_critic"]
+
+[pipeline.phases.model]
+model_id = "google/gemma-3-27b"
+temperature = 0.2
+max_output_tokens = 4096
+reasoning_effort = "medium"
+top_p = 1.0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+[pipeline.phases.execution]
+strategy = "chunk"
+chunk_size = 10
+max_parallel_agents = 1
+
+[pipeline.phases.concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[pipeline.phases.retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[pipeline.phases.parameters]
+[pipeline.phases.parameters.deterministic]
+enabled = true
+[[pipeline.phases.parameters.deterministic.checks]]
+check_name = "line_length"
+enabled = true
+severity = "minor"
+
+[pipeline.phases.parameters.deterministic.checks.parameters]
+max_length = 80
+count_mode = "characters"
+
+[[pipeline.phases]]
+phase = "edit"
+enabled = true
+agents = ["basic_editor"]
+
+[pipeline.phases.model]
+model_id = "google/gemma-3-27b"
+temperature = 0.2
+max_output_tokens = 4096
+reasoning_effort = "medium"
+top_p = 1.0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+[pipeline.phases.execution]
+strategy = "chunk"
+chunk_size = 10
+max_parallel_agents = 1
+
+[pipeline.phases.concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[pipeline.phases.retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[pipeline.phases.parameters]
+notes = "edit-parameters"
+
+[[pipeline.phases]]
+phase = "export"
+enabled = true
+
+[pipeline.phases.execution]
+strategy = "full"
+
+[pipeline.phases.concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[pipeline.phases.retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[pipeline.phases.parameters]
+notes = "export-parameters"
+
+[concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[cache]
+enabled = false
+cache_dir = ".rentl/cache"
+ttl_s = 86400
+max_entries = 10000
