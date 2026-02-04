@@ -697,6 +697,7 @@ class _ProgressReporter(ProgressSinkProtocol):
                 total=total,
                 completed=metric.completed_units,
             )
+        self._progress.refresh()
 
 
 def _should_render_progress() -> bool:

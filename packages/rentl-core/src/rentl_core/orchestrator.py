@@ -199,6 +199,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
 
         Raises:
             OrchestrationError: If agent pool produces empty result.
+            RuntimeError: If a task in the agent pool fails.
         """
         if not payloads:
             return []
@@ -212,9 +213,13 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
             async with semaphore:
                 results[index] = await agent.run(payload)
 
-        async with asyncio.TaskGroup() as group:
-            for index, payload in enumerate(payloads):
-                group.create_task(_run(index, payload))
+        try:
+            async with asyncio.TaskGroup() as group:
+                for index, payload in enumerate(payloads):
+                    group.create_task(_run(index, payload))
+        except* Exception as exc_group:
+            messages = "; ".join(str(exc) for exc in exc_group.exceptions)
+            raise RuntimeError(f"Agent pool task failed: {messages}") from exc_group
 
         resolved: list[OutputT_co] = []
         for result in results:
@@ -995,7 +1000,7 @@ class PipelineOrchestrator:
                     run,
                     PhaseName.EDIT,
                     "lines_edited",
-                    ProgressUnit.LINES,
+                    ProgressUnit.EDITS,
                     completed_units,
                     total_units,
                     message=_agent_name,
