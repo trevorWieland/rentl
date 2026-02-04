@@ -1125,7 +1125,7 @@ def _render_run_start(
     console: Console | None,
 ) -> None:
     phase_list = ", ".join(str(phase) for phase in phases) or "n/a"
-    agent_lines: list[str] = []
+    agent_lines: list[tuple[str, str]] = []
     phase_set = {str(phase) for phase in phases}
     for entry in config.pipeline.phases:
         phase_value = str(entry.phase)
@@ -1134,19 +1134,36 @@ def _render_run_start(
         if not entry.agents:
             continue
         agents = ", ".join(entry.agents)
-        agent_lines.append(f"{phase_value}: {agents}")
-    agent_text = "\n".join(agent_lines) or "n/a"
+        agent_lines.append((phase_value, agents))
     started = _now_timestamp()
-    message = (
-        f"Run {run_id} starting\n"
-        f"Started: {started}\n"
-        f"Phases: {phase_list}\n"
-        f"Agents:\n{agent_text}"
+    meta_table = Table.grid(padding=(0, 1))
+    meta_table.add_column(justify="right", style="bold")
+    meta_table.add_column()
+    meta_table.add_row("Run", str(run_id))
+    meta_table.add_row("Started", started)
+    meta_table.add_row("Phases", phase_list)
+
+    agents_table = Table(
+        show_header=True,
+        header_style="bold",
+        box=None,
+        padding=(0, 1),
     )
-    if console is not None:
-        console.print(message)
+    agents_table.add_column("Phase", style="bold")
+    agents_table.add_column("Agents")
+    if agent_lines:
+        for phase_value, agents in agent_lines:
+            agents_table.add_row(phase_value, agents)
     else:
-        rprint(message)
+        agents_table.add_row("n/a", "n/a")
+
+    panel = Panel(
+        Group(meta_table, agents_table),
+        title="run-pipeline",
+        border_style="cyan",
+    )
+    target_console = console or Console(stderr=True)
+    target_console.print(panel)
 
 
 def _render_run_execution_summary(

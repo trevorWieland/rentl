@@ -39,6 +39,15 @@ class LogSinkConfig(BaseSchema):
 
     type: LogSinkType = Field(..., description="Log sink type (console|file|noop)")
 
+    @field_validator("type", mode="before")
+    @classmethod
+    def _coerce_type(cls, value: object) -> LogSinkType:
+        if isinstance(value, LogSinkType):
+            return value
+        if isinstance(value, str):
+            return LogSinkType(value)
+        return value  # type: ignore[return-value]
+
 
 class LoggingConfig(BaseSchema):
     """Logging configuration for pipeline runs and CLI commands."""
@@ -68,6 +77,15 @@ class FormatConfig(BaseSchema):
 
     input_format: FileFormat = Field(..., description="Input file format")
     output_format: FileFormat = Field(..., description="Output file format")
+
+    @field_validator("input_format", "output_format", mode="before")
+    @classmethod
+    def _coerce_format(cls, value: object) -> FileFormat:
+        if isinstance(value, FileFormat):
+            return value
+        if isinstance(value, str):
+            return FileFormat(value)
+        return value  # type: ignore[return-value]
 
 
 class LanguageConfig(BaseSchema):
@@ -179,6 +197,17 @@ class ModelSettings(BaseSchema):
     presence_penalty: float = Field(0.0, ge=-2, le=2, description="Presence penalty")
     frequency_penalty: float = Field(0.0, ge=-2, le=2, description="Frequency penalty")
 
+    @field_validator("reasoning_effort", mode="before")
+    @classmethod
+    def _coerce_reasoning_effort(cls, value: object) -> ReasoningEffort | None:
+        if value is None:
+            return None
+        if isinstance(value, ReasoningEffort):
+            return value
+        if isinstance(value, str):
+            return ReasoningEffort(value)
+        return value  # type: ignore[return-value]
+
 
 class RetryConfig(BaseSchema):
     """Retry policy for external requests."""
@@ -245,6 +274,15 @@ class PhaseConfig(BaseSchema):
         None, description="Phase-specific parameters"
     )
 
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: object) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        if isinstance(value, str):
+            return PhaseName(value)
+        return value  # type: ignore[return-value]
+
 
 class PhaseExecutionConfig(BaseSchema):
     """Execution settings for phase work sharding and agent fan-out."""
@@ -264,6 +302,15 @@ class PhaseExecutionConfig(BaseSchema):
     max_parallel_agents: int | None = Field(
         None, gt=0, description="Maximum parallel agent workers"
     )
+
+    @field_validator("strategy", mode="before")
+    @classmethod
+    def _coerce_strategy(cls, value: object) -> PhaseWorkStrategy:
+        if isinstance(value, PhaseWorkStrategy):
+            return value
+        if isinstance(value, str):
+            return PhaseWorkStrategy(value)
+        return value  # type: ignore[return-value]
 
     @model_validator(mode="after")
     def validate_strategy(self) -> PhaseExecutionConfig:
@@ -314,6 +361,53 @@ class DeterministicQaCheckConfig(BaseSchema):
     parameters: dict[str, JsonValue] | None = Field(
         None, description="Check-specific parameters"
     )
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _coerce_severity(cls, value: object) -> QaSeverity:
+        if isinstance(value, QaSeverity):
+            return value
+        if isinstance(value, str):
+            return QaSeverity(value)
+        return value  # type: ignore[return-value]
+
+    @model_validator(mode="after")
+    def _validate_parameters(self) -> DeterministicQaCheckConfig:
+        allowed_checks = {
+            "line_length",
+            "empty_translation",
+            "untranslated_line",
+            "whitespace",
+            "unsupported_characters",
+        }
+        if self.check_name not in allowed_checks:
+            raise ValueError(f"Unknown deterministic QA check: {self.check_name}")
+
+        if self.check_name == "line_length":
+            if self.parameters is None:
+                raise ValueError("line_length check requires max_length parameter")
+            max_length = self.parameters.get("max_length")
+            if not isinstance(max_length, int) or max_length <= 0:
+                raise ValueError("max_length must be a positive integer")
+            count_mode = self.parameters.get("count_mode", "characters")
+            if count_mode not in {"characters", "bytes"}:
+                raise ValueError("count_mode must be 'characters' or 'bytes'")
+
+        if self.check_name == "unsupported_characters":
+            if self.parameters is None:
+                raise ValueError("unsupported_characters check requires allowed_ranges")
+            allowed_ranges = self.parameters.get("allowed_ranges")
+            if not isinstance(allowed_ranges, list) or not allowed_ranges:
+                raise ValueError("allowed_ranges must be a non-empty list")
+            for entry in allowed_ranges:
+                if not isinstance(entry, str):
+                    raise ValueError("allowed_ranges entries must be strings")
+            if "allow_common_punctuation" in self.parameters and not isinstance(
+                self.parameters.get("allow_common_punctuation"), bool
+            ):
+                raise ValueError("allow_common_punctuation must be a boolean")
+
+        return self
 
 
 class DeterministicQaConfig(BaseSchema):
@@ -449,6 +543,24 @@ class RunConfig(BaseSchema):
             if missing:
                 joined = ", ".join(missing)
                 raise ValueError(f"Unknown endpoint_ref(s): {joined}")
+        return self
+
+    @model_validator(mode="after")
+    def validate_pipeline_parameters(self) -> RunConfig:
+        """Validate pipeline parameter payloads.
+
+        Returns:
+            RunConfig: Validated run configuration.
+        """
+        for phase in self.pipeline.phases:
+            if phase.phase != PhaseName.QA:
+                continue
+            if phase.parameters is None:
+                continue
+            deterministic = phase.parameters.get("deterministic")
+            if deterministic is None:
+                continue
+            DeterministicQaConfig.model_validate(deterministic, strict=True)
         return self
 
     def resolve_endpoint_ref(

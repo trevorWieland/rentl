@@ -124,6 +124,151 @@ def test_phase_execution_rejects_full_with_chunk_size() -> None:
         )
 
 
+def test_format_config_coerces_string_values() -> None:
+    """Ensure format strings are coerced to enums."""
+    config = FormatConfig.model_validate({
+        "input_format": "txt",
+        "output_format": "jsonl",
+    })
+
+    assert config.input_format == FileFormat.TXT
+    assert config.output_format == FileFormat.JSONL
+
+
+def test_log_sink_config_coerces_string_values() -> None:
+    """Ensure log sink strings are coerced to enums."""
+    config = LogSinkConfig.model_validate({"type": "file"})
+
+    assert config.type == LogSinkType.FILE
+
+
+def test_phase_config_coerces_string_values() -> None:
+    """Ensure phase strings are coerced to enums."""
+    config = PhaseConfig.model_validate({"phase": "ingest"})
+
+    assert config.phase == PhaseName.INGEST
+
+
+def test_phase_execution_config_coerces_string_values() -> None:
+    """Ensure strategy strings are coerced to enums."""
+    config = PhaseExecutionConfig.model_validate({
+        "strategy": "scene",
+        "scene_batch_size": 1,
+    })
+
+    assert config.strategy == PhaseWorkStrategy.SCENE
+
+
+def test_model_settings_coerces_reasoning_effort() -> None:
+    """Ensure reasoning effort strings are coerced to enums."""
+    config = ModelSettings.model_validate({
+        "model_id": "gpt-4",
+        "reasoning_effort": "medium",
+    })
+
+    assert config.reasoning_effort is not None
+    assert config.reasoning_effort == "medium"
+
+
+def _base_run_config(phases: list[PhaseConfig]) -> RunConfig:
+    return RunConfig(
+        project=ProjectConfig(
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            project_name="test",
+            paths=ProjectPaths(
+                workspace_dir="/tmp",
+                input_path="input.txt",
+                output_dir="out",
+                logs_dir="logs",
+            ),
+            formats=FormatConfig(
+                input_format=FileFormat.TXT,
+                output_format=FileFormat.TXT,
+            ),
+            languages=LanguageConfig(
+                source_language="en",
+                target_languages=["ja"],
+            ),
+        ),
+        logging=LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.FILE)]),
+        agents=AgentsConfig(prompts_dir="/tmp/prompts", agents_dir="/tmp/agents"),
+        endpoint=ModelEndpointConfig(
+            provider_name="test",
+            base_url="http://localhost",
+            api_key_env="TEST_KEY",
+        ),
+        endpoints=None,
+        pipeline=PipelineConfig(
+            default_model=ModelSettings(model_id="gpt-4"),
+            phases=phases,
+        ),
+        concurrency=ConcurrencyConfig(),
+        retry=RetryConfig(),
+        cache=CacheConfig(),
+    )
+
+
+def test_deterministic_check_requires_line_length_params() -> None:
+    """Ensure line_length requires max_length."""
+    with pytest.raises(ValidationError):
+        _base_run_config(
+            phases=[
+                PhaseConfig(phase=PhaseName.INGEST),
+                PhaseConfig(phase=PhaseName.CONTEXT, agents=["scene_summarizer"]),
+                PhaseConfig(phase=PhaseName.PRETRANSLATION, agents=["idiom_labeler"]),
+                PhaseConfig(phase=PhaseName.TRANSLATE, agents=["direct_translator"]),
+                PhaseConfig(
+                    phase=PhaseName.QA,
+                    agents=["style_guide_critic"],
+                    parameters={
+                        "deterministic": {
+                            "enabled": True,
+                            "checks": [
+                                {
+                                    "check_name": "line_length",
+                                    "enabled": True,
+                                    "severity": "minor",
+                                }
+                            ],
+                        }
+                    },
+                ),
+                PhaseConfig(phase=PhaseName.EDIT, agents=["basic_editor"]),
+            ]
+        )
+
+
+def test_deterministic_check_validates_allowed_ranges() -> None:
+    """Ensure unsupported_characters validates allowed_ranges."""
+    with pytest.raises(ValidationError):
+        _base_run_config(
+            phases=[
+                PhaseConfig(phase=PhaseName.INGEST),
+                PhaseConfig(phase=PhaseName.CONTEXT, agents=["scene_summarizer"]),
+                PhaseConfig(phase=PhaseName.PRETRANSLATION, agents=["idiom_labeler"]),
+                PhaseConfig(phase=PhaseName.TRANSLATE, agents=["direct_translator"]),
+                PhaseConfig(
+                    phase=PhaseName.QA,
+                    agents=["style_guide_critic"],
+                    parameters={
+                        "deterministic": {
+                            "enabled": True,
+                            "checks": [
+                                {
+                                    "check_name": "unsupported_characters",
+                                    "enabled": True,
+                                    "severity": "minor",
+                                    "parameters": {"allowed_ranges": []},
+                                }
+                            ],
+                        }
+                    },
+                ),
+                PhaseConfig(phase=PhaseName.EDIT, agents=["basic_editor"]),
+            ]
+        )
+
+
 def test_phase_execution_rejects_scene_with_chunk_size() -> None:
     """Ensure chunk_size is rejected for scene strategy."""
     with pytest.raises(ValidationError):

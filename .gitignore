@@ -92,3 +92,6 @@ ipython_config.py
 sample_scenes.jsonl
 logs/
 .rentl/
+out/
+output/
+outputs/

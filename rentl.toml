@@ -199,7 +199,11 @@ enabled = true
 [[pipeline.phases.parameters.deterministic.checks]]
 check_name = "line_length"
 enabled = true
-severity = "warning"
+severity = "minor"
+
+[pipeline.phases.parameters.deterministic.checks.parameters]
+max_length = 80
+count_mode = "characters"
 
 [[pipeline.phases]]
 phase = "edit"
