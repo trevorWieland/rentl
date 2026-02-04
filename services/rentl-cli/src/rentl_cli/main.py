@@ -59,7 +59,13 @@ from rentl_io.storage.filesystem import (
 from rentl_io.storage.log_sink import build_log_sink
 from rentl_io.storage.progress_sink import FileSystemProgressSink
 from rentl_llm import OpenAICompatibleRuntime
-from rentl_schemas.config import LanguageConfig, ModelSettings, RunConfig
+from rentl_schemas.config import (
+    LanguageConfig,
+    LoggingConfig,
+    LogSinkConfig,
+    ModelSettings,
+    RunConfig,
+)
 from rentl_schemas.events import (
     CommandCompletedData,
     CommandEvent,
@@ -77,6 +83,7 @@ from rentl_schemas.primitives import (
     JsonValue,
     LanguageCode,
     LogLevel,
+    LogSinkType,
     PhaseName,
     RunId,
     RunStatus,
@@ -353,7 +360,11 @@ def run_pipeline(
     run_id: str | None = RUN_ID_OPTION,
     target_languages: list[str] | None = TARGET_LANGUAGE_OPTION,
 ) -> None:
-    """Run the full pipeline plan."""
+    """Run the full pipeline plan.
+
+    Raises:
+        typer.Exit: When the run fails in interactive mode.
+    """
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
     progress: Progress | None = None
@@ -362,8 +373,11 @@ def run_pipeline(
         config = _load_resolved_config(config_path)
         resolved_run_id = _resolve_run_id(run_id)
         command_run_id = resolved_run_id
-        bundle = _build_storage_bundle(config, resolved_run_id)
-        if _should_render_progress():
+        bundle = _build_storage_bundle(
+            config, resolved_run_id, allow_console_logs=False
+        )
+        interactive = _should_render_progress()
+        if interactive:
             console = Console(stderr=True)
             progress = _build_progress(console)
             reporter = _ProgressReporter(bundle.progress_sink, progress, console)
@@ -390,6 +404,13 @@ def run_pipeline(
                 args=args,
             ),
         )
+        if interactive:
+            _render_run_start(
+                run_id=resolved_run_id,
+                phases=_resolve_enabled_phases(config),
+                config=config,
+                console=console,
+            )
         if progress is not None:
             with progress:
                 result = asyncio.run(
@@ -433,6 +454,12 @@ def run_pipeline(
                 ),
             )
         response = _error_response(error)
+    if progress is not None:
+        _render_run_execution_summary(response.data, console=console)
+        if response.error is not None:
+            _render_run_error(response.error, console=console)
+            raise typer.Exit(code=1)
+        return
     print(response.model_dump_json())
 
 
@@ -445,14 +472,20 @@ def run_phase(
     input_path: Path | None = INPUT_PATH_OPTION,
     output_path: Path | None = OUTPUT_PATH_OPTION,
 ) -> None:
-    """Run a single phase (with required prerequisites)."""
+    """Run a single phase (with required prerequisites).
+
+    Raises:
+        typer.Exit: When the run fails in interactive mode.
+    """
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
     try:
         config = _load_resolved_config(config_path)
         resolved_run_id = _resolve_run_id(run_id)
         command_run_id = resolved_run_id
-        bundle = _build_storage_bundle(config, resolved_run_id)
+        bundle = _build_storage_bundle(
+            config, resolved_run_id, allow_console_logs=False
+        )
         log_sink = bundle.log_sink
         args: dict[str, JsonValue] = {
             "config_path": str(config_path),
@@ -471,6 +504,13 @@ def run_phase(
                 args=args,
             ),
         )
+        if _should_render_progress():
+            _render_run_start(
+                run_id=resolved_run_id,
+                phases=_resolve_phase_plan(config, phase),
+                config=config,
+                console=None,
+            )
         result = asyncio.run(
             _run_phase_async(
                 config=config,
@@ -506,6 +546,12 @@ def run_phase(
                 ),
             )
         response = _error_response(error)
+    if _should_render_progress():
+        _render_run_execution_summary(response.data, console=None)
+        if response.error is not None:
+            _render_run_error(response.error, console=None)
+            raise typer.Exit(code=1)
+        return
     print(response.model_dump_json())
 
 
@@ -618,17 +664,20 @@ class _ProgressReporter(ProgressSinkProtocol):
 
     def _handle_update(self, update: ProgressUpdate) -> None:
         if update.event == ProgressEvent.PHASE_STARTED and update.phase is not None:
-            self._console.print(f"Starting {update.phase.value}")
+            self._console.print(f"Starting {update.phase}")
         if update.event == ProgressEvent.PHASE_COMPLETED and update.phase is not None:
-            self._console.print(f"{update.phase.value} complete")
+            self._console.print(f"{update.phase} complete")
         if update.event == ProgressEvent.PHASE_FAILED and update.phase is not None:
-            self._console.print(f"{update.phase.value} failed")
+            self._console.print(f"{update.phase} failed")
+
+        if update.event != ProgressEvent.PHASE_PROGRESS:
+            return
 
         phase_progress = update.phase_progress
         if phase_progress is None or not phase_progress.metrics:
             return
         metric = phase_progress.metrics[0]
-        phase_name = update.phase.value if update.phase else "phase"
+        phase_name = str(update.phase) if update.phase else "phase"
         agent_name = update.message or "agent"
         task_key = f"{phase_name}:{agent_name}"
         description = f"{phase_name}/{agent_name}"
@@ -1026,6 +1075,8 @@ def _build_storage_bundle(
     config: RunConfig,
     run_id: RunId,
     progress_sink: ProgressSinkProtocol | None = None,
+    *,
+    allow_console_logs: bool = True,
 ) -> _StorageBundle:
     workspace_dir = Path(config.project.paths.workspace_dir)
     base_dir = workspace_dir / ".rentl"
@@ -1033,7 +1084,8 @@ def _build_storage_bundle(
     artifact_dir = base_dir / "artifacts"
     log_store = FileSystemLogStore(logs_dir=config.project.paths.logs_dir)
     progress_path = _progress_path(config.project.paths.logs_dir, run_id)
-    log_sink = build_log_sink(config.logging, log_store)
+    logging_config = _build_logging_config(config, allow_console_logs)
+    log_sink = build_log_sink(logging_config, log_store)
     file_progress_sink = FileSystemProgressSink(str(progress_path))
     return _StorageBundle(
         run_state_store=FileSystemRunStateStore(base_dir=str(run_state_dir)),
@@ -1043,6 +1095,91 @@ def _build_storage_bundle(
         progress_sink=progress_sink or file_progress_sink,
         progress_path=progress_path,
     )
+
+
+def _build_logging_config(config: RunConfig, allow_console_logs: bool) -> LoggingConfig:
+    if allow_console_logs:
+        return config.logging
+    sinks = [sink for sink in config.logging.sinks if sink.type != LogSinkType.CONSOLE]
+    if not sinks:
+        sinks = [LogSinkConfig(type=LogSinkType.FILE)]
+    return LoggingConfig(sinks=sinks)
+
+
+def _render_run_start(
+    *,
+    run_id: RunId,
+    phases: list[PhaseName],
+    config: RunConfig,
+    console: Console | None,
+) -> None:
+    phase_list = ", ".join(str(phase) for phase in phases) or "n/a"
+    agent_lines: list[str] = []
+    phase_set = {str(phase) for phase in phases}
+    for entry in config.pipeline.phases:
+        phase_value = str(entry.phase)
+        if phase_value not in phase_set:
+            continue
+        if not entry.agents:
+            continue
+        agents = ", ".join(entry.agents)
+        agent_lines.append(f"{phase_value}: {agents}")
+    agent_text = "\n".join(agent_lines) or "n/a"
+    started = _now_timestamp()
+    message = (
+        f"Run {run_id} starting\n"
+        f"Started: {started}\n"
+        f"Phases: {phase_list}\n"
+        f"Agents:\n{agent_text}"
+    )
+    if console is not None:
+        console.print(message)
+    else:
+        rprint(message)
+
+
+def _render_run_execution_summary(
+    result: RunExecutionResult | None,
+    *,
+    console: Console | None,
+) -> None:
+    if result is None:
+        return
+    status = _format_enum(result.status)
+    started_at = result.run_state.metadata.started_at if result.run_state else None
+    completed_at = result.run_state.metadata.completed_at if result.run_state else None
+    log_path = (
+        result.log_file.location.path
+        if result.log_file and result.log_file.location.path
+        else "n/a"
+    )
+    progress_path = result.progress_file.path if result.progress_file else "n/a"
+
+    table = Table.grid(padding=(0, 1))
+    table.add_column(justify="right", style="bold")
+    table.add_column()
+    table.add_row("Run ID", str(result.run_id))
+    table.add_row("Status", status)
+    if started_at:
+        table.add_row("Started", started_at)
+    if completed_at:
+        table.add_row("Completed", completed_at)
+    table.add_row("Log file", log_path)
+    table.add_row("Progress file", progress_path)
+
+    panel = Panel(table, title="rentl run", expand=False)
+    if console is not None:
+        console.print(panel)
+    else:
+        rprint(panel)
+
+
+def _render_run_error(error: ErrorResponse, *, console: Console | None) -> None:
+    message = f"[red]Error:[/red] {error.message}"
+    if console is not None:
+        console.print(message)
+    else:
+        rprint(message)
 
 
 def _progress_path(logs_dir: str, run_id: RunId) -> Path:

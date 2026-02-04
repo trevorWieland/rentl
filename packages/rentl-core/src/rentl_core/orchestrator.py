@@ -437,9 +437,8 @@ class PipelineOrchestrator:
                 )
             language = _resolve_target_language(run, phase, target_language)
             _validate_phase_prereqs(run, phase, language)
-            shard_plan = _build_shard_plan(
-                phase, run.source_lines, phase_config.execution
-            )
+            execution = _resolve_execution_plan(phase, phase_config.execution)
+            shard_plan = _build_shard_plan(phase, run.source_lines, execution)
         except OrchestrationError as exc:
             await self._emit_phase_failure(
                 run, phase, exc.info.message, language, exc.info
@@ -470,20 +469,20 @@ class PipelineOrchestrator:
             if phase == PhaseName.INGEST:
                 record = await self._run_ingest(run, ingest_source)
             elif phase == PhaseName.CONTEXT:
-                record = await self._run_context(run, phase_config.execution)
+                record = await self._run_context(run, execution)
             elif phase == PhaseName.PRETRANSLATION:
-                record = await self._run_pretranslation(run, phase_config.execution)
+                record = await self._run_pretranslation(run, execution)
             elif phase == PhaseName.TRANSLATE:
                 record = await self._run_translate(
-                    run, _require_language(language, phase), phase_config.execution
+                    run, _require_language(language, phase), execution
                 )
             elif phase == PhaseName.QA:
                 record = await self._run_qa(
-                    run, _require_language(language, phase), phase_config.execution
+                    run, _require_language(language, phase), execution
                 )
             elif phase == PhaseName.EDIT:
                 record = await self._run_edit(
-                    run, _require_language(language, phase), phase_config.execution
+                    run, _require_language(language, phase), execution
                 )
             elif phase == PhaseName.EXPORT:
                 record = await self._run_export(
@@ -1830,6 +1829,29 @@ def _build_work_chunks(
     return [_WorkChunk(source_lines=source_lines)]
 
 
+def _resolve_execution_plan(
+    phase: PhaseName, execution: PhaseExecutionConfig | None
+) -> PhaseExecutionConfig | None:
+    if execution is not None:
+        return execution
+    if phase == PhaseName.CONTEXT:
+        return PhaseExecutionConfig(
+            strategy=PhaseWorkStrategy.SCENE,
+            scene_batch_size=1,
+        )
+    if phase in {
+        PhaseName.PRETRANSLATION,
+        PhaseName.TRANSLATE,
+        PhaseName.QA,
+        PhaseName.EDIT,
+    }:
+        return PhaseExecutionConfig(
+            strategy=PhaseWorkStrategy.CHUNK,
+            chunk_size=10,
+        )
+    return None
+
+
 def _build_shard_plan(
     phase: PhaseName,
     source_lines: list[SourceLine] | None,
@@ -1915,14 +1937,27 @@ async def _run_agent_pool(
     max_parallel: int | None,
     on_batch: Callable[[list[InputT], list[OutputT_co]], Awaitable[None]] | None = None,
 ) -> list[OutputT_co]:
-    if max_parallel is None or max_parallel <= 0 or max_parallel >= len(payloads):
+    if not payloads:
+        return []
+
+    effective_parallel = max_parallel
+    if (effective_parallel is None or effective_parallel <= 0) and isinstance(
+        pool, PhaseAgentPool
+    ):
+        pool_parallel = pool._max_parallel or len(pool._agents)
+        effective_parallel = pool_parallel
+    if effective_parallel is None or effective_parallel <= 0:
+        effective_parallel = len(payloads)
+
+    if effective_parallel >= len(payloads):
         results = await pool.run_batch(payloads)
         if on_batch is not None:
             await on_batch(payloads, results)
         return results
+
     results: list[OutputT_co] = []
-    for index in range(0, len(payloads), max_parallel):
-        batch = payloads[index : index + max_parallel]
+    for index in range(0, len(payloads), effective_parallel):
+        batch = payloads[index : index + effective_parallel]
         batch_results = await pool.run_batch(batch)
         results.extend(batch_results)
         if on_batch is not None:
