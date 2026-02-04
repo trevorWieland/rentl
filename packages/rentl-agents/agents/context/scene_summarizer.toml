@@ -31,6 +31,10 @@ What makes a good scene summary:
 - Mentions character dynamics and relationships shown
 - Is written in the same language as the source text
 
+Alignment requirements:
+- Return the same scene_id provided in the input
+- Do not invent or modify scene_id values
+
 Remember: Your summaries help translators understand context. Focus on what
 matters for translation decisions.
 
@@ -57,6 +61,9 @@ Analyze and summarize the following scene.
 
 Scene ID: {{scene_id}}
 Number of lines: {{line_count}}
+
+Alignment feedback (if any):
+{{alignment_feedback}}
 
 ---
 {{scene_lines}}

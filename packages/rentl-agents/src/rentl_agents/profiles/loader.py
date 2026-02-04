@@ -24,6 +24,7 @@ from rentl_schemas.phases import (
     IdiomAnnotation,
     IdiomAnnotationList,
     SceneSummary,
+    StyleGuideReviewList,
     StyleGuideViolation,
     StyleGuideViolationList,
     TranslationResultLine,
@@ -155,6 +156,8 @@ def _init_schema_registry() -> None:
         register_output_schema("StyleGuideViolation", StyleGuideViolation)
     if "StyleGuideViolationList" not in SCHEMA_REGISTRY:
         register_output_schema("StyleGuideViolationList", StyleGuideViolationList)
+    if "StyleGuideReviewList" not in SCHEMA_REGISTRY:
+        register_output_schema("StyleGuideReviewList", StyleGuideReviewList)
 
 
 # Initialize on module load

@@ -75,7 +75,7 @@ def then_profile_has_correct_qa_metadata(ctx: StyleGuideCriticContext) -> None:
     assert ctx.profile is not None
     assert ctx.profile.meta.name == "style_guide_critic"
     assert ctx.profile.meta.phase == PhaseName.QA
-    assert ctx.profile.meta.output_schema == "StyleGuideViolationList"
+    assert ctx.profile.meta.output_schema == "StyleGuideReviewList"
 
 
 @then("the profile does not require scene_id")

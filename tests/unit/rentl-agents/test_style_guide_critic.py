@@ -3,7 +3,13 @@
 import pytest
 from pydantic import ValidationError
 
-from rentl_schemas.phases import StyleGuideViolation, StyleGuideViolationList
+from rentl_schemas.phases import (
+    StyleGuideReviewLine,
+    StyleGuideReviewList,
+    StyleGuideRuleViolation,
+    StyleGuideViolation,
+    StyleGuideViolationList,
+)
 
 
 class TestStyleGuideViolationSchema:
@@ -86,3 +92,33 @@ class TestStyleGuideViolationListSchema:
         """Test that violations default to empty list."""
         violation_list = StyleGuideViolationList()
         assert violation_list.violations == []
+
+
+class TestStyleGuideReviewListSchema:
+    """Test cases for StyleGuideReviewList Pydantic schema."""
+
+    def test_review_line_with_empty_violations(self) -> None:
+        """Test review line accepts empty violations list."""
+        review_line = StyleGuideReviewLine(line_id="line_001", violations=[])
+        review_list = StyleGuideReviewList(reviews=[review_line])
+
+        assert len(review_list.reviews) == 1
+        assert review_list.reviews[0].line_id == "line_001"
+        assert review_list.reviews[0].violations == []
+
+    def test_review_line_with_violation(self) -> None:
+        """Test review line accepts rule violations."""
+        violation = StyleGuideRuleViolation(
+            rule_violated="Preserve honorifics",
+            explanation="-san was removed",
+        )
+        review_line = StyleGuideReviewLine(
+            line_id="line_002",
+            violations=[violation],
+        )
+        review_list = StyleGuideReviewList(reviews=[review_line])
+
+        assert review_list.reviews[0].line_id == "line_002"
+        assert (
+            review_list.reviews[0].violations[0].rule_violated == "Preserve honorifics"
+        )

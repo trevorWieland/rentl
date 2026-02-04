@@ -35,6 +35,10 @@ For each line, provide:
 - line_id: The exact ID from the source line (do not modify)
 - text: Your translation of the source text
 
+Alignment requirements:
+- Return EXACTLY one translation per input line_id
+- No extra, missing, or duplicate line_ids
+
 IMPORTANT: Before you produce translations, you MUST call the get_game_info
 tool once to confirm the project context. Do not include tool output in your
 final response.
@@ -66,6 +70,9 @@ Translate the following lines from {{source_lang}} to {{target_lang}}.
 Scene context:
 {{scene_summary}}
 
+Alignment feedback (if any):
+{{alignment_feedback}}
+
 Source lines ({{line_count}} total):
 ---
 {{annotated_source_lines}}
@@ -74,6 +81,8 @@ Source lines ({{line_count}} total):
 Return your translations as a list. Each translation must include:
 - line_id: The exact line ID from the source (do not modify)
 - text: Your translation in {{target_lang}}
+
+Return EXACTLY {{line_count}} items, one per input line_id, with no extras or omissions.
 
 Do not include any other fields in your response.
 """

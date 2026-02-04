@@ -11,6 +11,8 @@ This module provides:
 
 from __future__ import annotations
 
+from collections import Counter
+
 from rentl_schemas.io import SourceLine, TranslatedLine
 from rentl_schemas.phases import (
     GlossaryTerm,
@@ -303,18 +305,48 @@ def translation_result_to_lines(
 
     Returns:
         List of TranslatedLine records with metadata preserved.
+
+    Raises:
+        ValueError: If translated line_ids do not align with source line_ids.
     """
     # Build lookup map for source lines by line_id
     source_map: dict[LineId, SourceLine] = {line.line_id: line for line in source_lines}
 
+    expected_ids = [line.line_id for line in source_lines]
+    actual_ids = [translation.line_id for translation in result.translations]
+    duplicates = [
+        line_id for line_id, count in Counter(actual_ids).items() if count > 1
+    ]
+    missing = [line_id for line_id in expected_ids if line_id not in set(actual_ids)]
+    extra = [line_id for line_id in actual_ids if line_id not in set(expected_ids)]
+    if duplicates or missing or extra:
+        parts = [
+            "Translation alignment error: output IDs must match input IDs.",
+            f"Expected {len(expected_ids)} line_id(s), got {len(actual_ids)}.",
+        ]
+        if missing:
+            parts.append(f"Missing: {', '.join(missing)}")
+        if extra:
+            parts.append(f"Extra: {', '.join(extra)}")
+        if duplicates:
+            parts.append(f"Duplicate: {', '.join(duplicates)}")
+        raise ValueError(" ".join(parts))
+
+    translation_map = {
+        translation.line_id: translation for translation in result.translations
+    }
+
     translated_lines: list[TranslatedLine] = []
-
-    for translation in result.translations:
-        # Look up source line for metadata
-        source_line = source_map.get(translation.line_id)
-
-        if source_line:
-            translated_line = TranslatedLine(
+    for line_id in expected_ids:
+        translation = translation_map[line_id]
+        source_line = source_map.get(line_id)
+        if source_line is None:
+            translated_lines.append(
+                TranslatedLine(line_id=translation.line_id, text=translation.text)
+            )
+            continue
+        translated_lines.append(
+            TranslatedLine(
                 line_id=translation.line_id,
                 route_id=source_line.route_id,
                 scene_id=source_line.scene_id,
@@ -324,14 +356,7 @@ def translation_result_to_lines(
                 metadata=source_line.metadata,
                 source_columns=source_line.source_columns,
             )
-        else:
-            # Source line not found - create minimal record
-            translated_line = TranslatedLine(
-                line_id=translation.line_id,
-                text=translation.text,
-            )
-
-        translated_lines.append(translated_line)
+        )
 
     return translated_lines
 

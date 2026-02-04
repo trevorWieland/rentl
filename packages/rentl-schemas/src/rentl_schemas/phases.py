@@ -86,6 +86,21 @@ class StyleGuideViolation(BaseSchema):
     )
 
 
+class StyleGuideRuleViolation(BaseSchema):
+    """Style guide violation without line-level attribution."""
+
+    rule_violated: str = Field(
+        ...,
+        min_length=1,
+        description="Specific rule violated from the style guide",
+    )
+    explanation: str = Field(
+        ...,
+        min_length=1,
+        description="Explanation of why this violates the style guide",
+    )
+
+
 class StyleGuideViolationList(BaseSchema):
     """List of style guide violations from a single chunk analysis.
 
@@ -96,6 +111,29 @@ class StyleGuideViolationList(BaseSchema):
     violations: list[StyleGuideViolation] = Field(
         default_factory=list,
         description="List of style guide violations found",
+    )
+
+
+class StyleGuideReviewLine(BaseSchema):
+    """Per-line style guide review output.
+
+    Contains the line_id and any violations found for that line.
+    """
+
+    line_id: LineId = Field(..., description="Line identifier matching the source")
+    violations: list[StyleGuideRuleViolation] = Field(
+        default_factory=list,
+        description="Style guide violations for this line",
+    )
+
+
+class StyleGuideReviewList(BaseSchema):
+    """List of per-line style guide reviews from a single chunk analysis."""
+
+    reviews: list[StyleGuideReviewLine] = Field(
+        ...,
+        min_length=1,
+        description="Per-line style guide reviews for the chunk",
     )
 
 

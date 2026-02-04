@@ -27,6 +27,10 @@ For each line, return:
 - line_id: The exact ID from the input (do not modify)
 - text: The edited translation in {{target_lang}}
 
+Alignment requirements:
+- Return EXACTLY one output for the provided line_id
+- Do not change the line_id
+
 IMPORTANT: Before you produce the edited line, you MUST call the get_game_info
 tool once to confirm the project context. Do not include tool output in your
 final response.
@@ -47,6 +51,9 @@ QA issues:
 
 Scene summary:
 {{scene_summary}}
+
+Alignment feedback (if any):
+{{alignment_feedback}}
 
 Return a JSON response with:
 - line_id: "{{line_id}}"

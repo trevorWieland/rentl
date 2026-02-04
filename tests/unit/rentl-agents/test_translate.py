@@ -596,12 +596,8 @@ class TestTranslationResultToLines:
             ),
         ]
 
-        translated = translation_result_to_lines(result, source_lines)
-
-        assert len(translated) == 1
-        assert translated[0].line_id == "line_999"
-        assert translated[0].text == "Translated without source"
-        assert translated[0].source_text is None
+        with pytest.raises(ValueError, match="Translation alignment error"):
+            translation_result_to_lines(result, source_lines)
 
     def test_convert_multiple_lines(self) -> None:
         """Test converting multiple translation results."""

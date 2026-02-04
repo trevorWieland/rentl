@@ -58,6 +58,7 @@ class TestDefaultRegistry:
 
         assert "line_length" in checks
         assert "empty_translation" in checks
+        assert "untranslated_line" in checks
         assert "whitespace" in checks
         assert "unsupported_characters" in checks
 

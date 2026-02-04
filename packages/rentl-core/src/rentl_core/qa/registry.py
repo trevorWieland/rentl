@@ -7,6 +7,7 @@ from collections.abc import Callable
 from rentl_core.qa.checks.empty_translation import EmptyTranslationCheck
 from rentl_core.qa.checks.line_length import LineLengthCheck
 from rentl_core.qa.checks.unsupported_chars import UnsupportedCharacterCheck
+from rentl_core.qa.checks.untranslated_line import UntranslatedLineCheck
 from rentl_core.qa.checks.whitespace import WhitespaceCheck
 from rentl_core.qa.protocol import DeterministicCheck
 
@@ -74,6 +75,7 @@ def get_default_registry() -> CheckRegistry:
     registry = CheckRegistry()
     registry.register("line_length", LineLengthCheck)
     registry.register("empty_translation", EmptyTranslationCheck)
+    registry.register("untranslated_line", UntranslatedLineCheck)
     registry.register("whitespace", WhitespaceCheck)
     registry.register("unsupported_characters", UnsupportedCharacterCheck)
     return registry

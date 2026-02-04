@@ -26,6 +26,7 @@ from tests.quality.agents.eval_types import AgentEvalOutput
 from tests.quality.agents.evaluators import (
     ListFieldMinLength,
     OutputFieldPresent,
+    OutputListIdsMatch,
     ToolCallCountAtLeast,
     ToolInputSchemaValid,
     ToolResultHasKeys,
@@ -127,6 +128,11 @@ def given_context_dataset(
         evaluators=[
             OutputFieldPresent(field_name="scene_summaries"),
             ListFieldMinLength(field_name="scene_summaries", min_length=1),
+            OutputListIdsMatch(
+                field_name="scene_summaries",
+                id_field="scene_id",
+                expected_ids=("scene_1",),
+            ),
             ToolCallCountAtLeast(min_calls=1),
             ToolInputSchemaValid(tool_name="get_game_info", allowed_keys=()),
             ToolResultHasKeys(

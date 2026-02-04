@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 
 from pydantic_evals.evaluators import (
@@ -121,6 +122,71 @@ class ListFieldMinLength(Evaluator[BaseSchema, AgentEvalOutput]):
                 None if meets else f"Field {self.field_name} length < {self.min_length}"
             ),
         )
+
+
+@dataclass
+class OutputListIdsMatch(Evaluator[BaseSchema, AgentEvalOutput]):
+    """Ensure a list field contains expected IDs without duplicates."""
+
+    field_name: str
+    id_field: str
+    expected_ids: tuple[str, ...]
+
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
+        """Evaluate that output IDs match the expected list.
+
+        Args:
+            ctx: Evaluator context.
+
+        Returns:
+            Evaluation result with reason on failure.
+        """
+        output_data = _get_output_data(ctx.output)
+        if output_data is None:
+            return EvaluationReason(value=False, reason="Output data is unavailable")
+
+        field = output_data.get(self.field_name)
+        if not isinstance(field, list):
+            return EvaluationReason(
+                value=False,
+                reason=f"Field {self.field_name} is not a list",
+            )
+
+        ids: list[str] = []
+        for item in field:
+            if not isinstance(item, dict):
+                return EvaluationReason(
+                    value=False,
+                    reason=f"Field {self.field_name} contains non-object items",
+                )
+            raw_id = item.get(self.id_field)
+            if not isinstance(raw_id, str):
+                return EvaluationReason(
+                    value=False,
+                    reason=f"Missing {self.id_field} in {self.field_name} items",
+                )
+            ids.append(raw_id)
+
+        expected = list(self.expected_ids)
+        missing = [value for value in expected if value not in set(ids)]
+        extra = [value for value in ids if value not in set(expected)]
+        duplicates = [value for value, count in Counter(ids).items() if count > 1]
+
+        if missing or extra or duplicates or len(ids) != len(expected):
+            parts: list[str] = [
+                f"Expected IDs {expected}, got {ids}.",
+            ]
+            if missing:
+                parts.append(f"Missing: {missing}")
+            if extra:
+                parts.append(f"Extra: {extra}")
+            if duplicates:
+                parts.append(f"Duplicate: {duplicates}")
+            return EvaluationReason(value=False, reason=" ".join(parts))
+
+        return EvaluationReason(value=True, reason=None)
 
 
 @dataclass

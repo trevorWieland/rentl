@@ -26,6 +26,7 @@ from tests.quality.agents.eval_types import AgentEvalOutput
 from tests.quality.agents.evaluators import (
     ListFieldMinLength,
     OutputFieldPresent,
+    OutputListIdsMatch,
     ToolCallCountAtLeast,
     ToolInputSchemaValid,
     ToolResultHasKeys,
@@ -145,6 +146,11 @@ def given_translate_dataset(
         evaluators=[
             OutputFieldPresent(field_name="translated_lines"),
             ListFieldMinLength(field_name="translated_lines", min_length=1),
+            OutputListIdsMatch(
+                field_name="translated_lines",
+                id_field="line_id",
+                expected_ids=("line_1",),
+            ),
             ToolCallCountAtLeast(min_calls=1),
             ToolInputSchemaValid(tool_name="get_game_info", allowed_keys=()),
             ToolResultHasKeys(

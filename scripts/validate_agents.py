@@ -985,6 +985,7 @@ def main() -> int:
             runner = DeterministicQaRunner(get_default_registry())
             runner.configure_check("line_length", QaSeverity.MAJOR, {"max_length": 256})
             runner.configure_check("empty_translation", QaSeverity.CRITICAL, None)
+            runner.configure_check("untranslated_line", QaSeverity.MINOR, None)
             runner.configure_check("whitespace", QaSeverity.MINOR, None)
 
             deterministic_issues = runner.run_checks(translated_lines)

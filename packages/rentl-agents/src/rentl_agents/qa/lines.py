@@ -9,16 +9,19 @@ This module provides:
 
 from __future__ import annotations
 
+from typing import cast
 from uuid import uuid7
 
 from rentl_schemas.io import SourceLine, TranslatedLine
 from rentl_schemas.phases import (
     QaPhaseOutput,
     SceneSummary,
+    StyleGuideRuleViolation,
     StyleGuideViolation,
 )
 from rentl_schemas.primitives import (
     LanguageCode,
+    LineId,
     QaCategory,
     QaSeverity,
     RunId,
@@ -146,10 +149,12 @@ def get_scene_summary_for_qa(
 
 
 def violation_to_qa_issue(
-    violation: StyleGuideViolation,
+    violation: StyleGuideViolation | StyleGuideRuleViolation,
     severity: QaSeverity = QaSeverity.MAJOR,
+    *,
+    line_id: str | None = None,
 ) -> QaIssue:
-    """Convert a StyleGuideViolation to a QaIssue.
+    """Convert a style guide violation to a QaIssue.
 
     Creates a standardized QA issue with the violation details stored
     in the metadata field.
@@ -157,13 +162,24 @@ def violation_to_qa_issue(
     Args:
         violation: Style guide violation from the style guide critic.
         severity: Severity level for the issue (default MAJOR).
+        line_id: Optional line identifier override.
 
     Returns:
         QaIssue with category=STYLE.
+
+    Raises:
+        ValueError: If line_id cannot be resolved.
     """
+    resolved_line_id = line_id
+    if resolved_line_id is None and hasattr(violation, "line_id"):
+        resolved_line_id = violation.line_id
+    if resolved_line_id is None:
+        raise ValueError("line_id is required for QA issue conversion")
+    resolved_line_id = cast(LineId, resolved_line_id)
+
     return QaIssue(
         issue_id=uuid7(),
-        line_id=violation.line_id,
+        line_id=resolved_line_id,
         category=QaCategory.STYLE,
         severity=severity,
         message=f"{violation.rule_violated}: {violation.explanation}",

@@ -56,6 +56,18 @@ Create `agent-os/specs/2026-02-03-0848-observability-cli-status-viewer/` with:
 - Emission tests in core runtime (event creation and sink calls).
 - CLI status snapshot and watch modes using temp run state/progress files.
 - Ensure existing CLI run-phase/run-pipeline tests still pass.
+- Add global agent alignment tests: any agent receiving a list of IDs must return a 1:1 aligned list (no extras/omissions/duplicates), with per-chunk retries on mismatch.
+- Add QA deterministic check for untranslated lines (`text == source_text`) as a quality signal, separate from alignment enforcement.
+
+## Task 7b: Agent IO Alignment Enforcement (Global)
+
+- Enforce strict 1:1 alignment between input and output IDs for all agent phases:
+  - Translate: input line_ids must match output line_ids per chunk (no extras/omissions/duplicates).
+  - QA: input line_ids must match output items per chunk, even when no violations are found.
+  - Edit: input line_ids must match output line_ids per item.
+  - Context: input scene_ids must match output summaries (no missing/extra scenes).
+- Validate alignment per chunk, not per phase; retry the chunk on mismatch using existing retry/attempt logic.
+- Fail the phase only after max retries are exhausted for a chunk.
 
 ## Task 8: Verification - Run make all
 

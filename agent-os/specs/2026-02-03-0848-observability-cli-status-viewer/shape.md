@@ -14,6 +14,11 @@ and a snapshot mode for audits.
 - Keep CLI as a thin adapter; core emits structured telemetry via progress/log
   sinks.
 - Use JSONL progress/log files as the primary read model for status rendering.
+- Enforce strict agent IO alignment globally: any agent receiving IDs must return
+  exactly those IDs (no extras/omissions/duplicates), with per-chunk retries on
+  mismatch.
+- Treat alignment enforcement as a correctness gate, distinct from QA quality
+  signals (e.g., untranslated line detection).
 
 ## Context
 

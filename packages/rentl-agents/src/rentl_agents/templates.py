@@ -92,6 +92,7 @@ CONTEXT_AGENT_VARIABLES: frozenset[str] = frozenset({
     "scene_id",
     "line_count",
     "scene_lines",
+    "alignment_feedback",
 })
 
 PRETRANSLATION_AGENT_VARIABLES: frozenset[str] = frozenset({
@@ -99,6 +100,7 @@ PRETRANSLATION_AGENT_VARIABLES: frozenset[str] = frozenset({
     "line_count",
     "source_lines",
     "scene_summary",
+    "alignment_feedback",
 })
 
 TRANSLATE_AGENT_VARIABLES: frozenset[str] = frozenset({
@@ -109,6 +111,7 @@ TRANSLATE_AGENT_VARIABLES: frozenset[str] = frozenset({
     "scene_summary",
     "pretranslation_notes",
     "glossary_terms",
+    "alignment_feedback",
 })
 
 QA_AGENT_VARIABLES: frozenset[str] = frozenset({
@@ -119,6 +122,7 @@ QA_AGENT_VARIABLES: frozenset[str] = frozenset({
     "glossary_terms",
     "style_guide",
     "lines_to_review",
+    "alignment_feedback",
 })
 
 EDIT_AGENT_VARIABLES: frozenset[str] = frozenset({
@@ -127,6 +131,7 @@ EDIT_AGENT_VARIABLES: frozenset[str] = frozenset({
     "translated_text",
     "qa_issues",
     "scene_summary",
+    "alignment_feedback",
 })
 
 # Mapping from phase name to agent-specific variables
