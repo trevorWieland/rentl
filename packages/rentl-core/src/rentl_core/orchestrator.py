@@ -356,6 +356,29 @@ class PipelineOrchestrator:
         ]
         languages = target_languages or run.config.project.languages.target_languages
 
+        plan: list[tuple[PhaseName, LanguageCode | None]] = []
+        for phase in planned_phases:
+            if phase == PhaseName.INGEST:
+                if not _should_skip_phase(run, phase, None):
+                    plan.append((phase, None))
+                continue
+            if phase in {
+                PhaseName.TRANSLATE,
+                PhaseName.QA,
+                PhaseName.EDIT,
+                PhaseName.EXPORT,
+            }:
+                for language in languages:
+                    if _should_skip_phase(run, phase, language):
+                        continue
+                    plan.append((phase, language))
+                continue
+            if not _should_skip_phase(run, phase, None):
+                plan.append((phase, None))
+
+        if not plan:
+            return
+
         run.status = RunStatus.RUNNING
         if run.started_at is None:
             run.started_at = self._clock()
@@ -365,28 +388,29 @@ class PipelineOrchestrator:
         await self._emit_log(
             build_run_started_log(self._clock(), run.run_id, planned_phases)
         )
-        for phase in planned_phases:
+        for phase, language in plan:
             if phase == PhaseName.INGEST:
                 await self.run_phase(run, phase, ingest_source=ingest_source)
                 continue
-            if phase in {
-                PhaseName.TRANSLATE,
-                PhaseName.QA,
-                PhaseName.EDIT,
-                PhaseName.EXPORT,
-            }:
-                for language in languages:
-                    export_target = None
-                    if phase == PhaseName.EXPORT and export_targets is not None:
-                        export_target = export_targets.get(language)
-                    await self.run_phase(
-                        run,
-                        phase,
-                        target_language=language,
-                        export_target=export_target,
-                    )
-            else:
-                await self.run_phase(run, phase)
+            if phase == PhaseName.EXPORT:
+                export_target = None
+                if export_targets is not None and language is not None:
+                    export_target = export_targets.get(language)
+                await self.run_phase(
+                    run,
+                    phase,
+                    target_language=language,
+                    export_target=export_target,
+                )
+                continue
+            if phase in {PhaseName.TRANSLATE, PhaseName.QA, PhaseName.EDIT}:
+                await self.run_phase(
+                    run,
+                    phase,
+                    target_language=language,
+                )
+                continue
+            await self.run_phase(run, phase)
         run.status = RunStatus.COMPLETED
         run.current_phase = None
         run.completed_at = self._clock()
@@ -458,6 +482,7 @@ class PipelineOrchestrator:
             await self._emit_log(build_run_started_log(timestamp, run.run_id, [phase]))
         run.current_phase = phase
         self._update_phase_status(run, phase, PhaseStatus.RUNNING, timestamp)
+        await self._persist_run_state(run)
         await self._emit_progress(run, phase, ProgressEvent.PHASE_STARTED)
         await self._emit_log(
             build_phase_log(
@@ -894,6 +919,18 @@ class PipelineOrchestrator:
                 deterministic_issues = runner.run_checks(
                     translate_output.translated_lines
                 )
+
+        if not self._qa_agents:
+            total_units = len(run.source_lines or [])
+            await self._emit_phase_progress_update(
+                run,
+                PhaseName.QA,
+                "lines_checked",
+                ProgressUnit.LINES,
+                total_units,
+                total_units,
+                message="deterministic",
+            )
 
         # Run LLM-based QA agents (if configured)
         agent_outputs: list[QaPhaseOutput] = []
@@ -1777,6 +1814,56 @@ def _validate_phase_prereqs(
 
     if phase == PhaseName.EXPORT and _is_phase_enabled(run.config, PhaseName.EDIT):
         _require_edit_output(run, target_language, phase)
+
+
+def _latest_completed_record(
+    run: PipelineRunContext,
+    phase: PhaseName,
+    target_language: LanguageCode | None,
+) -> PhaseRunRecord | None:
+    candidates = [
+        record
+        for record in run.phase_history
+        if record.phase == phase
+        and record.target_language == target_language
+        and record.status == PhaseStatus.COMPLETED
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda record: record.revision)
+
+
+def _has_phase_output(
+    run: PipelineRunContext,
+    phase: PhaseName,
+    target_language: LanguageCode | None,
+) -> bool:
+    if phase == PhaseName.INGEST:
+        return bool(run.source_lines)
+    if phase == PhaseName.CONTEXT:
+        return run.context_output is not None
+    if phase == PhaseName.PRETRANSLATION:
+        return run.pretranslation_output is not None
+    if phase == PhaseName.TRANSLATE:
+        return target_language is not None and target_language in run.translate_outputs
+    if phase == PhaseName.QA:
+        return target_language is not None and target_language in run.qa_outputs
+    if phase == PhaseName.EDIT:
+        return target_language is not None and target_language in run.edit_outputs
+    if phase == PhaseName.EXPORT:
+        return target_language is not None and target_language in run.export_results
+    return False
+
+
+def _should_skip_phase(
+    run: PipelineRunContext,
+    phase: PhaseName,
+    target_language: LanguageCode | None,
+) -> bool:
+    record = _latest_completed_record(run, phase, target_language)
+    if record is None or record.stale:
+        return False
+    return _has_phase_output(run, phase, target_language)
 
 
 def _build_work_chunks(

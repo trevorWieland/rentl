@@ -50,6 +50,7 @@ class AgentHarnessConfig(BaseSchema):
     temperature: float = 0.7
     top_p: float = 1.0
     timeout_s: float = 30.0
+    max_output_tokens: int = 4096
 
 
 class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
@@ -228,6 +229,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
             "temperature": self._config.temperature,
             "top_p": self._config.top_p,
             "timeout": self._config.timeout_s,
+            "max_tokens": self._config.max_output_tokens,
         }
 
         agent: Agent[None, OutputT_co] = Agent[None, OutputT_co](

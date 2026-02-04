@@ -424,6 +424,62 @@ def test_hydrate_run_context_restores_phase_revisions() -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_run_plan_skips_completed_phase() -> None:
+    """Completed phase outputs are skipped on resume."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5d9")
+    config = _build_run_config()
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            route_id=None,
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        )
+    ]
+    pool = _RecordingContextPool()
+    orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
+        context_agents=[("context_agent", pool)],
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+    run.source_lines = source_lines
+    run.context_output = ContextPhaseOutput(
+        run_id=run_id,
+        phase=PhaseName.CONTEXT,
+        project_context=None,
+        style_guide=None,
+        glossary=None,
+        scene_summaries=[],
+        context_notes=[],
+    )
+    run.phase_history.append(
+        PhaseRunRecord(
+            phase_run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5e0"),
+            phase=PhaseName.CONTEXT,
+            revision=1,
+            status=PhaseStatus.COMPLETED,
+            target_language=None,
+            dependencies=None,
+            artifact_ids=None,
+            started_at=None,
+            completed_at=None,
+            stale=False,
+            error=None,
+            summary=None,
+            message="Context completed",
+        )
+    )
+
+    await orchestrator.run_plan(run, phases=[PhaseName.CONTEXT])
+
+    assert pool.batches == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_orchestrator_rejects_route_strategy_without_route_ids() -> None:
     """Ensure route strategy fails when route_id is missing."""
     run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0")

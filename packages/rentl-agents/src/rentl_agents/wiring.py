@@ -1438,6 +1438,7 @@ def _build_profile_agent_config(
         temperature=model_settings.temperature,
         top_p=model_settings.top_p,
         timeout_s=endpoint.timeout_s,
+        max_output_tokens=model_settings.max_output_tokens,
         max_retries=retry_config.max_retries,
         retry_base_delay=retry_config.backoff_s,
     )

@@ -30,10 +30,14 @@ Translation guidelines:
 - Preserve punctuation style appropriate to the target language
 - Keep line lengths reasonable for game text display
 - Maintain consistency with previous translations in the same scene
+- Speaker labels are metadata only; never include speaker names in the translated text
 
 For each line, provide:
 - line_id: The exact ID from the source line (do not modify)
 - text: Your translation of the source text
+
+IMPORTANT: The translated text must contain ONLY the translation. Do not include
+speaker names, line IDs, or any labels.
 
 Alignment requirements:
 - Return EXACTLY one translation per input line_id
@@ -77,6 +81,8 @@ Source lines ({{line_count}} total):
 ---
 {{annotated_source_lines}}
 ---
+
+Speaker labels (if present) are metadata and must NOT appear in the translation text.
 
 Return your translations as a list. Each translation must include:
 - line_id: The exact line ID from the source (do not modify)

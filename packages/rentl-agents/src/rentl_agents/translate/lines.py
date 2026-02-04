@@ -113,12 +113,12 @@ def format_lines_for_prompt(lines: list[SourceLine]) -> str:
     formatted_lines: list[str] = []
 
     for line in lines:
+        formatted_lines.append(f"[{line.line_id}]")
         if line.speaker:
-            formatted_lines.append(f"[{line.line_id}] [{line.speaker}]: {line.text}")
-        else:
-            formatted_lines.append(f"[{line.line_id}]: {line.text}")
+            formatted_lines.append(f"Speaker: {line.speaker}")
+        formatted_lines.extend((f"Text: {line.text}", ""))
 
-    return "\n".join(formatted_lines)
+    return "\n".join(formatted_lines).strip()
 
 
 def format_annotated_lines_for_prompt(
@@ -153,10 +153,10 @@ def format_annotated_lines_for_prompt(
 
     for line in lines:
         # Format the source line
+        formatted_lines.append(f"[{line.line_id}]")
         if line.speaker:
-            formatted_lines.append(f"[{line.line_id}] [{line.speaker}]: {line.text}")
-        else:
-            formatted_lines.append(f"[{line.line_id}]: {line.text}")
+            formatted_lines.append(f"Speaker: {line.speaker}")
+        formatted_lines.append(f"Text: {line.text}")
 
         # Add inline annotations for this line
         line_annotations = annotation_map.get(line.line_id, [])
@@ -174,8 +174,9 @@ def format_annotated_lines_for_prompt(
 
             if parts:
                 formatted_lines.append(f"  ^ {' '.join(parts)}")
+        formatted_lines.append("")
 
-    return "\n".join(formatted_lines)
+    return "\n".join(formatted_lines).strip()
 
 
 def get_scene_summary_for_lines(

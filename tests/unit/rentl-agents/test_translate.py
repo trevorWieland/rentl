@@ -163,8 +163,12 @@ class TestFormatLinesForPrompt:
 
         result = format_lines_for_prompt(lines)
 
-        assert "[line_001] [Alice]: Hello there!" in result
-        assert "[line_002] [Bob]: Hi!" in result
+        assert "[line_001]" in result
+        assert "Speaker: Alice" in result
+        assert "Text: Hello there!" in result
+        assert "[line_002]" in result
+        assert "Speaker: Bob" in result
+        assert "Text: Hi!" in result
 
     def test_format_without_speakers(self) -> None:
         """Test formatting lines without speakers."""
@@ -177,7 +181,8 @@ class TestFormatLinesForPrompt:
 
         result = format_lines_for_prompt(lines)
 
-        assert "[line_001]: Narration text" in result
+        assert "[line_001]" in result
+        assert "Text: Narration text" in result
 
     def test_format_empty_lines(self) -> None:
         """Test formatting empty list."""
@@ -198,8 +203,11 @@ class TestFormatAnnotatedLinesForPrompt:
 
         result = format_annotated_lines_for_prompt(lines, None)
 
-        assert "[line_001] [Alice]: Hello" in result
-        assert "[line_002]: World" in result
+        assert "[line_001]" in result
+        assert "Speaker: Alice" in result
+        assert "Text: Hello" in result
+        assert "[line_002]" in result
+        assert "Text: World" in result
 
     def test_format_with_inline_annotations(self) -> None:
         """Test formatting lines with inline annotations."""
@@ -219,7 +227,8 @@ class TestFormatAnnotatedLinesForPrompt:
         result = format_annotated_lines_for_prompt(lines, annotations)
 
         # Line should be formatted first
-        assert "[line_001]: 猫の手も借りたい" in result
+        assert "[line_001]" in result
+        assert "Text: 猫の手も借りたい" in result
         # Annotation should follow with indentation
         assert "^" in result
         assert "idiom" in result

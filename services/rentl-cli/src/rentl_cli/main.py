@@ -12,7 +12,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, TypeVar
+from typing import NamedTuple, TypeVar, cast
 from uuid import UUID, uuid7
 
 import typer
@@ -59,6 +59,7 @@ from rentl_io.storage.filesystem import (
 from rentl_io.storage.log_sink import build_log_sink
 from rentl_io.storage.progress_sink import FileSystemProgressSink
 from rentl_llm import OpenAICompatibleRuntime
+from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import (
     LanguageConfig,
     LoggingConfig,
@@ -73,9 +74,16 @@ from rentl_schemas.events import (
     CommandStartedData,
     ProgressEvent,
 )
-from rentl_schemas.io import ExportTarget, IngestSource, TranslatedLine
+from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
 from rentl_schemas.llm import LlmConnectionReport, LlmEndpointTarget
 from rentl_schemas.logs import LogEntry
+from rentl_schemas.phases import (
+    ContextPhaseOutput,
+    EditPhaseOutput,
+    PretranslationPhaseOutput,
+    QaPhaseOutput,
+    TranslatePhaseOutput,
+)
 from rentl_schemas.pipeline import PhaseRunRecord, RunState
 from rentl_schemas.primitives import (
     PIPELINE_PHASE_ORDER,
@@ -85,12 +93,14 @@ from rentl_schemas.primitives import (
     LogLevel,
     LogSinkType,
     PhaseName,
+    PhaseStatus,
     RunId,
     RunStatus,
     UntranslatedPolicy,
 )
 from rentl_schemas.progress import (
     AgentStatus,
+    AgentUsageTotals,
     PhaseProgress,
     ProgressMetric,
     ProgressSummary,
@@ -1154,7 +1164,24 @@ def _render_run_execution_summary(
         if result.log_file and result.log_file.location.path
         else "n/a"
     )
-    progress_path = result.progress_file.path if result.progress_file else "n/a"
+    progress_path_value = result.progress_file.path if result.progress_file else None
+    progress_path = progress_path_value or "n/a"
+    report_path = (
+        _report_path(str(Path(progress_path_value).parent.parent), result.run_id)
+        if progress_path_value
+        else None
+    )
+    progress_updates = []
+    if progress_path_value is not None:
+        try:
+            progress_updates = _read_progress_updates(Path(progress_path_value))
+        except OSError, ValidationError:
+            progress_updates = []
+    report_data = _build_run_report_data(
+        run_id=result.run_id,
+        run_state=result.run_state,
+        progress_updates=progress_updates,
+    )
 
     table = Table.grid(padding=(0, 1))
     table.add_column(justify="right", style="bold")
@@ -1167,6 +1194,21 @@ def _render_run_execution_summary(
         table.add_row("Completed", completed_at)
     table.add_row("Log file", log_path)
     table.add_row("Progress file", progress_path)
+    if report_path is not None:
+        table.add_row("Report file", str(report_path))
+
+    runtime_s = report_data.get("total_runtime_s")
+    if isinstance(runtime_s, (int, float)):
+        table.add_row("Runtime", f"{runtime_s:.2f}s")
+    token_usage = report_data.get("token_usage")
+    if isinstance(token_usage, dict):
+        input_tokens = token_usage.get("input_tokens", 0)
+        output_tokens = token_usage.get("output_tokens", 0)
+        total_tokens = token_usage.get("total_tokens", 0)
+        table.add_row(
+            "Tokens",
+            f"{input_tokens} in / {output_tokens} out (total {total_tokens})",
+        )
 
     panel = Panel(table, title="rentl run", expand=False)
     if console is not None:
@@ -1231,7 +1273,112 @@ async def _load_or_create_run_context(
     record = await bundle.run_state_store.load_run_state(run_id)
     if record is None:
         return orchestrator.create_run(run_id=run_id, config=config)
-    return hydrate_run_context(config, record.state)
+    run = hydrate_run_context(config, record.state)
+    await _hydrate_run_outputs(bundle, run, record.state)
+    return run
+
+
+def _latest_phase_records(
+    state: RunState,
+) -> dict[tuple[PhaseName, LanguageCode | None], PhaseRunRecord]:
+    latest: dict[tuple[PhaseName, LanguageCode | None], PhaseRunRecord] = {}
+    for record in state.phase_history or []:
+        if record.status != PhaseStatus.COMPLETED:
+            continue
+        if record.stale:
+            continue
+        key = (PhaseName(record.phase), record.target_language)
+        existing = latest.get(key)
+        if existing is None or record.revision > existing.revision:
+            latest[key] = record
+    return latest
+
+
+async def _load_artifact_jsonl[ModelT: BaseSchema](
+    store: FileSystemArtifactStore,
+    artifact_id: UUID,
+    model: type[ModelT],
+) -> list[ModelT]:
+    return await store.load_artifact_jsonl(artifact_id, model)
+
+
+async def _load_single_artifact[ModelT: BaseSchema](
+    store: FileSystemArtifactStore,
+    artifact_id: UUID,
+    model: type[ModelT],
+) -> ModelT | None:
+    items = await _load_artifact_jsonl(store, artifact_id, model)
+    if not items:
+        return None
+    return items[0]
+
+
+async def _hydrate_run_outputs(
+    bundle: _StorageBundle,
+    run: PipelineRunContext,
+    state: RunState,
+) -> None:
+    latest_records = _latest_phase_records(state)
+    if not latest_records:
+        return
+    store = bundle.artifact_store
+
+    for (phase, target_language), record in latest_records.items():
+        if not record.artifact_ids:
+            continue
+        artifact_id = record.artifact_ids[-1]
+        if phase == PhaseName.INGEST:
+            if run.source_lines:
+                continue
+            run.source_lines = await store.load_artifact_jsonl(artifact_id, SourceLine)
+            continue
+        if phase == PhaseName.CONTEXT:
+            if run.context_output is not None:
+                continue
+            payload = await _load_single_artifact(
+                store, artifact_id, ContextPhaseOutput
+            )
+            if payload is not None:
+                run.context_output = payload
+            continue
+        if phase == PhaseName.PRETRANSLATION:
+            if run.pretranslation_output is not None:
+                continue
+            payload = await _load_single_artifact(
+                store, artifact_id, PretranslationPhaseOutput
+            )
+            if payload is not None:
+                run.pretranslation_output = payload
+            continue
+        if phase == PhaseName.TRANSLATE and target_language is not None:
+            if target_language in run.translate_outputs:
+                continue
+            payload = await _load_single_artifact(
+                store, artifact_id, TranslatePhaseOutput
+            )
+            if payload is not None:
+                run.translate_outputs[target_language] = payload
+            continue
+        if phase == PhaseName.QA and target_language is not None:
+            if target_language in run.qa_outputs:
+                continue
+            payload = await _load_single_artifact(store, artifact_id, QaPhaseOutput)
+            if payload is not None:
+                run.qa_outputs[target_language] = payload
+            continue
+        if phase == PhaseName.EDIT and target_language is not None:
+            if target_language in run.edit_outputs:
+                continue
+            payload = await _load_single_artifact(store, artifact_id, EditPhaseOutput)
+            if payload is not None:
+                run.edit_outputs[target_language] = payload
+            continue
+        if phase == PhaseName.EXPORT and target_language is not None:
+            if target_language in run.export_results:
+                continue
+            payload = await _load_single_artifact(store, artifact_id, ExportResult)
+            if payload is not None:
+                run.export_results[target_language] = payload
 
 
 def _build_ingest_source(
@@ -1323,6 +1470,15 @@ async def _run_pipeline_async(
     run_state = await _load_run_state(bundle, run.run_id)
     log_reference = await bundle.log_store.get_log_reference(run.run_id)
     progress_file = _build_progress_reference(bundle.progress_path)
+    progress_updates = _read_progress_updates(bundle.progress_path)
+    report_data = _build_run_report_data(
+        run_id=run.run_id,
+        run_state=run_state,
+        progress_updates=progress_updates,
+    )
+    _write_run_report(
+        _report_path(config.project.paths.logs_dir, run.run_id), report_data
+    )
     return _build_run_execution_result(
         run=run,
         run_state=run_state,
@@ -1365,6 +1521,15 @@ async def _run_phase_async(
     run_state = await _load_run_state(bundle, run.run_id)
     log_reference = await bundle.log_store.get_log_reference(run.run_id)
     progress_file = _build_progress_reference(bundle.progress_path)
+    progress_updates = _read_progress_updates(bundle.progress_path)
+    report_data = _build_run_report_data(
+        run_id=run.run_id,
+        run_state=run_state,
+        progress_updates=progress_updates,
+    )
+    _write_run_report(
+        _report_path(config.project.paths.logs_dir, run.run_id), report_data
+    )
     phase_record = _find_phase_record(run.phase_history, phase, languages)
     return _build_run_execution_result(
         run=run,
@@ -1437,6 +1602,128 @@ def _read_progress_updates_since(
             updates.append(ProgressUpdate.model_validate_json(line))
         new_offset = handle.tell()
     return updates, new_offset
+
+
+def _report_path(logs_dir: str, run_id: RunId) -> Path:
+    return Path(logs_dir) / "reports" / f"{run_id}.json"
+
+
+def _parse_timestamp(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+
+def _duration_seconds(start: str | None, end: str | None) -> float | None:
+    start_dt = _parse_timestamp(start)
+    end_dt = _parse_timestamp(end)
+    if start_dt is None or end_dt is None:
+        return None
+    return (end_dt - start_dt).total_seconds()
+
+
+def _add_usage_totals(
+    total: AgentUsageTotals | None, usage: AgentUsageTotals
+) -> AgentUsageTotals:
+    if total is None:
+        return usage
+    return AgentUsageTotals(
+        input_tokens=total.input_tokens + usage.input_tokens,
+        output_tokens=total.output_tokens + usage.output_tokens,
+        total_tokens=total.total_tokens + usage.total_tokens,
+        request_count=total.request_count + usage.request_count,
+        tool_calls=total.tool_calls + usage.tool_calls,
+    )
+
+
+def _aggregate_usage(
+    updates: list[ProgressUpdate],
+) -> tuple[
+    AgentUsageTotals | None,
+    dict[tuple[PhaseName, LanguageCode | None], AgentUsageTotals],
+]:
+    total: AgentUsageTotals | None = None
+    by_phase: dict[tuple[PhaseName, LanguageCode | None], AgentUsageTotals] = {}
+    for update in updates:
+        agent = update.agent_update
+        if agent is None or agent.usage is None:
+            continue
+        if agent.status != AgentStatus.COMPLETED:
+            continue
+        total = _add_usage_totals(total, agent.usage)
+        key = (PhaseName(agent.phase), agent.target_language)
+        by_phase[key] = _add_usage_totals(by_phase.get(key), agent.usage)
+    return total, by_phase
+
+
+def _build_run_report_data(
+    *,
+    run_id: RunId,
+    run_state: RunState | None,
+    progress_updates: list[ProgressUpdate],
+) -> dict[str, JsonValue]:
+    started_at = run_state.metadata.started_at if run_state else None
+    completed_at = run_state.metadata.completed_at if run_state else None
+    total_runtime_s = _duration_seconds(started_at, completed_at)
+    usage_total, usage_by_phase = _aggregate_usage(progress_updates)
+
+    phase_durations: list[dict[str, JsonValue]] = []
+    if run_state and run_state.phase_history:
+        for record in run_state.phase_history:
+            duration_s = _duration_seconds(record.started_at, record.completed_at)
+            if duration_s is None:
+                continue
+            phase_durations.append({
+                "phase": str(record.phase),
+                "target_language": record.target_language,
+                "revision": record.revision,
+                "duration_s": duration_s,
+            })
+
+    usage_by_phase_entries = [
+        {
+            "phase": str(phase),
+            "target_language": target_language,
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "total_tokens": usage.total_tokens,
+            "request_count": usage.request_count,
+            "tool_calls": usage.tool_calls,
+        }
+        for (phase, target_language), usage in usage_by_phase.items()
+    ]
+
+    data = cast(
+        dict[str, JsonValue],
+        {
+            "run_id": str(run_id),
+            "status": str(run_state.metadata.status) if run_state else None,
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "total_runtime_s": total_runtime_s,
+            "token_usage": None,
+            "token_usage_by_phase": usage_by_phase_entries,
+            "phase_durations_s": phase_durations,
+        },
+    )
+    if usage_total is not None:
+        data["token_usage"] = {
+            "input_tokens": usage_total.input_tokens,
+            "output_tokens": usage_total.output_tokens,
+            "total_tokens": usage_total.total_tokens,
+            "request_count": usage_total.request_count,
+            "tool_calls": usage_total.tool_calls,
+        }
+    return data
+
+
+def _write_run_report(path: Path, data: dict[str, JsonValue]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
 def _watch_status(bundle: _StorageBundle, run_id: RunId) -> None:

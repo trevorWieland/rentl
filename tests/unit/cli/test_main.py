@@ -1,8 +1,10 @@
 """Unit tests for rentl-cli."""
 
+import asyncio
 import json
 import textwrap
 from pathlib import Path
+from typing import cast
 from uuid import uuid7
 
 import pytest
@@ -10,11 +12,19 @@ from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
 from rentl_cli.main import app
+from rentl_core.orchestrator import PipelineOrchestrator
+from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_schemas.events import CommandEvent, ProgressEvent
+from rentl_schemas.io import SourceLine
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 from rentl_schemas.logs import LogEntry
-from rentl_schemas.primitives import PhaseName, PhaseStatus
+from rentl_schemas.phases import ContextPhaseOutput, SceneSummary
+from rentl_schemas.pipeline import PhaseRunRecord, RunMetadata, RunState
+from rentl_schemas.primitives import PhaseName, PhaseStatus, RunStatus
 from rentl_schemas.progress import (
+    AgentStatus,
+    AgentTelemetry,
+    AgentUsageTotals,
     PhaseProgress,
     ProgressPercentMode,
     ProgressSummary,
@@ -22,6 +32,15 @@ from rentl_schemas.progress import (
     RunProgress,
 )
 from rentl_schemas.responses import ApiResponse, RunExecutionResult, RunStatusResult
+from rentl_schemas.storage import (
+    ArtifactFormat,
+    ArtifactMetadata,
+    ArtifactRole,
+    RunStateRecord,
+    StorageBackend,
+    StorageReference,
+)
+from rentl_schemas.version import VersionInfo
 
 runner = CliRunner()
 
@@ -410,6 +429,581 @@ def test_run_pipeline_errors_on_missing_endpoint_key(tmp_path: Path) -> None:
     response = json.loads(result.stdout)
     assert response["error"]["code"] == "config_error"
     assert "SECONDARY_KEY" in response["error"]["message"]
+
+
+def test_load_or_create_run_context_hydrates_outputs(tmp_path: Path) -> None:
+    """Hydration restores phase outputs from stored artifacts."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+    config = cli_main._load_resolved_config(config_path)
+    run_id = uuid7()
+    bundle = cli_main._build_storage_bundle(
+        config,
+        run_id,
+        allow_console_logs=False,
+    )
+
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            route_id=None,
+            scene_id="scene_1",
+            speaker="A",
+            text="Hello",
+            metadata=None,
+            source_columns=None,
+        )
+    ]
+    context_output = ContextPhaseOutput(
+        run_id=run_id,
+        phase=PhaseName.CONTEXT,
+        project_context=None,
+        style_guide=None,
+        glossary=None,
+        scene_summaries=[
+            SceneSummary(scene_id="scene_1", summary="stub", characters=[])
+        ],
+        context_notes=[],
+    )
+
+    ingest_metadata = ArtifactMetadata(
+        artifact_id=uuid7(),
+        run_id=run_id,
+        role=ArtifactRole.PHASE_OUTPUT,
+        phase=PhaseName.INGEST,
+        target_language=None,
+        format=ArtifactFormat.JSONL,
+        created_at=cli_main._now_timestamp(),
+        location=StorageReference(
+            backend=StorageBackend.FILESYSTEM,
+            path="placeholder.jsonl",
+        ),
+        description="ingest",
+        size_bytes=None,
+        checksum_sha256=None,
+        metadata=None,
+    )
+    ingest_stored = asyncio.run(
+        bundle.artifact_store.write_artifact_jsonl(ingest_metadata, source_lines)
+    )
+
+    context_metadata = ArtifactMetadata(
+        artifact_id=uuid7(),
+        run_id=run_id,
+        role=ArtifactRole.PHASE_OUTPUT,
+        phase=PhaseName.CONTEXT,
+        target_language=None,
+        format=ArtifactFormat.JSONL,
+        created_at=cli_main._now_timestamp(),
+        location=StorageReference(
+            backend=StorageBackend.FILESYSTEM,
+            path="placeholder.jsonl",
+        ),
+        description="context",
+        size_bytes=None,
+        checksum_sha256=None,
+        metadata=None,
+    )
+    context_stored = asyncio.run(
+        bundle.artifact_store.write_artifact_jsonl(context_metadata, [context_output])
+    )
+
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    progress = RunProgress(
+        phases=[
+            PhaseProgress(
+                phase=PhaseName.INGEST,
+                status=PhaseStatus.COMPLETED,
+                summary=summary,
+                metrics=None,
+                started_at=None,
+                completed_at=None,
+            ),
+            PhaseProgress(
+                phase=PhaseName.CONTEXT,
+                status=PhaseStatus.COMPLETED,
+                summary=summary,
+                metrics=None,
+                started_at=None,
+                completed_at=None,
+            ),
+        ],
+        summary=summary,
+        phase_weights=None,
+    )
+    phase_history = [
+        PhaseRunRecord(
+            phase_run_id=uuid7(),
+            phase=PhaseName.INGEST,
+            revision=1,
+            status=PhaseStatus.COMPLETED,
+            target_language=None,
+            dependencies=None,
+            artifact_ids=[ingest_stored.artifact_id],
+            started_at=None,
+            completed_at=None,
+            stale=False,
+            error=None,
+            summary=None,
+            message="Ingest completed",
+        ),
+        PhaseRunRecord(
+            phase_run_id=uuid7(),
+            phase=PhaseName.CONTEXT,
+            revision=1,
+            status=PhaseStatus.COMPLETED,
+            target_language=None,
+            dependencies=None,
+            artifact_ids=[context_stored.artifact_id],
+            started_at=None,
+            completed_at=None,
+            stale=False,
+            error=None,
+            summary=None,
+            message="Context completed",
+        ),
+    ]
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=config.project.schema_version,
+            status=RunStatus.RUNNING,
+            current_phase=None,
+            created_at=cli_main._now_timestamp(),
+            started_at=cli_main._now_timestamp(),
+            completed_at=None,
+        ),
+        progress=progress,
+        artifacts=[],
+        phase_history=phase_history,
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+    asyncio.run(
+        bundle.run_state_store.save_run_state(
+            RunStateRecord(
+                run_id=run_id,
+                stored_at=cli_main._now_timestamp(),
+                state=run_state,
+                location=None,
+                checksum_sha256=None,
+            )
+        )
+    )
+
+    class _NoopLogSink(LogSinkProtocol):
+        async def emit_log(self, entry: LogEntry) -> None:
+            return None
+
+    orchestrator = PipelineOrchestrator(log_sink=_NoopLogSink())
+
+    run = asyncio.run(
+        cli_main._load_or_create_run_context(
+            orchestrator,
+            bundle,
+            run_id,
+            config,
+        )
+    )
+
+    assert run.source_lines is not None
+    assert run.source_lines[0].line_id == "line_1"
+    assert run.context_output is not None
+    assert run.context_output.scene_summaries[0].scene_id == "scene_1"
+
+
+def test_build_run_report_data_summarizes_usage_and_durations() -> None:
+    """Report data aggregates usage and phase durations."""
+    run_id = uuid7()
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress = PhaseProgress(
+        phase=PhaseName.TRANSLATE,
+        status=PhaseStatus.COMPLETED,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.COMPLETED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[phase_progress],
+            summary=summary,
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=[
+            PhaseRunRecord(
+                phase_run_id=uuid7(),
+                phase=PhaseName.TRANSLATE,
+                revision=1,
+                status=PhaseStatus.COMPLETED,
+                target_language="ja",
+                dependencies=None,
+                artifact_ids=None,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                stale=False,
+                error=None,
+                summary=None,
+                message="Translate completed",
+            )
+        ],
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+    progress_updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_1",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=100,
+                    output_tokens=200,
+                    total_tokens=300,
+                    request_count=1,
+                    tool_calls=0,
+                ),
+                message="done",
+            ),
+            message="agent",
+        )
+    ]
+
+    data = cli_main._build_run_report_data(
+        run_id=run_id,
+        run_state=run_state,
+        progress_updates=progress_updates,
+    )
+
+    token_usage = cast(dict[str, int], data["token_usage"])
+    phase_durations = cast(list[dict[str, float]], data["phase_durations_s"])
+    assert token_usage["total_tokens"] == 300
+    assert phase_durations[0]["duration_s"] == 5.0
+
+
+def test_write_run_report_writes_json(tmp_path: Path) -> None:
+    """Report writer creates the report file on disk."""
+    run_id = uuid7()
+    report_path = cli_main._report_path(str(tmp_path), run_id)
+    cli_main._write_run_report(report_path, {"run_id": str(run_id)})
+
+    assert report_path.exists()
+    assert str(run_id) in report_path.read_text(encoding="utf-8")
+
+
+def test_aggregate_usage_ignores_non_completed_updates() -> None:
+    """Usage aggregation skips non-completed updates."""
+    run_id = uuid7()
+    updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_STARTED,
+            timestamp="2026-02-03T10:00:00Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.RUNNING,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_1",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.RUNNING,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at=None,
+                usage=None,
+                message="start",
+            ),
+            message="agent",
+        )
+    ]
+
+    total, by_phase = cli_main._aggregate_usage(updates)
+
+    assert total is None
+    assert by_phase == {}
+
+
+def test_aggregate_usage_with_completed_update() -> None:
+    """Usage aggregation sums completed updates."""
+    run_id = uuid7()
+    updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_1",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=10,
+                    output_tokens=20,
+                    total_tokens=30,
+                    request_count=1,
+                    tool_calls=0,
+                ),
+                message="done",
+            ),
+            message="agent",
+        )
+    ]
+
+    total, by_phase = cli_main._aggregate_usage(updates)
+
+    assert total is not None
+    assert total.total_tokens == 30
+    assert by_phase[PhaseName.TRANSLATE, "ja"].output_tokens == 20
+
+
+def test_build_run_report_data_without_run_state() -> None:
+    """Report data handles missing run state."""
+    run_id = uuid7()
+    data = cli_main._build_run_report_data(
+        run_id=run_id,
+        run_state=None,
+        progress_updates=[],
+    )
+
+    assert data["run_id"] == str(run_id)
+    assert data["token_usage"] is None
+
+
+def test_duration_seconds_handles_invalid_inputs() -> None:
+    """Duration helper returns None for invalid timestamps."""
+    assert cli_main._duration_seconds("invalid", "2026-02-03T10:00:00Z") is None
+    assert cli_main._duration_seconds("2026-02-03T10:00:00Z", "invalid") is None
+
+
+def test_duration_seconds_handles_valid_inputs() -> None:
+    """Duration helper returns seconds for valid timestamps."""
+    assert (
+        cli_main._duration_seconds("2026-02-03T10:00:00Z", "2026-02-03T10:00:10Z")
+        == 10.0
+    )
+
+
+def test_read_progress_updates_since(tmp_path: Path) -> None:
+    """Progress reader returns updates and new offsets."""
+    run_id = uuid7()
+    progress_path = tmp_path / "progress.jsonl"
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress_running = PhaseProgress(
+        phase=PhaseName.INGEST,
+        status=PhaseStatus.RUNNING,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    phase_progress_completed = PhaseProgress(
+        phase=PhaseName.INGEST,
+        status=PhaseStatus.COMPLETED,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_progress_running = RunProgress(
+        phases=[phase_progress_running],
+        summary=summary,
+        phase_weights=None,
+    )
+    run_progress_completed = RunProgress(
+        phases=[phase_progress_completed],
+        summary=summary,
+        phase_weights=None,
+    )
+    updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.RUN_STARTED,
+            timestamp="2026-02-03T10:00:00Z",
+            phase=PhaseName.INGEST,
+            phase_status=PhaseStatus.RUNNING,
+            run_progress=run_progress_running,
+            phase_progress=phase_progress_running,
+            metric=None,
+            agent_update=None,
+            message="start",
+        ),
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.RUN_COMPLETED,
+            timestamp="2026-02-03T10:00:10Z",
+            phase=PhaseName.INGEST,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=run_progress_completed,
+            phase_progress=phase_progress_completed,
+            metric=None,
+            agent_update=None,
+            message="done",
+        ),
+    ]
+    progress_path.write_text(
+        "\n".join(update.model_dump_json() for update in updates) + "\n",
+        encoding="utf-8",
+    )
+
+    chunk, offset = cli_main._read_progress_updates_since(progress_path, 0)
+    assert len(chunk) == 2
+    assert offset > 0
+
+
+def test_read_progress_updates(tmp_path: Path) -> None:
+    """Progress reader returns parsed updates."""
+    run_id = uuid7()
+    progress_path = tmp_path / "progress.jsonl"
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress = PhaseProgress(
+        phase=PhaseName.INGEST,
+        status=PhaseStatus.RUNNING,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_progress = RunProgress(
+        phases=[phase_progress],
+        summary=summary,
+        phase_weights=None,
+    )
+    update = ProgressUpdate(
+        run_id=run_id,
+        event=ProgressEvent.RUN_STARTED,
+        timestamp="2026-02-03T10:00:00Z",
+        phase=PhaseName.INGEST,
+        phase_status=PhaseStatus.RUNNING,
+        run_progress=run_progress,
+        phase_progress=phase_progress,
+        metric=None,
+        agent_update=None,
+        message="start",
+    )
+    progress_path.write_text(update.model_dump_json() + "\n", encoding="utf-8")
+
+    updates = cli_main._read_progress_updates(progress_path)
+    assert len(updates) == 1
+    assert updates[0].event == ProgressEvent.RUN_STARTED
+
+
+def test_render_run_execution_summary_does_not_crash(tmp_path: Path) -> None:
+    """Run summary renderer handles report generation paths."""
+    run_id = uuid7()
+    progress_path = tmp_path / "progress.jsonl"
+    progress_path.write_text("", encoding="utf-8")
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.COMPLETED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[
+                PhaseProgress(
+                    phase=PhaseName.INGEST,
+                    status=PhaseStatus.COMPLETED,
+                    summary=ProgressSummary(
+                        percent_complete=None,
+                        percent_mode=ProgressPercentMode.UNAVAILABLE,
+                        eta_seconds=None,
+                        notes=None,
+                    ),
+                    metrics=None,
+                    started_at=None,
+                    completed_at=None,
+                )
+            ],
+            summary=ProgressSummary(
+                percent_complete=None,
+                percent_mode=ProgressPercentMode.UNAVAILABLE,
+                eta_seconds=None,
+                notes=None,
+            ),
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=None,
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+    result = RunExecutionResult(
+        run_id=run_id,
+        status=RunStatus.COMPLETED,
+        progress=run_state.progress.summary,
+        run_state=run_state,
+        log_file=None,
+        progress_file=StorageReference(
+            backend=StorageBackend.FILESYSTEM,
+            path=str(progress_path),
+        ),
+        phase_record=None,
+    )
+
+    cli_main._render_run_execution_summary(result, console=None)
 
 
 def _write_config(tmp_path: Path, workspace_dir: Path) -> Path:

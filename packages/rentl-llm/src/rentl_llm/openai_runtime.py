@@ -10,6 +10,8 @@ from rentl_core.ports.llm import LlmRuntimeProtocol
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 from rentl_schemas.primitives import ReasoningEffort
 
+DEFAULT_MAX_OUTPUT_TOKENS = 4096
+
 
 class OpenAICompatibleRuntime(LlmRuntimeProtocol):
     """OpenAI-compatible runtime adapter for BYOK endpoints."""
@@ -43,8 +45,10 @@ class OpenAICompatibleRuntime(LlmRuntimeProtocol):
                 model_settings["openai_reasoning_effort"] = effort.value
             else:
                 model_settings["openai_reasoning_effort"] = str(effort)
-        if request.runtime.model.max_output_tokens is not None:
-            model_settings["max_tokens"] = request.runtime.model.max_output_tokens
+        max_output_tokens = request.runtime.model.max_output_tokens
+        if max_output_tokens is None:
+            max_output_tokens = DEFAULT_MAX_OUTPUT_TOKENS
+        model_settings["max_tokens"] = max_output_tokens
         instructions = request.system_prompt or "Respond with one short sentence."
         agent = Agent(model, instructions=instructions)
         result = await agent.run(request.prompt, model_settings=model_settings)

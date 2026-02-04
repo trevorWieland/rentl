@@ -168,7 +168,9 @@ class ModelSettings(BaseSchema):
     )
     temperature: float = Field(0.2, ge=0, le=2, description="Sampling temperature")
     max_output_tokens: int | None = Field(
-        None, ge=1, description="Maximum tokens for responses (None uses model default)"
+        4096,
+        ge=1,
+        description="Maximum tokens for responses (defaults to 4096)",
     )
     reasoning_effort: ReasoningEffort | None = Field(
         None, description="Reasoning effort level when supported"

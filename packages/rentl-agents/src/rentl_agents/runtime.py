@@ -47,6 +47,8 @@ OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
 # - OpenAI: both work, "tool" is default pydantic-ai behavior
 OutputMode = Literal["auto", "prompted", "tool", "native"]
 
+DEFAULT_MAX_OUTPUT_TOKENS = 4096
+
 
 class ProfileAgentConfig(BaseSchema):
     """Configuration for profile-driven agent execution.
@@ -60,6 +62,7 @@ class ProfileAgentConfig(BaseSchema):
     temperature: float = 0.7
     top_p: float = 1.0
     timeout_s: float = 180.0
+    max_output_tokens: int | None = None
     max_retries: int = 2  # Retries for transient errors only (network, rate limits)
     retry_base_delay: float = 2.0
     output_mode: OutputMode = "auto"  # Auto-detect based on provider
@@ -368,6 +371,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             "top_p": self._config.top_p,
             "timeout": self._config.timeout_s,
         }
+        max_output_tokens = self._config.max_output_tokens
+        if max_output_tokens is None:
+            max_output_tokens = DEFAULT_MAX_OUTPUT_TOKENS
+        model_settings["max_tokens"] = max_output_tokens
 
         # Resolve output mode - auto-detect based on provider if "auto"
         output_mode = self._config.output_mode
