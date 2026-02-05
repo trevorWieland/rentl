@@ -45,17 +45,17 @@
 - ✅ (s0.1.19) Initial Phase Agent: QA — Create an initial agent to act in the QA phase. Candidates include (but are not limited to): inaccurate translation detection, style-guide adherence critic, incorrect pronoun usage detection, etc. **Depends on:** s0.1.14, s0.1.18.
 - ✅ (s0.1.20) Initial Phase Agent: Edit — Create our main editor agent, which will take in translated lines and apply targeted fixes based on QA findings for iterative improvements. Future editor agents would involve extra features like flagging a line for full retranslation, or using tools for more complex fixes. **Depends on:** s0.1.14, s0.1.17, s0.1.19.
 - ✅ (s0.1.21) Observability Surface (CLI Status Viewer) — Display live phase status and completion summaries for trust and clarity. **Depends on:** s0.1.02, s0.1.06, s0.1.10, s0.1.11.
-- (s0.1.22) Functional Onboarding — Guide users to a first successful run with defaults and validation. **Depends on:** s0.1.11, s0.1.13, s0.1.15–s0.1.20.
+- (s0.1.22) Functional Onboarding — Guide users to a first successful run with defaults and validation. **Depends on:** s0.1.11, s0.1.13, s0.1.15–s0.1.20, s0.1.29, s0.1.31.
 - ✅ (s0.1.23) Unit Test Coverage Gate (>80%) — Enforce unit test coverage threshold across core and CLI packages. **Depends on:** s0.1.01–s0.1.13.
 - ✅ (s0.1.24) Integration Test Suite — Validate CLI workflows and runtime wiring across storage and BYOK endpoints. **Depends on:** s0.1.11, s0.1.12, s0.1.13, s0.1.23.
 - ✅ (s0.1.25) Quality Test Suite — Real-LLM smoke tests for runtime and agent behaviors. **Depends on:** s0.1.14, s0.1.15–s0.1.20, s0.1.23.
 - (s0.1.26) Standards Review: Declarative Agent Config — Lock in agent configuration conventions and documentation. **Depends on:** s0.1.14–s0.1.16.
 - ✅ (s0.1.27) End-to-End Logging & Error Surfacing — Ensure full logging coverage and raise actionable errors instead of silent failures. **Depends on:** s0.1.06, s0.1.07, s0.1.14–s0.1.16.
-- (s0.1.28) OpenRouter Full Support - Ensure that both local models and openrouter models are fully capable, using tools, and work reliantly. **Depends on:** s0.1.14
-- (s0.1.29) Project Bootstrap Command — Add `rentl init` to create a project from the template with sample data and config defaults. **Depends on:** s0.1.01, s0.1.11.
+- (s0.1.28) OpenRouter Full Support - Ensure that both local models and openrouter models are fully capable, using tools, and work reliantly. **Depends on:** s0.1.12, s0.1.13, s0.1.14.
+- (s0.1.29) Project Bootstrap Command — Add `rentl init` to create a project from the template with sample data and config defaults. **Depends on:** s0.1.01, s0.1.03, s0.1.11.
 - (s0.1.30) Onboarding Docs Pack — Quickstart, first-run tutorial, and troubleshooting checklist. **Depends on:** s0.1.22, s0.1.29.
-- (s0.1.31) CLI Help/Doctor Commands — `rentl help`, `rentl doctor`, and `rentl explain <phase>` for actionable diagnostics. **Depends on:** s0.1.11, s0.1.12.
-- (s0.1.32) Sample Project + Golden Artifacts — Small free-to-share script with expected artifacts for smoke tests (license verified, e.g., CC BY-NC-ND). **Depends on:** s0.1.03, s0.1.04, s0.1.24.
+- (s0.1.31) CLI Help/Doctor Commands — `rentl help`, `rentl doctor`, and `rentl explain <phase>` for actionable diagnostics. **Depends on:** s0.1.06, s0.1.11, s0.1.12.
+- (s0.1.32) Sample Project + Golden Artifacts — Small free-to-share script with expected artifacts for smoke tests (license verified, e.g., CC BY-NC-ND). **Depends on:** s0.1.03, s0.1.04, s0.1.24, s0.1.29.
 - (s0.1.33) Config Schema Versioning + Migrate — Versioned config with `rentl migrate` and a schema changelog. **Depends on:** s0.1.01.
 - (s0.1.34) Log Redaction & Safety Audit — Enforce secret redaction in logs and artifacts. **Depends on:** s0.1.06, s0.1.27.
 - (s0.1.35) CLI Exit Codes + Error Taxonomy — Stable exit codes for CI and scripting. **Depends on:** s0.1.06, s0.1.11.
@@ -102,21 +102,21 @@
 **Spec List (Expanded):**
 - (s0.2.01) Multi-Agent Phase Config Schema — Extend declarative agent config to allow multiple agents per phase, ordering, and dependencies. **Depends on:** s0.1.01, s0.1.07, s0.1.26.
 - (s0.2.02) Multi-Agent Orchestrator Execution — Execute agent teams with dependency gating, retries, and deterministic artifact writes. **Depends on:** s0.2.01, s0.1.07, s0.1.09.
-- (s0.2.03) Agent Result Fusion Policies — Define priority, voting, and confidence merge policies with explicit schema outputs. **Depends on:** s0.2.01, s0.1.01.
-- (s0.2.04) Context Team Agent: Route Summarizer — Add route-level context summaries for long narratives. **Depends on:** s0.1.15.
-- (s0.2.05) Context Team Agent: Character Bio Curator — Maintain structured character bios and traits. **Depends on:** s0.1.15.
-- (s0.2.06) Context Team Agent: Glossary Curator — Extract and maintain glossary entries from context artifacts. **Depends on:** s0.1.15.
-- (s0.2.07) Context Team Agent: Game Info Researcher — Use web search to curate genre, synopsis, and references (HITL-ready). **Depends on:** s0.1.14, s0.1.15.
-- (s0.2.08) Pretranslation Team Agent: Reference Finder — Identify references, idioms, and named entities needing special handling. **Depends on:** s0.1.16.
-- (s0.2.09) Pretranslation Team Agent: Speaker/Subject/Object Annotator — Disambiguate roles for pronouns and POV. **Depends on:** s0.1.16.
-- (s0.2.10) Translation Team Agent: MTL-Tool Translator — Tool-call MTL outputs as a secondary reference. **Depends on:** s0.1.13, s0.1.17.
-- (s0.2.11) Translation Team Agent: Glossary Term Translator — Translate glossary terms with consistent mapping. **Depends on:** s0.2.06, s0.1.17.
-- (s0.2.12) QA Team Agent: Style Checker — Enforce tone, formality, and voice constraints. **Depends on:** s0.1.19.
-- (s0.2.13) QA Team Agent: Consistency Validator — Detect terminology and character voice drift across scenes. **Depends on:** s0.1.10, s0.1.19.
-- (s0.2.14) Edit Team Agent: Scene Aligner — Align edits across a scene to resolve inconsistencies. **Depends on:** s0.1.15, s0.1.20.
+- (s0.2.03) Agent Result Fusion Policies — Define priority, voting, and confidence merge policies with explicit schema outputs. **Depends on:** s0.2.01, s0.2.02, s0.1.01.
+- (s0.2.04) Context Team Agent: Route Summarizer — Add route-level context summaries for long narratives. **Depends on:** s0.1.15, s0.2.01.
+- (s0.2.05) Context Team Agent: Character Bio Curator — Maintain structured character bios and traits. **Depends on:** s0.1.15, s0.2.01.
+- (s0.2.06) Context Team Agent: Glossary Curator — Extract and maintain glossary entries from context artifacts. **Depends on:** s0.1.15, s0.2.01.
+- (s0.2.07) Context Team Agent: Game Info Researcher — Use web search to curate genre, synopsis, and references (HITL-ready). **Depends on:** s0.1.14, s0.1.15, s0.2.01.
+- (s0.2.08) Pretranslation Team Agent: Reference Finder — Identify references, idioms, and named entities needing special handling. **Depends on:** s0.1.16, s0.2.01.
+- (s0.2.09) Pretranslation Team Agent: Speaker/Subject/Object Annotator — Disambiguate roles for pronouns and POV. **Depends on:** s0.1.16, s0.2.01.
+- (s0.2.10) Translation Team Agent: MTL-Tool Translator — Tool-call MTL outputs as a secondary reference. **Depends on:** s0.1.13, s0.1.17, s0.2.01.
+- (s0.2.11) Translation Team Agent: Glossary Term Translator — Translate glossary terms with consistent mapping. **Depends on:** s0.2.06, s0.1.17, s0.2.01.
+- (s0.2.12) QA Team Agent: Style Checker — Enforce tone, formality, and voice constraints. **Depends on:** s0.1.19, s0.2.01.
+- (s0.2.13) QA Team Agent: Consistency Validator — Detect terminology and character voice drift across scenes. **Depends on:** s0.1.10, s0.1.19, s0.2.01.
+- (s0.2.14) Edit Team Agent: Scene Aligner — Align edits across a scene to resolve inconsistencies. **Depends on:** s0.1.15, s0.1.20, s0.2.01.
 - (s0.2.15) Agent Pre/Post Hooks — Add pre/post LLM normalization and validation hooks per agent. **Depends on:** s0.1.14, s0.2.01.
 - (s0.2.16) Richer Deterministic QA Checks — Expand checks beyond length/charset (e.g., placeholders, punctuation parity, tag safety). **Depends on:** s0.1.18.
-- (s0.2.17) QA Issue Taxonomy + Report Export — Categorize QA issues and export JSON/CSV reports. **Depends on:** s0.1.10, s0.1.18, s0.1.19.
+- (s0.2.17) QA Issue Taxonomy + Report Export — Categorize QA issues and export JSON/CSV reports. **Depends on:** s0.1.10, s0.1.18, s0.1.19, s0.2.16.
 - (s0.2.18) Agent Iteration Visibility & Controls — Per-agent retry limits, budgets, and status telemetry. **Depends on:** s0.1.02, s0.1.06, s0.2.02.
 - (s0.2.19) Prompt/Schema/Tool Overrides — Customize agents without code via config overrides and profiles. **Depends on:** s0.1.26, s0.2.01.
 - (s0.2.20) Onboarding Context Building — Interview users at init to seed glossary terms and context docs. **Depends on:** s0.1.29, s0.1.11, s0.2.06.
@@ -124,7 +124,7 @@
 - (s0.2.22) Public Benchmark Subset — Package an open-licensed subset with fixtures for external validation. **Depends on:** s0.1.39, s0.2.21.
 - (s0.2.23) Third-Party Verification Runbook — Provide reproducibility guide and reporting template for external reruns. **Depends on:** s0.1.39, s0.2.22.
 - (s0.2.24) Onboarding Refinements + Docs Expansion — Expand guides for multi-agent setup and benchmarking. **Depends on:** s0.1.30, s0.2.19, s0.2.20.
-- (s0.2.25) Fusion Audit Trail — Record which agent outputs were selected, merged, or overridden with traceable rationale. **Depends on:** s0.2.03, s0.1.06.
+- (s0.2.25) Fusion Audit Trail — Record which agent outputs were selected, merged, or overridden with traceable rationale. **Depends on:** s0.2.02, s0.2.03, s0.1.06.
 - (s0.2.26) Benchmark Verification CLI — Provide a command to validate published hashes and benchmark provenance without text release. **Depends on:** s0.1.38, s0.2.23.
 
 **Success Criteria:**
@@ -157,19 +157,19 @@
 - Multi-language progress tracking and reporting
 
 **Spec List (Expanded):**
-- (s0.3.01) Multi-Language Orchestrator — Run N languages sequentially or in parallel with shared upstream artifacts. **Depends on:** s0.1.07, s0.1.09, s0.2.01.
+- (s0.3.01) Multi-Language Orchestrator — Run N languages sequentially or in parallel with shared upstream artifacts. **Depends on:** s0.1.07, s0.1.09, s0.2.01, s0.3.02.
 - (s0.3.02) Language Profile Schema — Per-language config overrides (model, glossary, QA rules, formatting). **Depends on:** s0.1.01, s0.1.33.
 - (s0.3.03) Shared Context Cache — Reuse context/pretranslation artifacts across languages with invalidation rules. **Depends on:** s0.1.05, s0.1.09, s0.3.01.
-- (s0.3.04) Cost & Token Budgeting — Track and cap costs per language and per phase. **Depends on:** s0.1.06, s0.2.16.
-- (s0.3.05) Multi-Language Progress Viewer — Aggregate progress and errors across languages. **Depends on:** s0.1.21, s0.3.01.
-- (s0.3.06) Adapter SDK + Templates — Standard interface and scaffolding for engine adapters. **Depends on:** s0.1.03, s0.1.04.
-- (s0.3.07) Ren'Py Adapter v1 — Out-of-box import/export + QA rules for Ren'Py. **Depends on:** s0.3.06, s0.2.14.
-- (s0.3.08) RPG Maker Adapter v1 — Out-of-box import/export + QA rules. **Depends on:** s0.3.06, s0.2.14.
-- (s0.3.09) Kirikiri Adapter v1 — Out-of-box import/export + QA rules. **Depends on:** s0.3.06, s0.2.14.
-- (s0.3.10) SiglusEngine Adapter v1 — Out-of-box import/export + QA rules. **Depends on:** s0.3.06, s0.2.14.
-- (s0.3.11) Engine QA Rules Pack — Charset, line length, wrapping, and tag rules per engine. **Depends on:** s0.2.14.
-- (s0.3.12) Adapter Test Harness — Fixtures + integration tests per engine adapter. **Depends on:** s0.1.24, s0.3.06.
-- (s0.3.13) Batch Management CLI — Run, pause, resume, and report on multi-language batches. **Depends on:** s0.1.11, s0.3.01.
+- (s0.3.04) Cost & Token Budgeting — Track and cap costs per language and per phase. **Depends on:** s0.1.06, s0.2.16, s0.3.01.
+- (s0.3.05) Multi-Language Progress Viewer — Aggregate progress and errors across languages. **Depends on:** s0.1.21, s0.3.01, s0.3.02.
+- (s0.3.06) Adapter SDK + Templates — Standard interface and scaffolding for engine adapters. **Depends on:** s0.1.01, s0.1.03, s0.1.04.
+- (s0.3.07) Ren'Py Adapter v1 — Out-of-box import/export + QA rules for Ren'Py. **Depends on:** s0.3.06, s0.3.11, s0.2.14.
+- (s0.3.08) RPG Maker Adapter v1 — Out-of-box import/export + QA rules. **Depends on:** s0.3.06, s0.3.11, s0.2.14.
+- (s0.3.09) Kirikiri Adapter v1 — Out-of-box import/export + QA rules. **Depends on:** s0.3.06, s0.3.11, s0.2.14.
+- (s0.3.10) SiglusEngine Adapter v1 — Out-of-box import/export + QA rules. **Depends on:** s0.3.06, s0.3.11, s0.2.14.
+- (s0.3.11) Engine QA Rules Pack — Charset, line length, wrapping, and tag rules per engine. **Depends on:** s0.2.16.
+- (s0.3.12) Adapter Test Harness — Fixtures + integration tests per engine adapter. **Depends on:** s0.1.24, s0.3.06, s0.3.11.
+- (s0.3.13) Batch Management CLI — Run, pause, resume, and report on multi-language batches. **Depends on:** s0.1.11, s0.3.01, s0.3.02.
 - (s0.3.14) Adapter Contribution Guide — Docs + examples for community adapter creation. **Depends on:** s0.3.06.
 
 **Success Criteria:**
@@ -193,13 +193,13 @@
 
 **Spec List (Expanded):**
 - (s0.4.01) HITL Message Schema — Standardize agent request, user response, and resolution payloads with IDs and phase context. **Depends on:** s0.1.01, s0.1.06.
-- (s0.4.02) Non-Blocking HITL Queue — Allow agents to submit questions without halting phase execution. **Depends on:** s0.1.07, s0.1.09, s0.4.01.
-- (s0.4.03) HITL Response Ingestion — Accept user responses and attach them to the originating request. **Depends on:** s0.4.01, s0.1.11.
-- (s0.4.04) Agent Re-Run on HITL Resolution — Re-run the requesting agent with the resolved context and persist updated artifacts. **Depends on:** s0.4.02, s0.4.03, s0.1.07.
+- (s0.4.02) Non-Blocking HITL Queue — Allow agents to submit questions without halting phase execution. **Depends on:** s0.1.05, s0.1.07, s0.1.09, s0.4.01.
+- (s0.4.03) HITL Response Ingestion — Accept user responses and attach them to the originating request. **Depends on:** s0.4.01, s0.4.02, s0.1.11.
+- (s0.4.04) Agent Re-Run on HITL Resolution — Re-run the requesting agent with the resolved context and persist updated artifacts. **Depends on:** s0.4.02, s0.4.03, s0.1.07, s0.1.09.
 - (s0.4.05) Feedback Intake Formats — Support user-submitted feedback for context, translation, QA, and edits (structured JSONL + CLI). **Depends on:** s0.1.01, s0.1.11.
 - (s0.4.06) Feedback Routing Rules — Route feedback to the correct phase agents and artifacts with provenance. **Depends on:** s0.4.05, s0.1.07, s0.1.09.
-- (s0.4.07) Live Patch Refresh — Apply feedback-triggered edits and regenerate export artifacts within minutes. **Depends on:** s0.4.06, s0.1.04, s0.1.05.
-- (s0.4.08) HITL + Feedback Status Viewer — Surface pending requests, responses, and applied changes in the CLI/TUI status viewer. **Depends on:** s0.1.21, s0.4.01, s0.4.06.
+- (s0.4.07) Live Patch Refresh — Apply feedback-triggered edits and regenerate export artifacts within minutes. **Depends on:** s0.4.04, s0.4.06, s0.1.04, s0.1.05.
+- (s0.4.08) HITL + Feedback Status Viewer — Surface pending requests, responses, and applied changes in the CLI/TUI status viewer. **Depends on:** s0.1.21, s0.4.01, s0.4.02, s0.4.06.
 - (s0.4.09) HITL Audit Trail — Record all human inputs, agent decisions, and resulting changes for traceability. **Depends on:** s0.1.05, s0.1.06, s0.4.01.
 - (s0.4.10) Feedback Conflict Resolution — Define precedence rules when user edits conflict with agent outputs. **Depends on:** s0.4.06, s0.4.09.
 - (s0.4.11) Optional HITL Escalation Policies — Configure which agents can ask questions and when they do so. **Depends on:** s0.2.19, s0.4.01.
@@ -240,23 +240,23 @@
 - (s0.5.01) TUI Architecture Plan — Define app structure, state model, navigation map, and service boundaries as a thin adapter over core. **Depends on:** s0.1.21.
 - (s0.5.02) TUI App Scaffold — Textual app shell, screen registry, and routing with theme defaults. **Depends on:** s0.5.01.
 - (s0.5.03) TUI State Store — Centralized state model synced from core events and run artifacts. **Depends on:** s0.5.01, s0.1.06.
-- (s0.5.04) Core API Surface for TUI — Expose core domain APIs needed by TUI without duplicating logic. **Depends on:** s0.1.07, s0.1.11.
+- (s0.5.04) Core API Surface for TUI — Expose core domain APIs needed by TUI without duplicating logic. **Depends on:** s0.1.07, s0.1.11, s0.5.01.
 - (s0.5.05) Layout System + Design Tokens — Shared components, spacing, typography, and color tokens. **Depends on:** s0.5.02.
 - (s0.5.06) TUI String Catalogs — All UI text loads from locale files with fallback defaults. **Depends on:** s0.5.02.
-- (s0.5.07) Project Dashboard Screen — Overview of project, run history, and quick actions. **Depends on:** s0.5.02, s0.5.03, s0.5.06.
+- (s0.5.07) Project Dashboard Screen — Overview of project, run history, and quick actions. **Depends on:** s0.5.02, s0.5.03, s0.5.04, s0.5.06.
 - (s0.5.08) Setup Wizard Screen — Guided project setup (config, models, sources) using core validations. **Depends on:** s0.5.04, s0.5.05, s0.5.06.
-- (s0.5.09) Run Planner Screen — Phase selection, sharding, and concurrency settings. **Depends on:** s0.1.08, s0.5.05, s0.5.06.
-- (s0.5.10) Live Progress Screen — Phase status, per-line counts, and run events in real time. **Depends on:** s0.1.21, s0.5.03, s0.5.06.
-- (s0.5.11) QA Review Screen — Filter, inspect, and annotate QA issues with export hooks. **Depends on:** s0.2.15, s0.5.05, s0.5.06.
-- (s0.5.12) Edit Workflow Screen — Triage issues, trigger edit cycles, and preview diffs. **Depends on:** s0.1.20, s0.5.05, s0.5.06.
-- (s0.5.13) HITL Inbox Screen — View and respond to agent questions and feedback requests. **Depends on:** s0.4.01, s0.4.03, s0.5.05, s0.5.06.
-- (s0.5.14) Feedback Submission Screen — Add context, translation, QA, or edit feedback during runs. **Depends on:** s0.4.05, s0.5.05, s0.5.06.
-- (s0.5.15) Multi-Language Batch Screen — Manage multi-language runs and progress. **Depends on:** s0.3.01, s0.5.05, s0.5.06.
-- (s0.5.16) Config & Profiles Screen — Edit configs, profiles, and agent overrides with schema validation. **Depends on:** s0.1.33, s0.2.19, s0.5.05, s0.5.06.
-- (s0.5.17) Reports & Analytics Screen — QA summaries, benchmark snapshots, token/cost views. **Depends on:** s0.2.17, s0.3.04, s0.5.05, s0.5.06.
+- (s0.5.09) Run Planner Screen — Phase selection, sharding, and concurrency settings. **Depends on:** s0.1.08, s0.5.04, s0.5.05, s0.5.06.
+- (s0.5.10) Live Progress Screen — Phase status, per-line counts, and run events in real time. **Depends on:** s0.1.21, s0.5.03, s0.5.04, s0.5.06.
+- (s0.5.11) QA Review Screen — Filter, inspect, and annotate QA issues with export hooks. **Depends on:** s0.2.17, s0.5.04, s0.5.05, s0.5.06.
+- (s0.5.12) Edit Workflow Screen — Triage issues, trigger edit cycles, and preview diffs. **Depends on:** s0.1.20, s0.4.06, s0.5.04, s0.5.05, s0.5.06.
+- (s0.5.13) HITL Inbox Screen — View and respond to agent questions and feedback requests. **Depends on:** s0.4.01, s0.4.03, s0.5.04, s0.5.05, s0.5.06.
+- (s0.5.14) Feedback Submission Screen — Add context, translation, QA, or edit feedback during runs. **Depends on:** s0.4.05, s0.4.06, s0.5.04, s0.5.05, s0.5.06.
+- (s0.5.15) Multi-Language Batch Screen — Manage multi-language runs and progress. **Depends on:** s0.3.01, s0.3.13, s0.5.04, s0.5.05, s0.5.06.
+- (s0.5.16) Config & Profiles Screen — Edit configs, profiles, and agent overrides with schema validation. **Depends on:** s0.1.33, s0.2.19, s0.5.04, s0.5.05, s0.5.06.
+- (s0.5.17) Reports & Analytics Screen — QA summaries, benchmark snapshots, token/cost views. **Depends on:** s0.2.17, s0.3.04, s0.5.04, s0.5.05, s0.5.06.
 - (s0.5.18) Accessibility & Input Support — Keyboard navigation, focus states, and help shortcuts. **Depends on:** s0.5.02.
-- (s0.5.19) TUI Extension Points — Plugin hooks for custom screens and components. **Depends on:** s0.5.01.
-- (s0.5.20) TUI Integration Tests — Screen flows and state updates in CI. **Depends on:** s0.1.24, s0.5.02.
+- (s0.5.19) TUI Extension Points — Plugin hooks for custom screens and components. **Depends on:** s0.5.01, s0.5.02.
+- (s0.5.20) TUI Integration Tests — Screen flows and state updates in CI. **Depends on:** s0.1.24, s0.5.02, s0.5.04.
 
 **Success Criteria:**
 - End-to-end workflows are possible using only the TUI
