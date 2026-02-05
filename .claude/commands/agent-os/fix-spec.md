@@ -57,7 +57,7 @@ Fix failures and re-run until green.
 
 - Summarize fixes
 - Note verification result
-- Optionally post a comment on the spec issue
+- Update the existing “Spec Progress” comment on the spec issue (create it once if missing)
 
 ## Success Criteria
 
