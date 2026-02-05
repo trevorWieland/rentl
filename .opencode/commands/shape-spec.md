@@ -135,7 +135,7 @@ version: vX.Y
 
 Prompt the user to switch out of plan mode. Only proceed once confirmed.
 
-### Step 11: Create Branch, Save Spec Docs, and Commit (Build Mode)
+### Step 11: Create Branch, Save Spec Docs, Commit, and Publish (Build Mode)
 
 1. Create the issue branch via `gh issue develop` and check it out.
 2. Create the spec folder and write `plan.md`, `shape.md`, `standards.md`, `references.md`, and any visuals.
@@ -144,6 +144,7 @@ Prompt the user to switch out of plan mode. Only proceed once confirmed.
    - Spec folder path
    - Plan summary (tasks and acceptance checks)
    - References and standards applied
+5. Push the branch with `-u` to publish it.
 
 ### Step 12: Stop and Handoff
 
