@@ -1,4 +1,4 @@
-"""Tests for ProfileAgent execution wiring and output modes."""
+"""Tests for ProfileAgent execution wiring with tool-only output."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid7
 
 from pydantic_ai.messages import ModelResponse, ToolCallPart
-from pydantic_ai.output import PromptedOutput
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RunUsage
 
@@ -90,23 +89,21 @@ def _agent_shim(mock_agent_cls: MagicMock) -> type:
     return AgentShim
 
 
-def test_profile_agent_execute_auto_openrouter_uses_prompted_output() -> None:
-    """Auto output mode selects PromptedOutput for OpenRouter."""
+def test_profile_agent_execute_openrouter_uses_openrouter_model() -> None:
+    """OpenRouter endpoints should use OpenRouterModel with provider settings."""
     profile = _build_profile()
     registry = _build_registry()
-    tool_registry = ToolRegistry()
     config = ProfileAgentConfig(
         api_key="test",
         base_url="https://openrouter.ai/api/v1",
         model_id="gpt-4o-mini",
-        output_mode="auto",
         max_requests_per_run=3,
     )
     agent = ProfileAgent(
         profile=profile,
         output_type=SceneSummary,
         layer_registry=registry,
-        tool_registry=tool_registry,
+        tool_registry=ToolRegistry(),
         config=config,
     )
 
@@ -126,7 +123,7 @@ def test_profile_agent_execute_auto_openrouter_uses_prompted_output() -> None:
 
     with (
         patch("rentl_agents.runtime.OpenRouterProvider") as mock_provider,
-        patch("rentl_agents.runtime.OpenAIChatModel"),
+        patch("rentl_agents.runtime.OpenRouterModel") as mock_model,
         patch("rentl_agents.runtime.Agent", _agent_shim(mock_agent_cls)),
     ):
         result, usage = asyncio.run(agent._execute(payload))
@@ -134,29 +131,31 @@ def test_profile_agent_execute_auto_openrouter_uses_prompted_output() -> None:
     assert result.scene_id == "scene_1"
     assert usage is not None
     assert mock_provider.called
+    assert mock_model.called
+
     call_kwargs = mock_agent_cls.call_args.kwargs
-    output_spec = call_kwargs["output_type"]
-    assert isinstance(output_spec, PromptedOutput)
+    assert call_kwargs["output_type"] is SceneSummary
+
+    model_settings = mock_agent_instance.run.call_args.kwargs["model_settings"]
+    provider_settings = model_settings["openrouter_provider"]
+    assert provider_settings["require_parameters"] is True
 
 
-def test_profile_agent_execute_tool_mode_sets_prepare_output_tools() -> None:
-    """Tool output mode sets prepare_output_tools when required tools are set."""
+def test_profile_agent_execute_non_openrouter_uses_openai_model() -> None:
+    """Non-OpenRouter endpoints should use OpenAIChatModel."""
     profile = _build_profile()
     registry = _build_registry()
-    tool_registry = ToolRegistry()
     config = ProfileAgentConfig(
         api_key="test",
-        base_url="http://localhost",
+        base_url="http://localhost:8000/v1",
         model_id="gpt-4o-mini",
-        output_mode="tool",
-        required_tool_calls=["get_game_info"],
-        max_requests_per_run=2,
+        max_requests_per_run=3,
     )
     agent = ProfileAgent(
         profile=profile,
         output_type=SceneSummary,
         layer_registry=registry,
-        tool_registry=tool_registry,
+        tool_registry=ToolRegistry(),
         config=config,
     )
 
@@ -174,7 +173,7 @@ def test_profile_agent_execute_tool_mode_sets_prepare_output_tools() -> None:
 
     with (
         patch("rentl_agents.runtime.OpenAIProvider") as mock_provider,
-        patch("rentl_agents.runtime.OpenAIChatModel"),
+        patch("rentl_agents.runtime.OpenAIChatModel") as mock_model,
         patch("rentl_agents.runtime.Agent", _agent_shim(mock_agent_cls)),
     ):
         result, usage = asyncio.run(agent._execute(payload))
@@ -182,10 +181,56 @@ def test_profile_agent_execute_tool_mode_sets_prepare_output_tools() -> None:
     assert result.scene_id == "scene_2"
     assert usage is not None
     assert mock_provider.called
+    assert mock_model.called
     call_kwargs = mock_agent_cls.call_args.kwargs
     assert call_kwargs["output_type"] is SceneSummary
+
+
+def test_profile_agent_execute_sets_prepare_output_tools_when_required() -> None:
+    """Required tool calls should gate output tools until required tools run."""
+    profile = _build_profile()
+    registry = _build_registry()
+    config = ProfileAgentConfig(
+        api_key="test",
+        base_url="http://localhost",
+        model_id="gpt-4o-mini",
+        required_tool_calls=["get_game_info"],
+        max_requests_per_run=2,
+    )
+    agent = ProfileAgent(
+        profile=profile,
+        output_type=SceneSummary,
+        layer_registry=registry,
+        tool_registry=ToolRegistry(),
+        config=config,
+    )
+
+    payload = _build_payload()
+    mock_result = MagicMock()
+    mock_result.output = SceneSummary(
+        scene_id="scene_3",
+        summary="ok",
+        characters=["C"],
+    )
+    mock_result.usage = MagicMock(return_value=RunUsage(requests=1))
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_result)
+    mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+
+    with (
+        patch("rentl_agents.runtime.OpenAIProvider"),
+        patch("rentl_agents.runtime.OpenAIChatModel"),
+        patch("rentl_agents.runtime.Agent", _agent_shim(mock_agent_cls)),
+    ):
+        result, usage = asyncio.run(agent._execute(payload))
+
+    assert result.scene_id == "scene_3"
+    assert usage is not None
+
+    call_kwargs = mock_agent_cls.call_args.kwargs
     prepare_output_tools = call_kwargs["prepare_output_tools"]
     assert prepare_output_tools is not None
+    assert call_kwargs["end_strategy"] == "exhaustive"
 
     tool_defs = [ToolDefinition(name="get_game_info")]
     ctx = type(

@@ -54,7 +54,7 @@ from rentl_agents import (
     load_agent_profile,
 )
 from rentl_agents.context import group_lines_by_scene, validate_scene_input
-from rentl_agents.runtime import OutputMode, ProfileAgentConfig
+from rentl_agents.runtime import ProfileAgentConfig
 from rentl_agents.wiring import (
     create_context_agent_from_profile,
     create_edit_agent_from_profile,
@@ -300,7 +300,6 @@ def _build_profile_agent_config(
     api_key: str,
     base_url_override: str | None,
     model_override: str | None,
-    output_mode: OutputMode,
 ) -> ProfileAgentConfig:
     model_settings = _resolve_phase_model(config, phase)
     endpoint = _resolve_endpoint_config(config, model_settings)
@@ -311,9 +310,9 @@ def _build_profile_agent_config(
         temperature=model_settings.temperature,
         top_p=model_settings.top_p,
         timeout_s=endpoint.timeout_s,
+        openrouter_provider=endpoint.openrouter_provider,
         max_retries=config.retry.max_retries,
         retry_base_delay=config.retry.backoff_s,
-        output_mode=output_mode,
     )
 
 
@@ -402,27 +401,7 @@ def main() -> int:
         default=1,
         help="Max concurrent LLM requests (default: 1)",
     )
-    parser.add_argument(
-        "--output-mode",
-        type=str,
-        choices=["auto", "tool", "prompted"],
-        default="auto",
-        help="Structured output mode: 'auto' (detect from provider), "
-        "'prompted' (json_schema, for OpenRouter), "
-        "'tool' (tool_choice:required, for LM Studio/OpenAI). Default: auto",
-    )
-
     args = parser.parse_args()
-
-    output_mode: OutputMode
-    if args.output_mode == "auto":
-        output_mode = "auto"
-    elif args.output_mode == "prompted":
-        output_mode = "prompted"
-    elif args.output_mode == "tool":
-        output_mode = "tool"
-    else:
-        output_mode = "native"
 
     # Load .env file if present
     env_path = Path(".env")
@@ -710,7 +689,7 @@ def main() -> int:
 
         print(f"\n  Model: {model_id}")
         print(f"  Base URL: {base_url}")
-        print(f"  Output mode: {output_mode}")
+        print("  Structured output: tool-only (enforced)")
         print(f"  Source: {source_lang} → Target: {target_lang}")
 
         def build_phase_config(phase: PhaseName) -> ProfileAgentConfig:
@@ -718,7 +697,6 @@ def main() -> int:
                 api_key=api_key,
                 base_url=base_url,
                 model_id=model_id,
-                output_mode=output_mode,
             )
 
     else:
@@ -741,7 +719,7 @@ def main() -> int:
         sample_base_url = args.base_url or sample_endpoint.base_url
         print(f"\n  Model: {sample_model}")
         print(f"  Base URL: {sample_base_url}")
-        print(f"  Output mode: {output_mode}")
+        print("  Structured output: tool-only (enforced)")
         print(f"  Source: {source_lang} → Target: {target_lang}")
 
         def build_phase_config(phase: PhaseName) -> ProfileAgentConfig:
@@ -751,7 +729,6 @@ def main() -> int:
                 api_key=api_keys[phase],
                 base_url_override=args.base_url,
                 model_override=args.model,
-                output_mode=output_mode,
             )
 
     # Step 4: Run Context Phase (Scene Summarizer)

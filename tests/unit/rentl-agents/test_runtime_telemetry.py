@@ -71,6 +71,7 @@ def _build_payload(run_id: RunId) -> ContextPhaseInput:
 def _build_agent(
     telemetry_emitter: AgentTelemetryEmitter | None,
     agent_cls: type[ProfileAgent[ContextPhaseInput, SceneSummary]] | None = None,
+    required_tool_calls: list[str] | None = None,
 ) -> ProfileAgent[ContextPhaseInput, SceneSummary]:
     resolved_cls = agent_cls or ProfileAgent
     return resolved_cls(
@@ -84,6 +85,7 @@ def _build_agent(
             model_id="gpt-4o-mini",
             max_retries=1,
             retry_base_delay=0.0,
+            required_tool_calls=required_tool_calls,
         ),
         telemetry_emitter=telemetry_emitter,
     )
@@ -133,6 +135,16 @@ def test_profile_agent_emits_telemetry_on_success() -> None:
         ProgressEvent.AGENT_STARTED,
         ProgressEvent.AGENT_COMPLETED,
     ]
+    started_update = progress_sink.updates[0]
+    completed_update = progress_sink.updates[1]
+    assert started_update.agent_update is not None
+    assert completed_update.agent_update is not None
+    assert started_update.agent_update.provider_detected == "local"
+    assert started_update.agent_update.endpoint_type == "private"
+    assert completed_update.agent_update.provider_detected == "local"
+    assert completed_update.agent_update.endpoint_type == "private"
+    assert completed_update.agent_update.tool_calls_observed is False
+    assert completed_update.agent_update.required_tools_satisfied is None
 
 
 def test_profile_agent_emits_retry_progress() -> None:
@@ -181,3 +193,52 @@ def test_profile_agent_emits_retry_progress() -> None:
     retry_update = progress_sink.updates[1]
     assert retry_update.agent_update is not None
     assert retry_update.agent_update.attempt == 2
+
+
+def test_profile_agent_emits_required_tool_satisfaction_marker() -> None:
+    """ProfileAgent marks required tool satisfaction on completion telemetry."""
+    progress_sink = InMemoryProgressSink()
+    emitter = AgentTelemetryEmitter(
+        progress_sink=progress_sink,
+        log_sink=None,
+        clock=lambda: "2026-02-03T12:00:00Z",
+    )
+
+    async def _execute_stub(
+        _payload: ContextPhaseInput,
+    ) -> tuple[SceneSummary, AgentUsageTotals | None]:
+        await asyncio.sleep(0)
+        return (
+            SceneSummary(
+                scene_id="scene_1",
+                summary="ok",
+                characters=["A"],
+            ),
+            AgentUsageTotals(
+                input_tokens=10,
+                output_tokens=20,
+                total_tokens=30,
+                request_count=1,
+                tool_calls=1,
+            ),
+        )
+
+    class StubProfileAgent(ProfileAgent[ContextPhaseInput, SceneSummary]):
+        async def _execute(
+            self, payload: ContextPhaseInput
+        ) -> tuple[SceneSummary, AgentUsageTotals | None]:
+            return await _execute_stub(payload)
+
+    agent = _build_agent(
+        emitter,
+        StubProfileAgent,
+        required_tool_calls=["get_game_info"],
+    )
+
+    payload = _build_payload(uuid7())
+    result = asyncio.run(agent.run(payload))
+    assert result.scene_id == "scene_1"
+    completed_update = progress_sink.updates[-1]
+    assert completed_update.agent_update is not None
+    assert completed_update.agent_update.tool_calls_observed is True
+    assert completed_update.agent_update.required_tools_satisfied is True

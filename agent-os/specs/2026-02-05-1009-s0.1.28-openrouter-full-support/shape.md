@@ -5,41 +5,48 @@ version: v0.1
 # Shape: OpenRouter Full Support
 
 ## Summary
-Ensure OpenRouter and any OpenResponses/OpenAI-style endpoint behave with full feature parity vs local models. Switching providers should be seamless, tool calling should be reliable, and failures should be transparent and actionable.
+Enforce a tool-only agent runtime across providers, with OpenRouter configured to route only to endpoints that support required tool parameters. Reliability must come from runtime invariants and typed configuration, not model-specific heuristics.
 
 ## Problem
-OpenRouter integration is currently brittle. Local models work, but switching to OpenRouter introduces failures (tool calling and structured output reliability). This blocks non-local users and undermines BYOK parity.
+OpenRouter runs are intermittently unreliable because runtime behavior is split across multiple output paths and provider routing may land on endpoints that do not fully honor tool requirements. Quality checks and production have also exercised different behavior in places, making failures hard to predict.
 
 ## Goals
-- Full parity across local, OpenRouter, and any OpenResponses/OpenAI-compatible endpoint.
-- Seamless switching via config without runtime or prompt changes.
-- Reliable tool calling and structured outputs for all providers.
-- Clear, transparent errors and telemetry on provider-specific failures.
+- Tool-only execution path for phase agents across OpenRouter, OpenAI-compatible endpoints, and local endpoints.
+- OpenRouter requests constrained with provider settings that require parameter support (`require_parameters=true`) so incompatible providers are excluded.
+- OpenRouter execution uses `OpenRouterModel` with typed settings propagation for parity and reliability.
+- Provider switching remains config-only, without prompt/profile rewrites.
+- Errors and telemetry are explicit and useful for diagnosing tool-call failures.
 
 ## Non-Goals
-- Adding provider-specific features beyond OpenResponses compatibility.
-- Reworking prompts or agent logic unrelated to tool/output reliability.
-- Changing the overall BYOK config structure.
+- Model-specific hardcoding or per-model runtime exceptions.
+- Supporting mixed output-mode strategies (`auto`, `prompted`, `native`) for phase agents.
+- Reworking unrelated pipeline logic or non-LLM phases.
 
 ## Constraints
-- First-party support: must work reliably for non-local users.
-- Must preserve async-first, strict typing, and pydantic-only schemas.
+- Must preserve async-first design, strict typing, and pydantic-only schemas.
+- Must comply with `@agent-os/standards/python/strict-typing-enforcement.md` (no `Any`/`object` for internal schemas).
 
 ## Scope
-- Provider detection and runtime configuration should be unified across agents and LLM runtime.
-- Output mode selection must be deterministic and compatible with OpenRouter and local models.
-- Tool usage must work across providers without requiring profile changes.
-- Test coverage must prove parity and stability (unit + integration).
+- Remove runtime dependence on `auto`/`prompted`/`native` for phase-agent structured output.
+- Unify provider detection and tool capability enforcement across agent runtime and BYOK runtime.
+- Add typed OpenRouter provider-routing config in run config and propagate to runtime model settings.
+- Introduce declarative required-tool enforcement at profile/schema level and wire it end-to-end.
+- Align quality harness behavior with production tool-only runtime behavior.
+- Expand tests to prove tool-only parity and OpenRouter routing constraints.
 
 ## Success Criteria
-- Switching between local, OpenRouter, and other OpenResponses endpoints requires only config changes.
-- Agents complete with tool calls and structured outputs across providers without runtime errors.
-- Error messages clearly indicate provider limitations or misconfiguration.
-- Tests cover provider routing, output mode decisions, and tool-call success paths.
+- Tool output is the only operational path for phase agents.
+- OpenRouter agent requests include provider constraints that require parameter support for tools.
+- OpenRouter endpoints are executed via `OpenRouterModel` with typed settings.
+- Required tool calls are enforced declaratively and validated in runtime behavior.
+- Quality and production follow the same execution assumptions.
+- `make all` passes with updated unit/integration/quality coverage.
 
 ## Risks
-- Provider differences in tool calling and response formats may require precise compatibility handling.
-- Mis-detection of provider types can cause incorrect output mode selection.
+- OpenRouter provider slugs and support capabilities can change over time; config and tests must tolerate provider evolution.
+- Over-constraining provider routing may reduce fallback options and increase hard failures when provider capacity is low.
+- Migration from mixed-mode assumptions may require broad test and fixture updates.
 
 ## Open Questions
-- Any additional OpenResponses endpoints to prioritize for validation beyond OpenRouter?
+- Do we want default OpenRouter provider ordering in config templates, or keep ordering fully user-defined?
+- Should connection validation include a preflight capability check for tool-required routes before full phase execution?

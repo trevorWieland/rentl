@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from urllib.parse import urlparse
 
 from pydantic import Field, field_validator, model_validator
@@ -114,6 +115,108 @@ class LanguageConfig(BaseSchema):
         return self
 
 
+class OpenRouterMaxPriceConfig(BaseSchema):
+    """OpenRouter max price routing controls (USD per million tokens)."""
+
+    prompt: int | None = Field(
+        None,
+        ge=0,
+        description="Maximum prompt token price in USD per million tokens",
+    )
+    completion: int | None = Field(
+        None,
+        ge=0,
+        description="Maximum completion token price in USD per million tokens",
+    )
+    image: int | None = Field(
+        None,
+        ge=0,
+        description="Maximum image token price in USD per million tokens",
+    )
+    audio: int | None = Field(
+        None,
+        ge=0,
+        description="Maximum audio token price in USD per million tokens",
+    )
+    request: int | None = Field(
+        None,
+        ge=0,
+        description="Maximum per-request price in USD per million requests",
+    )
+
+
+OpenRouterProviderSort = Literal["price", "throughput", "latency"]
+OpenRouterDataCollection = Literal["allow", "deny"]
+OpenRouterQuantization = Literal[
+    "int4", "int8", "fp4", "fp6", "fp8", "fp16", "bf16", "fp32", "unknown"
+]
+
+
+class OpenRouterProviderRoutingConfig(BaseSchema):
+    """OpenRouter provider routing constraints for request execution."""
+
+    order: list[str] | None = Field(
+        None,
+        description="Preferred provider slugs in routing order",
+    )
+    allow_fallbacks: bool | None = Field(
+        None,
+        description="Whether OpenRouter may fallback to backup providers",
+    )
+    require_parameters: bool = Field(
+        True,
+        description="Require routed providers to support all request parameters",
+    )
+    data_collection: OpenRouterDataCollection | None = Field(
+        None,
+        description="Restrict routing by provider data collection policy",
+    )
+    zdr: bool | None = Field(
+        None,
+        description="Restrict routing to zero-data-retention providers",
+    )
+    only: list[str] | None = Field(
+        None,
+        description="Allowlist of provider slugs for routing",
+    )
+    ignore: list[str] | None = Field(
+        None,
+        description="Provider slugs to exclude from routing",
+    )
+    quantizations: list[OpenRouterQuantization] | None = Field(
+        None,
+        description="Allowed model quantizations for routed providers",
+    )
+    sort: OpenRouterProviderSort | None = Field(
+        None,
+        description="Provider sort strategy for routing",
+    )
+    max_price: OpenRouterMaxPriceConfig | None = Field(
+        None,
+        description="Maximum provider price constraints",
+    )
+
+    @model_validator(mode="after")
+    def validate_provider_sets(self) -> OpenRouterProviderRoutingConfig:
+        """Validate allow/ignore provider set consistency.
+
+        Returns:
+            OpenRouterProviderRoutingConfig: Validated routing configuration.
+
+        Raises:
+            ValueError: If only/ignore provider sets overlap.
+        """
+        only_set = set(self.only or [])
+        ignore_set = set(self.ignore or [])
+        overlap = sorted(only_set.intersection(ignore_set))
+        if overlap:
+            joined = ", ".join(overlap)
+            raise ValueError(
+                f"openrouter provider sets overlap in only/ignore: {joined}"
+            )
+        return self
+
+
 class ModelEndpointConfig(BaseSchema):
     """BYOK endpoint configuration for OpenAI-compatible APIs."""
 
@@ -125,6 +228,10 @@ class ModelEndpointConfig(BaseSchema):
         ..., min_length=1, description="Environment variable for API key"
     )
     timeout_s: float = Field(60.0, gt=0, description="Request timeout in seconds")
+    openrouter_provider: OpenRouterProviderRoutingConfig | None = Field(
+        None,
+        description="OpenRouter provider routing controls",
+    )
 
     @field_validator("base_url")
     @classmethod
@@ -149,6 +256,36 @@ class ModelEndpointConfig(BaseSchema):
         if parsed.path in {"", "/"}:
             return f"{value.rstrip('/')}/v1"
         return value
+
+    @model_validator(mode="after")
+    def validate_openrouter_provider(self) -> ModelEndpointConfig:
+        """Validate OpenRouter-only routing configuration usage.
+
+        Returns:
+            ModelEndpointConfig: Validated endpoint configuration.
+
+        Raises:
+            ValueError: If OpenRouter routing config is invalid for this endpoint.
+        """
+        is_openrouter = "openrouter.ai" in self.base_url.lower()
+        if self.openrouter_provider is not None and not is_openrouter:
+            raise ValueError(
+                "openrouter_provider is only valid for OpenRouter endpoints"
+            )
+        if is_openrouter and self.openrouter_provider is None:
+            self.openrouter_provider = OpenRouterProviderRoutingConfig(
+                require_parameters=True
+            )
+        if (
+            is_openrouter
+            and self.openrouter_provider is not None
+            and not self.openrouter_provider.require_parameters
+        ):
+            raise ValueError(
+                "openrouter_provider.require_parameters must be true "
+                "for tool-only runtime"
+            )
+        return self
 
 
 class EndpointSetConfig(BaseSchema):

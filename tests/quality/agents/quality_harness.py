@@ -12,6 +12,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.settings import ModelSettings
 
+from rentl_agents.providers import detect_provider
 from rentl_agents.runtime import ProfileAgentConfig
 
 
@@ -75,10 +76,9 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         base_url=config.base_url,
         model_id=config.model_id,
         temperature=0.2,
-        timeout_s=15.0,
-        max_retries=0,
-        retry_base_delay=1.0,
-        output_mode="tool",
+        timeout_s=60.0,  # Increased for OpenRouter latency
+        max_retries=2,  # Add retries for OpenRouter
+        retry_base_delay=2.0,
         max_output_retries=4,
         max_requests_per_run=10,
         end_strategy="exhaustive",
@@ -92,7 +92,9 @@ def build_judge_model(config: QualityModelConfig) -> OpenAIChatModel:
     Returns:
         Judge model instance.
     """
-    if "openrouter.ai" in config.judge_base_url:
+    capabilities = detect_provider(config.judge_base_url)
+
+    if capabilities.name == "OpenRouter":
         provider = OpenRouterProvider(api_key=config.api_key)
     else:
         provider = OpenAIProvider(
@@ -109,3 +111,24 @@ def build_judge_settings() -> ModelSettings:
         Judge model settings.
     """
     return ModelSettings(temperature=0.0, max_tokens=200)
+
+
+def verify_openrouter_tool_calling(config: QualityModelConfig) -> tuple[bool, str]:
+    """Verify OpenRouter endpoints use correct provider and support tools.
+
+    Args:
+        config: Quality model configuration.
+
+    Returns:
+        Tuple of (success, message).
+    """
+    capabilities = detect_provider(config.judge_base_url)
+
+    if "openrouter.ai" in config.judge_base_url:
+        if capabilities.name != "OpenRouter":
+            return False, f"Expected OpenRouter provider, got {capabilities.name}"
+        if not capabilities.supports_tool_calling:
+            return False, "OpenRouter should support tool calling"
+        return True, f"OpenRouter provider detected correctly with {capabilities.name}"
+
+    return True, f"Non-OpenRouter endpoint: {capabilities.name}"

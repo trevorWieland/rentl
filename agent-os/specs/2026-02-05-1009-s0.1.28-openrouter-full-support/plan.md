@@ -4,84 +4,114 @@ version: v0.1
 
 # Plan: OpenRouter Full Support
 
-## Task 1: Save Spec Documentation
+## Decision Record (Why This Refactor Exists)
 
-Create `agent-os/specs/2026-02-05-1009-s0.1.28-openrouter-full-support/` with:
-- **plan.md** — This full plan
-- **shape.md** — Shaping notes (scope, decisions, context)
-- **standards.md** — Relevant standards that apply
-- **references.md** — Pointers to reference implementations studied
-- **visuals/** — Any mockups or screenshots provided (none)
+Recent investigation found that reliability failures are not solved by model-specific hacks; they are architecture mismatches:
 
-## Task 2: Audit provider routing, output modes, and tool usage
+- Quality evals and production currently exercise different output paths.
+- `output_mode="auto"` can route OpenRouter traffic to non-tool-first behavior.
+- OpenRouter provider routing is heterogeneous; endpoints can differ on `tools` and `tool_choice` support.
+- Rentl currently uses a generic OpenAI chat path for OpenRouter in key places, limiting use of OpenRouter-native routing controls.
 
-- Review provider detection logic in `packages/rentl-agents/src/rentl_agents/runtime.py` and
-  `packages/rentl-llm/src/rentl_llm/openai_runtime.py`.
-- Map current behavior for OpenRouter vs OpenAI vs local endpoints (output_mode auto selection,
-  tool gating, required_tool_calls flow).
-- Identify mismatches between agent runtime and BYOK runtime provider detection or model settings.
+Decision for this spec:
 
-## Task 3: Centralize provider detection + capability mapping
+- Remove `auto`, `prompted`, and `native` from runtime behavior.
+- Enforce tool output everywhere (`output_mode=tool` semantics only).
+- Enforce OpenRouter provider parameter support (`require_parameters=true`) so routing excludes incompatible endpoints.
+- Migrate OpenRouter calls to `OpenRouterModel` where available to use typed OpenRouter settings.
+- Keep implementation provider-agnostic and strictly typed (no model hardcoding, no `Any`/`object`).
 
-- Add a shared helper for provider detection and capability flags (tool_choice support,
-  response_format support, native structured output) in a shared module
-  (e.g. `packages/rentl-llm/src/rentl_llm/providers.py` or `packages/rentl-agents/src/rentl_agents/providers.py`).
-- Use this helper across agent runtime and BYOK runtime to keep provider handling consistent.
-- Ensure detection uses base_url normalization (OpenRouter, localhost, OpenAI default).
+## Task 1: Update Spec Artifacts
 
-## Task 4: Normalize auto output mode selection
+- Update this plan with the tool-only strategy and migration rationale.
+- Ensure `shape.md` and acceptance language no longer depends on mixed output modes.
 
-- Update `ProfileAgent` output_mode auto-selection in
-  `packages/rentl-agents/src/rentl_agents/runtime.py` to use capability mapping.
-- Enforce clear errors when an explicit output_mode is incompatible with the provider.
-- Keep auto mode deterministic and provider-safe (no hidden fallbacks).
+## Task 2: Collapse Runtime to Tool-Only Output
 
-## Task 5: Ensure tool-call reliability across providers
+- Refactor `packages/rentl-agents/src/rentl_agents/runtime.py` so agent execution always uses tool output.
+- Remove `PromptedOutput` execution path and all output-mode branching in runtime logic.
+- Preserve required-tool gating (`prepare_output_tools`) and `end_strategy="exhaustive"` behavior.
+- Remove/replace `OutputMode` union values that are no longer valid.
 
-- Confirm tools are available and callable in all output modes (prompted/tool/native).
-- Verify `required_tool_calls` gating does not block tool availability on prompted output.
-- Add or adjust runtime safeguards when OpenRouter or local models ignore tool naming.
+## Task 3: Simplify Provider Capability Logic for Tool-Only
 
-## Task 6: Bring OpenAI-compatible runtime to OpenRouter parity
+- Refactor `packages/rentl-agents/src/rentl_agents/providers.py`:
+  - remove auto/prompted/native recommendation logic,
+  - keep provider detection and tool-capability checks,
+  - expose a tool-only compatibility assertion with actionable error text.
+- Ensure detection handles OpenRouter/OpenAI/local/private-IP endpoints consistently.
 
-- Update `packages/rentl-llm/src/rentl_llm/openai_runtime.py` to select
-  `OpenRouterProvider` when base_url targets OpenRouter.
-- Ensure model settings (timeouts, tokens, reasoning effort) remain consistent across providers.
+## Task 4: Add Strictly-Typed OpenRouter Routing Settings in Config
 
-## Task 7: Improve provider-specific errors + telemetry
+- Extend `packages/rentl-schemas/src/rentl_schemas/config.py` with explicit OpenRouter provider routing schema fields (all `Field(..., description=...)`):
+  - include `require_parameters` (default `true`),
+  - optional routing controls such as `order`, `only`, `ignore`, `allow_fallbacks`, `sort`.
+- Add validation so OpenRouter-only config is not accepted for non-OpenRouter endpoints.
+- Ensure schema and validators follow `@agent-os/standards/python/strict-typing-enforcement.md`.
 
-- Update provider mismatch errors in `packages/rentl-agents/src/rentl_agents/runtime.py`
-  to include provider name and guidance (e.g., recommended output mode or endpoint fix).
-- Ensure telemetry/log messages are actionable and do not leak secrets.
+## Task 5: Propagate OpenRouter Settings Through Agent Wiring
 
-## Task 8: Tests for provider parity + switching behavior
+- Extend `ProfileAgentConfig` in `packages/rentl-agents/src/rentl_agents/runtime.py` to carry typed OpenRouter routing settings.
+- Update config assembly in `packages/rentl-agents/src/rentl_agents/wiring.py` and `scripts/validate_agents.py` to pass these settings from endpoint config to runtime.
+- Remove CLI/config pathways for selecting non-tool output behavior.
 
-- Unit tests in `tests/unit/rentl-agents/test_profile_agent_execute.py`:
-  - Output_mode auto selection uses capability mapping.
-  - Explicit incompatible output_mode raises clear error.
-- Integration tests in `tests/integration/byok/test_openai_runtime.py`:
-  - OpenRouter base_url selects OpenRouter provider.
-  - Provider switching via endpoint_ref remains config-only.
-- Quality harness checks in `tests/quality/agents/quality_harness.py`:
-  - OpenRouter base_url uses OpenRouter provider and tool calling remains enabled.
+## Task 6: Use OpenRouterModel for OpenRouter Endpoints
 
-## Task 9: Verification - Run make all
+- Update agent runtime model selection in `packages/rentl-agents/src/rentl_agents/runtime.py`:
+  - use `OpenRouterModel` for OpenRouter endpoints,
+  - use `OpenAIChatModel` for non-OpenRouter OpenAI-compatible endpoints.
+- Update BYOK runtime in `packages/rentl-llm/src/rentl_llm/openai_runtime.py` similarly.
+- Forward typed OpenRouter provider settings (`require_parameters=true` baseline) to model settings.
 
-Run `make all` to ensure all code passes quality checks:
-- Format code with ruff
-- Check linting rules
-- Type check with ty
-- Run unit tests
-- Run integration tests
-- Run quality tests
+## Task 7: Enforce Required Tool Usage Declaratively
 
-This task MUST pass before the spec is considered complete. Failures must be fixed and re-run
-until `make all` passes.
+- Extend agent profile schema (`packages/rentl-schemas/src/rentl_schemas/agents.py`) to support declarative required tools (e.g., `tools.required`).
+- Validate `required ⊆ allowed` at schema level.
+- Update agent TOML profiles in `packages/rentl-agents/agents/**/*.toml` to declare required tools where correctness depends on tool data.
+- Wire required-tool declarations into `ProfileAgentConfig.required_tool_calls`.
+
+## Task 8: Align Quality Harness and Production Execution
+
+- Remove any quality-only behavior that differs from production runtime assumptions.
+- Ensure quality harness (`tests/quality/agents/quality_harness.py`) and production both execute the same tool-only path.
+- Add explicit checks that OpenRouter runs include provider constraints required for tool reliability.
+
+## Task 9: Strengthen Errors and Telemetry for Tool Reliability
+
+- Update runtime errors to be tool-mode specific (no output-mode recommendations that no longer exist).
+- Include provider family, endpoint type, and tool compatibility context in failures (without leaking secrets).
+- Add telemetry markers useful for postmortems: provider detected, tool calls observed, required tools satisfied.
+
+## Task 10: Comprehensive Test Refactor
+
+- Update and/or replace tests that currently assert `auto` or `prompted` behavior:
+  - `tests/unit/rentl-agents/test_profile_agent_execute.py`
+  - `tests/unit/rentl-agents/test_providers.py`
+  - `tests/quality/agents/quality_harness.py`
+  - `scripts/validate_agents.py` argument parsing tests (if present)
+- Add schema tests in `tests/unit/schemas/test_config.py` and related suites for OpenRouter routing settings and required tool declarations.
+- Keep integration coverage for OpenRouter runtime/provider selection in:
+  - `tests/integration/byok/test_openrouter_runtime.py`
+  - `tests/integration/byok/test_openai_runtime.py`
+
+## Task 11: Verification - Run make all
+
+Run `make all` and resolve all failures:
+
+- format/lint (`ruff`)
+- strict type checks (`ty`)
+- unit tests
+- integration tests
+- quality tests
+
+This task MUST pass before the spec is complete.
 
 ## Acceptance Checks
 
-- OpenRouter and local models both execute agents with tools enabled and structured outputs validated.
-- Switching providers only requires config changes (no prompt/profile edits).
-- Output mode auto-selection is deterministic and provider-compatible.
-- Provider errors are explicit and actionable in logs/telemetry.
-- Tests cover provider detection, output mode decisions, and tool-call success paths.
+- Tool output is the only runtime output path; no operational dependency on `auto`, `prompted`, or `native`.
+- OpenRouter requests for agent execution include provider constraints that require parameter support (including tool params).
+- OpenRouter endpoints are executed through `OpenRouterModel` with typed settings propagation.
+- Required tool calls are enforced declaratively and validated end-to-end.
+- Quality and production exercise the same tool-only behavior.
+- Errors and telemetry are actionable for diagnosing provider/tool-call failures.
+- All checks in `make all` pass.
