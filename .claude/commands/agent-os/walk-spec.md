@@ -49,6 +49,7 @@ Manual validation checklist (confirm each):
 
 - Share PR URL
 - Note any follow-ups
+- Update the existing “Spec Progress” comment on the issue with the PR link (do not post new comments)
 
 ## Success Criteria
 

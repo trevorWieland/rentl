@@ -32,14 +32,34 @@ If the user provided an issue number, URL, or spec id:
 1. Fetch the issue via `gh issue view` to get title, body, labels, milestone, and relationships.
 2. Extract `spec_id`, `version` (from `version:*` label), and dependencies (blocked-by relationships).
 
+### Step 1.5: Plan Mode Boundary
+
+Plan mode is discussion only. Do **not** create branches or write files while in plan mode.
+Branch creation, spec docs, and commits happen after the user switches to build mode.
+
 If no issue was provided, use question to confirm:
 
 ```
 Do you want me to create a new spec issue on GitHub before shaping?
 
-1. Yes — create an issue now
-2. No — I will provide an existing issue
+1. I have an existing issue
+2. Create a new issue now
+3. Pick the next best issue from the roadmap
 ```
+
+If picking the next best issue:
+
+1. Query GitHub for unblocked issues with `type:spec` and `status:planned`:
+
+```
+gh issue list --label "type:spec" --label "status:planned" --json number,title,labels,milestone,body,updatedAt --limit 50
+```
+2. Prefer the earliest version milestone (v0.1 → v1.0).
+3. Present the top 3 candidates and pick the user’s choice.
+
+If using an existing issue:
+
+1. Ask for the issue number or URL.
 
 If creating a new issue:
 
@@ -95,6 +115,12 @@ YYYY-MM-DD-HHMM-{spec_id}-{feature-slug}/
 
 Task 1 must always be **Save Spec Documentation**. Final task must run `make all`.
 
+Plan quality requirements:
+
+- Each task must include concrete steps and referenced files (paths or modules).
+- Include test expectations per task where relevant.
+- Add acceptance checks tied to user value.
+
 ### Step 9: Save Spec Metadata
 
 Include these fields at the top of `plan.md` and `shape.md`:
@@ -105,11 +131,25 @@ issue: https://github.com/OWNER/REPO/issues/NNN
 version: vX.Y
 ```
 
-### Step 10: Save Spec Docs and Commit
+### Step 10: Switch to Build Mode
 
-1. Create the spec folder and write `plan.md`, `shape.md`, `standards.md`, `references.md`, and any visuals.
-2. Commit **only** the spec docs on the issue branch.
-3. Post the spec folder path and plan link to the GitHub issue.
+Prompt the user to switch out of plan mode. Only proceed once confirmed.
+
+### Step 11: Create Branch, Save Spec Docs, Commit, and Publish (Build Mode)
+
+1. Create the issue branch via `gh issue develop` and check it out.
+2. Create the spec folder and write `plan.md`, `shape.md`, `standards.md`, `references.md`, and any visuals.
+3. Commit **only** the spec docs on the issue branch.
+4. Update the **issue body** (do not post a new comment) with a “Spec Summary” section that includes:
+   - Spec folder path
+   - Plan summary (tasks and acceptance checks)
+   - References and standards applied
+5. Push the branch with `-u` to publish it.
+
+### Step 12: Stop and Handoff
+
+Do not start implementation.
+Next step is `/do-spec`.
 
 ## Output Structure
 

@@ -288,13 +288,15 @@ def create_context_agent_from_profile(
     if tool_registry is None:
         tool_registry = get_default_registry()
 
+    runtime_config = _with_required_tools_from_profile(config, profile)
+
     # Create the ProfileAgent
     profile_agent: ProfileAgent[ContextPhaseInput, SceneSummary] = ProfileAgent(
         profile=profile,
         output_type=SceneSummary,
         layer_registry=layer_registry,
         tool_registry=tool_registry,
-        config=config,
+        config=runtime_config,
         telemetry_emitter=telemetry_emitter,
     )
 
@@ -331,6 +333,16 @@ def get_default_agents_dir() -> Path:
     # Agents are in: packages/rentl-agents/agents/
     package_root = Path(__file__).parent.parent.parent  # Up to rentl-agents/
     return package_root / "agents"
+
+
+def _with_required_tools_from_profile(
+    config: ProfileAgentConfig,
+    profile: AgentProfileConfig,
+) -> ProfileAgentConfig:
+    required_tools = profile.tools.required
+    if not required_tools:
+        return config
+    return config.model_copy(update={"required_tool_calls": list(required_tools)})
 
 
 class PretranslationIdiomLabelerAgent:
@@ -478,6 +490,8 @@ def create_pretranslation_agent_from_profile(
     if tool_registry is None:
         tool_registry = get_default_registry()
 
+    runtime_config = _with_required_tools_from_profile(config, profile)
+
     # Create the ProfileAgent
     profile_agent: ProfileAgent[PretranslationPhaseInput, IdiomAnnotationList] = (
         ProfileAgent(
@@ -485,7 +499,7 @@ def create_pretranslation_agent_from_profile(
             output_type=IdiomAnnotationList,
             layer_registry=layer_registry,
             tool_registry=tool_registry,
-            config=config,
+            config=runtime_config,
             telemetry_emitter=telemetry_emitter,
         )
     )
@@ -652,6 +666,8 @@ def create_translate_agent_from_profile(
     if tool_registry is None:
         tool_registry = get_default_registry()
 
+    runtime_config = _with_required_tools_from_profile(config, profile)
+
     # Create the ProfileAgent
     profile_agent: ProfileAgent[TranslatePhaseInput, TranslationResultList] = (
         ProfileAgent(
@@ -659,7 +675,7 @@ def create_translate_agent_from_profile(
             output_type=TranslationResultList,
             layer_registry=layer_registry,
             tool_registry=tool_registry,
-            config=config,
+            config=runtime_config,
             telemetry_emitter=telemetry_emitter,
         )
     )
@@ -839,13 +855,15 @@ def create_qa_agent_from_profile(
     if tool_registry is None:
         tool_registry = get_default_registry()
 
+    runtime_config = _with_required_tools_from_profile(config, profile)
+
     # Create the ProfileAgent
     profile_agent: ProfileAgent[QaPhaseInput, StyleGuideReviewList] = ProfileAgent(
         profile=profile,
         output_type=StyleGuideReviewList,
         layer_registry=layer_registry,
         tool_registry=tool_registry,
-        config=config,
+        config=runtime_config,
         telemetry_emitter=telemetry_emitter,
     )
 
@@ -1050,12 +1068,14 @@ def create_edit_agent_from_profile(
     if tool_registry is None:
         tool_registry = get_default_registry()
 
+    runtime_config = _with_required_tools_from_profile(config, profile)
+
     profile_agent: ProfileAgent[EditPhaseInput, TranslationResultLine] = ProfileAgent(
         profile=profile,
         output_type=TranslationResultLine,
         layer_registry=layer_registry,
         tool_registry=tool_registry,
-        config=config,
+        config=runtime_config,
         telemetry_emitter=telemetry_emitter,
     )
 
@@ -1438,6 +1458,7 @@ def _build_profile_agent_config(
         temperature=model_settings.temperature,
         top_p=model_settings.top_p,
         timeout_s=endpoint.timeout_s,
+        openrouter_provider=endpoint.openrouter_provider,
         max_output_tokens=model_settings.max_output_tokens,
         max_retries=retry_config.max_retries,
         retry_base_delay=retry_config.backoff_s,

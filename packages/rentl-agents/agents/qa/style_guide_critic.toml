@@ -107,6 +107,7 @@ Return a JSON response with:
 
 [tools]
 allowed = ["get_game_info"]
+required = ["get_game_info"]
 
 [model_hints]
 recommended = ["gpt-4o", "claude-3.5-sonnet", "claude-3-opus"]

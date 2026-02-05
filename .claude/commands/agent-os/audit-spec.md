@@ -68,7 +68,7 @@ Include rubric scores, standards violations, and action items grouped by categor
 
 ### Step 6: Report to GitHub (Optional)
 
-Post a summary comment on the spec issue with:
+Update the existing “Spec Progress” comment on the spec issue (create it once if missing) with:
 - Overall score and status
 - Fix Now count
 - Deferred issue links

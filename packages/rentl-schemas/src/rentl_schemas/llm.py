@@ -7,7 +7,7 @@ from enum import StrEnum
 from pydantic import Field
 
 from rentl_schemas.base import BaseSchema
-from rentl_schemas.config import RetryConfig
+from rentl_schemas.config import OpenRouterProviderRoutingConfig, RetryConfig
 from rentl_schemas.primitives import PhaseName, ReasoningEffort
 
 
@@ -31,6 +31,10 @@ class LlmEndpointTarget(BaseSchema):
         ..., min_length=1, description="Environment variable for API key"
     )
     timeout_s: float = Field(..., gt=0, description="Request timeout in seconds")
+    openrouter_provider: OpenRouterProviderRoutingConfig | None = Field(
+        None,
+        description="Optional OpenRouter provider routing controls",
+    )
 
 
 class LlmModelSettings(BaseSchema):

@@ -14,6 +14,7 @@ from rentl_schemas.config import (
     LogSinkConfig,
     ModelEndpointConfig,
     ModelSettings,
+    OpenRouterProviderRoutingConfig,
     PhaseConfig,
     PhaseExecutionConfig,
     PipelineConfig,
@@ -344,6 +345,43 @@ def test_model_endpoint_config_accepts_http_url() -> None:
         api_key_env="TEST_KEY",
     )
     assert endpoint.base_url == "http://localhost:8002/api/v1"
+
+
+def test_model_endpoint_config_defaults_openrouter_provider() -> None:
+    """Ensure OpenRouter endpoints default require_parameters to true."""
+    endpoint = ModelEndpointConfig(
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_KEY",
+    )
+    assert endpoint.openrouter_provider is not None
+    assert endpoint.openrouter_provider.require_parameters is True
+
+
+def test_model_endpoint_config_rejects_openrouter_provider_on_non_openrouter() -> None:
+    """Ensure OpenRouter routing config is rejected for non-OpenRouter endpoints."""
+    with pytest.raises(ValidationError):
+        ModelEndpointConfig(
+            provider_name="local",
+            base_url="http://localhost:8002/v1",
+            api_key_env="LOCAL_KEY",
+            openrouter_provider=OpenRouterProviderRoutingConfig(
+                require_parameters=True
+            ),
+        )
+
+
+def test_model_endpoint_config_rejects_openrouter_require_parameters_false() -> None:
+    """Ensure OpenRouter endpoints cannot disable required-parameter routing."""
+    with pytest.raises(ValidationError):
+        ModelEndpointConfig(
+            provider_name="openrouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key_env="OPENROUTER_KEY",
+            openrouter_provider=OpenRouterProviderRoutingConfig(
+                require_parameters=False
+            ),
+        )
 
 
 def test_model_endpoint_config_appends_v1_for_root_url() -> None:

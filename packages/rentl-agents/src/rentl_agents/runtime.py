@@ -8,44 +8,40 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import Literal, TypeVar
+from typing import Literal, TypeVar, cast
 from uuid import UUID, uuid7
 
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import ModelResponse, ToolCallPart
-from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
-from pydantic_ai.output import OutputSpec, PromptedOutput
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterProviderConfig
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.usage import RunUsage, UsageLimits
 
 from rentl_agents.layers import PromptComposer, PromptLayerRegistry
+from rentl_agents.providers import (
+    ProviderCapabilities,
+    assert_tool_compatibility,
+    build_provider_error_message,
+    detect_provider,
+)
 from rentl_agents.templates import TemplateContext
 from rentl_agents.tools.registry import ToolRegistry
 from rentl_core import AgentTelemetryEmitter
 from rentl_core.ports.orchestrator import PhaseAgentProtocol
 from rentl_schemas.agents import AgentProfileConfig
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.config import OpenRouterProviderRoutingConfig
 from rentl_schemas.events import ProgressEvent
 from rentl_schemas.primitives import PhaseName, RunId
 from rentl_schemas.progress import AgentStatus, AgentTelemetry, AgentUsageTotals
 
 InputT = TypeVar("InputT", bound=BaseSchema)
 OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
-
-# Output mode for structured output
-# - "auto": Auto-detect based on provider (recommended)
-# - "prompted": Uses response_format with json_schema (OpenRouter, most cloud APIs)
-# - "tool": Uses tool calling with tool_choice:required (LM Studio, OpenAI)
-# - "native": Uses model's native structured output (OpenAI only)
-#
-# Provider compatibility:
-# - OpenRouter: "prompted" (no tool_choice:required support)
-# - LM Studio: "tool" (has tool_choice:required, json_schema may have issues)
-# - OpenAI: both work, "tool" is default pydantic-ai behavior
-OutputMode = Literal["auto", "prompted", "tool", "native"]
 
 DEFAULT_MAX_OUTPUT_TOKENS = 4096
 
@@ -65,7 +61,7 @@ class ProfileAgentConfig(BaseSchema):
     max_output_tokens: int | None = None
     max_retries: int = 2  # Retries for transient errors only (network, rate limits)
     retry_base_delay: float = 2.0
-    output_mode: OutputMode = "auto"  # Auto-detect based on provider
+    openrouter_provider: OpenRouterProviderRoutingConfig | None = None
     # Safeguards against infinite loops - FAIL LOUDLY when exceeded
     # Note: pydantic-ai default is 50, but we use a lower limit to control costs
     # and detect problematic prompts/schemas earlier
@@ -157,6 +153,9 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
         phase = PhaseName(self._profile.meta.phase)
         target_language = getattr(payload, "target_language", None)
         started_at = _now_timestamp()
+        provider = detect_provider(self._config.base_url)
+        provider_detected = _build_provider_detected(provider)
+        endpoint_type = _build_endpoint_type(provider)
         if self._telemetry_emitter is not None:
             await _emit_agent_update(
                 self._telemetry_emitter,
@@ -172,6 +171,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                     started_at=started_at,
                     completed_at=None,
                     usage=None,
+                    provider_detected=provider_detected,
+                    endpoint_type=endpoint_type,
+                    tool_calls_observed=None,
+                    required_tools_satisfied=None,
                     message="Agent started",
                 ),
                 timestamp=started_at,
@@ -181,6 +184,12 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
         for attempt in range(1, max_attempts + 1):
             try:
                 output, usage = await self._execute(payload)
+                tool_calls_observed, required_tools_satisfied = (
+                    _build_tool_reliability_markers(
+                        usage=usage,
+                        required_tool_calls=self._config.required_tool_calls,
+                    )
+                )
                 completed_at = _now_timestamp()
                 if self._telemetry_emitter is not None:
                     await _emit_agent_update(
@@ -197,12 +206,20 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             started_at=started_at,
                             completed_at=completed_at,
                             usage=usage,
+                            provider_detected=provider_detected,
+                            endpoint_type=endpoint_type,
+                            tool_calls_observed=tool_calls_observed,
+                            required_tools_satisfied=required_tools_satisfied,
                             message="Agent completed",
                         ),
                         timestamp=completed_at,
                     )
                 return output
             except UsageLimitExceeded as e:
+                _, required_tools_satisfied = _build_tool_reliability_markers(
+                    usage=None,
+                    required_tool_calls=self._config.required_tool_calls,
+                )
                 completed_at = _now_timestamp()
                 if self._telemetry_emitter is not None:
                     await _emit_agent_update(
@@ -219,6 +236,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             started_at=started_at,
                             completed_at=completed_at,
                             usage=None,
+                            provider_detected=provider_detected,
+                            endpoint_type=endpoint_type,
+                            tool_calls_observed=None,
+                            required_tools_satisfied=required_tools_satisfied,
                             message=f"Agent hit request limit: {e}",
                         ),
                         timestamp=completed_at,
@@ -234,6 +255,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                     f"Details: {e}"
                 ) from e
             except UnexpectedModelBehavior as e:
+                _, required_tools_satisfied = _build_tool_reliability_markers(
+                    usage=None,
+                    required_tool_calls=self._config.required_tool_calls,
+                )
                 completed_at = _now_timestamp()
                 if self._telemetry_emitter is not None:
                     await _emit_agent_update(
@@ -250,6 +275,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             started_at=started_at,
                             completed_at=completed_at,
                             usage=None,
+                            provider_detected=provider_detected,
+                            endpoint_type=endpoint_type,
+                            tool_calls_observed=None,
+                            required_tools_satisfied=required_tools_satisfied,
                             message=f"Agent produced invalid output: {e}",
                         ),
                         timestamp=completed_at,
@@ -281,6 +310,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                                 started_at=started_at,
                                 completed_at=None,
                                 usage=None,
+                                provider_detected=provider_detected,
+                                endpoint_type=endpoint_type,
+                                tool_calls_observed=None,
+                                required_tools_satisfied=None,
                                 message=f"Retrying after error: {exc}",
                             ),
                             timestamp=_now_timestamp(),
@@ -289,6 +322,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                     await asyncio.sleep(delay)
                     continue
                 completed_at = _now_timestamp()
+                _, required_tools_satisfied = _build_tool_reliability_markers(
+                    usage=None,
+                    required_tool_calls=self._config.required_tool_calls,
+                )
                 if self._telemetry_emitter is not None:
                     await _emit_agent_update(
                         self._telemetry_emitter,
@@ -304,6 +341,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             started_at=started_at,
                             completed_at=completed_at,
                             usage=None,
+                            provider_detected=provider_detected,
+                            endpoint_type=endpoint_type,
+                            tool_calls_observed=None,
+                            required_tools_satisfied=required_tools_satisfied,
                             message=f"Agent execution failed: {exc}",
                         ),
                         timestamp=completed_at,
@@ -326,6 +367,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
 
         Returns:
             Agent output.
+
+        Raises:
+            RuntimeError: If provider is incompatible with tool-only runtime
+                requirements.
         """
         # Build prompts from layers
         system_prompt = self._composer.compose_system_prompt(
@@ -352,48 +397,57 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             self._profile.tools.allowed
         )
 
-        # Detect provider from base_url
+        # Detect provider and enforce tool-only compatibility
         base_url = self._config.base_url
-        is_openrouter = "openrouter.ai" in base_url
+        try:
+            capabilities = assert_tool_compatibility(base_url)
+        except ValueError as e:
+            error_msg = build_provider_error_message(
+                "tool_incompatible",
+                base_url,
+            )
+            raise RuntimeError(error_msg) from e
 
-        # Create pydantic-ai provider and model
-        if is_openrouter:
+        # Create provider/model with OpenRouter-specific settings when applicable
+        if capabilities.is_openrouter:
             provider = OpenRouterProvider(api_key=self._config.api_key)
+            model = OpenRouterModel(self._config.model_id, provider=provider)
+            model_settings = cast(
+                ModelSettings,
+                {
+                    "temperature": self._config.temperature,
+                    "top_p": self._config.top_p,
+                    "timeout": self._config.timeout_s,
+                    "openrouter_provider": _build_openrouter_provider_settings(
+                        self._config.openrouter_provider
+                    ),
+                },
+            )
         else:
             provider = OpenAIProvider(
                 base_url=base_url,
                 api_key=self._config.api_key,
             )
-        model = OpenAIChatModel(self._config.model_id, provider=provider)
+            model = OpenAIChatModel(self._config.model_id, provider=provider)
+            model_settings = cast(
+                ModelSettings,
+                {
+                    "temperature": self._config.temperature,
+                    "top_p": self._config.top_p,
+                    "timeout": self._config.timeout_s,
+                },
+            )
 
-        model_settings: OpenAIChatModelSettings = {
-            "temperature": self._config.temperature,
-            "top_p": self._config.top_p,
-            "timeout": self._config.timeout_s,
-        }
         max_output_tokens = self._config.max_output_tokens
         if max_output_tokens is None:
             max_output_tokens = DEFAULT_MAX_OUTPUT_TOKENS
         model_settings["max_tokens"] = max_output_tokens
 
-        # Resolve output mode - auto-detect based on provider if "auto"
-        output_mode = self._config.output_mode
-        if output_mode == "auto":
-            # OpenRouter doesn't support tool_choice:required, use prompted mode
-            # All other providers use tool mode for structured output
-            output_mode = "prompted" if is_openrouter else "tool"
-
-        # Configure output type based on resolved output mode
-        output_spec: OutputSpec[OutputT_co]
-        if output_mode == "prompted":
-            output_spec = PromptedOutput(self._output_type)
-        else:
-            # Tool-based output (default pydantic-ai behavior)
-            output_spec = self._output_type
-
         prepare_output_tools = None
+        end_strategy: Literal["early", "exhaustive"] = self._config.end_strategy
         if self._config.required_tool_calls:
             required_tools = set(self._config.required_tool_calls)
+            end_strategy = "exhaustive"
 
             async def _prepare_output_tools(
                 ctx: RunContext[None],
@@ -418,10 +472,10 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
         agent: Agent[None, OutputT_co] = Agent[None, OutputT_co](
             model=model,
             instructions=system_prompt,
-            output_type=output_spec,
+            output_type=self._output_type,
             tools=tool_callables,
             output_retries=self._config.max_output_retries,
-            end_strategy=self._config.end_strategy,
+            end_strategy=end_strategy,
             prepare_output_tools=prepare_output_tools,
         )
 
@@ -445,6 +499,19 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
         return result.output, usage
 
 
+def _build_openrouter_provider_settings(
+    config: OpenRouterProviderRoutingConfig | None,
+) -> OpenRouterProviderConfig:
+    """Build OpenRouter provider routing settings with safe defaults.
+
+    Returns:
+        OpenRouterProviderConfig: Provider routing payload.
+    """
+    resolved = config or OpenRouterProviderRoutingConfig(require_parameters=True)
+    payload = resolved.model_dump(mode="python", exclude_none=True)
+    return cast(OpenRouterProviderConfig, payload)
+
+
 def _build_usage_totals(usage: RunUsage | None) -> AgentUsageTotals | None:
     if usage is None or not usage.has_values():
         return None
@@ -455,6 +522,35 @@ def _build_usage_totals(usage: RunUsage | None) -> AgentUsageTotals | None:
         request_count=usage.requests,
         tool_calls=usage.tool_calls,
     )
+
+
+def _build_provider_detected(provider: ProviderCapabilities) -> str:
+    if provider.is_openrouter:
+        return "openrouter"
+    if provider.name == "OpenAI":
+        return "openai"
+    if provider.name == "Local/OpenResponses":
+        return "local"
+    return "openai-compatible"
+
+
+def _build_endpoint_type(provider: ProviderCapabilities) -> str:
+    if provider.name == "Local/OpenResponses":
+        return "private"
+    return "public"
+
+
+def _build_tool_reliability_markers(
+    *,
+    usage: AgentUsageTotals | None,
+    required_tool_calls: list[str] | None,
+) -> tuple[bool | None, bool | None]:
+    tool_calls_observed = usage.tool_calls > 0 if usage is not None else None
+    if not required_tool_calls:
+        return tool_calls_observed, None
+    if usage is None:
+        return tool_calls_observed, False
+    return tool_calls_observed, usage.tool_calls >= len(required_tool_calls)
 
 
 def _build_agent_run_id(agent_name: str) -> str:

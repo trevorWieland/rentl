@@ -74,6 +74,22 @@ class AgentTelemetry(BaseSchema):
     usage: AgentUsageTotals | None = Field(
         None, description="Usage totals for the invocation"
     )
+    provider_detected: str | None = Field(
+        None,
+        description="Detected provider family for this invocation",
+    )
+    endpoint_type: str | None = Field(
+        None,
+        description="Endpoint type classification (public or private)",
+    )
+    tool_calls_observed: bool | None = Field(
+        None,
+        description="Whether at least one tool call was observed",
+    )
+    required_tools_satisfied: bool | None = Field(
+        None,
+        description="Whether required tools were satisfied before output",
+    )
     message: str | None = Field(None, description="Optional status message")
 
 

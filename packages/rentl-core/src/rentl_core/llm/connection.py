@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from time import monotonic
@@ -11,6 +12,7 @@ from rentl_core.ports.llm import LlmRuntimeProtocol
 from rentl_schemas.config import (
     ModelEndpointConfig,
     ModelSettings,
+    OpenRouterProviderRoutingConfig,
     RetryConfig,
     RunConfig,
 )
@@ -66,6 +68,7 @@ def build_connection_plan(
             str | None,
             str,
             str,
+            str | None,
             float,
             int | None,
             str | None,
@@ -264,6 +267,7 @@ def _build_endpoint_target(
         base_url=endpoint.base_url,
         api_key_env=endpoint.api_key_env,
         timeout_s=endpoint.timeout_s,
+        openrouter_provider=endpoint.openrouter_provider,
     )
 
 
@@ -305,6 +309,7 @@ def _target_key(
     str | None,
     str,
     str,
+    str | None,
     float,
     int | None,
     str | None,
@@ -321,6 +326,7 @@ def _target_key(
         endpoint.endpoint_ref,
         model.model_id,
         endpoint.base_url,
+        _serialize_openrouter_provider(endpoint.openrouter_provider),
         model.temperature,
         model.max_output_tokens,
         model.reasoning_effort,
@@ -331,6 +337,15 @@ def _target_key(
         retry.backoff_s,
         retry.max_backoff_s,
     )
+
+
+def _serialize_openrouter_provider(
+    config: OpenRouterProviderRoutingConfig | None,
+) -> str | None:
+    if config is None:
+        return None
+    payload = config.model_dump(mode="python", exclude_none=True)
+    return json.dumps(payload, sort_keys=True)
 
 
 def _build_success_result(

@@ -134,8 +134,12 @@ class ToolAccessConfig(BaseSchema):
         default_factory=list,
         description="List of allowed tool names",
     )
+    required: list[str] = Field(
+        default_factory=list,
+        description="List of tools that must be called before output",
+    )
 
-    @field_validator("allowed")
+    @field_validator("allowed", "required")
     @classmethod
     def validate_allowed_tools(cls, v: list[str]) -> list[str]:
         """Validate tool names.
@@ -155,6 +159,24 @@ class ToolAccessConfig(BaseSchema):
             if not name.replace("_", "").isalnum():
                 raise ValueError(f"Invalid tool name format: {name}")
         return v
+
+    @model_validator(mode="after")
+    def validate_required_subset(self) -> ToolAccessConfig:
+        """Validate required tools are a subset of allowed tools.
+
+        Returns:
+            ToolAccessConfig: Validated tool access config.
+
+        Raises:
+            ValueError: If required tools are not included in allowed tools.
+        """
+        required_set = set(self.required)
+        allowed_set = set(self.allowed)
+        if not required_set.issubset(allowed_set):
+            missing = sorted(required_set.difference(allowed_set))
+            joined = ", ".join(missing)
+            raise ValueError(f"required tools must be in allowed tools: {joined}")
+        return self
 
 
 class ModelHints(BaseSchema):
