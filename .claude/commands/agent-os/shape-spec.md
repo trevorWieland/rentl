@@ -14,13 +14,7 @@ Plan the work with the user. Produce all spec artifacts and push. This is the on
 
 ## Prerequisites
 
-This command must be run in plan mode.
-
-If not in plan mode, stop immediately and say:
-
-```
-Shape-spec must be run in plan mode. Please enter plan mode first, then run /shape-spec again.
-```
+Steps 1–11 are discussion only — do NOT create branches, write files, or run git commands until Step 12.
 
 ## Process
 
@@ -43,13 +37,14 @@ Do you want me to create a new spec issue on GitHub before shaping?
 
 If picking the next best issue:
 
-1. Query GitHub for unblocked issues with `type:spec` and `status:planned`:
+1. Run the candidate finder script — it resolves dependency chains and shows only the earliest milestone:
 
 ```
-gh issue list --label "type:spec" --label "status:planned" --json number,title,labels,milestone,body,updatedAt --limit 50
+python3 agent-os/scripts/list-candidates.py
 ```
-2. Prefer the earliest version milestone (v0.1 → v1.0).
-3. Present the top 3 candidates and pick the user's choice.
+
+2. Present the candidates to the user with AskUserQuestion. Do NOT do any additional research, exploration, or codebase analysis at this point — just show the script output and let the user pick.
+3. Once chosen, fetch the full issue with `gh issue view <number>`.
 
 If using an existing issue:
 
@@ -61,11 +56,7 @@ If creating a new issue:
 2. Create the issue with labels `type:spec`, `status:planned`, `version:vX.Y` and set the milestone.
 3. Use the new issue as the shaping context.
 
-### Step 2: Plan Mode Boundary
-
-Plan mode is discussion only. Do **not** create branches or write files while in plan mode. Branch creation, spec docs, and commits happen after the user switches to build mode.
-
-### Step 3: Clarify What We're Building
+### Step 2: Clarify Scope
 
 Use the issue title/body as the primary scope. Ask only if unclear:
 
@@ -73,19 +64,19 @@ Use the issue title/body as the primary scope. Ask only if unclear:
 I pulled scope from the issue. Any constraints or expected outcomes I should add?
 ```
 
-### Step 4: Gather Visuals (Optional)
+### Step 3: Gather Visuals (Optional)
 
 ```
 Any visuals to reference? (mockups, screenshots, examples, or "none")
 ```
 
-### Step 5: Reference Implementations (Optional)
+### Step 4: Reference Implementations (Optional)
 
 ```
 Is there similar code in this codebase I should reference? (paths or "none")
 ```
 
-### Step 6: Product Context (Quick Alignment)
+### Step 5: Product Context (Quick Alignment)
 
 If `agent-os/product/` exists, skim key files and ask:
 
@@ -93,11 +84,11 @@ If `agent-os/product/` exists, skim key files and ask:
 Any product goals or constraints this spec should align with?
 ```
 
-### Step 7: Standards
+### Step 6: Standards
 
 Read `agent-os/standards/index.yml` and propose relevant standards. Confirm with AskUserQuestion.
 
-### Step 8: Non-Negotiables
+### Step 7: Non-Negotiables
 
 Non-negotiables are the things auditors must never compromise on. They go into spec.md under **Note to Code Auditors** and are checked by every audit command in the lifecycle.
 
@@ -119,7 +110,7 @@ Here are proposed non-negotiables for this spec:
 Would you adjust any of these?
 ```
 
-### Step 9: Define Acceptance Criteria
+### Step 8: Define Acceptance Criteria
 
 Draft acceptance criteria for spec.md. These are the contract — they define when the spec is done. Each criterion should be:
 
@@ -129,7 +120,7 @@ Draft acceptance criteria for spec.md. These are the contract — they define wh
 
 Present to the user for confirmation.
 
-### Step 10: Demo Plan
+### Step 9: Demo Plan
 
 Every spec must include a demo plan in demo.md. The demo is the chance to prove the feature works interactively — not through passing tests, but by actually using the feature the way a user would.
 
@@ -168,11 +159,11 @@ The demo plan is used by every subsequent command:
 - `audit-spec` verifies the demo was run and passed
 - `walk-spec` walks the user through the demo interactively
 
-### Step 11: Task Plan
+### Step 10: Task Plan
 
 Structure the implementation as a checklist in plan.md. Use the demo plan to inform what tests are needed — the test suite should guarantee the demo will pass.
 
-Task 1 must always be **Save Spec Documentation** (shape-spec completes this task during the commit step — see Step 14). The final task should be the last implementation task. Do not add a task for running the verification gate — the orchestrator handles that automatically.
+Task 1 must always be **Save Spec Documentation** (shape-spec completes this task during the commit step — see Step 12). The final task should be the last implementation task. Do not add a task for running the verification gate — the orchestrator handles that automatically.
 
 Plan quality requirements:
 
@@ -184,7 +175,7 @@ Think backwards from the demo: what would need to be tested to guarantee each de
 
 Present the plan to the user for confirmation.
 
-### Step 12: Spec Folder Name
+### Step 11: Spec Folder Name
 
 Create:
 
@@ -192,11 +183,7 @@ Create:
 YYYY-MM-DD-HHMM-{spec_id}-{feature-slug}/
 ```
 
-### Step 13: Switch to Build Mode
-
-Prompt the user to switch out of plan mode. Only proceed once confirmed.
-
-### Step 14: Create Branch, Save Spec Docs, Commit, and Push (Build Mode)
+### Step 12: Create Branch, Save Spec Docs, Commit, and Push
 
 1. Create the issue branch via `gh issue develop` and check it out.
 2. Create the spec folder and write all spec files:
@@ -215,7 +202,7 @@ Prompt the user to switch out of plan mode. Only proceed once confirmed.
    - References and standards applied
 6. Push the branch with `-u` to publish it.
 
-### Step 15: Stop and Handoff
+### Step 13: Stop and Handoff
 
 Do not start implementation. The orchestrator handles everything from here.
 
@@ -287,7 +274,7 @@ version: vX.Y
   - [Test expectation]
 - [ ] Task 3: [Description]
   ...
-- [ ] Task N: Run full verification gate
+- [ ] Task N: [Last implementation task]
 ```
 
 ## File Format: demo.md
