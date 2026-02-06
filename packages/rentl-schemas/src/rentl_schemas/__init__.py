@@ -65,6 +65,12 @@ from rentl_schemas.events import (
     RunFailedData,
     RunStartedData,
 )
+from rentl_schemas.exit_codes import (
+    DOMAIN_PREFIXES,
+    ERROR_CODE_TO_EXIT_CODE,
+    ExitCode,
+    resolve_exit_code,
+)
 from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
 from rentl_schemas.llm import (
     LlmConnectionReport,
@@ -206,6 +212,8 @@ from rentl_schemas.version import VersionInfo
 __version__ = "0.1.0"
 
 __all__ = [
+    "DOMAIN_PREFIXES",
+    "ERROR_CODE_TO_EXIT_CODE",
     "PHASE_METRIC_DEFINITIONS",
     "PHASE_RESULT_METRIC_DEFINITIONS",
     "AgentEvent",
@@ -252,6 +260,7 @@ __all__ = [
     "ErrorDetails",
     "ErrorResponse",
     "EventName",
+    "ExitCode",
     "ExportCompletedData",
     "ExportEvent",
     "ExportFailedData",
@@ -371,6 +380,7 @@ __all__ = [
     "VersionInfo",
     "compute_phase_summary",
     "compute_run_summary",
+    "resolve_exit_code",
     "validate_context_input",
     "validate_context_output",
     "validate_edit_input",

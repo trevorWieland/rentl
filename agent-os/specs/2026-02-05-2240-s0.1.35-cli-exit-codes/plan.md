@@ -21,7 +21,7 @@ Exit code ranges follow a category scheme:
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit and push spec artifacts on the issue branch
 
-- [ ] Task 2: Define ExitCode Enum and Error Taxonomy Registry
+- [x] Task 2: Define ExitCode Enum and Error Taxonomy Registry
   - Create `packages/rentl-schemas/src/rentl_schemas/exit_codes.py`
   - Define `ExitCode(IntEnum)`: SUCCESS=0, CONFIG_ERROR=10, VALIDATION_ERROR=11, ORCHESTRATION_ERROR=20, INGEST_ERROR=21, EXPORT_ERROR=22, STORAGE_ERROR=23, CONNECTION_ERROR=30, RUNTIME_ERROR=99
   - Create error taxonomy registry: `ERROR_CODE_TO_EXIT_CODE: dict[str, ExitCode]` mapping every domain ErrorCode member and CLI-specific code string to its ExitCode
