@@ -46,7 +46,7 @@ Exit code ranges follow a category scheme:
   - [x] Fix: In `status`, do not catch intentional `typer.Exit` from FAILED/CANCELLED branches; allow `ExitCode.ORCHESTRATION_ERROR` to propagate (currently swallowed by `except Exception` and remapped) at `services/rentl-cli/src/rentl_cli/main.py:629` and `services/rentl-cli/src/rentl_cli/main.py:635` (audit round 1)
   - [x] Fix: Add regression test for `status --json` when run status is FAILED/CANCELLED asserting exit code `20` and a single JSON response envelope (currently returns exit `1` due `ValidationError`) around `services/rentl-cli/src/rentl_cli/main.py:636` and `_error_from_exception` at `services/rentl-cli/src/rentl_cli/main.py:2204` (audit round 1)
 
-- [ ] Task 5: Integration Tests for Exit Code Scenarios
+- [x] Task 5: Integration Tests for Exit Code Scenarios
   - Create BDD feature file: `tests/integration/features/cli/exit_codes.feature`
   - Create step definitions: `tests/integration/cli/test_exit_codes.py`
   - Scenarios: success (exit 0), config error (exit 10), validation error (exit 11), runtime error (exit 99)
