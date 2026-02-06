@@ -1216,6 +1216,184 @@ def _write_multi_endpoint_config(tmp_path: Path, workspace_dir: Path) -> Path:
     return config_path
 
 
+def test_status_json_failed_returns_orchestration_exit_code(tmp_path: Path) -> None:
+    """Status --json with FAILED status returns exit code 20 and valid JSON response."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+    run_id = uuid7()
+
+    # Create run state with FAILED status
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress = PhaseProgress(
+        phase=PhaseName.INGEST,
+        status=PhaseStatus.FAILED,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.FAILED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[phase_progress],
+            summary=summary,
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=None,
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+
+    run_state_dir = workspace_dir / ".rentl" / "run_state" / "runs"
+    run_state_dir.mkdir(parents=True)
+    run_state_path = run_state_dir / f"{run_id}.json"
+
+    run_state_record = RunStateRecord(
+        run_id=run_id,
+        stored_at="2026-02-03T10:00:10Z",
+        state=run_state,
+        location=None,
+        checksum_sha256=None,
+    )
+    run_state_path.write_text(run_state_record.model_dump_json(), encoding="utf-8")
+
+    # Create empty progress file
+    progress_dir = workspace_dir / "logs" / "progress"
+    progress_dir.mkdir(parents=True)
+    progress_path = progress_dir / f"{run_id}.jsonl"
+    progress_path.write_text("", encoding="utf-8")
+
+    # Create empty log file
+    log_dir = workspace_dir / "logs"
+    log_path = log_dir / f"{run_id}.jsonl"
+    log_path.write_text("", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "status",
+            "--config",
+            str(config_path),
+            "--run-id",
+            str(run_id),
+            "--json",
+        ],
+    )
+
+    # Assert exit code is ORCHESTRATION_ERROR (20)
+    assert result.exit_code == 20
+    # Assert output is valid JSON with data, not an error envelope
+    response = ApiResponse[RunStatusResult].model_validate_json(result.stdout)
+    assert response.error is None
+    assert response.data is not None
+    assert response.data.status == RunStatus.FAILED
+
+
+def test_status_json_cancelled_returns_orchestration_exit_code(tmp_path: Path) -> None:
+    """Status --json with CANCELLED status returns exit code 20, valid JSON."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+    run_id = uuid7()
+
+    # Create run state with CANCELLED status
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress = PhaseProgress(
+        phase=PhaseName.INGEST,
+        status=PhaseStatus.RUNNING,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.CANCELLED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[phase_progress],
+            summary=summary,
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=None,
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+
+    run_state_dir = workspace_dir / ".rentl" / "run_state" / "runs"
+    run_state_dir.mkdir(parents=True)
+    run_state_path = run_state_dir / f"{run_id}.json"
+
+    run_state_record = RunStateRecord(
+        run_id=run_id,
+        stored_at="2026-02-03T10:00:10Z",
+        state=run_state,
+        location=None,
+        checksum_sha256=None,
+    )
+    run_state_path.write_text(run_state_record.model_dump_json(), encoding="utf-8")
+
+    # Create empty progress file
+    progress_dir = workspace_dir / "logs" / "progress"
+    progress_dir.mkdir(parents=True)
+    progress_path = progress_dir / f"{run_id}.jsonl"
+    progress_path.write_text("", encoding="utf-8")
+
+    # Create empty log file
+    log_dir = workspace_dir / "logs"
+    log_path = log_dir / f"{run_id}.jsonl"
+    log_path.write_text("", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "status",
+            "--config",
+            str(config_path),
+            "--run-id",
+            str(run_id),
+            "--json",
+        ],
+    )
+
+    # Assert exit code is ORCHESTRATION_ERROR (20)
+    assert result.exit_code == 20
+    # Assert output is valid JSON with data, not an error envelope
+    response = ApiResponse[RunStatusResult].model_validate_json(result.stdout)
+    assert response.error is None
+    assert response.data is not None
+    assert response.data.status == RunStatus.CANCELLED
+
+
 def test_no_hardcoded_exit_codes() -> None:
     """Verify no hardcoded integer exit codes remain in CLI code.
 

@@ -632,6 +632,8 @@ def status(
         _render_status(status_result)
         if status_result.status in {RunStatus.FAILED, RunStatus.CANCELLED}:
             raise typer.Exit(code=ExitCode.ORCHESTRATION_ERROR.value)
+    except typer.Exit:
+        raise
     except Exception as exc:
         error = _error_from_exception(exc)
         if json_output:

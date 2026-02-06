@@ -37,14 +37,14 @@ Exit code ranges follow a category scheme:
   - [x] Fix: Add missing `exit_code` population in JSON export `except ValueError` path at `services/rentl-cli/src/rentl_cli/main.py:339` (audit round 1)
   - [x] Fix: Add a unit/integration test that exercises the `services/rentl-cli/src/rentl_cli/main.py:339` branch and asserts error envelope includes non-null `exit_code` (audit round 1)
 
-- [ ] Task 4: Replace Hardcoded Exit Codes in CLI
+- [x] Task 4: Replace Hardcoded Exit Codes in CLI
   - Replace all `typer.Exit(code=1)` in `main.py` with `typer.Exit(code=exit_code.value)` using the ExitCode enum
   - Make JSON mode return non-zero exit codes on error (remove the always-exit-0 behavior)
   - Ensure all error handling paths resolve exit codes through the centralized registry
   - Add a grep/ast-based unit test or lint check to verify no hardcoded integer exit codes remain in CLI code
   - Update any existing tests that assert `exit_code == 0` for JSON error responses to assert the correct non-zero code
-  - [ ] Fix: In `status`, do not catch intentional `typer.Exit` from FAILED/CANCELLED branches; allow `ExitCode.ORCHESTRATION_ERROR` to propagate (currently swallowed by `except Exception` and remapped) at `services/rentl-cli/src/rentl_cli/main.py:629` and `services/rentl-cli/src/rentl_cli/main.py:635` (audit round 1)
-  - [ ] Fix: Add regression test for `status --json` when run status is FAILED/CANCELLED asserting exit code `20` and a single JSON response envelope (currently returns exit `1` due `ValidationError`) around `services/rentl-cli/src/rentl_cli/main.py:636` and `_error_from_exception` at `services/rentl-cli/src/rentl_cli/main.py:2204` (audit round 1)
+  - [x] Fix: In `status`, do not catch intentional `typer.Exit` from FAILED/CANCELLED branches; allow `ExitCode.ORCHESTRATION_ERROR` to propagate (currently swallowed by `except Exception` and remapped) at `services/rentl-cli/src/rentl_cli/main.py:629` and `services/rentl-cli/src/rentl_cli/main.py:635` (audit round 1)
+  - [x] Fix: Add regression test for `status --json` when run status is FAILED/CANCELLED asserting exit code `20` and a single JSON response envelope (currently returns exit `1` due `ValidationError`) around `services/rentl-cli/src/rentl_cli/main.py:636` and `_error_from_exception` at `services/rentl-cli/src/rentl_cli/main.py:2204` (audit round 1)
 
 - [ ] Task 5: Integration Tests for Exit Code Scenarios
   - Create BDD feature file: `tests/integration/features/cli/exit_codes.feature`
