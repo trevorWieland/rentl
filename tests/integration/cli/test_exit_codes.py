@@ -211,17 +211,39 @@ def when_run_export_invalid_id(
     ctx: ExitCodeContext,
     cli_runner: CliRunner,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    """Run the export CLI command with an invalid run ID."""
+    """Run the export CLI command with parameters that trigger a ValueError.
+
+    We use expected-line-count to trigger a validation error when the actual
+    line count doesn't match the expected count.
+    """
     monkeypatch.setenv("PRIMARY_KEY", "fake-key")
+
+    # Create input file with 2 lines
+    input_file = tmp_path / "input.jsonl"
+    input_file.write_text(
+        '{"scene_id": "1", "line_id": "1", "text": "test", "speaker": null}\n'
+        '{"scene_id": "1", "line_id": "2", "text": "test2", "speaker": null}\n'
+    )
+    output_file = tmp_path / "output.csv"
+
+    # Use expected-line-count that doesn't match actual count (2 vs 999)
+    # This should trigger a ValueError in the export logic
     ctx.result = cli_runner.invoke(
         cli_main.app,
         [
             "export",
             "--config",
             str(ctx.config_path),
-            "--run-id",
-            "nonexistent-run-id",
+            "--input",
+            str(input_file),
+            "--output",
+            str(output_file),
+            "--format",
+            "csv",
+            "--expected-line-count",
+            "999",
         ],
     )
     if ctx.result.stdout:
@@ -234,23 +256,41 @@ def when_trigger_runtime_error(
     ctx: ExitCodeContext,
     cli_runner: CliRunner,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """Trigger a runtime error in the CLI by causing an unexpected exception.
 
-    We'll use a malformed JSON export path to trigger a runtime error.
+    We monkeypatch write_output to raise a KeyError (unexpected runtime error)
+    that will be caught by the generic Exception handler and mapped to exit 99.
     """
     monkeypatch.setenv("PRIMARY_KEY", "fake-key")
-    # Use an invalid export format that will cause an unexpected error
+
+    # Monkeypatch _export_async to raise an unexpected KeyError
+    # This will bypass all the normal error handling paths and trigger exit 99
+    async def raise_runtime_error(*args: object, **kwargs: object) -> None:  # noqa: RUF029
+        raise KeyError("Simulated runtime error for testing exit code 99")
+
+    monkeypatch.setattr(cli_main, "_export_async", raise_runtime_error)
+
+    # Create valid input file
+    input_file = tmp_path / "input.jsonl"
+    input_file.write_text(
+        '{"scene_id": "1", "line_id": "1", "text": "test", "speaker": null}\n'
+    )
+    output_file = tmp_path / "output.csv"
+
     ctx.result = cli_runner.invoke(
         cli_main.app,
         [
             "export",
             "--config",
             str(ctx.config_path),
-            "--run-id",
-            "test-run",
+            "--input",
+            str(input_file),
+            "--output",
+            str(output_file),
             "--format",
-            "invalid_format_that_does_not_exist",
+            "csv",
         ],
     )
     if ctx.result.stdout:

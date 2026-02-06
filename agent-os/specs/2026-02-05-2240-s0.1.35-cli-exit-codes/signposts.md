@@ -19,3 +19,20 @@
   - `ValidationError: 1 validation error for ErrorResponse`
   - `message String should have at least 1 character [type=string_too_short, input_value='', ...]`
 - **Impact:** Instead of stable orchestration exit code `20`, the command can crash with exit `1`, violating CLI exit code guarantees for automation.
+
+## Task 6
+
+- **Problem:** Integration test scenarios for validation error (exit 11) and runtime error (exit 99) were using invalid CLI arguments (like `export --run-id`), which triggered Typer's argument validation (exit 2) before application logic ran.
+- **Evidence:** Test failures at `make all`:
+  - `test_validation_error_returns_exit_code_11`: AssertionError: Expected JSON response, got: (empty stdout)
+  - `test_runtime_error_returns_exit_code_99`: AssertionError: Expected JSON response, got: (empty stdout)
+  - Typer CLI errors like "No such option: --run-id" with exit code 2
+- **Tried:**
+  1. Using nonexistent files to trigger FileNotFoundError → wrapped as ValueError (exit 11)
+  2. Using invalid format values → Typer argument validation error (exit 2)
+  3. Using directory as output file → still wrapped as ValueError (exit 11)
+- **Solution:**
+  1. For validation error: Use `export` with valid CLI args but `--expected-line-count` mismatch to trigger ValueError in application logic
+  2. For runtime error: Monkeypatch `_export_async` to raise KeyError (not ValueError, ConfigError, etc.) which reaches the generic Exception handler → exit 99
+  3. Monkeypatching required because almost all errors in export flow are wrapped as ValueError
+- **Files affected:** `tests/integration/cli/test_exit_codes.py`

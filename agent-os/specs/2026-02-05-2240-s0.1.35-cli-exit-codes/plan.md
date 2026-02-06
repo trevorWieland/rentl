@@ -53,3 +53,10 @@ Exit code ranges follow a category scheme:
   - Verify JSON mode returns matching exit codes with exit_code field in error envelope
   - Verify interactive mode returns matching exit codes
   - Ensure all scenarios pass with `make all`
+
+- [x] Task 6: Fix Integration Tests - Application-Level Validation/Runtime Errors
+  - Fix "when_run_export_invalid_id" to trigger application-level validation error (exit 11), not CLI argument validation (exit 2)
+  - Fix "when_trigger_runtime_error" to trigger application-level runtime error (exit 99), not CLI argument validation (exit 2)
+  - Use valid CLI commands/parameters that trigger errors within application logic
+  - Ensure both scenarios produce JSON output with error envelope
+  - Verify exit codes 11 and 99 are correctly returned
