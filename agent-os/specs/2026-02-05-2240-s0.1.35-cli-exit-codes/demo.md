@@ -30,4 +30,10 @@ The CLI now returns stable, distinct exit codes that CI pipelines and scripts ca
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Full demo validation (2026-02-06 23:50)
+- Step 1: PASS — `rentl version` returned exit code 0 and printed version info "rentl v0.1.0"
+- Step 2: PASS — `rentl run-pipeline --config bad.yml` returned exit code 10 (CONFIG_ERROR) with JSON error: "Failed to read config: Expected '=' after a key in a key/value pair"
+- Step 3: PASS — `rentl export --input /tmp/nonexistent.parquet --format csv --output /tmp/test_export.csv` returned exit code 11 (VALIDATION_ERROR) with JSON error: "Failed to read input: [Errno 2] No such file or directory"
+- Step 4: PASS — `rentl run-pipeline --config bad.yml` returned exit code 10, JSON output contains `"exit_code": 10` in error section (Note: CLI returns JSON by default for errors; no `--output json` flag needed)
+- Step 5: PASS — Shell script correctly branched on exit code 10 and printed "Config error — check your config file"
+- **Overall: PASS**
