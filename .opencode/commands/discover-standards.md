@@ -1,12 +1,10 @@
----
-description: Extract tribal knowledge from your codebase into concise, documented standards.
----
-
 # Discover Standards
+
+Extract tribal knowledge from your codebase into concise, documented standards.
 
 ## Important Guidelines
 
-- **Always use question tool** when asking the user anything
+- **Always use AskUserQuestion tool** when asking the user anything
 - **Write concise standards** — Use minimal words. Standards must be scannable by AI agents without bloating context windows.
 - **Offer suggestions** — Present options the user can confirm, choose between, or correct. Don't make them think harder than necessary.
 
@@ -23,7 +21,7 @@ If no area was specified:
    - **Frontend areas:** UI components, styling/CSS, state management, forms, routing
    - **Backend areas:** API routes, database/models, authentication, background jobs
    - **Cross-cutting:** Error handling, validation, testing, naming conventions, file structure
-3. Use question to present the areas:
+3. Use AskUserQuestion to present the areas:
 
 ```
 I've identified these areas in your codebase:
@@ -49,7 +47,7 @@ Once an area is determined:
    - **Tribal** — Things a new developer wouldn't know without being told
    - **Consistent** — Patterns repeated across multiple files
 
-3. Use question to present findings and let user select:
+3. Use AskUserQuestion to present findings and let user select:
 
 ```
 I analyzed [area] and found these potential standards worth documenting:
@@ -73,7 +71,7 @@ Wait for user selection before proceeding.
 
 **IMPORTANT:** For each selected standard, you MUST complete this full loop before moving to the next standard:
 
-1. **Ask 1-2 clarifying questions** about the "why" behind the pattern. Use your question tool for this.
+1. **Ask 1-2 clarifying questions** about the "why" behind the pattern. Use your AskUserQuestion tool for this.
 2. **Wait for user response**
 3. **Draft the standard** incorporating their answer
 4. **Confirm with user** before creating the file
@@ -96,7 +94,7 @@ For each standard (after completing Step 3's Q&A):
 
 2. Check if a related standard file already exists — append to it if so
 
-3. Draft the content and use question to confirm:
+3. Draft the content and use AskUserQuestion to confirm:
 
 ```
 Here's the draft for api/response-format.md:
@@ -127,7 +125,7 @@ Create this file? (yes / edit: [your changes] / skip)
 After all standards are created:
 
 1. Scan `agent-os/standards/` for all `.md` files
-2. For each new file without an index entry, use question:
+2. For each new file without an index entry, use AskUserQuestion:
 
 ```
 New standard needs an index entry:
@@ -150,7 +148,7 @@ Alphabetize by folder, then by filename.
 
 ### Step 6: Offer to Continue
 
-Use question:
+Use AskUserQuestion:
 
 ```
 Standards created for [area]:

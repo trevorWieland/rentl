@@ -1,4 +1,4 @@
-.PHONY: install format lint lint-check lint-fix type unit integration quality test all clean
+.PHONY: install format lint lint-check lint-fix type unit integration quality test check all clean
 
 # output styling
 ECHO_CHECK = @echo "  Checking... "
@@ -82,8 +82,17 @@ quality:
 test:
 	@uv run pytest --cov=packages --cov=services --cov-report=term-missing
 
-# Run all checks (format, lint, type, unit, integration)
-all: 
+# Quick verification gate (format, lint, type, unit) — used per-task
+check:
+	@echo "⚡ Running Quick Verification..."
+	@$(MAKE) format --no-print-directory
+	@$(MAKE) lint --no-print-directory
+	@$(MAKE) type --no-print-directory
+	@$(MAKE) unit --no-print-directory
+	@echo "⚡ Quick Verification Passed!"
+
+# Full verification gate (format, lint, type, unit, integration, quality)
+all:
 	@echo "🚀 Starting Full Verification..."
 	@$(MAKE) format --no-print-directory
 	@$(MAKE) lint --no-print-directory

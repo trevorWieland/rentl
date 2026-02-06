@@ -1,8 +1,6 @@
----
-description: Rebuild and maintain the standards index file (`index.yml`).
----
-
 # Index Standards
+
+Rebuild and maintain the standards index file (`index.yml`).
 
 ## Purpose
 
@@ -41,7 +39,7 @@ Compare the file scan with the existing index:
 For each new standard file that needs an index entry:
 
 1. Read the file to understand its content
-2. Use question to propose a description:
+2. Use AskUserQuestion to propose a description:
 
 ```
 New standard needs indexing:

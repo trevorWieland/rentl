@@ -1,14 +1,10 @@
----
-description: Establish foundational product documentation through an interactive conversation.
----
-
 # Plan Product
 
-Creates mission, roadmap, and tech stack files in `agent-os/product/`.
+Establish foundational product documentation through an interactive conversation. Creates mission, roadmap, and tech stack files in `agent-os/product/`.
 
 ## Important Guidelines
 
-- **Always use question tool** when asking the user anything
+- **Always use AskUserQuestion tool** when asking the user anything
 - **Keep it lightweight** — gather enough to create useful docs without over-documenting
 - **One question at a time** — don't overwhelm with multiple questions
 
@@ -21,7 +17,7 @@ Check if `agent-os/product/` exists and contains any of these files:
 - `roadmap.md`
 - `tech-stack.md`
 
-**If any files exist**, use question:
+**If any files exist**, use AskUserQuestion:
 
 ```
 I found existing product documentation:
@@ -44,7 +40,7 @@ If option 3, stop here.
 
 ### Step 2: Gather Product Vision (for mission.md)
 
-Use question:
+Use AskUserQuestion:
 
 ```
 Let's define your product's mission.
@@ -54,7 +50,7 @@ Let's define your product's mission.
 (Describe the core problem or pain point you're addressing)
 ```
 
-After they respond, use question:
+After they respond, use AskUserQuestion:
 
 ```
 **Who is this product for?**
@@ -62,7 +58,7 @@ After they respond, use question:
 (Describe your target users or audience)
 ```
 
-After they respond, use question:
+After they respond, use AskUserQuestion:
 
 ```
 **What makes your solution unique?**
@@ -72,7 +68,7 @@ After they respond, use question:
 
 ### Step 3: Gather Roadmap (for roadmap.md)
 
-Use question:
+Use AskUserQuestion:
 
 ```
 Now let's outline your development roadmap.
@@ -82,7 +78,7 @@ Now let's outline your development roadmap.
 (List the core features needed for the first usable version)
 ```
 
-After they respond, use question:
+After they respond, use AskUserQuestion:
 
 ```
 **What features are planned for after launch?**
@@ -94,7 +90,7 @@ After they respond, use question:
 
 First, check if `agent-os/standards/global/tech-stack.md` exists.
 
-**If the tech-stack standard exists**, read it and use question:
+**If the tech-stack standard exists**, read it and use AskUserQuestion:
 
 ```
 I found a tech stack standard in your standards:
@@ -112,7 +108,7 @@ Does this project use the same tech stack, or does it differ?
 If they choose option 1, use the standard's content for tech-stack.md.
 If they choose option 2, proceed to ask them to specify (see below).
 
-**If no tech-stack standard exists** (or they chose option 2 above), use question:
+**If no tech-stack standard exists** (or they chose option 2 above), use AskUserQuestion:
 
 ```
 **What technologies does this project use?**

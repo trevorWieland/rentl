@@ -1,16 +1,12 @@
----
-description: Sync roadmap.md with GitHub spec issues and resolve conflicts.
----
-
 # Sync Roadmap
 
-Align `agent-os/product/roadmap.md` with GitHub issues labeled `type:spec`. Use GitHub as the source of truth for spec ids.
+Sync `agent-os/product/roadmap.md` with GitHub issues labeled `type:spec`. Use GitHub as the source of truth for spec ids.
 
 ## Important Guidelines
 
-- **Always use question tool** when asking the user anything
-- **Prefer GitHub issues** for spec id allocation and dependency relationships
-- **Ask on conflicts** — never overwrite silently
+- Always use AskUserQuestion tool when asking the user anything
+- Prefer GitHub issues for spec id allocation and dependency relationships
+- Ask on conflicts — never overwrite silently
 
 ## Process
 
@@ -24,14 +20,14 @@ Align `agent-os/product/roadmap.md` with GitHub issues labeled `type:spec`. Use 
 ### Step 2: Compare and Classify
 
 For each `spec_id`, determine:
-- **Match**: present in both sources
-- **Roadmap-only**: missing in GitHub
-- **GitHub-only**: missing in roadmap
-- **Conflict**: fields differ (title, status, version, depends_on)
+- Match: present in both sources
+- Roadmap-only: missing in GitHub
+- GitHub-only: missing in roadmap
+- Conflict: fields differ (title, status, version, depends_on)
 
 ### Step 3: Resolve Conflicts (Ask)
 
-For each conflict, use question with a recommended default:
+For each conflict, use AskUserQuestion with a recommended default:
 
 ```
 Conflict for sX.Y.ZZ:
@@ -47,14 +43,14 @@ Apply the user’s choice per conflict.
 
 ### Step 4: Apply Sync Actions
 
-**If Roadmap-only:**
+If Roadmap-only:
 - Create a GitHub issue using the roadmap data.
 - Before creation, verify `spec_id` isn’t already used on GitHub.
 
-**If GitHub-only:**
+If GitHub-only:
 - Add a roadmap entry under the correct version section.
 
-**If Match:**
+If Match:
 - Ensure dependencies are aligned with GitHub relationships.
 
 ### Step 5: Dependency Alignment
