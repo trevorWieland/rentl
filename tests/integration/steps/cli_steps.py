@@ -46,11 +46,13 @@ def step_command_succeeds(ctx: CliContextProtocol) -> None:
 
 
 def step_command_returns_error(ctx: CliContextProtocol) -> None:
-    """Assert the command returns an error response (exit 0 but error in JSON)."""
+    """Assert the command returns an error response with non-zero exit code."""
     assert ctx.result is not None
-    assert ctx.result.exit_code == 0  # CLI exits 0 but returns error in JSON
+    assert ctx.result.exit_code != 0  # CLI must exit with non-zero code on error
     assert ctx.response is not None
     assert ctx.response.get("error") is not None
+    # Verify exit code in response matches the CLI exit code
+    assert ctx.response["error"]["exit_code"] == ctx.result.exit_code
 
 
 def step_error_code_is(ctx: CliContextProtocol, error_code: str) -> None:

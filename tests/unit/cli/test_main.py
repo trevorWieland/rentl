@@ -1,6 +1,8 @@
 """Unit tests for rentl-cli."""
 
+import ast
 import asyncio
+import inspect
 import json
 import textwrap
 from pathlib import Path
@@ -175,7 +177,7 @@ def test_export_validation_error_includes_exit_code(tmp_path: Path) -> None:
         ],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 11  # ExitCode.VALIDATION_ERROR
     response = json.loads(result.stdout)
     assert response["error"] is not None
     assert response["error"]["code"] == "validation_error"
@@ -368,10 +370,11 @@ def test_run_pipeline_errors_when_agents_missing(
         ["run-pipeline", "--config", str(config_path), "--run-id", str(run_id)],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 11  # ExitCode.VALIDATION_ERROR
     response = ApiResponse[RunExecutionResult].model_validate_json(result.stdout)
     assert response.error is not None
     assert response.error.code == "validation_error"
+    assert response.error.exit_code == 11
 
 
 def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:
@@ -381,9 +384,10 @@ def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:
 
     result = runner.invoke(app, ["run-pipeline", "--config", str(config_path)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 10  # ExitCode.CONFIG_ERROR
     response = json.loads(result.stdout)
     assert response["error"]["code"] == "config_error"
+    assert response["error"]["exit_code"] == 10
 
 
 def test_status_command_outputs_snapshot(tmp_path: Path) -> None:
@@ -459,9 +463,10 @@ def test_run_pipeline_errors_on_missing_endpoint_key(tmp_path: Path) -> None:
 
     result = runner.invoke(app, ["run-pipeline", "--config", str(config_path)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 10  # ExitCode.CONFIG_ERROR
     response = json.loads(result.stdout)
     assert response["error"]["code"] == "config_error"
+    assert response["error"]["exit_code"] == 10
     assert "SECONDARY_KEY" in response["error"]["message"]
 
 
@@ -1209,3 +1214,45 @@ def _write_multi_endpoint_config(tmp_path: Path, workspace_dir: Path) -> Path:
     ).strip()
     config_path.write_text(content + "\n", encoding="utf-8")
     return config_path
+
+
+def test_no_hardcoded_exit_codes() -> None:
+    """Verify no hardcoded integer exit codes remain in CLI code.
+
+    All exit codes must reference the ExitCode enum or response.error.exit_code.
+    """
+    # Get the source code of the main module
+    main_source = inspect.getsource(cli_main)
+    tree = ast.parse(main_source)
+
+    # Find all typer.Exit() calls
+    hardcoded_exits = []
+
+    class ExitCodeVisitor(ast.NodeVisitor):
+        def visit_Call(self, node: ast.Call) -> None:
+            # Check if this is a typer.Exit call
+            if isinstance(node.func, ast.Attribute) and (
+                isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "typer"
+                and node.func.attr == "Exit"
+            ):
+                # Check if code argument is a hardcoded integer
+                for keyword in node.keywords:
+                    if (
+                        keyword.arg == "code"
+                        and isinstance(keyword.value, ast.Constant)
+                        and isinstance(keyword.value.value, int)
+                    ):
+                        hardcoded_exits.append((
+                            getattr(node, "lineno", "unknown"),
+                            keyword.value.value,
+                        ))
+            self.generic_visit(node)
+
+    visitor = ExitCodeVisitor()
+    visitor.visit(tree)
+
+    assert not hardcoded_exits, (
+        f"Found hardcoded integer exit codes at lines: {hardcoded_exits}. "
+        "All exit codes must use ExitCode enum or response.error.exit_code."
+    )

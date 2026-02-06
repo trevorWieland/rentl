@@ -37,7 +37,7 @@ Exit code ranges follow a category scheme:
   - [x] Fix: Add missing `exit_code` population in JSON export `except ValueError` path at `services/rentl-cli/src/rentl_cli/main.py:339` (audit round 1)
   - [x] Fix: Add a unit/integration test that exercises the `services/rentl-cli/src/rentl_cli/main.py:339` branch and asserts error envelope includes non-null `exit_code` (audit round 1)
 
-- [ ] Task 4: Replace Hardcoded Exit Codes in CLI
+- [x] Task 4: Replace Hardcoded Exit Codes in CLI
   - Replace all `typer.Exit(code=1)` in `main.py` with `typer.Exit(code=exit_code.value)` using the ExitCode enum
   - Make JSON mode return non-zero exit codes on error (remove the always-exit-0 behavior)
   - Ensure all error handling paths resolve exit codes through the centralized registry
