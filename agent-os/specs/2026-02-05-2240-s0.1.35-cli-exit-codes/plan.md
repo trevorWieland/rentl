@@ -29,7 +29,7 @@ Exit code ranges follow a category scheme:
   - Add exhaustiveness unit test: import all domain ErrorCode enums, assert every member is in the registry
   - Unit tests in `tests/unit/schemas/test_exit_codes.py`: enum values correct, mapping complete, resolve function works for known and unknown codes
 
-- [ ] Task 3: Add Exit Code to ApiResponse Envelope
+- [x] Task 3: Add Exit Code to ApiResponse Envelope
   - Add `exit_code: int` field to `ErrorResponse` in `packages/rentl-schemas/src/rentl_schemas/responses.py`
   - Update `ErrorInfo.to_error_response()` methods in domain ports (orchestrator, ingest, export, storage) to include exit_code via the registry
   - Update `_error_from_exception()` in `services/rentl-cli/src/rentl_cli/main.py` to populate exit_code from the registry

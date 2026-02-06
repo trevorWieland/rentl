@@ -74,6 +74,7 @@ from rentl_schemas.events import (
     CommandStartedData,
     ProgressEvent,
 )
+from rentl_schemas.exit_codes import resolve_exit_code
 from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
 from rentl_schemas.llm import LlmConnectionReport, LlmEndpointTarget
 from rentl_schemas.logs import LogEntry
@@ -2121,6 +2122,7 @@ def _summarize_batch_error(
         code=error.code,
         message=f"{count} {label} errors; first: {error.message}",
         details=error.details,
+        exit_code=error.exit_code,
     )
 
 
@@ -2154,12 +2156,36 @@ def _error_from_exception(exc: Exception) -> ErrorResponse:
                 message = f"Config validation failed: {label} - {detail}"
             elif detail:
                 message = f"Config validation failed: {detail}"
-        return ErrorResponse(code="validation_error", message=message, details=None)
+        exit_code = resolve_exit_code("validation_error")
+        return ErrorResponse(
+            code="validation_error",
+            message=message,
+            details=None,
+            exit_code=exit_code.value,
+        )
     if isinstance(exc, _ConfigError):
-        return ErrorResponse(code="config_error", message=str(exc), details=None)
+        exit_code = resolve_exit_code("config_error")
+        return ErrorResponse(
+            code="config_error",
+            message=str(exc),
+            details=None,
+            exit_code=exit_code.value,
+        )
     if isinstance(exc, ValueError):
-        return ErrorResponse(code="validation_error", message=str(exc), details=None)
-    return ErrorResponse(code="runtime_error", message=str(exc), details=None)
+        exit_code = resolve_exit_code("validation_error")
+        return ErrorResponse(
+            code="validation_error",
+            message=str(exc),
+            details=None,
+            exit_code=exit_code.value,
+        )
+    exit_code = resolve_exit_code("runtime_error")
+    return ErrorResponse(
+        code="runtime_error",
+        message=str(exc),
+        details=None,
+        exit_code=exit_code.value,
+    )
 
 
 def _batch_error_response(exc: ExportBatchError) -> ApiResponse[ExportResult]:

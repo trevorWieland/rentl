@@ -47,6 +47,7 @@ class ErrorResponse(BaseSchema):
     code: str = Field(..., min_length=1, description="Error code")
     message: str = Field(..., min_length=1, description="Error message")
     details: ErrorDetails | None = Field(None, description="Optional error details")
+    exit_code: int = Field(..., description="CLI exit code for this error")
 
 
 class ApiResponse[ResponseData](BaseSchema):
