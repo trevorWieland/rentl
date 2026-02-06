@@ -336,7 +336,7 @@ def export(
             )
         response = _error_response(error)
     except ValueError as exc:
-        error = ErrorResponse(code="validation_error", message=str(exc), details=None)
+        error = _error_from_exception(exc)
         if log_sink is not None:
             _emit_command_log_sync(
                 log_sink,

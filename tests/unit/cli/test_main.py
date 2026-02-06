@@ -149,6 +149,40 @@ def test_export_emits_command_logs(tmp_path: Path) -> None:
     assert CommandEvent.COMPLETED.value in events
 
 
+def test_export_validation_error_includes_exit_code(tmp_path: Path) -> None:
+    """Export command ValueError handling includes exit_code in error response."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    input_path = workspace_dir / "translated.jsonl"
+    output_path = workspace_dir / "output.csv"
+    config_path = _write_config(tmp_path, workspace_dir)
+
+    # Invalid JSONL content that will trigger ValueError during parsing
+    input_path.write_text("invalid json content\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "export",
+            "--config",
+            str(config_path),
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--format",
+            "csv",
+        ],
+    )
+
+    assert result.exit_code == 0
+    response = json.loads(result.stdout)
+    assert response["error"] is not None
+    assert response["error"]["code"] == "validation_error"
+    assert response["error"]["exit_code"] is not None
+    assert response["error"]["exit_code"] == 11  # ExitCode.VALIDATION_ERROR
+
+
 def test_run_phase_ingest_persists_state(tmp_path: Path) -> None:
     """Run-phase ingest persists run state/log/progress files."""
     workspace_dir = tmp_path / "workspace"
