@@ -22,3 +22,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 2): FAIL — The new end-to-end assertion fails because generated seed data is written to `input/seed.jsonl` while config `input_path` requires `input/{game_name}.{format}`, so `run-pipeline` exits with `io_error` in a clean run.
 - **Task 7** (round 3): FAIL — `test_init_produces_runnable_project` still fails end-to-end (`exit_code=99`) because the deterministic fake runtime returns non-schema agent output (`"ok"`), causing `scene_summarizer` retries/exhaustion.
 - **Task 6** (round 4): PASS — Default agent-name mapping and env-var scoping regression coverage remain deterministic; targeted Task 6 pytest checks passed.
+- **Task 7** (round 4): FAIL — The Task 7 BDD step is labeled end-to-end but no longer executes `run-pipeline` or asserts export artifacts, so runnable-project behavior is not actually verified.
