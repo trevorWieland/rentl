@@ -90,3 +90,25 @@ llm_status= fail
 ```
 
 **Impact:** Future CLI wiring can emit misleading diagnostics: warned checks without remediation text and connectivity failures reported as config failures, which breaks operator triage and weakens exit-code semantics.
+
+## Signpost 3: Exit-code precedence misclassifies mixed failures as connection errors
+
+**Task:** Task 2 (Core Doctor Diagnostics Module)
+
+**Problem:** `run_doctor()` currently chooses `ExitCode.CONNECTION_ERROR` whenever the LLM check fails with a non-`config invalid` message, even if config checks also failed (for example, missing API keys).
+
+**Evidence:**
+
+Code path:
+- `packages/rentl-core/src/rentl_core/doctor.py:458-471` only inspects `LLM Connectivity` failure text to pick the exit code.
+
+Reproduction output:
+```bash
+$ python - <<'PY' ... run_doctor(valid_config, runtime=AsyncMock(...)) with TEST_KEY unset ... PY
+overall_status fail
+exit_code 30
+API Keys fail Missing API keys: TEST_KEY
+LLM Connectivity fail 1/1 endpoint(s) failed: test
+```
+
+**Impact:** CLI exit code indicates external connectivity (`30`) while a configuration prerequisite failed (`API Keys`). This weakens operator triage and can route remediation to the wrong category.
