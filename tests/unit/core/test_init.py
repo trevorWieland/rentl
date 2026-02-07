@@ -365,9 +365,17 @@ def test_generated_config_uses_correct_agent_names(
     assert config.pipeline.phases is not None
     phases = {phase.phase: phase.agents for phase in config.pipeline.phases}
 
+    # Check ingest and export phases exist
+    assert "ingest" in phases
+    assert phases.get("ingest") is None or phases.get("ingest") == []
+
     # Check correct agent names from default agent pool
     assert phases.get("context") == ["scene_summarizer"]
     assert phases.get("pretranslation") == ["idiom_labeler"]
     assert phases.get("translate") == ["direct_translator"]
     assert phases.get("qa") == ["style_guide_critic"]
     assert phases.get("edit") == ["basic_editor"]
+
+    # Check export phase exists
+    assert "export" in phases
+    assert phases.get("export") is None or phases.get("export") == []

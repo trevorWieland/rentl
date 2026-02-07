@@ -214,6 +214,13 @@ def then_pipeline_can_build_agent_pools(
     # This makes the test deterministic and self-contained
     monkeypatch.setenv(ctx.answers.api_key_env, "fake-api-key-for-testing")
 
+    # Verify pipeline has required ingest and export phases
+    # Without these, the pipeline will fail at runtime
+    assert config.pipeline.phases is not None
+    phase_names = [phase.phase for phase in config.pipeline.phases]
+    assert "ingest" in phase_names, "Pipeline missing required 'ingest' phase"
+    assert "export" in phase_names, "Pipeline missing required 'export' phase"
+
     # Attempt to build agent pools - this will fail if agent names are invalid
     try:
         pools = build_agent_pools(config=config)

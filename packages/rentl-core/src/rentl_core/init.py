@@ -159,6 +159,9 @@ api_key_env = "{answers.api_key_env}"
 model_id = "{answers.model_id}"
 
 [[pipeline.phases]]
+phase = "ingest"
+
+[[pipeline.phases]]
 phase = "context"
 agents = ["scene_summarizer"]
 
@@ -177,6 +180,9 @@ agents = ["style_guide_critic"]
 [[pipeline.phases]]
 phase = "edit"
 agents = ["basic_editor"]
+
+[[pipeline.phases]]
+phase = "export"
 
 [concurrency]
 max_parallel_requests = 8
