@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import textwrap
 from collections.abc import Generator
 from pathlib import Path
@@ -26,10 +27,86 @@ class FakeLlmRuntime:
     async def run_prompt(
         self, request: LlmPromptRequest, *, api_key: str
     ) -> LlmPromptResponse:
-        """Return a fake response without making real API calls."""
+        """Return a fake response without making real API calls.
+
+        Returns schema-valid outputs based on the agent being called.
+        Detects agent type from prompt content.
+        """
+        prompt = request.prompt.lower()
+
+        # Extract scene_id and line_id from prompt if present
+        scene_id = "scene_001"
+        line_id = "line_001"
+        if "scene id:" in prompt:
+            # Try to extract actual scene_id from prompt
+            for line in request.prompt.split("\n"):
+                if "scene id:" in line.lower():
+                    parts = line.split(":")
+                    if len(parts) > 1:
+                        scene_id = parts[1].strip().split()[0]
+                    break
+        if "line_id" in prompt:
+            # Try to extract actual line_id from prompt
+            match = re.search(r'"line_id":\s*"([^"]+)"', request.prompt)
+            if match:
+                line_id = match.group(1)
+
+        # Detect agent type and return appropriate schema-valid output
+        if "scene summarization" in prompt or "scene summary" in prompt:
+            # SceneSummary schema for scene_summarizer agent
+            output_text = f"""{{
+  "scene_id": "{scene_id}",
+  "summary": "Test scene summary for integration testing.",
+  "characters": ["Character A", "Character B"]
+}}"""
+        elif "idiom" in prompt or "pretranslation" in prompt:
+            # IdiomAnnotationList schema for idiom_labeler agent
+            output_text = f"""{{
+  "idioms": [
+    {{
+      "line_id": "{line_id}",
+      "idiom_text": "test idiom",
+      "explanation": "Test idiom explanation for integration testing."
+    }}
+  ]
+}}"""
+        elif (
+            "translate" in prompt
+            and "translation" in prompt
+            and "style guide" not in prompt
+        ):
+            # TranslationResultList schema for direct_translator agent
+            output_text = f"""{{
+  "translations": [
+    {{
+      "line_id": "{line_id}",
+      "text": "Translated test text."
+    }}
+  ]
+}}"""
+        elif "style guide" in prompt or "qa" in prompt:
+            # StyleGuideReviewList schema for style_guide_critic agent
+            output_text = f"""{{
+  "reviews": [
+    {{
+      "line_id": "{line_id}",
+      "violations": []
+    }}
+  ]
+}}"""
+        elif "edit" in prompt:
+            # TranslationResultLine schema for basic_editor agent
+            output_text = f"""{{
+  "line_id": "{line_id}",
+  "text": "Edited test text."
+}}"""
+        else:
+            # Fallback for unknown agents
+            output_text = '{"status": "ok"}'
+
         return LlmPromptResponse(
             model_id=request.runtime.model.model_id,
-            output_text="ok",
+            output_text=output_text,
         )
 
 

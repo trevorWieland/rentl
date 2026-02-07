@@ -34,6 +34,7 @@ from rich.table import Table
 
 from rentl_agents.wiring import build_agent_pools
 from rentl_core import VERSION, AgentTelemetryEmitter, build_status_result
+from rentl_core.init import InitAnswers, InitResult, generate_project
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.orchestrator import (
     PipelineOrchestrator,
@@ -187,6 +188,123 @@ def main() -> None:
 def version() -> None:
     """Display version information."""
     rprint(f"[bold]rentl[/bold] v{VERSION}")
+
+
+@app.command()
+def init() -> None:
+    """Initialize a new rentl project interactively.
+
+    Creates rentl.toml, .env, workspace directories, and optional seed data.
+
+    Raises:
+        typer.Exit: When initialization fails with non-zero exit code.
+    """
+    try:
+        # Check for existing rentl.toml
+        config_path = Path.cwd() / "rentl.toml"
+        if config_path.exists():
+            confirmed = typer.confirm(
+                "rentl.toml already exists. Overwrite?", default=False
+            )
+            if not confirmed:
+                rprint("[yellow]Cancelled.[/yellow]")
+                raise typer.Exit(code=ExitCode.SUCCESS.value)
+
+        # Derive defaults
+        project_name_default = Path.cwd().name
+        game_name_default = project_name_default
+
+        # Run interview
+        rprint("[bold cyan]rentl init[/bold cyan] - Project Bootstrap")
+        rprint()
+
+        project_name = typer.prompt("Project name", default=project_name_default)
+        game_name = typer.prompt("Game name", default=game_name_default)
+        source_language = typer.prompt("Source language code", default="ja")
+        target_languages_input = typer.prompt(
+            "Target language codes (comma-separated)", default="en"
+        )
+        # Sanitize: filter out empty entries from comma-separated input
+        target_languages = [
+            lang.strip() for lang in target_languages_input.split(",") if lang.strip()
+        ]
+        if not target_languages:
+            rprint(
+                "[red]Error: At least one target language is required[/red]",
+            )
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+        provider_name = typer.prompt("Provider name", default="openrouter")
+        base_url = typer.prompt("API base URL", default="https://openrouter.ai/api/v1")
+        api_key_env = typer.prompt("API key env var", default="OPENROUTER_API_KEY")
+        model_id = typer.prompt("Model ID", default="openai/gpt-4.1")
+        input_format_str = typer.prompt(
+            "Input format (jsonl, csv, txt)", default="jsonl"
+        )
+        input_format = FileFormat(input_format_str)
+        include_seed_data = typer.confirm("Include seed data?", default=True)
+
+        # Build answers
+        answers = InitAnswers(
+            project_name=project_name,
+            game_name=game_name,
+            source_language=source_language,
+            target_languages=target_languages,
+            provider_name=provider_name,
+            base_url=base_url,
+            api_key_env=api_key_env,
+            model_id=model_id,
+            input_format=input_format,
+            include_seed_data=include_seed_data,
+        )
+
+        # Generate project
+        result = generate_project(answers, Path.cwd())
+
+        # Build summary panel
+        files_table = Table.grid(padding=(0, 1))
+        files_table.add_column(style="green")
+        for file_path in result.created_files:
+            files_table.add_row(f"✓ {file_path}")
+
+        next_steps_table = Table.grid(padding=(0, 1))
+        next_steps_table.add_column(style="bold")
+        for step in result.next_steps:
+            next_steps_table.add_row(f"• {step}")
+
+        panel = Panel(
+            Group(
+                "[bold]Created Files[/bold]",
+                files_table,
+                "",
+                "[bold]Next Steps[/bold]",
+                next_steps_table,
+            ),
+            title="rentl init",
+            border_style="green",
+        )
+        rprint(panel)
+
+        response: ApiResponse[InitResult] = ApiResponse(
+            data=result,
+            error=None,
+            meta=MetaInfo(timestamp=_now_timestamp()),
+        )
+    except typer.Exit:
+        # Re-raise typer.Exit to preserve clean exit codes (e.g., user cancellation)
+        raise
+    except ValidationError as exc:
+        error = _error_from_exception(exc)
+        response = _error_response(error)
+    except ValueError as exc:
+        error = _error_from_exception(exc)
+        response = _error_response(error)
+    except Exception as exc:
+        error = _error_from_exception(exc)
+        response = _error_response(error)
+
+    if response.error is not None:
+        print(response.model_dump_json())
+        raise typer.Exit(code=response.error.exit_code)
 
 
 @app.command("validate-connection")
@@ -762,6 +880,8 @@ def _load_resolved_config(config_path: Path) -> RunConfig:
 
 
 def _resolve_agent_paths(config: RunConfig) -> RunConfig:
+    if config.agents is None:
+        return config
     workspace_dir = Path(config.project.paths.workspace_dir)
     agents_config = config.agents
     updated_agents = agents_config.model_copy(

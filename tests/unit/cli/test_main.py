@@ -5,6 +5,7 @@ import asyncio
 import inspect
 import json
 import textwrap
+import tomllib
 from pathlib import Path
 from typing import cast
 from uuid import uuid7
@@ -13,10 +14,13 @@ import pytest
 from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
+from rentl_agents.wiring import build_agent_pools
 from rentl_cli.main import app
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
+from rentl_schemas.config import RunConfig
 from rentl_schemas.events import CommandEvent, ProgressEvent
+from rentl_schemas.exit_codes import ExitCode
 from rentl_schemas.io import SourceLine
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 from rentl_schemas.logs import LogEntry
@@ -283,10 +287,10 @@ def test_validate_connection_emits_command_logs(
     assert CommandEvent.COMPLETED.value in events
 
 
-def test_run_pipeline_errors_when_agents_missing(
+def test_run_pipeline_accepts_missing_agents_config(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Run-pipeline returns config error when agents are missing."""
+    """Run-pipeline validates config without agents section (uses package defaults)."""
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     input_path = workspace_dir / "input.txt"
@@ -327,23 +331,23 @@ def test_run_pipeline_errors_when_agents_missing(
 
             [[pipeline.phases]]
             phase = "context"
-            agents = ["context_agent"]
+            agents = ["scene_summarizer"]
 
             [[pipeline.phases]]
             phase = "pretranslation"
-            agents = ["pretranslation_agent"]
+            agents = ["idiom_labeler"]
 
             [[pipeline.phases]]
             phase = "translate"
-            agents = ["translate_agent"]
+            agents = ["direct_translator"]
 
             [[pipeline.phases]]
             phase = "qa"
-            agents = ["qa_agent"]
+            agents = ["style_guide_critic"]
 
             [[pipeline.phases]]
             phase = "edit"
-            agents = ["edit_agent"]
+            agents = ["basic_editor"]
 
             [concurrency]
             max_parallel_requests = 1
@@ -364,17 +368,17 @@ def test_run_pipeline_errors_when_agents_missing(
 
     monkeypatch.setenv("TEST_KEY", "fake-key")
 
-    run_id = uuid7()
-    result = runner.invoke(
-        app,
-        ["run-pipeline", "--config", str(config_path), "--run-id", str(run_id)],
-    )
+    # Config should load successfully without [agents] section
+    config = cli_main._load_resolved_config(config_path)
+    assert config.agents is None
 
-    assert result.exit_code == 11  # ExitCode.VALIDATION_ERROR
-    response = ApiResponse[RunExecutionResult].model_validate_json(result.stdout)
-    assert response.error is not None
-    assert response.error.code == "validation_error"
-    assert response.error.exit_code == 11
+    # Verify pipeline resolution to package defaults works end-to-end
+    pools = build_agent_pools(config=config)
+    assert len(pools.context_agents) == 1
+    assert len(pools.pretranslation_agents) == 1
+    assert len(pools.translate_agents) == 1
+    assert len(pools.qa_agents) == 1
+    assert len(pools.edit_agents) == 1
 
 
 def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:
@@ -1434,3 +1438,225 @@ def test_no_hardcoded_exit_codes() -> None:
         f"Found hardcoded integer exit codes at lines: {hardcoded_exits}. "
         "All exit codes must use ExitCode enum or response.error.exit_code."
     )
+
+
+def test_init_command_happy_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command with default answers creates valid project structure."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Mock prompts to accept defaults
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "",  # provider_name (default: openrouter)
+        "",  # base_url (default: https://openrouter.ai/api/v1)
+        "",  # api_key_env (default: OPENROUTER_API_KEY)
+        "",  # model_id (default: openai/gpt-4.1)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify created files
+    assert (tmp_path / "rentl.toml").exists()
+    assert (tmp_path / ".env").exists()
+    assert (tmp_path / "input").is_dir()
+    assert (tmp_path / "out").is_dir()
+    assert (tmp_path / "logs").is_dir()
+    # Game name defaults to directory name (tmp_path.name)
+    expected_seed_file = tmp_path / "input" / f"{tmp_path.name}.jsonl"
+    assert expected_seed_file.exists(), f"Expected seed file: {expected_seed_file}"
+
+    # Verify output contains success information
+    assert "rentl init" in result.stdout
+    assert "rentl.toml" in result.stdout
+    assert ".env" in result.stdout
+
+
+def test_init_command_overwrite_confirmation_accept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command asks for confirmation when rentl.toml exists and accepts."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Create existing rentl.toml
+    (tmp_path / "rentl.toml").write_text("[project]\n", encoding="utf-8")
+
+    # Mock prompts: confirm overwrite, then accept defaults
+    inputs = [
+        "y",  # overwrite confirmation
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "",  # provider_name (default: openrouter)
+        "",  # base_url (default: https://openrouter.ai/api/v1)
+        "",  # api_key_env (default: OPENROUTER_API_KEY)
+        "",  # model_id (default: openai/gpt-4.1)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify output contains overwrite warning
+    assert "already exists" in result.stdout.lower()
+
+    # Verify new files were created
+    assert (tmp_path / "rentl.toml").exists()
+    assert (tmp_path / ".env").exists()
+
+
+def test_init_command_overwrite_confirmation_cancel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command cancels cleanly when user declines overwrite."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Create existing rentl.toml
+    original_content = "[project]\nproject_name = 'original'\n"
+    (tmp_path / "rentl.toml").write_text(original_content, encoding="utf-8")
+
+    # Mock prompts: decline overwrite
+    inputs = [
+        "n",  # decline overwrite
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert clean exit (code 0 for cancellation)
+    assert result.exit_code == 0
+
+    # Verify output contains cancellation message
+    assert "Cancelled" in result.stdout or "cancelled" in result.stdout.lower()
+
+    # Verify original file was NOT modified
+    assert (tmp_path / "rentl.toml").read_text(encoding="utf-8") == original_content
+
+    # Verify no new directories were created
+    assert not (tmp_path / "input").exists()
+    assert not (tmp_path / "out").exists()
+    assert not (tmp_path / "logs").exists()
+    assert not (tmp_path / ".env").exists()
+
+
+def test_init_command_target_languages_trailing_comma(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command sanitizes trailing comma in target languages."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Mock prompts with trailing comma in target languages
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "en,",  # target_languages with trailing comma
+        "",  # provider_name (default: openrouter)
+        "",  # base_url (default: https://openrouter.ai/api/v1)
+        "",  # api_key_env (default: OPENROUTER_API_KEY)
+        "",  # model_id (default: openai/gpt-4.1)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify generated config is valid
+    config_path = tmp_path / "rentl.toml"
+    assert config_path.exists()
+
+    with config_path.open("rb") as f:
+        config_dict = tomllib.load(f)
+
+    config = RunConfig.model_validate(config_dict, strict=True)
+    assert config.project.languages.target_languages == ["en"]
+
+
+def test_init_command_target_languages_multiple_with_spaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command handles multiple target languages with spaces."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Mock prompts with multiple languages and spaces
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "en, fr",  # target_languages with spaces
+        "",  # provider_name (default: openrouter)
+        "",  # base_url (default: https://openrouter.ai/api/v1)
+        "",  # api_key_env (default: OPENROUTER_API_KEY)
+        "",  # model_id (default: openai/gpt-4.1)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify generated config is valid
+    config_path = tmp_path / "rentl.toml"
+    assert config_path.exists()
+
+    with config_path.open("rb") as f:
+        config_dict = tomllib.load(f)
+
+    config = RunConfig.model_validate(config_dict, strict=True)
+    assert config.project.languages.target_languages == ["en", "fr"]
+
+
+def test_init_command_target_languages_blank_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command fails fast on blank target languages input."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Mock prompts with blank target languages (just commas)
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        ",",  # target_languages blank (just comma)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert validation error exit code
+    assert result.exit_code == ExitCode.VALIDATION_ERROR.value
+
+    # Verify error message is shown
+    assert "at least one target language" in result.stdout.lower()
+
+    # Verify no files were created
+    assert not (tmp_path / "rentl.toml").exists()
+    assert not (tmp_path / ".env").exists()

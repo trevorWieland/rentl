@@ -1,0 +1,30 @@
+# Audit Log
+
+Running record of all task audits, demo runs, and spec audits.
+Future auditors: check this log for regressions and patterns.
+
+---
+
+- **Task 2** (round 1): FAIL — Missing test coverage for the new `build_agent_pools()` fallback branch when `RunConfig.agents` is `None`.
+- **Task 2** (round 2): PASS — Optional `[agents]` behavior is implemented end-to-end and validated by schema, CLI resolution, and wiring fallback tests.
+- **Task 3** (round 1): FAIL — `InitAnswers` allows unsupported `input_format` values (for example `tsv`) that generate `rentl.toml` failing `RunConfig` validation.
+- **Task 3** (round 2): PASS — `input_format` is now constrained to `FileFormat`, seed generation aligns with supported formats, and regression coverage rejects unsupported values.
+- **Task 4** (round 1): FAIL — `rentl init` cancellation is routed into error handling (crashing with `ErrorResponse` validation) and required CLI tests were not added.
+- **Task 4** (round 2): FAIL — `rentl init` accepts trailing-comma target languages and reports success while generating `rentl.toml` that fails `validate_run_config()`.
+- **Task 4** (round 3): PASS — Target-language sanitization now prevents invalid blank entries and regression tests verify accepted inputs generate validating config.
+- **Task 5** (round 1): PASS — Added BDD integration coverage for init project bootstrap and fixed seed-data schema compatibility; generated project validates and resolves cleanly.
+- **Demo** (run 1): FAIL — Generated config uses invalid agent names, causing runtime failure despite passing schema validation. Task 6 added to fix agent name mapping.
+- **Task 6** (round 1): FAIL — New integration agent-pool assertion depends on `OPENROUTER_API_KEY` from the external environment, so the scenario fails in a clean test run.
+- **Task 6** (round 2): FAIL — New env-var scoping regression test is itself environment-dependent and fails when `OPENROUTER_API_KEY` is already set in the shell.
+- **Task 6** (round 3): PASS — Env-var scoping regression now uses an isolated `monkeypatch.context()` and verifies API key restoration deterministically across pre-existing environment states.
+- **Demo** (run 2): FAIL — Generated config missing required ingest/export phases, causing "Source lines are required" error at runtime. Task 7 added to fix pipeline phase generation.
+- **Task 7** (round 1): FAIL — Config generation now includes ingest/export phases, but integration coverage still stops at `build_agent_pools()` and does not verify full pipeline execution through export.
+- **Task 7** (round 2): FAIL — The new end-to-end assertion fails because generated seed data is written to `input/seed.jsonl` while config `input_path` requires `input/{game_name}.{format}`, so `run-pipeline` exits with `io_error` in a clean run.
+- **Task 7** (round 3): FAIL — `test_init_produces_runnable_project` still fails end-to-end (`exit_code=99`) because the deterministic fake runtime returns non-schema agent output (`"ok"`), causing `scene_summarizer` retries/exhaustion.
+- **Task 6** (round 4): PASS — Default agent-name mapping and env-var scoping regression coverage remain deterministic; targeted Task 6 pytest checks passed.
+- **Task 7** (round 4): FAIL — The Task 7 BDD step is labeled end-to-end but no longer executes `run-pipeline` or asserts export artifacts, so runnable-project behavior is not actually verified.
+- **Task 7** (round 5): FAIL — The restored `run-pipeline` assertion still uses the wrong mock boundary, so end-to-end execution fails with `Agent scene_summarizer execution failed after 4 attempts` (exit code 99).
+- **Task 6** (round 5): PASS — Agent-name mapping and deterministic API-key env-var scoping remain correct; targeted Task 6 regression tests pass.
+- **Task 7** (round 6): PASS — End-to-end integration test with ProfileAgent.run() mocking now passes, verifying complete pipeline execution with schema-valid agent outputs and export artifact generation.
+- **Demo** (run 3): PASS — All demo steps pass. Manual execution with test API key shows expected behavior (requires real API key for actual LLM calls). Integration test confirms generated project structure, config, and agent wiring are correct.
+- **Spec Audit** (round 1): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count: 0.

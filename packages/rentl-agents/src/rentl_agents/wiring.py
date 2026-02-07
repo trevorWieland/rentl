@@ -1121,10 +1121,14 @@ def build_agent_pools(
     Returns:
         AgentPoolBundle: Configured agent pools.
     """
-    agents_config = config.agents
-    workspace_dir = Path(config.project.paths.workspace_dir)
-    prompts_dir = _resolve_agent_path(agents_config.prompts_dir, workspace_dir)
-    agents_dir = _resolve_agent_path(agents_config.agents_dir, workspace_dir)
+    if config.agents is None:
+        prompts_dir = get_default_prompts_dir()
+        agents_dir = get_default_agents_dir()
+    else:
+        agents_config = config.agents
+        workspace_dir = Path(config.project.paths.workspace_dir)
+        prompts_dir = _resolve_agent_path(agents_config.prompts_dir, workspace_dir)
+        agents_dir = _resolve_agent_path(agents_config.agents_dir, workspace_dir)
     source_lang = config.project.languages.source_language
     target_lang = _resolve_primary_target_language(config)
     tool_registry = get_default_registry()

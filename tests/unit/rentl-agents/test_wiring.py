@@ -270,3 +270,96 @@ def test_build_agent_pools_resolves_endpoint_and_retry(
     context_pool = pools.context_agents[0][1]
     assert isinstance(context_pool, PhaseAgentPool)
     assert context_pool._max_parallel is None
+
+
+def test_build_agent_pools_uses_package_defaults_when_agents_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agent pools fall back to package defaults when agents config is None."""
+    repo_root = Path(__file__).resolve().parents[3]
+    project = ProjectConfig(
+        schema_version=VersionInfo(major=0, minor=1, patch=0),
+        project_name="test",
+        paths=ProjectPaths(
+            workspace_dir=str(repo_root),
+            input_path="input.txt",
+            output_dir="out",
+            logs_dir="logs",
+        ),
+        formats=FormatConfig(input_format=FileFormat.TXT, output_format=FileFormat.TXT),
+        languages=LanguageConfig(source_language="ja", target_languages=["en"]),
+    )
+    pipeline = PipelineConfig(
+        default_model=ModelSettings(model_id="gpt-4"),
+        phases=[
+            PhaseConfig(
+                phase=PhaseName.CONTEXT,
+                agents=["scene_summarizer"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.PRETRANSLATION,
+                agents=["idiom_labeler"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.TRANSLATE,
+                agents=["direct_translator"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.QA,
+                agents=["style_guide_critic"],
+            ),
+            PhaseConfig(
+                phase=PhaseName.EDIT,
+                agents=["basic_editor"],
+            ),
+        ],
+    )
+    config = RunConfig(
+        project=project,
+        logging=LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.NOOP)]),
+        agents=None,
+        endpoint=ModelEndpointConfig(
+            provider_name="test",
+            base_url="http://localhost",
+            api_key_env="TEST_KEY",
+        ),
+        pipeline=pipeline,
+        concurrency=ConcurrencyConfig(),
+        retry=RetryConfig(),
+        cache=CacheConfig(),
+    )
+    monkeypatch.setenv("TEST_KEY", "fake-key")
+
+    pools = build_agent_pools(config=config)
+
+    # Verify agents were created successfully from package default paths
+    assert len(pools.context_agents) == 1
+    assert len(pools.pretranslation_agents) == 1
+    assert len(pools.translate_agents) == 1
+    assert len(pools.qa_agents) == 1
+    assert len(pools.edit_agents) == 1
+
+    context_pool = pools.context_agents[0][1]
+    assert isinstance(context_pool, PhaseAgentPool)
+    context_agent = context_pool._agents[0]
+    assert isinstance(context_agent, ContextSceneSummarizerAgent)
+
+    pretranslation_pool = pools.pretranslation_agents[0][1]
+    assert isinstance(pretranslation_pool, PhaseAgentPool)
+    pretranslation_agent = pretranslation_pool._agents[0]
+    assert isinstance(pretranslation_agent, PretranslationIdiomLabelerAgent)
+
+    translate_pool = pools.translate_agents[0][1]
+    assert isinstance(translate_pool, PhaseAgentPool)
+    translate_agent = translate_pool._agents[0]
+    assert isinstance(translate_agent, TranslateDirectTranslatorAgent)
+
+    qa_pool = pools.qa_agents[0][1]
+    assert isinstance(qa_pool, PhaseAgentPool)
+    qa_agent = qa_pool._agents[0]
+    assert isinstance(qa_agent, QaStyleGuideCriticAgent)
+
+    edit_pool = pools.edit_agents[0][1]
+    assert isinstance(edit_pool, PhaseAgentPool)
+    edit_agent = edit_pool._agents[0]
+    assert isinstance(edit_agent, EditBasicEditorAgent)

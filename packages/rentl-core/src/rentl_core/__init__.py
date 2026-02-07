@@ -1,5 +1,6 @@
 """rentl-core: Core pipeline logic for rentl."""
 
+from rentl_core.init import InitAnswers, InitResult, generate_project
 from rentl_core.orchestrator import (
     PhaseAgentPool,
     PipelineOrchestrator,
@@ -55,6 +56,8 @@ __all__ = [
     "IngestErrorDetails",
     "IngestErrorInfo",
     "IngestEvent",
+    "InitAnswers",
+    "InitResult",
     "PhaseAgentPool",
     "PipelineOrchestrator",
     "PipelineRunContext",
@@ -65,5 +68,6 @@ __all__ = [
     "build_ingest_failed_log",
     "build_ingest_started_log",
     "build_status_result",
+    "generate_project",
     "hydrate_run_context",
 ]
