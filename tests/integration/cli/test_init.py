@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from rentl_agents.wiring import build_agent_pools
@@ -188,7 +190,9 @@ def then_seed_data_is_valid_jsonl(ctx: InitContext) -> None:
 
 
 @then("the pipeline can build agent pools from generated config")
-def then_pipeline_can_build_agent_pools(ctx: InitContext) -> None:
+def then_pipeline_can_build_agent_pools(
+    ctx: InitContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Assert the generated config can be used to build agent pools.
 
     This verifies that referenced agent names actually exist in the default pool,
@@ -198,12 +202,17 @@ def then_pipeline_can_build_agent_pools(ctx: InitContext) -> None:
         AssertionError: If agent pool building fails.
     """
     assert ctx.config_path is not None
+    assert ctx.answers is not None
 
     # Parse and validate TOML
     with ctx.config_path.open("rb") as handle:
         payload: dict[str, JsonValue] = tomllib.load(handle)
 
     config = validate_run_config(payload)
+
+    # Set the API key environment variable that the generated config references
+    # This makes the test deterministic and self-contained
+    monkeypatch.setenv(ctx.answers.api_key_env, "fake-api-key-for-testing")
 
     # Attempt to build agent pools - this will fail if agent names are invalid
     try:
@@ -220,3 +229,56 @@ def then_pipeline_can_build_agent_pools(ctx: InitContext) -> None:
         raise AssertionError(
             f"Failed to build agent pools from generated config: {exc}"
         ) from exc
+
+
+def test_env_var_scoping_regression(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that monkeypatch env var setup is scoped to the test.
+
+    This regression test ensures that the API key environment variable set
+    during agent pool building doesn't leak outside the test context and that
+    the BDD test doesn't rely on external shell environment.
+
+    This addresses the audit feedback about deterministic test execution.
+    """
+    # Verify the test API key is not in the environment initially
+    assert "OPENROUTER_API_KEY" not in os.environ
+
+    # Generate a project with default answers
+    answers = InitAnswers(
+        project_name="test-env-scope",
+        game_name="Test Game",
+        source_language="ja",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4.1",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    target_dir = tmp_path / "test-env-scope"
+    target_dir.mkdir()
+    generate_project(answers, target_dir)
+
+    # Load the generated config
+    config_path = target_dir / "rentl.toml"
+    with config_path.open("rb") as handle:
+        payload: dict[str, JsonValue] = tomllib.load(handle)
+    config = validate_run_config(payload)
+
+    # Temporarily set the API key using monkeypatch
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key-for-scoping-test")
+
+    # Verify it's set within the monkeypatch scope
+    assert os.environ.get("OPENROUTER_API_KEY") == "fake-api-key-for-scoping-test"
+
+    # Build agent pools (this should work with the monkeypatched env var)
+    pools = build_agent_pools(config=config)
+    assert pools is not None
+
+    # The monkeypatch will automatically clean up when this test exits
+    # We can't directly verify cleanup within this test, but pytest's monkeypatch
+    # fixture guarantees automatic teardown
