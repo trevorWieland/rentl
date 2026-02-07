@@ -120,3 +120,11 @@
 - **Problem:** The scenario still claims end-to-end execution, but the implementation was downgraded to initialization checks and does not run the pipeline or verify export outputs.
 - **Evidence:** `tests/integration/features/cli/init.feature:14` says `the pipeline can execute end-to-end and produce export artifacts`. The step body in `tests/integration/cli/test_init.py:233` only calls `build_agent_pools(config=config)` and never invokes `run-pipeline`; the only output assertion is directory existence at `tests/integration/cli/test_init.py:248`, with no check for `out/{lang}/output.{format}` files.
 - **Impact:** Task fidelity is broken and non-negotiable #4 ("Generated project must be runnable") is no longer enforced by Task 7 integration coverage, allowing runtime/export regressions to pass green.
+
+- **Task:** Task 7
+- **Problem:** The new end-to-end test invokes `run-pipeline`, but the mock still targets `cli_main._build_llm_runtime`, which is not the runtime path used by agent execution inside pipeline runs.
+- **Evidence:** `tests/integration/conftest.py:149` patches `_build_llm_runtime`, while pipeline construction calls `build_agent_pools()` at `services/rentl-cli/src/rentl_cli/main.py:1404` and agent execution happens in `ProfileAgent.run()`/`_execute()` (`packages/rentl-agents/src/rentl_agents/runtime.py:137`, `packages/rentl-agents/src/rentl_agents/runtime.py:357`). Audit repro:
+  `pytest -q tests/integration/cli/test_init.py`
+  `E AssertionError: Pipeline execution failed with exit code 99`
+  `... "message":"Agent pool task failed: Agent scene_summarizer execution failed after 4 attempts" ...`
+- **Impact:** Task 7 still does not provide deterministic proof of a runnable generated project, so non-negotiable #4 remains unverified in CI/local clean runs.
