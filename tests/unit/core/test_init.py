@@ -46,7 +46,7 @@ def test_generate_project_creates_expected_files(
     assert "logs/" in result.created_files
     assert "rentl.toml" in result.created_files
     assert ".env" in result.created_files
-    assert "input/seed.jsonl" in result.created_files
+    assert "input/test_game.jsonl" in result.created_files
 
     # Verify files actually exist
     assert (tmp_path / "input").is_dir()
@@ -54,7 +54,7 @@ def test_generate_project_creates_expected_files(
     assert (tmp_path / "logs").is_dir()
     assert (tmp_path / "rentl.toml").is_file()
     assert (tmp_path / ".env").is_file()
-    assert (tmp_path / "input" / "seed.jsonl").is_file()
+    assert (tmp_path / "input" / "test_game.jsonl").is_file()
 
 
 def test_generate_project_produces_next_steps(
@@ -63,9 +63,10 @@ def test_generate_project_produces_next_steps(
     """Test that generate_project returns actionable next steps."""
     result = generate_project(default_answers, tmp_path)
 
-    assert len(result.next_steps) >= 3
+    assert len(result.next_steps) >= 2
     assert any("API key" in step for step in result.next_steps)
-    assert any("input data" in step for step in result.next_steps)
+    # With include_seed_data=True, "input data" step should NOT be present
+    assert not any("Place your input data" in step for step in result.next_steps)
     assert any("run-pipeline" in step for step in result.next_steps)
 
 
@@ -148,7 +149,7 @@ def test_generated_env_contains_api_key_placeholder(
 def test_seed_data_jsonl_format(tmp_path: Path, default_answers: InitAnswers) -> None:
     """Test that seed data is valid JSONL with expected structure."""
     generate_project(default_answers, tmp_path)
-    seed_path = tmp_path / "input" / "seed.jsonl"
+    seed_path = tmp_path / "input" / f"{default_answers.game_name}.jsonl"
 
     lines = seed_path.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == 3
@@ -178,7 +179,7 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
     )
 
     generate_project(answers, tmp_path)
-    seed_path = tmp_path / "input" / "seed.csv"
+    seed_path = tmp_path / "input" / f"{answers.game_name}.csv"
 
     lines = seed_path.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == 4  # Header + 3 data rows
@@ -211,7 +212,7 @@ def test_seed_data_txt_format(tmp_path: Path) -> None:
     )
 
     generate_project(answers, tmp_path)
-    seed_path = tmp_path / "input" / "seed.txt"
+    seed_path = tmp_path / "input" / f"{answers.game_name}.txt"
 
     lines = seed_path.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == 3  # 3 dialogue lines
@@ -240,11 +241,14 @@ def test_generate_project_without_seed_data(tmp_path: Path) -> None:
     result = generate_project(answers, tmp_path)
 
     # Verify seed file not in created files
-    assert not any("seed" in f for f in result.created_files)
+    assert not any(f"{answers.game_name}.jsonl" in f for f in result.created_files)
 
     # Verify seed file does not exist
-    seed_path = tmp_path / "input" / "seed.jsonl"
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
     assert not seed_path.exists()
+
+    # Verify "Place your input data" step IS present when seed data not included
+    assert any("Place your input data" in step for step in result.next_steps)
 
 
 def test_generate_project_with_multiple_target_languages(tmp_path: Path) -> None:

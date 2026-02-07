@@ -95,7 +95,7 @@ def then_all_expected_files_exist(ctx: InitContext) -> None:
         ctx.target_dir / "input",
         ctx.target_dir / "out",
         ctx.target_dir / "logs",
-        ctx.target_dir / "input" / "seed.jsonl",
+        ctx.target_dir / "input" / f"{ctx.answers.game_name}.jsonl",
     ]
 
     for path in expected_files:
@@ -167,7 +167,9 @@ def then_seed_data_is_valid_jsonl(ctx: InitContext) -> None:
     assert ctx.target_dir is not None
     assert ctx.answers is not None
 
-    seed_path = ctx.target_dir / "input" / f"seed.{ctx.answers.input_format}"
+    seed_path = (
+        ctx.target_dir / "input" / f"{ctx.answers.game_name}.{ctx.answers.input_format}"
+    )
     assert seed_path.exists(), f"Seed data file not found: {seed_path}"
 
     # Read JSONL content

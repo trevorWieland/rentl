@@ -96,7 +96,7 @@ def generate_project(answers: InitAnswers, target_dir: Path) -> InitResult:
 
     # Generate seed data if requested
     if answers.include_seed_data:
-        seed_path = input_dir / f"seed.{answers.input_format}"
+        seed_path = input_dir / f"{answers.game_name}.{answers.input_format}"
         seed_content = _generate_seed_data(answers)
         seed_path.write_text(seed_content, encoding="utf-8")
         created_files.append(str(seed_path.relative_to(target_dir)))
@@ -105,9 +105,10 @@ def generate_project(answers: InitAnswers, target_dir: Path) -> InitResult:
     input_file = f"./input/{answers.game_name}.{answers.input_format}"
     next_steps = [
         f"Set your API key in .env: {answers.api_key_env}=your_key_here",
-        f"Place your input data into {input_file}",
-        "Run your first pipeline: rentl run-pipeline",
     ]
+    if not answers.include_seed_data:
+        next_steps.append(f"Place your input data into {input_file}")
+    next_steps.append("Run your first pipeline: rentl run-pipeline")
 
     return InitResult(created_files=created_files, next_steps=next_steps)
 

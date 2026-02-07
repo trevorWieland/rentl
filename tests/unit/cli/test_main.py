@@ -1473,7 +1473,9 @@ def test_init_command_happy_path(
     assert (tmp_path / "input").is_dir()
     assert (tmp_path / "out").is_dir()
     assert (tmp_path / "logs").is_dir()
-    assert (tmp_path / "input" / "seed.jsonl").exists()
+    # Game name defaults to directory name (tmp_path.name)
+    expected_seed_file = tmp_path / "input" / f"{tmp_path.name}.jsonl"
+    assert expected_seed_file.exists(), f"Expected seed file: {expected_seed_file}"
 
     # Verify output contains success information
     assert "rentl init" in result.stdout
