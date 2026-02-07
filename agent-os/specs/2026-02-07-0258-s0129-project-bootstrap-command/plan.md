@@ -19,7 +19,7 @@ Users currently must manually copy and edit config files to start a project, vio
   - Test: config without `[agents]` section validates and pipeline resolves to package defaults
   - [x] Fix: Add a unit test that executes `build_agent_pools(config=...)` with `RunConfig.agents=None` and asserts default package directories are used through successful pool construction (`packages/rentl-agents/src/rentl_agents/wiring.py:1124`) (audit round 1)
   - [x] Fix: Strengthen the CLI regression test to verify pipeline/default-agent resolution instead of only config parsing; current assertion stops at `_load_resolved_config()` (`tests/unit/cli/test_main.py:367`) (audit round 1)
-- [ ] Task 3: Define init interview schema and core logic
+- [x] Task 3: Define init interview schema and core logic
   - Create `packages/rentl-core/src/rentl_core/init.py` with:
     - `InitAnswers` Pydantic model (project_name, game_name, source_language, target_languages, provider_name, base_url, api_key_env, model_id, input_format, include_seed_data)
     - `InitResult` Pydantic model (created_files: list of paths, next_steps: list of instruction strings)
