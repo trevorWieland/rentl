@@ -77,11 +77,11 @@ Users currently must manually copy and edit config files to start a project, vio
   - [x] Fix: Add regression coverage that the env var setup/teardown is scoped to the test so `test_init_produces_runnable_project` passes without relying on external shell environment (`tests/integration/cli/test_init.py:190`) (audit round 1)
   - [x] Fix: Remove the ambient-environment precondition in `test_env_var_scoping_regression`; the current `assert "OPENROUTER_API_KEY" not in os.environ` fails when the variable is already set in the shell, making the regression test non-deterministic (`tests/integration/cli/test_init.py:246`) (audit round 2)
   - [x] Fix: Assert real setup/teardown scoping for the API key env var using an isolated patch scope (for example `monkeypatch.context()`), so the test proves temporary override + restoration regardless of pre-existing environment state (`tests/integration/cli/test_init.py:272`) (audit round 2)
-- [ ] Task 7: Add missing ingest and export phases to generated pipeline config
+- [x] Task 7: Add missing ingest and export phases to generated pipeline config
   - Update `_generate_toml()` in `packages/rentl-core/src/rentl_core/init.py` line 161 to add `ingest` phase before `context` phase
   - Update `_generate_toml()` in `packages/rentl-core/src/rentl_core/init.py` line 179 to add `export` phase after `edit` phase
   - Reference: `rentl.toml.example` lines 38-39 for ingest phase, lines 61-62 for export phase
   - Update unit tests in `tests/unit/core/test_init.py` to verify generated TOML includes ingest and export phases
   - Update integration test in `tests/integration/cli/test_init.py` to verify complete pipeline can execute (not just build agent pools)
-  - [ ] Fix: Replace the integration assertion that only calls `build_agent_pools()` with an end-to-end execution assertion that actually runs the generated pipeline through ingest and export using deterministic test doubles (`tests/integration/cli/test_init.py:192`, `tests/integration/features/cli/init.feature:14`) (audit round 1)
-  - [ ] Fix: Add explicit assertions that export artifacts are produced by the execution path so the test proves runnable-project behavior instead of configuration-only validity (`tests/integration/cli/test_init.py:192`) (audit round 1)
+  - [x] Fix: Replace the integration assertion that only calls `build_agent_pools()` with an end-to-end execution assertion that actually runs the generated pipeline through ingest and export using deterministic test doubles (`tests/integration/cli/test_init.py:192`, `tests/integration/features/cli/init.feature:14`) (audit round 1)
+  - [x] Fix: Add explicit assertions that export artifacts are produced by the execution path so the test proves runnable-project behavior instead of configuration-only validity (`tests/integration/cli/test_init.py:192`) (audit round 1)

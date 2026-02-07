@@ -11,4 +11,4 @@ Feature: Init Command
     And the generated config validates
     And the generated config resolves without errors
     And the seed data file is valid JSONL
-    And the pipeline can build agent pools from generated config
+    And the pipeline can execute end-to-end and produce export artifacts

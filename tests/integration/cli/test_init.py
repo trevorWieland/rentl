@@ -10,12 +10,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
+from typer.testing import CliRunner
 
+import rentl_cli.main as cli_main
 from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import InitAnswers, generate_project
 from rentl_schemas.io import SourceLine
 from rentl_schemas.primitives import FileFormat, JsonValue
 from rentl_schemas.validation import validate_run_config
+from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
     pass
@@ -189,20 +192,21 @@ def then_seed_data_is_valid_jsonl(ctx: InitContext) -> None:
             ) from exc
 
 
-@then("the pipeline can build agent pools from generated config")
-def then_pipeline_can_build_agent_pools(
-    ctx: InitContext, monkeypatch: pytest.MonkeyPatch
+@then("the pipeline can execute end-to-end and produce export artifacts")
+def then_pipeline_executes_end_to_end(
+    ctx: InitContext, monkeypatch: pytest.MonkeyPatch, cli_runner: CliRunner
 ) -> None:
-    """Assert the generated config can be used to build agent pools.
+    """Assert the generated config can execute a complete pipeline run.
 
-    This verifies that referenced agent names actually exist in the default pool,
-    catching configuration errors that would only appear at runtime.
-
-    Raises:
-        AssertionError: If agent pool building fails.
+    This end-to-end test verifies that the generated project can:
+    1. Validate and resolve the config
+    2. Build agent pools from default agents
+    3. Execute through ingest and export phases
+    4. Produce export artifacts
     """
     assert ctx.config_path is not None
     assert ctx.answers is not None
+    assert ctx.target_dir is not None
 
     # Parse and validate TOML
     with ctx.config_path.open("rb") as handle:
@@ -221,21 +225,48 @@ def then_pipeline_can_build_agent_pools(
     assert "ingest" in phase_names, "Pipeline missing required 'ingest' phase"
     assert "export" in phase_names, "Pipeline missing required 'export' phase"
 
-    # Attempt to build agent pools - this will fail if agent names are invalid
-    try:
-        pools = build_agent_pools(config=config)
-        assert pools is not None
-        # Verify we got pools for the expected phases
-        # Each phase should have at least one agent pool
-        assert len(pools.context_agents) > 0
-        assert len(pools.pretranslation_agents) > 0
-        assert len(pools.translate_agents) > 0
-        assert len(pools.qa_agents) > 0
-        assert len(pools.edit_agents) > 0
-    except Exception as exc:
-        raise AssertionError(
-            f"Failed to build agent pools from generated config: {exc}"
-        ) from exc
+    # Mock the LLM runtime to avoid real API calls
+    monkeypatch.setattr(cli_main, "_build_llm_runtime", lambda: FakeLlmRuntime())
+
+    # Execute the pipeline end-to-end using the CLI
+    # This proves the generated project is runnable
+    result = cli_runner.invoke(
+        cli_main.app,
+        ["run-pipeline", "--config", str(ctx.config_path)],
+    )
+
+    # Assert pipeline execution succeeded
+    assert result.exit_code == 0, (
+        f"Pipeline execution failed with exit code {result.exit_code}\n"
+        f"Output: {result.stdout}\n"
+        f"Error: {result.stderr if hasattr(result, 'stderr') else 'N/A'}"
+    )
+
+    # Parse response
+    response = json.loads(result.stdout)
+    assert response.get("error") is None, (
+        f"Pipeline execution returned error: {response.get('error')}"
+    )
+    assert response.get("data") is not None
+    assert response["data"].get("run_id") is not None
+
+    # Verify export artifacts were produced
+    # The export phase should write output files to the output directory
+    output_dir = ctx.target_dir / "out"
+    assert output_dir.exists(), "Output directory not created"
+
+    # Check for exported translation files
+    # Expected format: out/{target_language}/output.{format}
+    for target_lang in ctx.answers.target_languages:
+        lang_dir = output_dir / target_lang
+        assert lang_dir.exists(), f"Export directory for {target_lang} not created"
+
+        # Check for output file in the expected format
+        output_file = lang_dir / f"output.{ctx.answers.input_format}"
+        assert output_file.exists(), (
+            f"Export artifact not found: {output_file}\n"
+            f"Directory contents: {list(lang_dir.iterdir())}"
+        )
 
 
 def test_env_var_scoping_regression(
