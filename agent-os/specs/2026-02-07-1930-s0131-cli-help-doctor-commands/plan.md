@@ -14,7 +14,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit spec artifacts on issue branch
 
-- [ ] Task 2: Core Doctor Diagnostics Module
+- [x] Task 2: Core Doctor Diagnostics Module
   - Create `packages/rentl-core/src/rentl_core/doctor.py`
   - Define `CheckResult` Pydantic model (name, status: pass/fail/warn, message, fix_suggestion)
   - Define `DoctorReport` Pydantic model (checks list, overall status)
@@ -22,9 +22,9 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - Implement `run_doctor()` that runs all checks and returns `DoctorReport`
   - Unit tests for each check function (mock filesystem/env for isolation)
   - Acceptance: all checks return `CheckResult` with actionable fix suggestions; `run_doctor()` aggregates correctly
-  - [ ] Fix: Provide an actionable `fix_suggestion` for WARN status when runtime is missing in `run_doctor()` (currently `None` at `packages/rentl-core/src/rentl_core/doctor.py:438`; violates spec acceptance for warned checks) (audit round 1)
-  - [ ] Fix: Map LLM connectivity failure to connection-category exit code in `run_doctor()` instead of always returning `ExitCode.CONFIG_ERROR` for any failure (`packages/rentl-core/src/rentl_core/doctor.py:446`) (audit round 1)
-  - [ ] Fix: Include the workspace directory itself in `check_workspace_dirs()` fix command when workspace is missing (message lists workspace missing but suggestion omits it at `packages/rentl-core/src/rentl_core/doctor.py:226`) (audit round 1)
+  - [x] Fix: Provide an actionable `fix_suggestion` for WARN status when runtime is missing in `run_doctor()` (currently `None` at `packages/rentl-core/src/rentl_core/doctor.py:438`; violates spec acceptance for warned checks) (audit round 1)
+  - [x] Fix: Map LLM connectivity failure to connection-category exit code in `run_doctor()` instead of always returning `ExitCode.CONFIG_ERROR` for any failure (`packages/rentl-core/src/rentl_core/doctor.py:446`) (audit round 1)
+  - [x] Fix: Include the workspace directory itself in `check_workspace_dirs()` fix command when workspace is missing (message lists workspace missing but suggestion omits it at `packages/rentl-core/src/rentl_core/doctor.py:226`) (audit round 1)
 
 - [ ] Task 3: Core Phase Explainer Module
   - Create `packages/rentl-core/src/rentl_core/explain.py`

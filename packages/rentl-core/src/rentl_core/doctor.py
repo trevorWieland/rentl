@@ -223,7 +223,16 @@ def check_workspace_dirs(config: RunConfig) -> CheckResult:
         missing.append(f"logs ({logs_dir})")
 
     if missing:
-        dirs_cmd = f"{output_dir} {logs_dir}"
+        # Build mkdir command with all missing directories
+        missing_paths = []
+        if not workspace_dir.exists():
+            missing_paths.append(str(workspace_dir))
+        if not output_dir.exists():
+            missing_paths.append(str(output_dir))
+        if not logs_dir.exists():
+            missing_paths.append(str(logs_dir))
+
+        dirs_cmd = " ".join(missing_paths)
         return CheckResult(
             name="Workspace Directories",
             status=CheckStatus.FAIL,
@@ -435,7 +444,10 @@ async def run_doctor(
                 name="LLM Connectivity",
                 status=CheckStatus.WARN,
                 message="LLM connectivity check skipped (no runtime provided)",
-                fix_suggestion=None,
+                fix_suggestion=(
+                    "LLM connectivity check requires runtime initialization. "
+                    "This is typically handled automatically by CLI commands."
+                ),
             )
         )
 
@@ -445,7 +457,18 @@ async def run_doctor(
 
     if has_fail:
         overall_status = CheckStatus.FAIL
-        exit_code = ExitCode.CONFIG_ERROR
+        # Determine appropriate exit code based on which checks failed
+        # If LLM Connectivity failed due to actual connectivity issues
+        # (not config cascade), use CONNECTION_ERROR; otherwise CONFIG_ERROR
+        llm_check = next((c for c in checks if c.name == "LLM Connectivity"), None)
+        if (
+            llm_check
+            and llm_check.status == CheckStatus.FAIL
+            and "config invalid" not in llm_check.message.lower()
+        ):
+            exit_code = ExitCode.CONNECTION_ERROR
+        else:
+            exit_code = ExitCode.CONFIG_ERROR
     elif has_warn:
         overall_status = CheckStatus.WARN
         exit_code = ExitCode.SUCCESS
