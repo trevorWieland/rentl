@@ -143,3 +143,26 @@ Actual CLI option is singular and repeatable:
   ```
 
 **Impact:** `rentl help run-pipeline` will mislead users into running an invalid flag, increasing avoidable command failures and weakening trust in CLI diagnostics.
+
+
+## Signpost 5: Export help still advertises wrong `--column-order` usage
+
+**Task:** Task 4 (Core Help Content Module)
+
+**Problem:** The help registry describes `export --column-order` as comma-separated input, but the real CLI option is repeatable.
+
+**Evidence:**
+
+Help registry currently says comma-separated:
+- `packages/rentl-core/src/rentl_core/help.py:95`
+  ```python
+  "--column-order           Comma-separated column order",
+  ```
+
+Actual CLI option is repeatable:
+- `services/rentl-cli/src/rentl_cli/main.py:145`
+  ```python
+  None, "--column-order", help="Explicit CSV column order (repeatable)"
+  ```
+
+**Impact:** `rentl help export` can steer users toward malformed `--column-order` input, creating avoidable export errors and another source-of-truth drift between CLI behavior and help docs.

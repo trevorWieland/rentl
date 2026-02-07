@@ -10,3 +10,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 1** (round 1): PASS — Commit `123ff80` created `spec.md`, `plan.md`, `demo.md`, `standards.md`, and `references.md` for spec `s0.1.31` on the issue branch.
 - **Task 3** (round 1): PASS — `explain.py` implements `PhaseInfo`, seven-phase registry, phase validation, and listing; unit tests in `test_explain.py` pass (`21 passed`).
 - **Task 4** (round 1): FAIL — `run-pipeline` help content drifted from CLI signature by documenting nonexistent `--target-languages` flag and comma-separated usage.
+- **Task 4** (round 2): FAIL — `export` help metadata still drifts from CLI by documenting `--column-order` as comma-separated instead of repeatable.
