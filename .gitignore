@@ -4,6 +4,10 @@
 .ruff_cache
 .venv
 .env
+
+# Orchestrator artifacts (runtime-only, never committed)
+.agent-status
+.orchestrate.lock
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

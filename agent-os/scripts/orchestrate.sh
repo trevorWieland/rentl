@@ -29,6 +29,9 @@
 #     ORCH_SPEC_GATE     - Spec-level verification command (default: "make all")
 #     ORCH_MAX_CYCLES    - Safety limit on full cycles (default: 10, staleness detector is primary)
 #     ORCH_COMMANDS_DIR  - Path to command markdown files (default: ".claude/commands/agent-os")
+#     ORCH_AGENT_TIMEOUT - Per-agent invocation timeout in seconds (default: 1800)
+#     ORCH_MAX_TASK_RETRIES - Max attempts for a single task before aborting (default: 3)
+#     ORCH_STALE_LIMIT   - Cycles with unchanged plan.md before aborting (default: 3)
 
 set -euo pipefail
 
@@ -84,7 +87,12 @@ cleanup_timer() {
         TIMER_PID=""
     fi
 }
-trap cleanup_timer EXIT INT TERM
+
+cleanup_all() {
+    cleanup_timer
+    rm -f "${STATUS_FILE:-}" "${SPEC_BACKUP:-}" 2>/dev/null || true
+}
+trap cleanup_all EXIT INT TERM
 
 _timer_loop() {
     local label="$1" model="$2" start_ts="$3"
@@ -160,6 +168,9 @@ TASK_GATE="${ORCH_TASK_GATE:-make check}"
 SPEC_GATE="${ORCH_SPEC_GATE:-make all}"
 MAX_CYCLES="${ORCH_MAX_CYCLES:-10}"
 COMMANDS_DIR="${ORCH_COMMANDS_DIR:-.claude/commands/agent-os}"
+AGENT_TIMEOUT="${ORCH_AGENT_TIMEOUT:-1800}"
+MAX_TASK_RETRIES="${ORCH_MAX_TASK_RETRIES:-3}"
+STALE_LIMIT="${ORCH_STALE_LIMIT:-3}"
 
 # Load config file if provided
 while [[ $# -gt 0 ]]; do
@@ -191,6 +202,17 @@ if [[ ! -f "$SPEC_FOLDER/plan.md" ]]; then
     exit 1
 fi
 
+# --- Concurrency lock ---
+# Prevents two orchestrators from running on the same spec simultaneously.
+# Uses flock on fd 9 — released automatically when the script exits.
+
+LOCK_FILE="$SPEC_FOLDER/.orchestrate.lock"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    fail "Another orchestrator is already running on $SPEC_FOLDER"
+    exit 1
+fi
+
 # --- Helper functions ---
 
 next_task_label() {
@@ -201,6 +223,54 @@ next_task_label() {
     else
         echo ""
     fi
+}
+
+# --- spec.md immutability guard ---
+# Snapshot at start, verify after each agent invocation. If an agent modifies
+# spec.md, revert it and amend the commit — self-heal rather than abort.
+
+SPEC_MD5=$(md5sum "$SPEC_FOLDER/spec.md" | cut -d' ' -f1)
+SPEC_BACKUP=$(mktemp)
+cp "$SPEC_FOLDER/spec.md" "$SPEC_BACKUP"
+
+guard_spec_md() {
+    local current_md5
+    current_md5=$(md5sum "$SPEC_FOLDER/spec.md" | cut -d' ' -f1)
+    if [[ "$current_md5" != "$SPEC_MD5" ]]; then
+        tput "  ${YELLOW}⚠ Agent modified spec.md — reverting (immutability contract)${NC}\n"
+        cp "$SPEC_BACKUP" "$SPEC_FOLDER/spec.md"
+        git add "$SPEC_FOLDER/spec.md"
+        git commit --amend --no-edit 2>/dev/null || true
+    fi
+}
+
+# --- File-based agent status ---
+# Agents are instructed to write their status signal to this file in addition
+# to printing it to stdout. File-based extraction is deterministic; stdout grep
+# is kept as a fallback for backwards compatibility.
+
+STATUS_FILE="$SPEC_FOLDER/.agent-status"
+
+clear_status_file() {
+    rm -f "$STATUS_FILE"
+}
+
+extract_signal() {
+    local output="$1"
+    local prefix="$2"
+
+    # Primary: read from status file (deterministic, not affected by output format)
+    if [[ -f "$STATUS_FILE" ]]; then
+        local file_signal
+        file_signal=$(grep -oP "${prefix}: \K\w[\w-]*" "$STATUS_FILE" 2>/dev/null | tail -1) || true
+        if [[ -n "$file_signal" ]]; then
+            echo "$file_signal"
+            return
+        fi
+    fi
+
+    # Fallback: grep stdout (fragile but backwards-compatible)
+    echo "$output" | grep -oP "${prefix}: \K\w[\w-]*" | tail -1 || true
 }
 
 invoke_agent() {
@@ -215,6 +285,9 @@ invoke_agent() {
         return 1
     fi
 
+    # Clear status file before each invocation
+    clear_status_file
+
     local prompt
     prompt="$(cat "$command_file")"
     prompt="$prompt
@@ -223,7 +296,12 @@ invoke_agent() {
 
 Spec folder: $SPEC_FOLDER
 
-$extra_context"
+$extra_context
+
+---
+
+IMPORTANT: Before exiting, write ONLY your exit signal line to this file: $SPEC_FOLDER/.agent-status
+For example, write exactly one line like \`${command_name}-status: complete\` to that file using your file-writing tool."
 
     local cmd="$cli"
     if [[ -n "$model" ]]; then
@@ -234,12 +312,18 @@ $extra_context"
     # begin_phase cannot run here because $(invoke_agent ...) is a subshell
     # and _PHASE_START would be lost when the subshell exits.
 
-    local output
+    local output exit_code
 
     if [[ "$cli" == *codex* ]]; then
         local last_msg_file
         last_msg_file=$(mktemp)
-        eval "$cmd -o '$last_msg_file'" <<< "$prompt" > /dev/null 2>&1 || true
+        eval "timeout $AGENT_TIMEOUT $cmd -o '$last_msg_file'" <<< "$prompt" > /dev/null 2>&1 && exit_code=0 || exit_code=$?
+        if [[ $exit_code -eq 124 ]]; then
+            fail "Agent timed out after ${AGENT_TIMEOUT}s: $command_name"
+            rm -f "$last_msg_file"
+            echo ""
+            return
+        fi
         if [[ -s "$last_msg_file" ]]; then
             output=$(cat "$last_msg_file")
         else
@@ -247,7 +331,12 @@ $extra_context"
         fi
         rm -f "$last_msg_file"
     else
-        output=$(eval "$cmd" <<< "$prompt" 2>&1) || true
+        output=$(eval "timeout $AGENT_TIMEOUT $cmd" <<< "$prompt" 2>&1) && exit_code=0 || exit_code=$?
+        if [[ $exit_code -eq 124 ]]; then
+            fail "Agent timed out after ${AGENT_TIMEOUT}s: $command_name"
+            echo ""
+            return
+        fi
     fi
 
     echo "$output"
@@ -273,12 +362,6 @@ run_gate() {
     return $exit_code
 }
 
-extract_signal() {
-    local output="$1"
-    local prefix="$2"
-    echo "$output" | grep -oP "${prefix}: \K\w[\w-]*" | tail -1 || true
-}
-
 count_unchecked() {
     grep -cP '^\s*- \[ \]' "$SPEC_FOLDER/plan.md" 2>/dev/null || echo "0"
 }
@@ -300,11 +383,11 @@ tput "  ${DIM}Spec:${NC}    %s\n" "$SPEC_FOLDER"
 tput "  ${DIM}Impl:${NC}    %s ${DIM}(%s)${NC}\n" "$DO_MODEL" "${DO_CLI%% *}"
 tput "  ${DIM}Audit:${NC}   %s ${DIM}(%s)${NC}\n" "$AUDIT_MODEL" "${AUDIT_CLI%% *}"
 tput "  ${DIM}Gates:${NC}   %s │ %s\n" "$TASK_GATE" "$SPEC_GATE"
+tput "  ${DIM}Limits:${NC}  %ss timeout │ %d task retries │ %d stale cycles\n" "$AGENT_TIMEOUT" "$MAX_TASK_RETRIES" "$STALE_LIMIT"
 
 cycle=0
 prev_snapshot=""
 stale_count=0
-STALE_LIMIT=3
 
 while true; do
     cycle=$((cycle + 1))
@@ -332,6 +415,9 @@ while true; do
 
     # ─── Phase 1: Task Loop ───
 
+    task_attempts=0
+    prev_task=""
+
     while true; do
         unchecked=$(count_unchecked)
         if [[ "$unchecked" -eq 0 ]]; then
@@ -339,6 +425,22 @@ while true; do
         fi
 
         task_label=$(next_task_label)
+
+        # Inner-loop retry limit: detect when the same task is being
+        # retried repeatedly (e.g., do-task ↔ audit-task ping-pong)
+        if [[ "$task_label" == "$prev_task" ]]; then
+            task_attempts=$((task_attempts + 1))
+            if [[ $task_attempts -ge $MAX_TASK_RETRIES ]]; then
+                fail "Task stuck after $MAX_TASK_RETRIES attempts: $task_label"
+                fail "See signposts.md and audit-log.md for details."
+                exit 1
+            fi
+            tput "  ${YELLOW}⚠ Retrying task (%d/%d)${NC}\n" "$task_attempts" "$MAX_TASK_RETRIES"
+        else
+            task_attempts=1
+            prev_task="$task_label"
+        fi
+
         if [[ -n "$task_label" ]]; then
             tput "\n  ${BOLD}► %s${NC}\n" "$task_label"
         fi
@@ -346,6 +448,7 @@ while true; do
         # do-task
         begin_phase "do-task" "$DO_MODEL"
         output=$(invoke_agent "do-task" "$DO_CLI" "$DO_MODEL")
+        guard_spec_md
         signal=$(extract_signal "$output" "do-task-status")
 
         case "$signal" in
@@ -366,8 +469,13 @@ while true; do
                 echo "$output" | tail -20
                 exit 1
                 ;;
+            "")
+                end_phase "fail" "no signal detected"
+                tput "  ${YELLOW}⚠ do-task did not emit a status signal — continuing (gate will verify)${NC}\n"
+                ;;
             *)
-                end_phase "ok" "signal: ${signal:-none}"
+                end_phase "ok" "signal: $signal"
+                tput "  ${YELLOW}⚠ Unrecognized do-task signal: %s${NC}\n" "$signal"
                 ;;
         esac
 
@@ -395,6 +503,7 @@ while true; do
 \`\`\`
 $LAST_GATE_OUTPUT
 \`\`\`")
+                guard_spec_md
                 signal=$(extract_signal "$output" "do-task-status")
                 end_phase "ok" "gate fix"
 
@@ -408,6 +517,7 @@ $LAST_GATE_OUTPUT
         # audit-task
         begin_phase "audit-task" "$AUDIT_MODEL"
         output=$(invoke_agent "audit-task" "$AUDIT_CLI" "$AUDIT_MODEL")
+        guard_spec_md
         signal=$(extract_signal "$output" "audit-task-status")
 
         case "$signal" in
@@ -422,8 +532,13 @@ $LAST_GATE_OUTPUT
                 echo "$output" | tail -20
                 exit 1
                 ;;
+            "")
+                end_phase "fail" "no signal detected"
+                tput "  ${YELLOW}⚠ audit-task did not emit a status signal — continuing${NC}\n"
+                ;;
             *)
-                end_phase "ok" "signal: ${signal:-none}"
+                end_phase "ok" "signal: $signal"
+                tput "  ${YELLOW}⚠ Unrecognized audit-task signal: %s${NC}\n" "$signal"
                 ;;
         esac
     done
@@ -439,6 +554,7 @@ $LAST_GATE_OUTPUT
 \`\`\`
 $LAST_GATE_OUTPUT
 \`\`\`")
+        guard_spec_md
         end_phase "ok" "gate fix applied"
         continue
     fi
@@ -447,6 +563,7 @@ $LAST_GATE_OUTPUT
 
     begin_phase "run-demo" "$DEMO_MODEL"
     output=$(invoke_agent "run-demo" "$DEMO_CLI" "$DEMO_MODEL")
+    guard_spec_md
     signal=$(extract_signal "$output" "run-demo-status")
 
     case "$signal" in
@@ -462,15 +579,49 @@ $LAST_GATE_OUTPUT
             echo "$output" | tail -20
             exit 1
             ;;
+        "")
+            end_phase "fail" "no signal detected"
+            tput "  ${YELLOW}⚠ run-demo did not emit a status signal${NC}\n"
+            echo "$output" | tail -20
+            exit 1
+            ;;
         *)
-            end_phase "ok" "signal: ${signal:-none}"
+            end_phase "ok" "signal: $signal"
+            tput "  ${YELLOW}⚠ Unrecognized run-demo signal: %s${NC}\n" "$signal"
             ;;
     esac
 
     # ─── Phase 4: Spec Audit ───
 
+    # Snapshot audit.md mtime to detect stale reads from a previous cycle
+    audit_md_before=""
+    if [[ -f "$SPEC_FOLDER/audit.md" ]]; then
+        audit_md_before=$(stat -c %Y "$SPEC_FOLDER/audit.md" 2>/dev/null) || true
+    fi
+
     begin_phase "audit-spec" "$SPEC_MODEL"
     output=$(invoke_agent "audit-spec" "$SPEC_CLI" "$SPEC_MODEL")
+    guard_spec_md
+
+    # Verify audit.md was actually written/updated by this invocation
+    audit_md_after=""
+    if [[ -f "$SPEC_FOLDER/audit.md" ]]; then
+        audit_md_after=$(stat -c %Y "$SPEC_FOLDER/audit.md" 2>/dev/null) || true
+    fi
+
+    if [[ -z "$audit_md_after" ]]; then
+        end_phase "fail" "audit.md not written"
+        fail "audit-spec did not create audit.md"
+        echo "$output" | tail -20
+        exit 1
+    fi
+
+    if [[ -n "$audit_md_before" && "$audit_md_before" == "$audit_md_after" ]]; then
+        end_phase "fail" "audit.md not updated (stale)"
+        fail "audit-spec did not update audit.md — possible stale result from previous run"
+        exit 1
+    fi
+
     status=$(audit_status)
 
     case "$status" in
@@ -482,7 +633,7 @@ $LAST_GATE_OUTPUT
             continue
             ;;
         *)
-            end_phase "fail" "unknown status"
+            end_phase "fail" "unknown status: $status"
             echo "$output" | tail -20
             exit 1
             ;;
@@ -494,6 +645,9 @@ done
 # ─── Done ───
 
 fanfare
+
+# Clean up orchestrator artifacts
+rm -f "$STATUS_FILE" 2>/dev/null || true
 
 total_elapsed=$(( $(date +%s) - SCRIPT_START ))
 total_mins=$((total_elapsed / 60))
