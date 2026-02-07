@@ -17,3 +17,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 1): FAIL — New integration agent-pool assertion depends on `OPENROUTER_API_KEY` from the external environment, so the scenario fails in a clean test run.
 - **Task 6** (round 2): FAIL — New env-var scoping regression test is itself environment-dependent and fails when `OPENROUTER_API_KEY` is already set in the shell.
 - **Task 6** (round 3): PASS — Env-var scoping regression now uses an isolated `monkeypatch.context()` and verifies API key restoration deterministically across pre-existing environment states.
+- **Demo** (run 2): FAIL — Generated config missing required ingest/export phases, causing "Source lines are required" error at runtime. Task 7 added to fix pipeline phase generation.

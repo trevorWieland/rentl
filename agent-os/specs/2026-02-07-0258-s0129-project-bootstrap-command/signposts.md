@@ -70,3 +70,23 @@
   `OPENROUTER_API_KEY=already-set pytest -q tests/integration/cli/test_init.py::test_env_var_scoping_regression`
   `E   AssertionError: assert 'OPENROUTER_API_KEY' not in environ({...})`
 - **Impact:** The suite can fail on developer machines or CI environments that already export provider keys, so the regression test does not reliably verify scoped setup/teardown behavior.
+
+- **Demo:** Run 2, Step 4
+- **Problem:** Generated `rentl.toml` is missing the required `ingest` and `export` pipeline phases, causing pipeline execution to fail immediately with "Source lines are required" error.
+- **Evidence:** Running `rentl run-pipeline` in a fresh init-generated project fails:
+  ```
+  {"data":null,"error":{"code":"missing_dependency","message":"Source lines are required","details":{"field":"phase","provided":"context","valid_options":null},"exit_code":20},"meta":{"timestamp":"2026-02-07T20:12:46.228105Z","request_id":null}}
+  ```
+  Generated config in `packages/rentl-core/src/rentl_core/init.py:161-179` defines phases starting from "context":
+  ```
+  [[pipeline.phases]]
+  phase = "context"
+  agents = ["scene_summarizer"]
+  ```
+  But `rentl.toml.example:38-62` shows the complete pipeline requires:
+  - Line 39: `phase = "ingest"` (missing in generated config)
+  - Lines 42-59: context, pretranslation, translate, qa, edit phases (present)
+  - Line 62: `phase = "export"` (missing in generated config)
+
+  Without the `ingest` phase, the pipeline never loads source lines from the input file, causing the orchestrator to raise `OrchestrationError` at `packages/rentl-core/src/rentl_core/orchestrator.py:1676-1684`.
+- **Impact:** This violates spec non-negotiables #1 ("generated config must validate") and #4 ("generated project must be runnable"). Every bootstrapped project fails immediately at runtime. Schema validation passes because ingest/export are optional in the schema, but runtime execution requires them.

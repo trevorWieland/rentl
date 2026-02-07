@@ -30,3 +30,14 @@ In this demo, we'll prove the init command works end-to-end: from an empty direc
 - **Overall: FAIL**
 
 **Root cause:** Generated TOML uses generic phase names as agent names (e.g., `agents = ["context"]`) instead of actual default agent names (e.g., `agents = ["scene_summarizer"]`). Schema validation passes but runtime agent pool construction fails. See signposts.md for detailed evidence and task 6 in plan.md for fix.
+
+### Run 2 — post-task-6 verification (2026-02-07 14:12)
+- Step 1: PASS — Interactive prompts work correctly with piped input, all defaults accepted
+- Step 2: PASS — All expected files created: `rentl.toml`, `.env`, `input/`, `out/`, `logs/`, `input/seed.jsonl` with 3 lines
+- Step 3: PASS — Generated config passes `RunConfig.model_validate()` schema validation
+- Step 4: FAIL — Pipeline execution fails with "Source lines are required" error before even reaching agent pool construction
+- Step 5: NOT ATTEMPTED — blocked by step 4 failure
+- Step 6: NOT ATTEMPTED — blocked by step 4 failure
+- **Overall: FAIL**
+
+**Root cause:** Generated `rentl.toml` is missing required `ingest` and `export` pipeline phases. The config only defines context/pretranslation/translate/qa/edit phases but omits the ingest phase that loads source lines from the input file and the export phase that writes final output. Without ingest, the orchestrator fails at the first phase because `run.source_lines` is empty. Schema validation passes because these phases are optional in the schema, but runtime execution requires them. See signposts.md for detailed evidence and task 7 in plan.md for fix.
