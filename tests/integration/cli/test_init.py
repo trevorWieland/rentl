@@ -241,9 +241,11 @@ def test_env_var_scoping_regression(
     the BDD test doesn't rely on external shell environment.
 
     This addresses the audit feedback about deterministic test execution.
+    Uses monkeypatch.context() to prove temporary override + restoration
+    regardless of pre-existing environment state.
     """
-    # Verify the test API key is not in the environment initially
-    assert "OPENROUTER_API_KEY" not in os.environ
+    # Capture the original state (might be set or unset)
+    original_value = os.environ.get("OPENROUTER_API_KEY")
 
     # Generate a project with default answers
     answers = InitAnswers(
@@ -269,16 +271,17 @@ def test_env_var_scoping_regression(
         payload: dict[str, JsonValue] = tomllib.load(handle)
     config = validate_run_config(payload)
 
-    # Temporarily set the API key using monkeypatch
-    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key-for-scoping-test")
+    # Use isolated patch scope to verify temporary override + restoration
+    with monkeypatch.context() as m:
+        # Temporarily set the API key within the isolated scope
+        m.setenv("OPENROUTER_API_KEY", "fake-api-key-for-scoping-test")
 
-    # Verify it's set within the monkeypatch scope
-    assert os.environ.get("OPENROUTER_API_KEY") == "fake-api-key-for-scoping-test"
+        # Verify it's set within the monkeypatch scope
+        assert os.environ.get("OPENROUTER_API_KEY") == "fake-api-key-for-scoping-test"
 
-    # Build agent pools (this should work with the monkeypatched env var)
-    pools = build_agent_pools(config=config)
-    assert pools is not None
+        # Build agent pools (this should work with the monkeypatched env var)
+        pools = build_agent_pools(config=config)
+        assert pools is not None
 
-    # The monkeypatch will automatically clean up when this test exits
-    # We can't directly verify cleanup within this test, but pytest's monkeypatch
-    # fixture guarantees automatic teardown
+    # After exiting the context, verify restoration to original state
+    assert os.environ.get("OPENROUTER_API_KEY") == original_value
