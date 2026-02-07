@@ -49,7 +49,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - [x] Fix: Align `export --column-order` help metadata with the real CLI signature (repeatable option, not comma-separated input) in `packages/rentl-core/src/rentl_core/help.py:95` to match `services/rentl-cli/src/rentl_cli/main.py:145` (audit round 2)
   - [x] Fix: Add regression test coverage asserting export help text/examples do not advertise comma-separated `--column-order` usage and stay aligned with the repeatable CLI option (`packages/rentl-core/tests/unit/core/test_help.py`, `services/rentl-cli/src/rentl_cli/main.py:145`) (audit round 2)
 
-- [x] Task 5: CLI Commands — help, doctor, explain
+- [ ] Task 5: CLI Commands — help, doctor, explain
   - Add `rentl help` command to CLI (thin adapter over core help module)
   - Add `rentl doctor` command to CLI (thin adapter over core doctor module, Rich-formatted table)
   - Add `rentl explain` command to CLI (thin adapter over core explain module, Rich-formatted output)
@@ -57,6 +57,8 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - Exit code mapping from DoctorReport to ExitCode taxonomy
   - Integration tests for CLI invocation of all three commands
   - Acceptance: CLI commands work end-to-end; Rich formatting renders correctly; exit codes correct
+  - [ ] Fix: Add CLI tests that force `sys.stdout.isatty()` to `True` and assert Rich table/panel rendering paths for `help` and `explain` are exercised (`services/rentl-cli/src/rentl_cli/main.py:214`, `services/rentl-cli/src/rentl_cli/main.py:236`, `services/rentl-cli/src/rentl_cli/main.py:396`, `services/rentl-cli/src/rentl_cli/main.py:421`) (audit round 1)
+  - [ ] Fix: Add a CLI test that forces `sys.stdout.isatty()` to `True` and validates `doctor` Rich table + overall rendering path and non-success exit propagation (`services/rentl-cli/src/rentl_cli/main.py:308`, `services/rentl-cli/src/rentl_cli/main.py:334`, `services/rentl-cli/src/rentl_cli/main.py:374`) (audit round 1)
 
 - [ ] Task 6: Cross-command Polish and Edge Cases
   - `rentl doctor` outside project dir (no config) — graceful failure

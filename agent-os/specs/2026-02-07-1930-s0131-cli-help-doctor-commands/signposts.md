@@ -211,3 +211,34 @@ if report.exit_code != ExitCode.SUCCESS.value:  # Compare int to int
 - tests/unit/cli/test_main.py (added tests that caught this bug)
 
 **Impact:** Any CLI command that returns a Pydantic model with an enum field must remember that the enum is already converted to its value. This is a project-wide pattern due to BaseSchema configuration.
+
+
+## Signpost 7: CliRunner paths miss TTY-only Rich rendering branches
+
+**Task:** Task 5 (CLI Commands — help, doctor, explain)
+
+**Problem:** The new `help`/`doctor`/`explain` commands branch on `sys.stdout.isatty()`, but tests only invoke via `CliRunner` without forcing TTY behavior, so Rich-rendering paths are not covered.
+
+**Evidence:**
+
+TTY branches in implementation:
+- `services/rentl-cli/src/rentl_cli/main.py:208`
+- `services/rentl-cli/src/rentl_cli/main.py:300`
+- `services/rentl-cli/src/rentl_cli/main.py:390`
+
+Tests invoke commands directly with `CliRunner.invoke(...)` and no `isatty` monkeypatch:
+- `tests/unit/cli/test_main.py:1667`
+- `tests/unit/cli/test_main.py:1711`
+- `tests/unit/cli/test_main.py:1734`
+- `tests/integration/cli/test_help.py:35`
+- `tests/integration/cli/test_doctor.py:76`
+- `tests/integration/cli/test_explain.py:35`
+
+Coverage evidence from targeted run:
+```bash
+$ pytest -q tests/unit/cli/test_main.py -k "help_command or doctor_command or explain_command" --cov=rentl_cli.main --cov-report=term-missing
+Name                                       Stmts   Miss  Cover   Missing
+services/rentl-cli/src/rentl_cli/main.py    1293   1032    20%   216-223, 238-266, 310-350, 398-405, 423-450, ...
+```
+
+**Impact:** Acceptance says Rich formatting must render correctly, but only non-TTY/plain branches are currently exercised. Regressions in Rich tables/panels can slip through while tests still pass.
