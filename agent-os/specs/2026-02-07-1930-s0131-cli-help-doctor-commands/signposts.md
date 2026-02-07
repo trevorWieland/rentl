@@ -112,3 +112,34 @@ LLM Connectivity fail 1/1 endpoint(s) failed: test
 ```
 
 **Impact:** CLI exit code indicates external connectivity (`30`) while a configuration prerequisite failed (`API Keys`). This weakens operator triage and can route remediation to the wrong category.
+
+
+## Signpost 4: Help registry can drift from real CLI flags
+
+**Task:** Task 4 (Core Help Content Module)
+
+**Problem:** `run-pipeline` help text advertises a flag and usage pattern that the CLI does not accept.
+
+**Evidence:**
+
+Help registry uses a nonexistent plural flag and comma-separated value:
+- `packages/rentl-core/src/rentl_core/help.py:120`
+  ```python
+  "--target-languages LANGS  Target language codes (comma-separated)",
+  ```
+- `packages/rentl-core/src/rentl_core/help.py:124`
+  ```python
+  "rentl run-pipeline --target-languages en,es",
+  ```
+
+Actual CLI option is singular and repeatable:
+- `services/rentl-cli/src/rentl_cli/main.py:163`
+  ```python
+  None, "--target-language", "-t", help="Target language code (repeatable)"
+  ```
+- `services/rentl-cli/src/rentl_cli/main.py:504`
+  ```python
+  target_languages: list[str] | None = TARGET_LANGUAGE_OPTION,
+  ```
+
+**Impact:** `rentl help run-pipeline` will mislead users into running an invalid flag, increasing avoidable command failures and weakening trust in CLI diagnostics.
