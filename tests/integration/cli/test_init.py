@@ -10,12 +10,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
+from typer.testing import CliRunner
 
+import rentl_cli.main as cli_main
 from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import InitAnswers, generate_project
 from rentl_schemas.io import SourceLine
 from rentl_schemas.primitives import FileFormat, JsonValue
 from rentl_schemas.validation import validate_run_config
+from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
     pass
@@ -195,19 +198,16 @@ def then_seed_data_is_valid_jsonl(ctx: InitContext) -> None:
 def then_pipeline_executes_end_to_end(
     ctx: InitContext,
     monkeypatch: pytest.MonkeyPatch,
+    cli_runner: CliRunner,
+    mock_llm_runtime: FakeLlmRuntime,
 ) -> None:
-    """Assert the generated config can be fully initialized for pipeline execution.
+    """Assert the generated project can execute the full pipeline and produce exports.
 
-    This test verifies that the generated project has all components needed to run:
+    This test verifies that:
     1. Config validates and resolves
-    2. Agent pools can be built from default agents
-    3. Pipeline phases include required ingest and export
-    4. Export directory structure exists
-
-    NOTE: Full end-to-end pipeline execution (with LLM calls) is verified manually
-    and in smoke tests. Mocking pydantic-ai agents for deterministic integration
-    tests requires deep provider-level stubbing that is out of scope for Task 7.
-    This test proves the generated project is correctly structured and initialized.
+    2. Pipeline phases include required ingest and export
+    3. Full pipeline execution completes successfully
+    4. Export artifacts are produced in the expected locations
     """
     assert ctx.config_path is not None
     assert ctx.answers is not None
@@ -243,10 +243,6 @@ def then_pipeline_executes_end_to_end(
     assert len(pools.qa_agents) > 0, "No QA agents in pool"
     assert len(pools.edit_agents) > 0, "No edit agents in pool"
 
-    # Verify export directory structure exists (created by init)
-    output_dir = ctx.target_dir / "out"
-    assert output_dir.exists(), "Output directory not created by init"
-
     # Verify seed input file exists and matches configured input path
     # This ensures the generated project can start pipeline execution immediately
     input_file = (
@@ -257,6 +253,49 @@ def then_pipeline_executes_end_to_end(
         f"Config expects: {config.project.paths.input_path}\n"
         f"This mismatch would cause pipeline execution to fail immediately"
     )
+
+    # Execute the full pipeline end-to-end with mocked LLM runtime
+    result = cli_runner.invoke(
+        cli_main.app,
+        ["run-pipeline", "--config", str(ctx.config_path)],
+    )
+
+    # Verify the pipeline completed successfully
+    assert result.exit_code == 0, (
+        f"Pipeline execution failed with exit code {result.exit_code}\n"
+        f"Output: {result.stdout}\n"
+        f"Error: {result.stderr}"
+    )
+
+    # Parse the response to verify execution succeeded
+    response = json.loads(result.stdout)
+    assert response.get("error") is None, (
+        f"Pipeline execution returned error: {response.get('error')}"
+    )
+    assert response.get("data") is not None, "Pipeline response missing data"
+
+    # Verify export artifacts were produced for each target language
+    output_dir = ctx.target_dir / "out"
+    assert output_dir.exists(), "Output directory not found after pipeline execution"
+
+    for target_lang in ctx.answers.target_languages:
+        lang_output_dir = output_dir / target_lang
+        assert lang_output_dir.exists(), (
+            f"Output directory not found for language '{target_lang}'"
+        )
+
+        # Verify export file exists in the expected format
+        export_file = lang_output_dir / f"output.{ctx.answers.input_format}"
+        expected_format = ctx.answers.input_format
+        assert export_file.exists(), (
+            f"Export artifact not found: {export_file}\n"
+            f"Expected export file for language '{target_lang}' "
+            f"in format '{expected_format}'"
+        )
+
+        # Verify the export file is not empty
+        content = export_file.read_text(encoding="utf-8")
+        assert len(content.strip()) > 0, f"Export artifact is empty: {export_file}"
 
 
 def test_env_var_scoping_regression(
