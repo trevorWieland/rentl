@@ -90,3 +90,8 @@
 
   Without the `ingest` phase, the pipeline never loads source lines from the input file, causing the orchestrator to raise `OrchestrationError` at `packages/rentl-core/src/rentl_core/orchestrator.py:1676-1684`.
 - **Impact:** This violates spec non-negotiables #1 ("generated config must validate") and #4 ("generated project must be runnable"). Every bootstrapped project fails immediately at runtime. Schema validation passes because ingest/export are optional in the schema, but runtime execution requires them.
+
+- **Task:** Task 7
+- **Problem:** The integration test added for Task 7 still validates configuration structure and agent-pool wiring only; it does not prove the generated project can execute the full pipeline through export.
+- **Evidence:** `tests/integration/features/cli/init.feature:14` still ends with `And the pipeline can build agent pools from generated config`, and the step implementation at `tests/integration/cli/test_init.py:226` only calls `build_agent_pools(config=config)` with assertions on pool presence. No call to pipeline execution (`rentl run-pipeline` or orchestrator execution path) is made in this scenario.
+- **Impact:** This leaves the Task 7 requirement unfulfilled ("verify complete pipeline can execute") and allows runtime regressions past ingest/export to slip through while tests remain green.
