@@ -166,3 +166,48 @@ Actual CLI option is repeatable:
   ```
 
 **Impact:** `rentl help export` can steer users toward malformed `--column-order` input, creating avoidable export errors and another source-of-truth drift between CLI behavior and help docs.
+
+
+## Signpost 6: BaseSchema uses `use_enum_values=True` which auto-converts enums to ints
+
+**Task:** Task 5 (CLI Commands — help, doctor, explain)
+
+**Problem:** Doctor command crashed with `AttributeError: 'int' object has no attribute 'value'` when trying to access `report.exit_code.value`.
+
+**Evidence:**
+
+Test failure output:
+```
+tests/unit/cli/test_main.py:1713: in test_doctor_command_with_valid_config
+    assert result.exit_code in [
+E   assert 1 in [0, 10, 30]
+E    +  where 1 = <Result AttributeError("'int' object has no attribute 'value'")>.exit_code
+```
+
+Code path that triggered the error:
+- `services/rentl-cli/src/rentl_cli/main.py:375`
+  ```python
+  raise typer.Exit(code=report.exit_code.value)
+  ```
+
+Root cause:
+- `packages/rentl-schemas/src/rentl_schemas/base.py:21`
+  ```python
+  use_enum_values=True,
+  ```
+
+**Solution:** All Pydantic models inherit from BaseSchema which has `use_enum_values=True` in the model config. This means Pydantic automatically converts enum fields to their values (ints) when creating model instances. Therefore, `report.exit_code` is already an int, not an ExitCode enum. Changed line 375 to:
+```python
+raise typer.Exit(code=report.exit_code)  # Already an int, no .value needed
+```
+
+And changed the comparison on line 374 to:
+```python
+if report.exit_code != ExitCode.SUCCESS.value:  # Compare int to int
+```
+
+**Files affected:**
+- services/rentl-cli/src/rentl_cli/main.py:374-375
+- tests/unit/cli/test_main.py (added tests that caught this bug)
+
+**Impact:** Any CLI command that returns a Pydantic model with an enum field must remember that the enum is already converted to its value. This is a project-wide pattern due to BaseSchema configuration.
