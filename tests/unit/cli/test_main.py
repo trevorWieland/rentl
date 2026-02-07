@@ -1751,37 +1751,96 @@ def test_explain_command_with_invalid_phase() -> None:
 
 
 def test_help_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test help command Rich rendering when isatty returns True."""
-    # Force isatty to return True
-    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    """Test help command Rich rendering paths by forcing Console terminal mode.
+
+    Note: CliRunner cannot truly emulate TTY behavior because it replaces stdout
+    with a capture buffer. This test validates the Rich rendering code paths execute
+    without errors by forcing Console to emit ANSI codes and patching isatty.
+    """
+    from rich.console import Console as RichConsole  # noqa: PLC0415
+
+    # Capture whether Console was created with the expected terminal settings
+    console_configs: list[dict] = []
+
+    # Patch Console in the CLI module to force terminal mode and capture config
+    class PatchedConsole(RichConsole):
+        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003
+            # Force terminal mode to emit ANSI codes
+            kwargs["force_terminal"] = True
+            console_configs.append(kwargs.copy())
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(cli_main, "Console", PatchedConsole)
+    # Patch isatty to return True, triggering the Rich code paths
+    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
 
     # Test list all commands (Rich table path)
     result = runner.invoke(app, ["help"])
     assert result.exit_code == 0
-    # Rich Table output should be present
+    # Verify Console was created with terminal mode forced
+    assert len(console_configs) >= 1
+    assert console_configs[0]["force_terminal"] is True
+    # Verify output contains command names (validates execution path)
     assert "version" in result.stdout
     assert "doctor" in result.stdout
+
+    # Reset console_configs for next test
+    console_configs.clear()
 
     # Test specific command (Rich panel path)
     result = runner.invoke(app, ["help", "version"])
     assert result.exit_code == 0
+    # Verify Console was created with terminal mode forced
+    assert len(console_configs) >= 1
+    assert console_configs[0]["force_terminal"] is True
+    # Verify output contains version info (validates execution path)
     assert "version" in result.stdout.lower()
 
 
 def test_explain_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test explain command Rich rendering when isatty returns True."""
-    # Force isatty to return True
-    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    """Test explain command Rich rendering paths by forcing Console terminal mode.
+
+    Note: CliRunner cannot truly emulate TTY behavior because it replaces stdout
+    with a capture buffer. This test validates the Rich rendering code paths execute
+    without errors by forcing Console to emit ANSI codes and patching isatty.
+    """
+    from rich.console import Console as RichConsole  # noqa: PLC0415
+
+    # Capture whether Console was created with the expected terminal settings
+    console_configs: list[dict] = []
+
+    # Patch Console in the CLI module to force terminal mode and capture config
+    class PatchedConsole(RichConsole):
+        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003
+            # Force terminal mode to emit ANSI codes
+            kwargs["force_terminal"] = True
+            console_configs.append(kwargs.copy())
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(cli_main, "Console", PatchedConsole)
+    # Patch isatty to return True, triggering the Rich code paths
+    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
 
     # Test list all phases (Rich table path)
     result = runner.invoke(app, ["explain"])
     assert result.exit_code == 0
+    # Verify Console was created with terminal mode forced
+    assert len(console_configs) >= 1
+    assert console_configs[0]["force_terminal"] is True
+    # Verify output contains phase names (validates execution path)
     assert "ingest" in result.stdout.lower()
     assert "translate" in result.stdout.lower()
+
+    # Reset console_configs for next test
+    console_configs.clear()
 
     # Test specific phase (Rich panel path)
     result = runner.invoke(app, ["explain", "ingest"])
     assert result.exit_code == 0
+    # Verify Console was created with terminal mode forced
+    assert len(console_configs) >= 1
+    assert console_configs[0]["force_terminal"] is True
+    # Verify output contains phase info (validates execution path)
     assert "ingest" in result.stdout.lower()
     # Should contain phase information sections
     assert "Input" in result.stdout or "Output" in result.stdout
@@ -1790,9 +1849,28 @@ def test_explain_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_doctor_command_tty_rendering(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Test doctor command Rich rendering when isatty returns True."""
-    # Force isatty to return True
-    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    """Test doctor command Rich rendering paths by forcing Console terminal mode.
+
+    Note: CliRunner cannot truly emulate TTY behavior because it replaces stdout
+    with a capture buffer. This test validates the Rich rendering code paths execute
+    without errors by forcing Console to emit ANSI codes and patching isatty.
+    """
+    from rich.console import Console as RichConsole  # noqa: PLC0415
+
+    # Capture whether Console was created with the expected terminal settings
+    console_configs: list[dict] = []
+
+    # Patch Console in the CLI module to force terminal mode and capture config
+    class PatchedConsole(RichConsole):
+        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003
+            # Force terminal mode to emit ANSI codes
+            kwargs["force_terminal"] = True
+            console_configs.append(kwargs.copy())
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(cli_main, "Console", PatchedConsole)
+    # Patch isatty to return True, triggering the Rich code paths
+    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
 
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
@@ -1805,12 +1883,54 @@ def test_doctor_command_tty_rendering(
     # Run doctor with Rich rendering
     result = runner.invoke(app, ["doctor", "--config", str(config_path)])
 
-    # Should contain check results (Rich table rendering)
+    # Verify Console was created with terminal mode forced
+    assert len(console_configs) >= 1
+    assert console_configs[0]["force_terminal"] is True
+    # Verify output contains check results (validates execution path)
     assert "Python Version" in result.stdout or "python" in result.stdout.lower()
     assert "Overall" in result.stdout  # Overall status line
 
-    # Verify non-success exit propagates correctly when checks fail
-    # (The exact exit code depends on what checks fail, but should be
-    # non-zero if any fail). We verify the command completes and produces
-    # output.
-    assert len(result.stdout) > 0
+
+def test_doctor_command_exit_propagation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test that doctor propagates non-success exit codes when checks fail.
+
+    This test validates the exit code propagation logic at
+    services/rentl-cli/src/rentl_cli/main.py:374
+    by ensuring that failing checks result in non-zero exit codes.
+    """
+    from rich.console import Console as RichConsole  # noqa: PLC0415
+
+    # Patch Console in the CLI module to force terminal mode
+    class PatchedConsole(RichConsole):
+        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003
+            kwargs["force_terminal"] = True
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(cli_main, "Console", PatchedConsole)
+    # Patch isatty to return True, triggering the Rich code paths
+    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+
+    # Intentionally omit workspace directories to trigger failures
+    # (don't create .rentl and logs directories)
+
+    # Run doctor - should fail workspace check
+    result = runner.invoke(app, ["doctor", "--config", str(config_path)])
+
+    # Verify non-success exit code propagates (main.py:374-375)
+    assert result.exit_code != 0, (
+        "Doctor should return non-zero exit code when checks fail"
+    )
+    assert result.exit_code in [
+        ExitCode.CONFIG_ERROR.value,
+        ExitCode.CONNECTION_ERROR.value,
+    ], f"Expected CONFIG_ERROR or CONNECTION_ERROR, got {result.exit_code}"
+    # Verify the failure is visible in output
+    assert "fail" in result.stdout.lower() or "✗" in result.stdout, (
+        "Failure should be visible in output"
+    )
