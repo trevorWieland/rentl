@@ -13,3 +13,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 2): FAIL — `rentl init` accepts trailing-comma target languages and reports success while generating `rentl.toml` that fails `validate_run_config()`.
 - **Task 4** (round 3): PASS — Target-language sanitization now prevents invalid blank entries and regression tests verify accepted inputs generate validating config.
 - **Task 5** (round 1): PASS — Added BDD integration coverage for init project bootstrap and fixed seed-data schema compatibility; generated project validates and resolves cleanly.
+- **Demo** (run 1): FAIL — Generated config uses invalid agent names, causing runtime failure despite passing schema validation. Task 6 added to fix agent name mapping.

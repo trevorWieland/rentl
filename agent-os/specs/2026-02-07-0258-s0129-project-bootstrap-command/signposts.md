@@ -40,3 +40,19 @@
 - **Tried:** Created integration test `tests/integration/cli/test_init.py` that validates seed data against `SourceLine` schema. This caught the bug immediately.
 - **Solution:** Fixed seed data generation for both JSONL and CSV formats to use correct ID patterns (`line_001`, `route_001`, `scene_001`) and correct field name (`text`). Updated unit tests in `tests/unit/core/test_init.py` that were checking for the wrong field name.
 - **Files affected:** `packages/rentl-core/src/rentl_core/init.py:219-236`, `tests/integration/cli/test_init.py` (new), `tests/integration/features/cli/init.feature` (new), `tests/unit/core/test_init.py:148-196`
+
+- **Demo:** Run 1, Step 4
+- **Problem:** Generated `rentl.toml` references invalid agent names that don't exist in the default agent pool, causing pipeline execution to fail with "Unknown agent" error.
+- **Evidence:** Running `rentl run-pipeline` in a fresh init-generated project fails immediately:
+  ```
+  {"error":{"code":"config_error","message":"Unknown agent 'context' for phase context. Available: basic_editor, direct_translator, idiom_labeler, scene_summarizer, style_guide_critic","details":null,"exit_code":10}}
+  ```
+  Generated config at lines 163, 167, 171, 175, 179 in `packages/rentl-core/src/rentl_core/init.py` uses generic phase names as agent names:
+  - `agents = ["context"]` but should be `["scene_summarizer"]`
+  - `agents = ["pretranslation"]` but should be `["idiom_labeler"]`
+  - `agents = ["translate"]` but should be `["direct_translator"]`
+  - `agents = ["qa"]` but should be `["style_guide_critic"]`
+  - `agents = ["edit"]` but should be `["basic_editor"]`
+
+  Reference: `rentl.toml.example` shows correct agent names at lines with `phase = "context"` through `phase = "edit"`.
+- **Impact:** This violates spec non-negotiables #1 ("generated config must validate") and #4 ("generated project must be runnable"). Every bootstrapped project fails immediately at runtime despite passing schema validation. This is a test gap — integration test validates schema but not runtime agent resolution.

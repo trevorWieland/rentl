@@ -20,4 +20,13 @@ In this demo, we'll prove the init command works end-to-end: from an empty direc
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — post-task-5 verification (2026-02-07 05:11)
+- Step 1: PASS — Interactive prompts work correctly, all defaults accepted
+- Step 2: PASS — All expected files created: `rentl.toml`, `.env`, `input/`, `out/`, `logs/`, `input/seed.jsonl` with 3 lines
+- Step 3: PASS — Generated config passes `validate_run_config()` schema validation
+- Step 4: FAIL — Pipeline execution fails with config error: "Unknown agent 'context' for phase context. Available: basic_editor, direct_translator, idiom_labeler, scene_summarizer, style_guide_critic"
+- Step 5: NOT ATTEMPTED — blocked by step 4 failure
+- Step 6: NOT ATTEMPTED — blocked by step 4 failure
+- **Overall: FAIL**
+
+**Root cause:** Generated TOML uses generic phase names as agent names (e.g., `agents = ["context"]`) instead of actual default agent names (e.g., `agents = ["scene_summarizer"]`). Schema validation passes but runtime agent pool construction fails. See signposts.md for detailed evidence and task 6 in plan.md for fix.
