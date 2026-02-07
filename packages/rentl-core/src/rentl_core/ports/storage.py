@@ -9,6 +9,7 @@ from typing import Protocol, TypeVar, runtime_checkable
 from pydantic import Field
 
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.exit_codes import resolve_exit_code
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.primitives import ArtifactId, RunId, RunStatus
 from rentl_schemas.responses import ErrorDetails, ErrorResponse
@@ -69,8 +70,12 @@ class StorageErrorInfo(BaseSchema):
                 valid_options=None,
             )
         code_value = getattr(self.code, "value", self.code)
+        exit_code = resolve_exit_code(str(code_value), domain="storage")
         return ErrorResponse(
-            code=str(code_value), message=self.message, details=details
+            code=str(code_value),
+            message=self.message,
+            details=details,
+            exit_code=exit_code.value,
         )
 
 

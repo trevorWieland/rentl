@@ -14,6 +14,7 @@ from rentl_schemas.events import (
     ExportFailedData,
     ExportStartedData,
 )
+from rentl_schemas.exit_codes import resolve_exit_code
 from rentl_schemas.io import ExportTarget, TranslatedLine
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.primitives import (
@@ -83,7 +84,13 @@ class ExportErrorInfo(BaseSchema):
             message = f"{location}: {message}"
 
         code_value = getattr(self.code, "value", self.code)
-        return ErrorResponse(code=str(code_value), message=message, details=details)
+        exit_code = resolve_exit_code(str(code_value), domain="export")
+        return ErrorResponse(
+            code=str(code_value),
+            message=message,
+            details=details,
+            exit_code=exit_code.value,
+        )
 
 
 class ExportError(Exception):

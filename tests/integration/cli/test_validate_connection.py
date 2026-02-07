@@ -204,11 +204,12 @@ def when_run_validate_connection_missing_config(
 
 @then("the command succeeds with an error response")
 def then_command_succeeds_with_error(ctx: ValidateConnectionContext) -> None:
-    """Assert the CLI exits 0 but returns an error response."""
+    """Assert the CLI exits with non-zero code and returns an error response."""
     assert ctx.result is not None
-    assert ctx.result.exit_code == 0
+    assert ctx.result.exit_code != 0
     assert ctx.response is not None
     assert ctx.response["error"] is not None
+    assert ctx.response["error"]["exit_code"] == ctx.result.exit_code
 
 
 @then("the response shows successful validations")

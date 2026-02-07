@@ -1,6 +1,8 @@
 """Unit tests for rentl-cli."""
 
+import ast
 import asyncio
+import inspect
 import json
 import textwrap
 from pathlib import Path
@@ -147,6 +149,40 @@ def test_export_emits_command_logs(tmp_path: Path) -> None:
     events = _log_event_names(_read_log_entries(log_files[0]))
     assert CommandEvent.STARTED.value in events
     assert CommandEvent.COMPLETED.value in events
+
+
+def test_export_validation_error_includes_exit_code(tmp_path: Path) -> None:
+    """Export command ValueError handling includes exit_code in error response."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    input_path = workspace_dir / "translated.jsonl"
+    output_path = workspace_dir / "output.csv"
+    config_path = _write_config(tmp_path, workspace_dir)
+
+    # Invalid JSONL content that will trigger ValueError during parsing
+    input_path.write_text("invalid json content\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "export",
+            "--config",
+            str(config_path),
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--format",
+            "csv",
+        ],
+    )
+
+    assert result.exit_code == 11  # ExitCode.VALIDATION_ERROR
+    response = json.loads(result.stdout)
+    assert response["error"] is not None
+    assert response["error"]["code"] == "validation_error"
+    assert response["error"]["exit_code"] is not None
+    assert response["error"]["exit_code"] == 11  # ExitCode.VALIDATION_ERROR
 
 
 def test_run_phase_ingest_persists_state(tmp_path: Path) -> None:
@@ -334,10 +370,11 @@ def test_run_pipeline_errors_when_agents_missing(
         ["run-pipeline", "--config", str(config_path), "--run-id", str(run_id)],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 11  # ExitCode.VALIDATION_ERROR
     response = ApiResponse[RunExecutionResult].model_validate_json(result.stdout)
     assert response.error is not None
     assert response.error.code == "validation_error"
+    assert response.error.exit_code == 11
 
 
 def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:
@@ -347,9 +384,10 @@ def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:
 
     result = runner.invoke(app, ["run-pipeline", "--config", str(config_path)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 10  # ExitCode.CONFIG_ERROR
     response = json.loads(result.stdout)
     assert response["error"]["code"] == "config_error"
+    assert response["error"]["exit_code"] == 10
 
 
 def test_status_command_outputs_snapshot(tmp_path: Path) -> None:
@@ -425,9 +463,10 @@ def test_run_pipeline_errors_on_missing_endpoint_key(tmp_path: Path) -> None:
 
     result = runner.invoke(app, ["run-pipeline", "--config", str(config_path)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 10  # ExitCode.CONFIG_ERROR
     response = json.loads(result.stdout)
     assert response["error"]["code"] == "config_error"
+    assert response["error"]["exit_code"] == 10
     assert "SECONDARY_KEY" in response["error"]["message"]
 
 
@@ -1175,3 +1214,223 @@ def _write_multi_endpoint_config(tmp_path: Path, workspace_dir: Path) -> Path:
     ).strip()
     config_path.write_text(content + "\n", encoding="utf-8")
     return config_path
+
+
+def test_status_json_failed_returns_orchestration_exit_code(tmp_path: Path) -> None:
+    """Status --json with FAILED status returns exit code 20 and valid JSON response."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+    run_id = uuid7()
+
+    # Create run state with FAILED status
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress = PhaseProgress(
+        phase=PhaseName.INGEST,
+        status=PhaseStatus.FAILED,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.FAILED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[phase_progress],
+            summary=summary,
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=None,
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+
+    run_state_dir = workspace_dir / ".rentl" / "run_state" / "runs"
+    run_state_dir.mkdir(parents=True)
+    run_state_path = run_state_dir / f"{run_id}.json"
+
+    run_state_record = RunStateRecord(
+        run_id=run_id,
+        stored_at="2026-02-03T10:00:10Z",
+        state=run_state,
+        location=None,
+        checksum_sha256=None,
+    )
+    run_state_path.write_text(run_state_record.model_dump_json(), encoding="utf-8")
+
+    # Create empty progress file
+    progress_dir = workspace_dir / "logs" / "progress"
+    progress_dir.mkdir(parents=True)
+    progress_path = progress_dir / f"{run_id}.jsonl"
+    progress_path.write_text("", encoding="utf-8")
+
+    # Create empty log file
+    log_dir = workspace_dir / "logs"
+    log_path = log_dir / f"{run_id}.jsonl"
+    log_path.write_text("", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "status",
+            "--config",
+            str(config_path),
+            "--run-id",
+            str(run_id),
+            "--json",
+        ],
+    )
+
+    # Assert exit code is ORCHESTRATION_ERROR (20)
+    assert result.exit_code == 20
+    # Assert output is valid JSON with data, not an error envelope
+    response = ApiResponse[RunStatusResult].model_validate_json(result.stdout)
+    assert response.error is None
+    assert response.data is not None
+    assert response.data.status == RunStatus.FAILED
+
+
+def test_status_json_cancelled_returns_orchestration_exit_code(tmp_path: Path) -> None:
+    """Status --json with CANCELLED status returns exit code 20, valid JSON."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+    run_id = uuid7()
+
+    # Create run state with CANCELLED status
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress = PhaseProgress(
+        phase=PhaseName.INGEST,
+        status=PhaseStatus.RUNNING,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.CANCELLED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[phase_progress],
+            summary=summary,
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=None,
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+
+    run_state_dir = workspace_dir / ".rentl" / "run_state" / "runs"
+    run_state_dir.mkdir(parents=True)
+    run_state_path = run_state_dir / f"{run_id}.json"
+
+    run_state_record = RunStateRecord(
+        run_id=run_id,
+        stored_at="2026-02-03T10:00:10Z",
+        state=run_state,
+        location=None,
+        checksum_sha256=None,
+    )
+    run_state_path.write_text(run_state_record.model_dump_json(), encoding="utf-8")
+
+    # Create empty progress file
+    progress_dir = workspace_dir / "logs" / "progress"
+    progress_dir.mkdir(parents=True)
+    progress_path = progress_dir / f"{run_id}.jsonl"
+    progress_path.write_text("", encoding="utf-8")
+
+    # Create empty log file
+    log_dir = workspace_dir / "logs"
+    log_path = log_dir / f"{run_id}.jsonl"
+    log_path.write_text("", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "status",
+            "--config",
+            str(config_path),
+            "--run-id",
+            str(run_id),
+            "--json",
+        ],
+    )
+
+    # Assert exit code is ORCHESTRATION_ERROR (20)
+    assert result.exit_code == 20
+    # Assert output is valid JSON with data, not an error envelope
+    response = ApiResponse[RunStatusResult].model_validate_json(result.stdout)
+    assert response.error is None
+    assert response.data is not None
+    assert response.data.status == RunStatus.CANCELLED
+
+
+def test_no_hardcoded_exit_codes() -> None:
+    """Verify no hardcoded integer exit codes remain in CLI code.
+
+    All exit codes must reference the ExitCode enum or response.error.exit_code.
+    """
+    # Get the source code of the main module
+    main_source = inspect.getsource(cli_main)
+    tree = ast.parse(main_source)
+
+    # Find all typer.Exit() calls
+    hardcoded_exits = []
+
+    class ExitCodeVisitor(ast.NodeVisitor):
+        def visit_Call(self, node: ast.Call) -> None:
+            # Check if this is a typer.Exit call
+            if isinstance(node.func, ast.Attribute) and (
+                isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "typer"
+                and node.func.attr == "Exit"
+            ):
+                # Check if code argument is a hardcoded integer
+                for keyword in node.keywords:
+                    if (
+                        keyword.arg == "code"
+                        and isinstance(keyword.value, ast.Constant)
+                        and isinstance(keyword.value.value, int)
+                    ):
+                        hardcoded_exits.append((
+                            getattr(node, "lineno", "unknown"),
+                            keyword.value.value,
+                        ))
+            self.generic_visit(node)
+
+    visitor = ExitCodeVisitor()
+    visitor.visit(tree)
+
+    assert not hardcoded_exits, (
+        f"Found hardcoded integer exit codes at lines: {hardcoded_exits}. "
+        "All exit codes must use ExitCode enum or response.error.exit_code."
+    )

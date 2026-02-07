@@ -8,6 +8,7 @@ Pick up the next unchecked task from the plan, implement it, verify it, and comm
 
 - Autonomous execution — no shaping or interviewing
 - One task per invocation — implement, verify, commit, exit
+- **CRITICAL: `make check` must pass before you mark a task complete.** Run it, read every error, fix them all, and re-run until green. The orchestrator re-runs this gate externally — if it fails, you'll be called back to fix it, wasting a full cycle.
 - Read signposts before starting — but verify claims against their evidence before trusting them
 - Never modify spec.md — acceptance criteria and non-negotiables are immutable
 - Keep changes scoped to the current task

@@ -74,6 +74,7 @@ from rentl_schemas.events import (
     CommandStartedData,
     ProgressEvent,
 )
+from rentl_schemas.exit_codes import ExitCode, resolve_exit_code
 from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
 from rentl_schemas.llm import LlmConnectionReport, LlmEndpointTarget
 from rentl_schemas.logs import LogEntry
@@ -192,7 +193,11 @@ def version() -> None:
 def validate_connection(
     config_path: Path = CONFIG_OPTION,
 ) -> None:
-    """Validate connectivity for configured model endpoints."""
+    """Validate connectivity for configured model endpoints.
+
+    Raises:
+        typer.Exit: When validation fails with non-zero exit code.
+    """
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
     try:
@@ -239,6 +244,9 @@ def validate_connection(
                 ),
             )
         response = _error_response(error)
+    if response.error is not None:
+        print(response.model_dump_json())
+        raise typer.Exit(code=response.error.exit_code)
     print(response.model_dump_json())
 
 
@@ -255,7 +263,11 @@ def export(
     column_order: list[str] | None = COLUMN_ORDER_OPTION,
     expected_line_count: int | None = EXPECTED_LINE_COUNT_OPTION,
 ) -> None:
-    """Export translated lines to CSV/JSONL/TXT."""
+    """Export translated lines to CSV/JSONL/TXT.
+
+    Raises:
+        typer.Exit: When export fails with non-zero exit code.
+    """
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
     try:
@@ -335,7 +347,7 @@ def export(
             )
         response = _error_response(error)
     except ValueError as exc:
-        error = ErrorResponse(code="validation_error", message=str(exc), details=None)
+        error = _error_from_exception(exc)
         if log_sink is not None:
             _emit_command_log_sync(
                 log_sink,
@@ -361,6 +373,9 @@ def export(
             )
         response = _error_response(error)
 
+    if response.error is not None:
+        print(response.model_dump_json())
+        raise typer.Exit(code=response.error.exit_code)
     print(response.model_dump_json())
 
 
@@ -468,8 +483,11 @@ def run_pipeline(
         _render_run_execution_summary(response.data, console=console)
         if response.error is not None:
             _render_run_error(response.error, console=console)
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=response.error.exit_code)
         return
+    if response.error is not None:
+        print(response.model_dump_json())
+        raise typer.Exit(code=response.error.exit_code)
     print(response.model_dump_json())
 
 
@@ -560,8 +578,11 @@ def run_phase(
         _render_run_execution_summary(response.data, console=None)
         if response.error is not None:
             _render_run_error(response.error, console=None)
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=response.error.exit_code)
         return
+    if response.error is not None:
+        print(response.model_dump_json())
+        raise typer.Exit(code=response.error.exit_code)
     print(response.model_dump_json())
 
 
@@ -606,19 +627,22 @@ def status(
             )
             print(response.model_dump_json())
             if status_result.status in {RunStatus.FAILED, RunStatus.CANCELLED}:
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=ExitCode.ORCHESTRATION_ERROR.value)
             return
         _render_status(status_result)
         if status_result.status in {RunStatus.FAILED, RunStatus.CANCELLED}:
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=ExitCode.ORCHESTRATION_ERROR.value)
+    except typer.Exit:
+        raise
     except Exception as exc:
         error = _error_from_exception(exc)
         if json_output:
             response = _error_response(error)
             print(response.model_dump_json())
-            return
+            raise typer.Exit(code=response.error.exit_code) from None
         rprint(f"[red]Error:[/red] {error.message}")
-        raise typer.Exit(code=1) from None
+        exit_code = resolve_exit_code(error.code)
+        raise typer.Exit(code=exit_code.value) from None
 
 
 ResponseT = TypeVar("ResponseT")
@@ -1804,7 +1828,7 @@ def _watch_status(bundle: _StorageBundle, run_id: RunId) -> None:
         RunStatus.FAILED.value,
         RunStatus.CANCELLED.value,
     }:
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=ExitCode.ORCHESTRATION_ERROR.value)
 
 
 def _render_status(result: RunStatusResult) -> None:
@@ -2121,6 +2145,7 @@ def _summarize_batch_error(
         code=error.code,
         message=f"{count} {label} errors; first: {error.message}",
         details=error.details,
+        exit_code=error.exit_code,
     )
 
 
@@ -2154,12 +2179,36 @@ def _error_from_exception(exc: Exception) -> ErrorResponse:
                 message = f"Config validation failed: {label} - {detail}"
             elif detail:
                 message = f"Config validation failed: {detail}"
-        return ErrorResponse(code="validation_error", message=message, details=None)
+        exit_code = resolve_exit_code("validation_error")
+        return ErrorResponse(
+            code="validation_error",
+            message=message,
+            details=None,
+            exit_code=exit_code.value,
+        )
     if isinstance(exc, _ConfigError):
-        return ErrorResponse(code="config_error", message=str(exc), details=None)
+        exit_code = resolve_exit_code("config_error")
+        return ErrorResponse(
+            code="config_error",
+            message=str(exc),
+            details=None,
+            exit_code=exit_code.value,
+        )
     if isinstance(exc, ValueError):
-        return ErrorResponse(code="validation_error", message=str(exc), details=None)
-    return ErrorResponse(code="runtime_error", message=str(exc), details=None)
+        exit_code = resolve_exit_code("validation_error")
+        return ErrorResponse(
+            code="validation_error",
+            message=str(exc),
+            details=None,
+            exit_code=exit_code.value,
+        )
+    exit_code = resolve_exit_code("runtime_error")
+    return ErrorResponse(
+        code="runtime_error",
+        message=str(exc),
+        details=None,
+        exit_code=exit_code.value,
+    )
 
 
 def _batch_error_response(exc: ExportBatchError) -> ApiResponse[ExportResult]:
