@@ -537,9 +537,12 @@ $LAST_GATE_OUTPUT
                 # Self-heal: if both do-task and audit-task agree the task is
                 # done but the checkbox wasn't persisted, check it off now.
                 # Without this, the inner loop retries the same task forever.
-                if [[ -n "$task_label" ]] && grep -qP "^\s*- \[ \] $(printf '%s' "$task_label" | sed 's/[]\[.*^$/]/\\&/g')" "$SPEC_FOLDER/plan.md" 2>/dev/null; then
+                if [[ -n "$task_label" ]] && grep -qF "- [ ] $task_label" "$SPEC_FOLDER/plan.md" 2>/dev/null; then
                     tput "  ${YELLOW}⚠ Task still unchecked after audit pass — checking it off${NC}\n"
-                    sed -i "0,/^\(\s*- \)\[ \] $(printf '%s' "$task_label" | sed 's/[]\[.*^$/\\&]/\\&/g')/{s//\1[x] $task_label/}" "$SPEC_FOLDER/plan.md"
+                    # Use awk for reliable fixed-string replacement (first match only)
+                    awk -v lbl="$task_label" '!done && index($0, "- [ ] " lbl) { sub(/- \[ \]/, "- [x]"); done=1 } 1' \
+                        "$SPEC_FOLDER/plan.md" > "$SPEC_FOLDER/plan.md.tmp" \
+                        && mv "$SPEC_FOLDER/plan.md.tmp" "$SPEC_FOLDER/plan.md"
                     git add "$SPEC_FOLDER/plan.md"
                     git commit --amend --no-edit 2>/dev/null || git commit -m "Fix: check off $task_label (bookkeeping)" 2>/dev/null || true
                 fi
