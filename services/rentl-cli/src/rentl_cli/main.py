@@ -371,8 +371,8 @@ def doctor(config_path: Path = CONFIG_OPTION) -> None:
         print(f"\nOverall: {overall_upper}")
 
     # Exit with appropriate code
-    if report.exit_code != ExitCode.SUCCESS:
-        raise typer.Exit(code=report.exit_code.value)
+    if report.exit_code != ExitCode.SUCCESS.value:
+        raise typer.Exit(code=report.exit_code)
 
 
 @app.command()

@@ -1660,3 +1660,91 @@ def test_init_command_target_languages_blank_fails(
     # Verify no files were created
     assert not (tmp_path / "rentl.toml").exists()
     assert not (tmp_path / ".env").exists()
+
+
+def test_help_command_no_args() -> None:
+    """Test help command without arguments lists all commands."""
+    result = runner.invoke(app, ["help"])
+    assert result.exit_code == 0
+    # Should list core commands
+    assert "version" in result.stdout
+    assert "init" in result.stdout
+    assert "doctor" in result.stdout
+    assert "help" in result.stdout
+
+
+def test_help_command_with_valid_command() -> None:
+    """Test help command with valid command name shows detailed help."""
+    result = runner.invoke(app, ["help", "version"])
+    assert result.exit_code == 0
+    assert "version" in result.stdout.lower()
+    assert "rentl version" in result.stdout
+
+
+def test_help_command_with_invalid_command() -> None:
+    """Test help command with invalid command name shows error and valid commands."""
+    result = runner.invoke(app, ["help", "badcommand"])
+    assert result.exit_code == ExitCode.VALIDATION_ERROR.value
+    assert "Invalid command" in result.stdout or "badcommand" in result.stdout
+    assert "version" in result.stdout  # Should list valid commands
+
+
+def test_doctor_command_missing_config() -> None:
+    """Test doctor command with missing config file."""
+    result = runner.invoke(app, ["doctor", "--config", "/nonexistent/rentl.toml"])
+    # Doctor should handle missing config gracefully
+    assert result.exit_code != 0
+    # Output should be present (either table or error message)
+    assert len(result.stdout) > 0
+
+
+def test_doctor_command_with_valid_config(tmp_path: Path) -> None:
+    """Test doctor command with valid config runs diagnostics."""
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+
+    # Create workspace directories
+    (workspace_dir / ".rentl").mkdir()
+    (workspace_dir / "logs").mkdir()
+
+    result = runner.invoke(app, ["doctor", "--config", str(config_path)])
+    # Exit code depends on checks, but should complete
+    assert result.exit_code in [
+        0,
+        ExitCode.CONFIG_ERROR.value,
+        ExitCode.CONNECTION_ERROR.value,
+    ]
+    # Should contain check results
+    assert "Python Version" in result.stdout or "python" in result.stdout.lower()
+
+
+def test_explain_command_no_args() -> None:
+    """Test explain command without arguments lists all phases."""
+    result = runner.invoke(app, ["explain"])
+    assert result.exit_code == 0
+    # Should list all 7 phases
+    assert "ingest" in result.stdout.lower()
+    assert "translate" in result.stdout.lower()
+    assert "export" in result.stdout.lower()
+
+
+def test_explain_command_with_valid_phase() -> None:
+    """Test explain command with valid phase name shows phase details."""
+    result = runner.invoke(app, ["explain", "ingest"])
+    assert result.exit_code == 0
+    assert "ingest" in result.stdout.lower()
+    # Should contain phase information sections
+    assert (
+        "Input" in result.stdout
+        or "Output" in result.stdout
+        or "Description" in result.stdout
+    )
+
+
+def test_explain_command_with_invalid_phase() -> None:
+    """Test explain command with invalid phase name shows error and valid phases."""
+    result = runner.invoke(app, ["explain", "badphase"])
+    assert result.exit_code == ExitCode.VALIDATION_ERROR.value
+    assert "Invalid phase" in result.stdout or "badphase" in result.stdout
+    assert "ingest" in result.stdout  # Should list valid phases
