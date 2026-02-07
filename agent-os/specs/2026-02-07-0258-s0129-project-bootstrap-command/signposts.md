@@ -20,3 +20,12 @@
   `exception_msg= 1 validation error for ErrorResponse ... String should have at least 1 character`.
   Test coverage gap evidence: `rg -n "\\binit\\b|rentl init|test_.*init" tests/unit/cli/test_main.py` returned `NO_MATCH`.
 - **Impact:** Declining overwrite for an existing `rentl.toml` produces a failure path instead of a safe cancel, and missing regression tests leaves this path vulnerable to future breakage.
+
+- **Task:** Task 4
+- **Problem:** `rentl init` accepts malformed comma-separated target language input (for example `en,`) and can scaffold an invalid config while still exiting successfully.
+- **Evidence:** CLI parsing in `services/rentl-cli/src/rentl_cli/main.py:227` uses `target_languages = [lang.strip() for lang in target_languages_input.split(",")]`, which keeps empty items. Audit repro:
+  `exit_code=0`
+  `validate_run_config=FAIL`
+  `ValidationError: project.languages.target_languages.1 String should match pattern '^[a-z]{2}(?:-[A-Z]{2})?$'`.
+  Current tests in `tests/unit/cli/test_main.py:1452` and `tests/unit/cli/test_main.py:1497` only exercise default `"en"` and do not cover malformed comma-separated input.
+- **Impact:** This violates the non-negotiable generated-config contract and can leave first-time users with a project that fails at config validation despite a successful `rentl init`.
