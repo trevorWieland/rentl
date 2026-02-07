@@ -28,7 +28,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - [x] Fix: Update `run_doctor()` exit-code aggregation so config-check failures take precedence over connection errors (currently returns `ExitCode.CONNECTION_ERROR` when `API Keys` fails and `LLM Connectivity` fails; see `packages/rentl-core/src/rentl_core/doctor.py:458` and repro in signposts) (audit round 2)
   - [x] Fix: Add regression test that asserts missing API key yields `ExitCode.CONFIG_ERROR` even when connectivity check also fails (extend `tests/unit/core/test_doctor.py` near `TestRunDoctor` around `tests/unit/core/test_doctor.py:511`) (audit round 2)
 
-- [ ] Task 3: Core Phase Explainer Module
+- [x] Task 3: Core Phase Explainer Module
   - Create `packages/rentl-core/src/rentl_core/explain.py`
   - Define `PhaseInfo` Pydantic model (name, description, inputs, outputs, prerequisites, config_options)
   - Build phase registry with info for all 7 phases sourced from `PhaseName` enum
