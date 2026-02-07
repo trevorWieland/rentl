@@ -63,3 +63,10 @@
   `pytest -q tests/unit/core/test_init.py tests/integration/cli/test_init.py`
   `E   ValueError: Missing API key environment variable: OPENROUTER_API_KEY`
 - **Impact:** Task-level validation becomes environment-dependent and can fail on CI or clean local runs despite correct agent-name wiring, masking real regressions with test flakiness.
+
+- **Task:** Task 6
+- **Problem:** The added env-var scoping regression test is still environment-dependent because it assumes `OPENROUTER_API_KEY` is absent before the test runs.
+- **Evidence:** `tests/integration/cli/test_init.py:246` contains `assert "OPENROUTER_API_KEY" not in os.environ`. Repro with a pre-set shell variable:
+  `OPENROUTER_API_KEY=already-set pytest -q tests/integration/cli/test_init.py::test_env_var_scoping_regression`
+  `E   AssertionError: assert 'OPENROUTER_API_KEY' not in environ({...})`
+- **Impact:** The suite can fail on developer machines or CI environments that already export provider keys, so the regression test does not reliably verify scoped setup/teardown behavior.

@@ -15,3 +15,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 1): PASS — Added BDD integration coverage for init project bootstrap and fixed seed-data schema compatibility; generated project validates and resolves cleanly.
 - **Demo** (run 1): FAIL — Generated config uses invalid agent names, causing runtime failure despite passing schema validation. Task 6 added to fix agent name mapping.
 - **Task 6** (round 1): FAIL — New integration agent-pool assertion depends on `OPENROUTER_API_KEY` from the external environment, so the scenario fails in a clean test run.
+- **Task 6** (round 2): FAIL — New env-var scoping regression test is itself environment-dependent and fails when `OPENROUTER_API_KEY` is already set in the shell.
