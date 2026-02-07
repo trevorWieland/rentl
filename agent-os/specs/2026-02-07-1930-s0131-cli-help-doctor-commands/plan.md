@@ -37,7 +37,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - Unit tests for phase info retrieval and validation
   - Acceptance: all 7 phases have complete info; invalid names raise with valid phase list
 
-- [ ] Task 4: Core Help Content Module
+- [x] Task 4: Core Help Content Module
   - Create `packages/rentl-core/src/rentl_core/help.py`
   - Define `CommandInfo` Pydantic model (name, brief, detailed_help, args, options, examples)
   - Build command registry from existing CLI commands
