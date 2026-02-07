@@ -32,7 +32,7 @@ Users currently must manually copy and edit config files to start a project, vio
   - Unit tests: `generate_project()` with default answers produces valid config and expected file structure
   - [x] Fix: Restrict `InitAnswers.input_format` to `RunConfig`-compatible formats so every accepted answer can produce a validating config (current `str` type accepts unsupported `tsv`) (`packages/rentl-core/src/rentl_core/init.py:43`, `packages/rentl-schemas/src/rentl_schemas/primitives.py:84`) (audit round 1)
   - [x] Fix: Align seed-data generation/tests with supported formats and add a regression test that unsupported formats are rejected before writing invalid TOML (`packages/rentl-core/src/rentl_core/init.py:226`, `tests/unit/core/test_init.py:164`) (audit round 1)
-- [ ] Task 4: Add `rentl init` CLI command
+- [x] Task 4: Add `rentl init` CLI command
   - Add `init` command to `services/rentl-cli/src/rentl_cli/main.py`
   - Use Typer `typer.prompt()` for each interview question with sensible defaults:
     - project_name: derived from current directory name
