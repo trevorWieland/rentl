@@ -49,7 +49,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - [x] Fix: Align `export --column-order` help metadata with the real CLI signature (repeatable option, not comma-separated input) in `packages/rentl-core/src/rentl_core/help.py:95` to match `services/rentl-cli/src/rentl_cli/main.py:145` (audit round 2)
   - [x] Fix: Add regression test coverage asserting export help text/examples do not advertise comma-separated `--column-order` usage and stay aligned with the repeatable CLI option (`packages/rentl-core/tests/unit/core/test_help.py`, `services/rentl-cli/src/rentl_cli/main.py:145`) (audit round 2)
 
-- [ ] Task 5: CLI Commands — help, doctor, explain
+- [x] Task 5: CLI Commands — help, doctor, explain
   - Add `rentl help` command to CLI (thin adapter over core help module)
   - Add `rentl doctor` command to CLI (thin adapter over core doctor module, Rich-formatted table)
   - Add `rentl explain` command to CLI (thin adapter over core explain module, Rich-formatted output)
