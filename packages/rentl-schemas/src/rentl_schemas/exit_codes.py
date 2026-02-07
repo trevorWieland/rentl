@@ -82,9 +82,7 @@ DOMAIN_PREFIXES: dict[str, str] = {
 }
 
 
-def resolve_exit_code(
-    error_code: str, *, domain: str | None = None
-) -> ExitCode:
+def resolve_exit_code(error_code: str, *, domain: str | None = None) -> ExitCode:
     """Resolve an error code string to its ExitCode.
 
     Args:

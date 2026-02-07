@@ -11,14 +11,29 @@ Usage:
 """
 
 import json
+import operator
 import re
 import subprocess
 import sys
 
 
 def gh_issues(labels: list[str], state: str = "open", limit: int = 200) -> list[dict]:
-    """Fetch issues from GitHub with given labels."""
-    cmd = ["gh", "issue", "list", "--state", state, "--json", "number,title,milestone,body", "--limit", str(limit)]
+    """Fetch issues from GitHub with given labels.
+
+    Returns:
+        List of issue dicts with number, title, milestone, and body.
+    """
+    cmd = [
+        "gh",
+        "issue",
+        "list",
+        "--state",
+        state,
+        "--json",
+        "number,title,milestone,body",
+        "--limit",
+        str(limit),
+    ]
     for label in labels:
         cmd.extend(["--label", label])
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -29,13 +44,21 @@ def gh_issues(labels: list[str], state: str = "open", limit: int = 200) -> list[
 
 
 def extract_spec_id(body: str) -> str | None:
-    """Extract spec_id from issue body frontmatter."""
+    """Extract spec_id from issue body frontmatter.
+
+    Returns:
+        The spec_id string (e.g. "s0.1.03") or None if not found.
+    """
     m = re.search(r"spec_id:\s*(s[\d.]+)", body)
     return m.group(1) if m else None
 
 
 def extract_deps(body: str) -> list[str]:
-    """Extract depends_on list from issue body frontmatter."""
+    """Extract depends_on list from issue body frontmatter.
+
+    Returns:
+        List of spec_id strings this spec depends on.
+    """
     m = re.search(r"depends_on:\s*\[([^\]]*)\]", body)
     if not m:
         return []
@@ -63,7 +86,7 @@ def main() -> None:
         if not blocked_by:
             candidates.append((milestone, spec_id, p["number"], p["title"]))
 
-    candidates.sort(key=lambda x: (x[0], x[1]))
+    candidates.sort(key=operator.itemgetter(0, 1))
 
     if not candidates:
         print("No unblocked specs found.")
@@ -76,11 +99,11 @@ def main() -> None:
 
     milestone_label = candidates[0][0]
     print(f"Unblocked candidates — {milestone_label} ({len(candidates)}):\n")
-    for milestone, spec_id, number, title in candidates:
+    for _milestone, _spec_id, number, title in candidates:
         print(f"  #{number} {title}")
 
     if not show_all:
-        print(f"\n(Pass --all to see candidates from later milestones too)")
+        print("\n(Pass --all to see candidates from later milestones too)")
 
 
 if __name__ == "__main__":
