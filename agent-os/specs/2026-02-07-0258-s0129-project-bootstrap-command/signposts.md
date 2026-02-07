@@ -95,3 +95,11 @@
 - **Problem:** The integration test added for Task 7 still validates configuration structure and agent-pool wiring only; it does not prove the generated project can execute the full pipeline through export.
 - **Evidence:** `tests/integration/features/cli/init.feature:14` still ends with `And the pipeline can build agent pools from generated config`, and the step implementation at `tests/integration/cli/test_init.py:226` only calls `build_agent_pools(config=config)` with assertions on pool presence. No call to pipeline execution (`rentl run-pipeline` or orchestrator execution path) is made in this scenario.
 - **Impact:** This leaves the Task 7 requirement unfulfilled ("verify complete pipeline can execute") and allows runtime regressions past ingest/export to slip through while tests remain green.
+
+- **Task:** Task 7
+- **Problem:** After adding the CLI end-to-end assertion, the scenario still fails in a clean environment because generated seed data does not match the configured ingest input path.
+- **Evidence:** `tests/integration/cli/test_init.py:233` invokes `run-pipeline` and fails with:
+  `{"data":null,"error":{"code":"io_error","message":"[Errno 2] No such file or directory: '.../input/Test Game.jsonl'"...}}`
+  from `pytest -q tests/integration/cli/test_init.py -q`.
+  Generation writes seed data to `input/seed.{format}` at `packages/rentl-core/src/rentl_core/init.py:99`, but config ingest expects `./input/{answers.game_name}.{answers.input_format}` at `packages/rentl-core/src/rentl_core/init.py:133` (also used in next steps at `packages/rentl-core/src/rentl_core/init.py:105`).
+- **Impact:** This violates spec non-negotiable #4 ("Generated project must be runnable") and keeps Task 7's required end-to-end verification red despite ingest/export phase fixes.
