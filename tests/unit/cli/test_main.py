@@ -1435,3 +1435,118 @@ def test_no_hardcoded_exit_codes() -> None:
         f"Found hardcoded integer exit codes at lines: {hardcoded_exits}. "
         "All exit codes must use ExitCode enum or response.error.exit_code."
     )
+
+
+def test_init_command_happy_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command with default answers creates valid project structure."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Mock prompts to accept defaults
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "",  # provider_name (default: openrouter)
+        "",  # base_url (default: https://openrouter.ai/api/v1)
+        "",  # api_key_env (default: OPENROUTER_API_KEY)
+        "",  # model_id (default: openai/gpt-4.1)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify created files
+    assert (tmp_path / "rentl.toml").exists()
+    assert (tmp_path / ".env").exists()
+    assert (tmp_path / "input").is_dir()
+    assert (tmp_path / "out").is_dir()
+    assert (tmp_path / "logs").is_dir()
+    assert (tmp_path / "input" / "seed.jsonl").exists()
+
+    # Verify output contains success information
+    assert "rentl init" in result.stdout
+    assert "rentl.toml" in result.stdout
+    assert ".env" in result.stdout
+
+
+def test_init_command_overwrite_confirmation_accept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command asks for confirmation when rentl.toml exists and accepts."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Create existing rentl.toml
+    (tmp_path / "rentl.toml").write_text("[project]\n", encoding="utf-8")
+
+    # Mock prompts: confirm overwrite, then accept defaults
+    inputs = [
+        "y",  # overwrite confirmation
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "",  # provider_name (default: openrouter)
+        "",  # base_url (default: https://openrouter.ai/api/v1)
+        "",  # api_key_env (default: OPENROUTER_API_KEY)
+        "",  # model_id (default: openai/gpt-4.1)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify output contains overwrite warning
+    assert "already exists" in result.stdout.lower()
+
+    # Verify new files were created
+    assert (tmp_path / "rentl.toml").exists()
+    assert (tmp_path / ".env").exists()
+
+
+def test_init_command_overwrite_confirmation_cancel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command cancels cleanly when user declines overwrite."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Create existing rentl.toml
+    original_content = "[project]\nproject_name = 'original'\n"
+    (tmp_path / "rentl.toml").write_text(original_content, encoding="utf-8")
+
+    # Mock prompts: decline overwrite
+    inputs = [
+        "n",  # decline overwrite
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert clean exit (code 0 for cancellation)
+    assert result.exit_code == 0
+
+    # Verify output contains cancellation message
+    assert "Cancelled" in result.stdout or "cancelled" in result.stdout.lower()
+
+    # Verify original file was NOT modified
+    assert (tmp_path / "rentl.toml").read_text(encoding="utf-8") == original_content
+
+    # Verify no new directories were created
+    assert not (tmp_path / "input").exists()
+    assert not (tmp_path / "out").exists()
+    assert not (tmp_path / "logs").exists()
+    assert not (tmp_path / ".env").exists()

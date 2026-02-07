@@ -281,6 +281,9 @@ def init() -> None:
             error=None,
             meta=MetaInfo(timestamp=_now_timestamp()),
         )
+    except typer.Exit:
+        # Re-raise typer.Exit to preserve clean exit codes (e.g., user cancellation)
+        raise
     except ValidationError as exc:
         error = _error_from_exception(exc)
         response = _error_response(error)
