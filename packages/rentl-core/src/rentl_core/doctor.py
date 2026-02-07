@@ -458,10 +458,20 @@ async def run_doctor(
     if has_fail:
         overall_status = CheckStatus.FAIL
         # Determine appropriate exit code based on which checks failed
-        # If LLM Connectivity failed due to actual connectivity issues
-        # (not config cascade), use CONNECTION_ERROR; otherwise CONFIG_ERROR
+        # Precedence: config checks fail → CONFIG_ERROR
+        # (even if connectivity also fails)
+        # Only use CONNECTION_ERROR if connectivity fails but all config checks pass
+        config_checks_failed = any(
+            check.status == CheckStatus.FAIL
+            and check.name
+            in ("Config File", "Config Valid", "Workspace Directories", "API Keys")
+            for check in checks
+        )
         llm_check = next((c for c in checks if c.name == "LLM Connectivity"), None)
-        if (
+
+        if config_checks_failed:
+            exit_code = ExitCode.CONFIG_ERROR
+        elif (
             llm_check
             and llm_check.status == CheckStatus.FAIL
             and "config invalid" not in llm_check.message.lower()

@@ -25,8 +25,8 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - [x] Fix: Provide an actionable `fix_suggestion` for WARN status when runtime is missing in `run_doctor()` (currently `None` at `packages/rentl-core/src/rentl_core/doctor.py:438`; violates spec acceptance for warned checks) (audit round 1)
   - [x] Fix: Map LLM connectivity failure to connection-category exit code in `run_doctor()` instead of always returning `ExitCode.CONFIG_ERROR` for any failure (`packages/rentl-core/src/rentl_core/doctor.py:446`) (audit round 1)
   - [x] Fix: Include the workspace directory itself in `check_workspace_dirs()` fix command when workspace is missing (message lists workspace missing but suggestion omits it at `packages/rentl-core/src/rentl_core/doctor.py:226`) (audit round 1)
-  - [ ] Fix: Update `run_doctor()` exit-code aggregation so config-check failures take precedence over connection errors (currently returns `ExitCode.CONNECTION_ERROR` when `API Keys` fails and `LLM Connectivity` fails; see `packages/rentl-core/src/rentl_core/doctor.py:458` and repro in signposts) (audit round 2)
-  - [ ] Fix: Add regression test that asserts missing API key yields `ExitCode.CONFIG_ERROR` even when connectivity check also fails (extend `tests/unit/core/test_doctor.py` near `TestRunDoctor` around `tests/unit/core/test_doctor.py:511`) (audit round 2)
+  - [x] Fix: Update `run_doctor()` exit-code aggregation so config-check failures take precedence over connection errors (currently returns `ExitCode.CONNECTION_ERROR` when `API Keys` fails and `LLM Connectivity` fails; see `packages/rentl-core/src/rentl_core/doctor.py:458` and repro in signposts) (audit round 2)
+  - [x] Fix: Add regression test that asserts missing API key yields `ExitCode.CONFIG_ERROR` even when connectivity check also fails (extend `tests/unit/core/test_doctor.py` near `TestRunDoctor` around `tests/unit/core/test_doctor.py:511`) (audit round 2)
 
 - [ ] Task 3: Core Phase Explainer Module
   - Create `packages/rentl-core/src/rentl_core/explain.py`

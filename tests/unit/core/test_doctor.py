@@ -614,3 +614,62 @@ class TestRunDoctor:
         assert llm_check.status == CheckStatus.WARN
         assert "skipped" in llm_check.message
         assert "no runtime provided" in llm_check.message
+
+    @pytest.mark.asyncio
+    async def test_api_key_failure_takes_precedence_over_connectivity_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that config errors take precedence over connection errors.
+
+        Regression test for signpost 3: when both API Keys and LLM Connectivity
+        fail, exit code should be CONFIG_ERROR (not CONNECTION_ERROR).
+        """
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text(VALID_TEST_CONFIG_TOML)
+
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+
+        # Unset the required API key
+        monkeypatch.delenv("TEST_KEY", raising=False)
+
+        # Mock failed connectivity
+        mock_runtime = AsyncMock(spec=LlmRuntimeProtocol)
+        mock_report = LlmConnectionReport(
+            results=[
+                LlmConnectionResult(
+                    provider_name="test",
+                    base_url="https://test.example.com",
+                    api_key_env="TEST_KEY",
+                    status=LlmConnectionStatus.FAILED,
+                    attempts=1,
+                    error_message="Connection failed",
+                )
+            ],
+            success_count=0,
+            failure_count=1,
+            skipped_count=0,
+        )
+
+        with (
+            patch("rentl_core.doctor.build_connection_plan") as mock_plan,
+            patch("rentl_core.doctor.validate_connections", return_value=mock_report),
+        ):
+            mock_plan.return_value = ([MagicMock()], [])
+
+            report = await run_doctor(config_path, runtime=mock_runtime)
+
+            # Both checks should fail
+            api_check = next(c for c in report.checks if c.name == "API Keys")
+            assert api_check.status == CheckStatus.FAIL
+            assert "TEST_KEY" in api_check.message
+
+            llm_check = next(c for c in report.checks if c.name == "LLM Connectivity")
+            assert llm_check.status == CheckStatus.FAIL
+
+            # Exit code should be CONFIG_ERROR (config check failed)
+            # not CONNECTION_ERROR (even though connectivity also failed)
+            assert report.overall_status == CheckStatus.FAIL
+            assert report.exit_code == ExitCode.CONFIG_ERROR
