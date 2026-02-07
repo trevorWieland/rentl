@@ -62,7 +62,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - [x] Fix: Replace ineffective `sys.stdout.isatty` monkeypatching in TTY tests with a hook that actually affects CLI command execution under `CliRunner`; current patches at `tests/unit/cli/test_main.py:1756`, `tests/unit/cli/test_main.py:1774`, and `tests/unit/cli/test_main.py:1795` do not force the Rich branches in `services/rentl-cli/src/rentl_cli/main.py:214`, `services/rentl-cli/src/rentl_cli/main.py:236`, `services/rentl-cli/src/rentl_cli/main.py:308`, `services/rentl-cli/src/rentl_cli/main.py:396`, and `services/rentl-cli/src/rentl_cli/main.py:421` (audit round 2)
   - [x] Fix: Strengthen `test_doctor_command_tty_rendering` to assert non-success exit propagation explicitly for a controlled failing check set; it currently only checks output length at `tests/unit/cli/test_main.py:1816` and never verifies `services/rentl-cli/src/rentl_cli/main.py:374` behavior (audit round 2)
 
-- [ ] Task 6: Cross-command Polish and Edge Cases
+- [x] Task 6: Cross-command Polish and Edge Cases
   - `rentl doctor` outside project dir (no config) — graceful failure
   - `rentl explain badphase` — helpful error with valid phase list
   - `rentl help badcommand` — helpful error with valid command list
