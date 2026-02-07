@@ -16,3 +16,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 2): FAIL — New TTY tests patch `sys.stdout.isatty` in a way that does not affect `CliRunner` command streams, and `doctor` test still does not assert non-success exit propagation.
 - **Task 4** (round 4): PASS — Commit `65b7b48` keeps `export` help aligned with repeatable `--column-order` CLI semantics and the targeted regression suite passes (`32 passed`).
 - **Task 6** (round 1): FAIL — Commit `c6d57b7` only checks off `Task 6` in `plan.md` and includes no implementation/test changes for the task’s edge-case and pipe-degradation scope.
+- **Task 6** (round 2): PASS — Commit `91c7f81` adds Task 6 edge-case integration coverage and plain-text (non-TTY) assertions for `help`, `doctor`, and `explain`; targeted unit/integration suites pass (`5 passed`, `9 passed`).
