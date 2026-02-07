@@ -62,3 +62,31 @@ phase = "ingest"
 
 **Status:** Partially fixed in Python fixture, TOML fixtures need updating in follow-up task
 
+
+## Signpost 2: `run_doctor()` currently mixes warning quality and exit-code category
+
+**Task:** Task 2 (Core Doctor Diagnostics Module)
+
+**Problem:** Two behavior gaps were found in `run_doctor()` aggregation:
+1) WARN result for missing runtime has no actionable fix suggestion.
+2) LLM connectivity failures are categorized as `ExitCode.CONFIG_ERROR` instead of connection-category exit code.
+
+**Evidence:**
+
+Code paths:
+- `packages/rentl-core/src/rentl_core/doctor.py:434-439` sets WARN with `fix_suggestion=None`.
+- `packages/rentl-core/src/rentl_core/doctor.py:446-449` maps any failure to `ExitCode.CONFIG_ERROR`.
+
+Reproduction output:
+```bash
+$ python - <<'PY' ... run_doctor(valid_config, runtime=None) ... PY
+llm_status= warn
+llm_fix= None
+
+$ python - <<'PY' ... run_doctor(valid_config, runtime=mock_runtime_with_failed_connection) ... PY
+overall_status= fail
+exit_code= 10
+llm_status= fail
+```
+
+**Impact:** Future CLI wiring can emit misleading diagnostics: warned checks without remediation text and connectivity failures reported as config failures, which breaks operator triage and weakens exit-code semantics.
