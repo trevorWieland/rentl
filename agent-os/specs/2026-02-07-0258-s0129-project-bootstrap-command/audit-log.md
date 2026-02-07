@@ -27,3 +27,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 5): PASS — Agent-name mapping and deterministic API-key env-var scoping remain correct; targeted Task 6 regression tests pass.
 - **Task 7** (round 6): PASS — End-to-end integration test with ProfileAgent.run() mocking now passes, verifying complete pipeline execution with schema-valid agent outputs and export artifact generation.
 - **Demo** (run 3): PASS — All demo steps pass. Manual execution with test API key shows expected behavior (requires real API key for actual LLM calls). Integration test confirms generated project structure, config, and agent wiring are correct.
+- **Spec Audit** (round 1): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count: 0.
