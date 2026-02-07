@@ -219,20 +219,20 @@ def _generate_seed_data(answers: InitAnswers) -> str:
     if answers.input_format == FileFormat.JSONL:
         # Generate 3 sample JSONL lines representing one scene
         return (
-            '{"scene_id": "scene_001", "route_id": "main", "line_id": "001", '
-            '"speaker": "Character A", "original_text": "Example dialogue line 1"}\n'
-            '{"scene_id": "scene_001", "route_id": "main", "line_id": "002", '
-            '"speaker": "Character B", "original_text": "Example dialogue line 2"}\n'
-            '{"scene_id": "scene_001", "route_id": "main", "line_id": "003", '
-            '"speaker": "Character A", "original_text": "Example dialogue line 3"}\n'
+            '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_001", '
+            '"speaker": "Character A", "text": "Example dialogue line 1"}\n'
+            '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_002", '
+            '"speaker": "Character B", "text": "Example dialogue line 2"}\n'
+            '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_003", '
+            '"speaker": "Character A", "text": "Example dialogue line 3"}\n'
         )
     elif answers.input_format == FileFormat.CSV:
         # CSV format with headers
         return (
-            "scene_id,route_id,line_id,speaker,original_text\n"
-            "scene_001,main,001,Character A,Example dialogue line 1\n"
-            "scene_001,main,002,Character B,Example dialogue line 2\n"
-            "scene_001,main,003,Character A,Example dialogue line 3\n"
+            "scene_id,route_id,line_id,speaker,text\n"
+            "scene_001,route_001,line_001,Character A,Example dialogue line 1\n"
+            "scene_001,route_001,line_002,Character B,Example dialogue line 2\n"
+            "scene_001,route_001,line_003,Character A,Example dialogue line 3\n"
         )
     elif answers.input_format == FileFormat.TXT:
         # TXT format with simple line-based structure

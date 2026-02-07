@@ -29,3 +29,14 @@
   `ValidationError: project.languages.target_languages.1 String should match pattern '^[a-z]{2}(?:-[A-Z]{2})?$'`.
   Current tests in `tests/unit/cli/test_main.py:1452` and `tests/unit/cli/test_main.py:1497` only exercise default `"en"` and do not cover malformed comma-separated input.
 - **Impact:** This violates the non-negotiable generated-config contract and can leave first-time users with a project that fails at config validation despite a successful `rentl init`.
+
+- **Task:** Task 5
+- **Problem:** Seed data generation produced invalid IDs and field names that violated `SourceLine` schema, causing ingestion to fail.
+- **Evidence:** Integration test revealed three validation failures in `packages/rentl-core/src/rentl_core/init.py:219-236`:
+  1. `line_id` used `"001"` instead of pattern `^[a-z]+(?:_[0-9]+)+$` (needed `"line_001"`)
+  2. `route_id` used `"main"` instead of pattern `^[a-z]+(?:_[0-9]+)+$` (needed `"route_001"`)
+  3. Field name was `"original_text"` but `SourceLine` schema requires `"text"`
+  Test output: `ValidationError: 3 validation errors for SourceLine`
+- **Tried:** Created integration test `tests/integration/cli/test_init.py` that validates seed data against `SourceLine` schema. This caught the bug immediately.
+- **Solution:** Fixed seed data generation for both JSONL and CSV formats to use correct ID patterns (`line_001`, `route_001`, `scene_001`) and correct field name (`text`). Updated unit tests in `tests/unit/core/test_init.py` that were checking for the wrong field name.
+- **Files affected:** `packages/rentl-core/src/rentl_core/init.py:219-236`, `tests/integration/cli/test_init.py` (new), `tests/integration/features/cli/init.feature` (new), `tests/unit/core/test_init.py:148-196`

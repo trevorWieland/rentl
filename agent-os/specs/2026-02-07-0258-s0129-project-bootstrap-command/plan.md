@@ -54,7 +54,7 @@ Users currently must manually copy and edit config files to start a project, vio
   - [x] Fix: Add CLI unit tests for `rentl init` happy path and overwrite confirmation/cancel flow (including cancellation exit code assertions) (`tests/unit/cli/test_main.py`) (audit round 1)
   - [x] Fix: Sanitize comma-separated target language input in CLI init to drop empty entries and fail fast on blank results before calling `generate_project()`; current split logic accepts trailing commas and can generate invalid config (`services/rentl-cli/src/rentl_cli/main.py:227`) (audit round 2)
   - [x] Fix: Add CLI regression coverage for `target_languages` parsing (for example `en,` and `en, fr`) and assert generated `rentl.toml` passes `validate_run_config()` for accepted inputs (`tests/unit/cli/test_main.py`) (audit round 2)
-- [ ] Task 5: Integration test — init produces runnable project
+- [x] Task 5: Integration test — init produces runnable project
   - Integration test in `services/rentl-cli/tests/integration/` using BDD format
   - Given: empty temp directory
   - When: `generate_project()` is called with default answers

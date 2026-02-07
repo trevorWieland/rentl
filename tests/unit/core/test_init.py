@@ -159,7 +159,7 @@ def test_seed_data_jsonl_format(tmp_path: Path, default_answers: InitAnswers) ->
         assert "route_id" in data
         assert "line_id" in data
         assert "speaker" in data
-        assert "original_text" in data
+        assert "text" in data
 
 
 def test_seed_data_csv_format(tmp_path: Path) -> None:
@@ -187,7 +187,7 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
     header = lines[0]
     assert "scene_id" in header
     assert "speaker" in header
-    assert "original_text" in header
+    assert "text" in header
 
     # Check data rows
     for line in lines[1:]:
