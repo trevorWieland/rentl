@@ -1,5 +1,6 @@
 """rentl-core: Core pipeline logic for rentl."""
 
+from rentl_core.doctor import CheckResult, CheckStatus, DoctorReport, run_doctor
 from rentl_core.init import InitAnswers, InitResult, generate_project
 from rentl_core.orchestrator import (
     PhaseAgentPool,
@@ -40,6 +41,9 @@ __version__ = "0.1.0"
 __all__ = [
     "VERSION",
     "AgentTelemetryEmitter",
+    "CheckResult",
+    "CheckStatus",
+    "DoctorReport",
     "ExportAdapterProtocol",
     "ExportBatchError",
     "ExportError",
@@ -70,4 +74,5 @@ __all__ = [
     "build_status_result",
     "generate_project",
     "hydrate_run_context",
+    "run_doctor",
 ]
