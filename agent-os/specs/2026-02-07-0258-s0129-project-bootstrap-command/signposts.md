@@ -103,3 +103,12 @@
   from `pytest -q tests/integration/cli/test_init.py -q`.
   Generation writes seed data to `input/seed.{format}` at `packages/rentl-core/src/rentl_core/init.py:99`, but config ingest expects `./input/{answers.game_name}.{answers.input_format}` at `packages/rentl-core/src/rentl_core/init.py:133` (also used in next steps at `packages/rentl-core/src/rentl_core/init.py:105`).
 - **Impact:** This violates spec non-negotiable #4 ("Generated project must be runnable") and keeps Task 7's required end-to-end verification red despite ingest/export phase fixes.
+
+- **Task:** Task 7
+- **Problem:** The deterministic runtime stub used by the new end-to-end integration test returns invalid agent output (`"ok"`), so the generated project still cannot complete a full pipeline run in test.
+- **Evidence:** `tests/integration/conftest.py:30-33` hardcodes:
+  `return LlmPromptResponse(..., output_text="ok")`.
+  Running `pytest -q tests/integration/cli/test_init.py` fails at `tests/integration/cli/test_init.py:241` with:
+  `Pipeline execution failed with exit code 99`
+  `{"data":null,"error":{"code":"runtime_error","message":"Agent pool task failed: Agent scene_summarizer execution failed after 4 attempts"...}}`
+- **Impact:** Task 7 still violates non-negotiable #4 ("Generated project must be runnable") because the required end-to-end proof remains red even after seed-path alignment.

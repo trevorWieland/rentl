@@ -20,3 +20,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 2): FAIL — Generated config missing required ingest/export phases, causing "Source lines are required" error at runtime. Task 7 added to fix pipeline phase generation.
 - **Task 7** (round 1): FAIL — Config generation now includes ingest/export phases, but integration coverage still stops at `build_agent_pools()` and does not verify full pipeline execution through export.
 - **Task 7** (round 2): FAIL — The new end-to-end assertion fails because generated seed data is written to `input/seed.jsonl` while config `input_path` requires `input/{game_name}.{format}`, so `run-pipeline` exits with `io_error` in a clean run.
+- **Task 7** (round 3): FAIL — `test_init_produces_runnable_project` still fails end-to-end (`exit_code=99`) because the deterministic fake runtime returns non-schema agent output (`"ok"`), causing `scene_summarizer` retries/exhaustion.
