@@ -56,3 +56,10 @@
 
   Reference: `rentl.toml.example` shows correct agent names at lines with `phase = "context"` through `phase = "edit"`.
 - **Impact:** This violates spec non-negotiables #1 ("generated config must validate") and #4 ("generated project must be runnable"). Every bootstrapped project fails immediately at runtime despite passing schema validation. This is a test gap — integration test validates schema but not runtime agent resolution.
+
+- **Task:** Task 6
+- **Problem:** The new integration step that builds agent pools is not self-contained and fails unless `OPENROUTER_API_KEY` is pre-set in the shell environment.
+- **Evidence:** `tests/integration/cli/test_init.py:53-63` hardcodes `api_key_env="OPENROUTER_API_KEY"`, and `tests/integration/cli/test_init.py:210` calls `build_agent_pools(config=config)` without setting that variable. Audit repro:
+  `pytest -q tests/unit/core/test_init.py tests/integration/cli/test_init.py`
+  `E   ValueError: Missing API key environment variable: OPENROUTER_API_KEY`
+- **Impact:** Task-level validation becomes environment-dependent and can fail on CI or clean local runs despite correct agent-name wiring, masking real regressions with test flakiness.

@@ -62,7 +62,7 @@ Users currently must manually copy and edit config files to start a project, vio
   - And: all expected files exist (`rentl.toml`, `.env`, `input/`, `out/`, `logs/`)
   - And: seed data file is valid JSONL with expected `SourceLine` structure
   - And: config round-trips through TOML parse → validate → resolve without errors
-- [x] Task 6: Fix generated config to use correct default agent names
+- [ ] Task 6: Fix generated config to use correct default agent names
   - Update `_generate_toml()` in `packages/rentl-core/src/rentl_core/init.py` lines 163, 167, 171, 175, 179
   - Replace generic phase-name agents with actual default agent names:
     - context: `["scene_summarizer"]` not `["context"]`
@@ -73,3 +73,5 @@ Users currently must manually copy and edit config files to start a project, vio
   - Reference: `rentl.toml.example` for correct agent names
   - Update unit tests in `tests/unit/core/test_init.py` to verify correct agent names in generated TOML
   - Extend integration test in `tests/integration/cli/test_init.py` to verify pipeline can actually build agent pools from generated config (not just schema validation)
+  - [ ] Fix: Make the new agent-pool integration assertion deterministic by setting a test API key env var before calling `build_agent_pools()`; current step fails in clean environments with `ValueError: Missing API key environment variable: OPENROUTER_API_KEY` (`tests/integration/cli/test_init.py:53`, `tests/integration/cli/test_init.py:210`) (audit round 1)
+  - [ ] Fix: Add regression coverage that the env var setup/teardown is scoped to the test so `test_init_produces_runnable_project` passes without relying on external shell environment (`tests/integration/cli/test_init.py:190`) (audit round 1)
