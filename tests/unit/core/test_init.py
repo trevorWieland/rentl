@@ -10,6 +10,7 @@ import pytest
 
 from rentl_core.init import InitAnswers, InitResult, generate_project
 from rentl_schemas.config import RunConfig
+from rentl_schemas.primitives import FileFormat
 
 
 @pytest.fixture
@@ -28,7 +29,7 @@ def default_answers() -> InitAnswers:
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4.1",
-        input_format="jsonl",
+        input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
 
@@ -172,7 +173,7 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4.1",
-        input_format="csv",
+        input_format=FileFormat.CSV,
         include_seed_data=True,
     )
 
@@ -194,8 +195,8 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
         assert "Example dialogue line" in line
 
 
-def test_seed_data_tsv_format(tmp_path: Path) -> None:
-    """Test that seed data generates valid TSV when format is tsv."""
+def test_seed_data_txt_format(tmp_path: Path) -> None:
+    """Test that seed data generates valid TXT when format is txt."""
     answers = InitAnswers(
         project_name="test_project",
         game_name="test_game",
@@ -205,25 +206,20 @@ def test_seed_data_tsv_format(tmp_path: Path) -> None:
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4.1",
-        input_format="tsv",
+        input_format=FileFormat.TXT,
         include_seed_data=True,
     )
 
     generate_project(answers, tmp_path)
-    seed_path = tmp_path / "input" / "seed.tsv"
+    seed_path = tmp_path / "input" / "seed.txt"
 
     lines = seed_path.read_text(encoding="utf-8").strip().split("\n")
-    assert len(lines) == 4  # Header + 3 data rows
+    assert len(lines) == 3  # 3 dialogue lines
 
-    # Check header has tabs
-    header = lines[0]
-    assert "\t" in header
-    assert "scene_id" in header
-
-    # Check data rows have tabs
-    for line in lines[1:]:
-        assert "\t" in line
-        assert "scene_001" in line
+    # Check simple text format
+    for line in lines:
+        assert ":" in line
+        assert "Example dialogue line" in line
 
 
 def test_generate_project_without_seed_data(tmp_path: Path) -> None:
@@ -237,7 +233,7 @@ def test_generate_project_without_seed_data(tmp_path: Path) -> None:
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4.1",
-        input_format="jsonl",
+        input_format=FileFormat.JSONL,
         include_seed_data=False,
     )
 
@@ -262,7 +258,7 @@ def test_generate_project_with_multiple_target_languages(tmp_path: Path) -> None
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4.1",
-        input_format="jsonl",
+        input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
 
@@ -288,7 +284,7 @@ def test_init_answers_validation() -> None:
         base_url="https://openrouter.ai/api/v1",
         api_key_env="KEY",
         model_id="model",
-        input_format="jsonl",
+        input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
 
@@ -303,7 +299,7 @@ def test_init_answers_validation() -> None:
             base_url="https://openrouter.ai/api/v1",
             api_key_env="KEY",
             model_id="model",
-            input_format="jsonl",
+            input_format=FileFormat.JSONL,
             include_seed_data=True,
         )
 
@@ -318,7 +314,7 @@ def test_init_answers_validation() -> None:
             base_url="https://openrouter.ai/api/v1",
             api_key_env="KEY",
             model_id="model",
-            input_format="jsonl",
+            input_format=FileFormat.JSONL,
             include_seed_data=True,
         )
 
@@ -332,3 +328,21 @@ def test_init_result_structure() -> None:
 
     assert len(result.created_files) == 3
     assert len(result.next_steps) == 2
+
+
+def test_unsupported_format_rejected() -> None:
+    """Test that unsupported formats are rejected at schema validation."""
+    # Unsupported format like 'tsv' should raise ValidationError
+    with pytest.raises(ValueError, match="Input should be"):
+        InitAnswers(
+            project_name="test_project",
+            game_name="test_game",
+            source_language="ja",
+            target_languages=["en"],
+            provider_name="openrouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key_env="OPENROUTER_API_KEY",
+            model_id="openai/gpt-4.1",
+            input_format="tsv",  # type: ignore[arg-type]
+            include_seed_data=True,
+        )

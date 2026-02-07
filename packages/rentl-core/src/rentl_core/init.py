@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic import Field
 
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.primitives import FileFormat
 
 
 class InitAnswers(BaseSchema):
@@ -40,10 +41,9 @@ class InitAnswers(BaseSchema):
     model_id: str = Field(
         ..., min_length=1, description="Model identifier (e.g., 'openai/gpt-4.1')"
     )
-    input_format: str = Field(
+    input_format: FileFormat = Field(
         ...,
-        min_length=1,
-        description="Input file format (e.g., 'jsonl', 'csv', 'tsv')",
+        description="Input file format (e.g., 'jsonl', 'csv', 'txt')",
     )
     include_seed_data: bool = Field(
         True, description="Whether to create a seed sample input file"
@@ -212,8 +212,11 @@ def _generate_seed_data(answers: InitAnswers) -> str:
 
     Returns:
         str: Seed data content.
+
+    Raises:
+        ValueError: If the input format is not supported.
     """
-    if answers.input_format == "jsonl":
+    if answers.input_format == FileFormat.JSONL:
         # Generate 3 sample JSONL lines representing one scene
         return (
             '{"scene_id": "scene_001", "route_id": "main", "line_id": "001", '
@@ -223,7 +226,7 @@ def _generate_seed_data(answers: InitAnswers) -> str:
             '{"scene_id": "scene_001", "route_id": "main", "line_id": "003", '
             '"speaker": "Character A", "original_text": "Example dialogue line 3"}\n'
         )
-    elif answers.input_format == "csv":
+    elif answers.input_format == FileFormat.CSV:
         # CSV format with headers
         return (
             "scene_id,route_id,line_id,speaker,original_text\n"
@@ -231,21 +234,13 @@ def _generate_seed_data(answers: InitAnswers) -> str:
             "scene_001,main,002,Character B,Example dialogue line 2\n"
             "scene_001,main,003,Character A,Example dialogue line 3\n"
         )
-    elif answers.input_format == "tsv":
-        # TSV format with headers
+    elif answers.input_format == FileFormat.TXT:
+        # TXT format with simple line-based structure
         return (
-            "scene_id\troute_id\tline_id\tspeaker\toriginal_text\n"
-            "scene_001\tmain\t001\tCharacter A\tExample dialogue line 1\n"
-            "scene_001\tmain\t002\tCharacter B\tExample dialogue line 2\n"
-            "scene_001\tmain\t003\tCharacter A\tExample dialogue line 3\n"
+            "Character A: Example dialogue line 1\n"
+            "Character B: Example dialogue line 2\n"
+            "Character A: Example dialogue line 3\n"
         )
     else:
-        # Fallback to JSONL for unknown formats
-        return (
-            '{"scene_id": "scene_001", "route_id": "main", "line_id": "001", '
-            '"speaker": "Character A", "original_text": "Example dialogue line 1"}\n'
-            '{"scene_id": "scene_001", "route_id": "main", "line_id": "002", '
-            '"speaker": "Character B", "original_text": "Example dialogue line 2"}\n'
-            '{"scene_id": "scene_001", "route_id": "main", "line_id": "003", '
-            '"speaker": "Character A", "original_text": "Example dialogue line 3"}\n'
-        )
+        # Exhaustive match - this branch should never execute
+        raise ValueError(f"Unsupported file format: {answers.input_format}")
