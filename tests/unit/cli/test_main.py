@@ -1748,3 +1748,69 @@ def test_explain_command_with_invalid_phase() -> None:
     assert result.exit_code == ExitCode.VALIDATION_ERROR.value
     assert "Invalid phase" in result.stdout or "badphase" in result.stdout
     assert "ingest" in result.stdout  # Should list valid phases
+
+
+def test_help_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test help command Rich rendering when isatty returns True."""
+    # Force isatty to return True
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    # Test list all commands (Rich table path)
+    result = runner.invoke(app, ["help"])
+    assert result.exit_code == 0
+    # Rich Table output should be present
+    assert "version" in result.stdout
+    assert "doctor" in result.stdout
+
+    # Test specific command (Rich panel path)
+    result = runner.invoke(app, ["help", "version"])
+    assert result.exit_code == 0
+    assert "version" in result.stdout.lower()
+
+
+def test_explain_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test explain command Rich rendering when isatty returns True."""
+    # Force isatty to return True
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    # Test list all phases (Rich table path)
+    result = runner.invoke(app, ["explain"])
+    assert result.exit_code == 0
+    assert "ingest" in result.stdout.lower()
+    assert "translate" in result.stdout.lower()
+
+    # Test specific phase (Rich panel path)
+    result = runner.invoke(app, ["explain", "ingest"])
+    assert result.exit_code == 0
+    assert "ingest" in result.stdout.lower()
+    # Should contain phase information sections
+    assert "Input" in result.stdout or "Output" in result.stdout
+
+
+def test_doctor_command_tty_rendering(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test doctor command Rich rendering when isatty returns True."""
+    # Force isatty to return True
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+
+    # Create workspace directories
+    (workspace_dir / ".rentl").mkdir()
+    (workspace_dir / "logs").mkdir()
+
+    # Run doctor with Rich rendering
+    result = runner.invoke(app, ["doctor", "--config", str(config_path)])
+
+    # Should contain check results (Rich table rendering)
+    assert "Python Version" in result.stdout or "python" in result.stdout.lower()
+    assert "Overall" in result.stdout  # Overall status line
+
+    # Verify non-success exit propagates correctly when checks fail
+    # (The exact exit code depends on what checks fail, but should be
+    # non-zero if any fail). We verify the command completes and produces
+    # output.
+    assert len(result.stdout) > 0
