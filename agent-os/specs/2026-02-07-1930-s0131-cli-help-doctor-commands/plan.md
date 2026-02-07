@@ -14,7 +14,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit spec artifacts on issue branch
 
-- [ ] Task 2: Core Doctor Diagnostics Module
+- [x] Task 2: Core Doctor Diagnostics Module
   - Create `packages/rentl-core/src/rentl_core/doctor.py`
   - Define `CheckResult` Pydantic model (name, status: pass/fail/warn, message, fix_suggestion)
   - Define `DoctorReport` Pydantic model (checks list, overall status)
