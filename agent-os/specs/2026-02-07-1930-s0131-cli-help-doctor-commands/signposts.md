@@ -242,3 +242,35 @@ services/rentl-cli/src/rentl_cli/main.py    1293   1032    20%   216-223, 238-26
 ```
 
 **Impact:** Acceptance says Rich formatting must render correctly, but only non-TTY/plain branches are currently exercised. Regressions in Rich tables/panels can slip through while tests still pass.
+
+
+## Signpost 8: Patching `sys.stdout.isatty` does not force TTY mode in `CliRunner`
+
+**Task:** Task 5 (CLI Commands — help, doctor, explain)
+
+**Problem:** New TTY tests patch `sys.stdout.isatty` at `tests/unit/cli/test_main.py:1756`, `tests/unit/cli/test_main.py:1774`, and `tests/unit/cli/test_main.py:1795`, but that patch does not affect the `sys.stdout` stream used inside `CliRunner.invoke(...)`.
+
+**Evidence:**
+
+Reproduction command:
+```bash
+$ python - <<'PY'
+from typer.testing import CliRunner
+import sys
+from rentl_cli.main import app
+runner = CliRunner()
+res1 = runner.invoke(app, ["help"])
+print("DEFAULT_FIRST_LINES", res1.stdout.splitlines()[:3])
+orig = sys.stdout.isatty
+sys.stdout.isatty = lambda: True
+res2 = runner.invoke(app, ["help"])
+print("PATCHED_FIRST_LINES", res2.stdout.splitlines()[:3])
+sys.stdout.isatty = orig
+PY
+DEFAULT_FIRST_LINES ['doctor               Run diagnostic checks on your rentl setup', 'explain              Explain what a pipeline phase does', 'export               Export translated lines to output files']
+PATCHED_FIRST_LINES ['doctor               Run diagnostic checks on your rentl setup', 'explain              Explain what a pipeline phase does', 'export               Export translated lines to output files']
+```
+
+The output remains plain-text in both cases, so the Rich-only branches (`services/rentl-cli/src/rentl_cli/main.py:214`, `services/rentl-cli/src/rentl_cli/main.py:236`, `services/rentl-cli/src/rentl_cli/main.py:308`, `services/rentl-cli/src/rentl_cli/main.py:396`, `services/rentl-cli/src/rentl_cli/main.py:421`) are still not proven by these tests.
+
+**Impact:** The new tests can pass while failing to validate the required Rich rendering and doctor exit behavior, creating false confidence in Task 5 acceptance.

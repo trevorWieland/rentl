@@ -49,7 +49,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - [x] Fix: Align `export --column-order` help metadata with the real CLI signature (repeatable option, not comma-separated input) in `packages/rentl-core/src/rentl_core/help.py:95` to match `services/rentl-cli/src/rentl_cli/main.py:145` (audit round 2)
   - [x] Fix: Add regression test coverage asserting export help text/examples do not advertise comma-separated `--column-order` usage and stay aligned with the repeatable CLI option (`packages/rentl-core/tests/unit/core/test_help.py`, `services/rentl-cli/src/rentl_cli/main.py:145`) (audit round 2)
 
-- [x] Task 5: CLI Commands — help, doctor, explain
+- [ ] Task 5: CLI Commands — help, doctor, explain
   - Add `rentl help` command to CLI (thin adapter over core help module)
   - Add `rentl doctor` command to CLI (thin adapter over core doctor module, Rich-formatted table)
   - Add `rentl explain` command to CLI (thin adapter over core explain module, Rich-formatted output)
@@ -59,6 +59,8 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - Acceptance: CLI commands work end-to-end; Rich formatting renders correctly; exit codes correct
   - [x] Fix: Add CLI tests that force `sys.stdout.isatty()` to `True` and assert Rich table/panel rendering paths for `help` and `explain` are exercised (`services/rentl-cli/src/rentl_cli/main.py:214`, `services/rentl-cli/src/rentl_cli/main.py:236`, `services/rentl-cli/src/rentl_cli/main.py:396`, `services/rentl-cli/src/rentl_cli/main.py:421`) (audit round 1)
   - [x] Fix: Add a CLI test that forces `sys.stdout.isatty()` to `True` and validates `doctor` Rich table + overall rendering path and non-success exit propagation (`services/rentl-cli/src/rentl_cli/main.py:308`, `services/rentl-cli/src/rentl_cli/main.py:334`, `services/rentl-cli/src/rentl_cli/main.py:374`) (audit round 1)
+  - [ ] Fix: Replace ineffective `sys.stdout.isatty` monkeypatching in TTY tests with a hook that actually affects CLI command execution under `CliRunner`; current patches at `tests/unit/cli/test_main.py:1756`, `tests/unit/cli/test_main.py:1774`, and `tests/unit/cli/test_main.py:1795` do not force the Rich branches in `services/rentl-cli/src/rentl_cli/main.py:214`, `services/rentl-cli/src/rentl_cli/main.py:236`, `services/rentl-cli/src/rentl_cli/main.py:308`, `services/rentl-cli/src/rentl_cli/main.py:396`, and `services/rentl-cli/src/rentl_cli/main.py:421` (audit round 2)
+  - [ ] Fix: Strengthen `test_doctor_command_tty_rendering` to assert non-success exit propagation explicitly for a controlled failing check set; it currently only checks output length at `tests/unit/cli/test_main.py:1816` and never verifies `services/rentl-cli/src/rentl_cli/main.py:374` behavior (audit round 2)
 
 - [ ] Task 6: Cross-command Polish and Edge Cases
   - `rentl doctor` outside project dir (no config) — graceful failure

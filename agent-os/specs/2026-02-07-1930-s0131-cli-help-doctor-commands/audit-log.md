@@ -13,3 +13,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 2): FAIL — `export` help metadata still drifts from CLI by documenting `--column-order` as comma-separated instead of repeatable.
 - **Task 4** (round 3): PASS — `export` help now matches CLI `--column-order` repeatable semantics and regression coverage in `test_help.py` passes (`32 passed`).
 - **Task 5** (round 1): FAIL — New `help`/`doctor`/`explain` TTY Rich-rendering branches are untested, violating `mandatory-coverage` and leaving Rich output acceptance unverified.
+- **Task 5** (round 2): FAIL — New TTY tests patch `sys.stdout.isatty` in a way that does not affect `CliRunner` command streams, and `doctor` test still does not assert non-success exit propagation.
