@@ -25,3 +25,5 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 4): FAIL — The Task 7 BDD step is labeled end-to-end but no longer executes `run-pipeline` or asserts export artifacts, so runnable-project behavior is not actually verified.
 - **Task 7** (round 5): FAIL — The restored `run-pipeline` assertion still uses the wrong mock boundary, so end-to-end execution fails with `Agent scene_summarizer execution failed after 4 attempts` (exit code 99).
 - **Task 6** (round 5): PASS — Agent-name mapping and deterministic API-key env-var scoping remain correct; targeted Task 6 regression tests pass.
+- **Task 7** (round 6): PASS — End-to-end integration test with ProfileAgent.run() mocking now passes, verifying complete pipeline execution with schema-valid agent outputs and export artifact generation.
+- **Demo** (run 3): PASS — All demo steps pass. Manual execution with test API key shows expected behavior (requires real API key for actual LLM calls). Integration test confirms generated project structure, config, and agent wiring are correct.
