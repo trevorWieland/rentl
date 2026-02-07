@@ -21,6 +21,8 @@ global:
     description: Deprecation warnings must be addressed immediately; never defer to future work
   agent-tool-registration:
     description: Register tools with explicit names via pydantic_ai.Tool to prevent prompt/tool mismatches
+  batch-alignment-feedback:
+    description: Batch agents must verify output IDs match input IDs; provide structured retry feedback on mismatch
   prefer-dependency-updates:
     description: Prefer frequent dependency updates; use compatible ranges instead of exact pins
   required-tool-gating:
@@ -29,6 +31,8 @@ global:
 python:
   async-first-design:
     description: Design all APIs around async/await for parallel agent execution and efficient LLM network IO
+  llm-output-tolerance:
+    description: LLM-output schemas use extra=ignore to tolerate extra fields; config schemas may be strict
   modern-python-314:
     description: Use Python 3.14 modern features; avoid legacy constructs and outdated patterns
   pydantic-only-schemas:
@@ -43,6 +47,8 @@ testing:
     description: Require make all to pass before finalizing work
   mandatory-coverage:
     description: Coverage mandatory for all features; tests must exercise actual behavior
+  mock-execution-boundary:
+    description: Mock at the actual execution boundary per test tier; verify mocks are invoked
   no-mocks-for-quality-tests:
     description: Quality tests use real LLMs; integration tests mock LLMs
   no-test-skipping:
@@ -51,6 +57,8 @@ testing:
     description: "Strict timing limits per tier: unit <250ms, integration <5s, quality <30s"
   three-tier-test-structure:
     description: "All tests in unit/integration/quality folders; unit <250ms, integration <5s, quality <30s"
+  validate-generated-artifacts:
+    description: Generated artifacts must validate against consuming component schemas, not just syntax
 
 ux:
   frictionless-by-default:
