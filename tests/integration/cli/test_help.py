@@ -82,3 +82,10 @@ def then_output_contains_detailed_help(ctx: HelpContext) -> None:
 def then_output_contains_error_message(ctx: HelpContext) -> None:
     """Assert the output contains an error message."""
     assert "error" in ctx.stdout.lower()
+
+
+@then("the output contains valid command list")
+def then_output_contains_valid_command_list(ctx: HelpContext) -> None:
+    """Assert the output contains a list of valid commands."""
+    # Should list valid commands to help user find correct command
+    assert "version" in ctx.stdout.lower() or "init" in ctx.stdout.lower()

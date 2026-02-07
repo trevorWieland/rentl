@@ -14,3 +14,10 @@ Feature: Doctor Command
     When I run the doctor command
     Then the command fails
     And the output contains config error details
+
+  Scenario: Run doctor outside project directory
+    Given no rentl configuration exists
+    When I run the doctor command
+    Then the command fails
+    And the output contains config error details
+    And the output contains actionable fix suggestions

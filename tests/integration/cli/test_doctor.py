@@ -95,3 +95,13 @@ def then_output_contains_config_error(ctx: DoctorContext) -> None:
     """Assert the output contains config error details."""
     assert "config" in ctx.stdout.lower()
     assert "fail" in ctx.stdout.lower() or "error" in ctx.stdout.lower()
+
+
+@then("the output contains actionable fix suggestions")
+def then_output_contains_fix_suggestions(ctx: DoctorContext) -> None:
+    """Assert the output contains actionable fix suggestions."""
+    # Should contain actionable text like "run", "create", "set", etc.
+    assert any(
+        keyword in ctx.stdout.lower()
+        for keyword in ["run", "create", "set", "install", "configure"]
+    )

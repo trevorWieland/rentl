@@ -1934,3 +1934,98 @@ def test_doctor_command_exit_propagation(
     assert "fail" in result.stdout.lower() or "✗" in result.stdout, (
         "Failure should be visible in output"
     )
+
+
+def test_help_command_plain_text_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test help command produces plain text when piped (non-TTY).
+
+    Validates that Rich formatting degrades gracefully when output is piped,
+    ensuring all commands produce readable plain text for scripting/logging.
+    """
+    # Force non-TTY mode (CliRunner does this by default, but be explicit)
+    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+
+    # Test list all commands (plain text path)
+    result = runner.invoke(app, ["help"])
+    assert result.exit_code == 0
+    # Should not contain ANSI escape codes (no color/formatting)
+    assert "\x1b[" not in result.stdout, (
+        "Plain text output should not contain ANSI codes"
+    )
+    # Should contain command names as plain text
+    assert "version" in result.stdout
+    assert "doctor" in result.stdout
+    assert "help" in result.stdout
+
+    # Test specific command (plain text path)
+    result = runner.invoke(app, ["help", "version"])
+    assert result.exit_code == 0
+    # Should not contain ANSI escape codes
+    assert "\x1b[" not in result.stdout, (
+        "Plain text output should not contain ANSI codes"
+    )
+    # Should contain version info as plain text
+    assert "version" in result.stdout.lower()
+
+
+def test_doctor_command_plain_text_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test doctor command produces plain text when piped (non-TTY).
+
+    Validates that Rich table degrades gracefully when output is piped,
+    ensuring check results are readable in plain text for scripting/logging.
+    """
+    # Force non-TTY mode
+    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+
+    # Create workspace directories
+    (workspace_dir / ".rentl").mkdir()
+    (workspace_dir / "logs").mkdir()
+
+    result = runner.invoke(app, ["doctor", "--config", str(config_path)])
+
+    # Should not contain ANSI escape codes (no color/box drawing)
+    assert "\x1b[" not in result.stdout, (
+        "Plain text output should not contain ANSI codes"
+    )
+    # Should contain check results as plain text
+    assert "Python Version" in result.stdout or "python" in result.stdout.lower()
+    # Should contain status indicators
+    assert "pass" in result.stdout.lower() or "fail" in result.stdout.lower()
+
+
+def test_explain_command_plain_text_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test explain command produces plain text when piped (non-TTY).
+
+    Validates that Rich formatting degrades gracefully when output is piped,
+    ensuring phase information is readable in plain text for scripting/logging.
+    """
+    # Force non-TTY mode
+    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+
+    # Test list all phases (plain text path)
+    result = runner.invoke(app, ["explain"])
+    assert result.exit_code == 0
+    # Should not contain ANSI escape codes
+    assert "\x1b[" not in result.stdout, (
+        "Plain text output should not contain ANSI codes"
+    )
+    # Should contain phase names as plain text
+    assert "ingest" in result.stdout.lower()
+    assert "translate" in result.stdout.lower()
+
+    # Test specific phase (plain text path)
+    result = runner.invoke(app, ["explain", "ingest"])
+    assert result.exit_code == 0
+    # Should not contain ANSI escape codes
+    assert "\x1b[" not in result.stdout, (
+        "Plain text output should not contain ANSI codes"
+    )
+    # Should contain phase info as plain text
+    assert "ingest" in result.stdout.lower()
+    assert "Input" in result.stdout or "Output" in result.stdout

@@ -88,3 +88,13 @@ def then_output_contains_valid_phases(ctx: ExplainContext) -> None:
     """Assert the output contains valid phase names list."""
     # Should mention valid phases in error message
     assert "ingest" in ctx.stdout.lower() or "translate" in ctx.stdout.lower()
+
+
+@then("the output contains helpful error with phase list")
+def then_output_contains_helpful_error(ctx: ExplainContext) -> None:
+    """Assert the output contains a helpful error with valid phase list."""
+    # Should have both error indication and valid phase list
+    assert "invalid" in ctx.stdout.lower() or "error" in ctx.stdout.lower()
+    # Should list at least a few valid phases
+    assert "ingest" in ctx.stdout.lower()
+    assert "translate" in ctx.stdout.lower()

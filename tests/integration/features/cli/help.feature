@@ -17,3 +17,4 @@ Feature: Help Command
     When I run the help command for "nonexistent"
     Then the command fails
     And the output contains an error message
+    And the output contains valid command list

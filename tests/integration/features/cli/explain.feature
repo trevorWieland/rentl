@@ -17,3 +17,4 @@ Feature: Explain Command
     When I run the explain command for phase "badphase"
     Then the command fails
     And the output contains valid phase names
+    And the output contains helpful error with phase list
