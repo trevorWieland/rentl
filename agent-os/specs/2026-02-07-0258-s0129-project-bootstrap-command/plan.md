@@ -19,7 +19,7 @@ Users currently must manually copy and edit config files to start a project, vio
   - Test: config without `[agents]` section validates and pipeline resolves to package defaults
   - [x] Fix: Add a unit test that executes `build_agent_pools(config=...)` with `RunConfig.agents=None` and asserts default package directories are used through successful pool construction (`packages/rentl-agents/src/rentl_agents/wiring.py:1124`) (audit round 1)
   - [x] Fix: Strengthen the CLI regression test to verify pipeline/default-agent resolution instead of only config parsing; current assertion stops at `_load_resolved_config()` (`tests/unit/cli/test_main.py:367`) (audit round 1)
-- [x] Task 3: Define init interview schema and core logic
+- [ ] Task 3: Define init interview schema and core logic
   - Create `packages/rentl-core/src/rentl_core/init.py` with:
     - `InitAnswers` Pydantic model (project_name, game_name, source_language, target_languages, provider_name, base_url, api_key_env, model_id, input_format, include_seed_data)
     - `InitResult` Pydantic model (created_files: list of paths, next_steps: list of instruction strings)
@@ -30,6 +30,8 @@ Users currently must manually copy and edit config files to start a project, vio
   - Seed data: 3 sample JSONL lines (1 scene) with placeholder game dialogue when `include_seed_data=True`
   - Export `InitAnswers`, `InitResult`, `generate_project` from `rentl_core.__init__`
   - Unit tests: `generate_project()` with default answers produces valid config and expected file structure
+  - [ ] Fix: Restrict `InitAnswers.input_format` to `RunConfig`-compatible formats so every accepted answer can produce a validating config (current `str` type accepts unsupported `tsv`) (`packages/rentl-core/src/rentl_core/init.py:43`, `packages/rentl-schemas/src/rentl_schemas/primitives.py:84`) (audit round 1)
+  - [ ] Fix: Align seed-data generation/tests with supported formats and add a regression test that unsupported formats are rejected before writing invalid TOML (`packages/rentl-core/src/rentl_core/init.py:226`, `tests/unit/core/test_init.py:164`) (audit round 1)
 - [ ] Task 4: Add `rentl init` CLI command
   - Add `init` command to `services/rentl-cli/src/rentl_cli/main.py`
   - Use Typer `typer.prompt()` for each interview question with sensible defaults:
