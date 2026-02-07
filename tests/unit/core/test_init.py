@@ -346,3 +346,28 @@ def test_unsupported_format_rejected() -> None:
             input_format="tsv",  # type: ignore[arg-type]
             include_seed_data=True,
         )
+
+
+def test_generated_config_uses_correct_agent_names(
+    tmp_path: Path, default_answers: InitAnswers
+) -> None:
+    """Test generated config uses correct default agent names."""
+    generate_project(default_answers, tmp_path)
+    config_path = tmp_path / "rentl.toml"
+
+    with config_path.open("rb") as f:
+        config_dict = tomllib.load(f)
+
+    # Validate config first
+    config = RunConfig.model_validate(config_dict, strict=True)
+
+    # Verify pipeline phases exist and use correct agent names
+    assert config.pipeline.phases is not None
+    phases = {phase.phase: phase.agents for phase in config.pipeline.phases}
+
+    # Check correct agent names from default agent pool
+    assert phases.get("context") == ["scene_summarizer"]
+    assert phases.get("pretranslation") == ["idiom_labeler"]
+    assert phases.get("translate") == ["direct_translator"]
+    assert phases.get("qa") == ["style_guide_critic"]
+    assert phases.get("edit") == ["basic_editor"]

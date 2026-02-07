@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from pytest_bdd import given, scenarios, then, when
 
+from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import InitAnswers, generate_project
 from rentl_schemas.io import SourceLine
 from rentl_schemas.primitives import FileFormat, JsonValue
@@ -184,3 +185,38 @@ def then_seed_data_is_valid_jsonl(ctx: InitContext) -> None:
             raise AssertionError(
                 f"Seed data line {i} failed validation: {exc}\nLine: {line}"
             ) from exc
+
+
+@then("the pipeline can build agent pools from generated config")
+def then_pipeline_can_build_agent_pools(ctx: InitContext) -> None:
+    """Assert the generated config can be used to build agent pools.
+
+    This verifies that referenced agent names actually exist in the default pool,
+    catching configuration errors that would only appear at runtime.
+
+    Raises:
+        AssertionError: If agent pool building fails.
+    """
+    assert ctx.config_path is not None
+
+    # Parse and validate TOML
+    with ctx.config_path.open("rb") as handle:
+        payload: dict[str, JsonValue] = tomllib.load(handle)
+
+    config = validate_run_config(payload)
+
+    # Attempt to build agent pools - this will fail if agent names are invalid
+    try:
+        pools = build_agent_pools(config=config)
+        assert pools is not None
+        # Verify we got pools for the expected phases
+        # Each phase should have at least one agent pool
+        assert len(pools.context_agents) > 0
+        assert len(pools.pretranslation_agents) > 0
+        assert len(pools.translate_agents) > 0
+        assert len(pools.qa_agents) > 0
+        assert len(pools.edit_agents) > 0
+    except Exception as exc:
+        raise AssertionError(
+            f"Failed to build agent pools from generated config: {exc}"
+        ) from exc

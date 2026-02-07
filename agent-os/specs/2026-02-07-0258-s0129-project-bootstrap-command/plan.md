@@ -62,7 +62,7 @@ Users currently must manually copy and edit config files to start a project, vio
   - And: all expected files exist (`rentl.toml`, `.env`, `input/`, `out/`, `logs/`)
   - And: seed data file is valid JSONL with expected `SourceLine` structure
   - And: config round-trips through TOML parse → validate → resolve without errors
-- [ ] Task 6: Fix generated config to use correct default agent names
+- [x] Task 6: Fix generated config to use correct default agent names
   - Update `_generate_toml()` in `packages/rentl-core/src/rentl_core/init.py` lines 163, 167, 171, 175, 179
   - Replace generic phase-name agents with actual default agent names:
     - context: `["scene_summarizer"]` not `["context"]`

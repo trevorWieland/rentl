@@ -160,23 +160,23 @@ model_id = "{answers.model_id}"
 
 [[pipeline.phases]]
 phase = "context"
-agents = ["context"]
+agents = ["scene_summarizer"]
 
 [[pipeline.phases]]
 phase = "pretranslation"
-agents = ["pretranslation"]
+agents = ["idiom_labeler"]
 
 [[pipeline.phases]]
 phase = "translate"
-agents = ["translate"]
+agents = ["direct_translator"]
 
 [[pipeline.phases]]
 phase = "qa"
-agents = ["qa"]
+agents = ["style_guide_critic"]
 
 [[pipeline.phases]]
 phase = "edit"
-agents = ["edit"]
+agents = ["basic_editor"]
 
 [concurrency]
 max_parallel_requests = 8
