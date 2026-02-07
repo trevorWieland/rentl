@@ -114,14 +114,14 @@ _COMMAND_REGISTRY: dict[str, CommandInfo] = {
         ),
         args=[],
         options=[
-            "--config PATH             Path to rentl.toml config file "
+            "--config PATH            Path to rentl.toml config file "
             "(default: ./rentl.toml)",
-            "--run-id ID               Optional run ID for resuming or tracking",
-            "--target-languages LANGS  Target language codes (comma-separated)",
+            "--run-id ID              Optional run ID for resuming or tracking",
+            "--target-language LANG  Target language code (repeatable)",
         ],
         examples=[
             "rentl run-pipeline",
-            "rentl run-pipeline --target-languages en,es",
+            "rentl run-pipeline --target-language en --target-language es",
             "rentl run-pipeline --run-id 01234567-89ab-cdef-0123-456789abcdef",
         ],
     ),

@@ -157,6 +157,36 @@ class TestGetCommandHelp:
         assert "phase" in info.brief.lower()
         assert "--phase" in " ".join(info.options)
 
+    def test_run_pipeline_help_matches_cli_signature(self) -> None:
+        """run-pipeline help text matches the actual CLI flag signature.
+
+        Regression test for signpost 4: ensure help registry stays in sync
+        with the real CLI. The CLI uses --target-language (singular, repeatable),
+        not --target-languages (plural, comma-separated).
+        """
+        info = get_command_help("run-pipeline")
+
+        # Options should document the singular flag
+        options_text = " ".join(info.options)
+        assert "--target-language" in options_text, (
+            "Help should advertise --target-language (singular)"
+        )
+        assert "--target-languages" not in options_text, (
+            "Help should NOT advertise --target-languages (plural)"
+        )
+
+        # Examples should demonstrate repeatable usage, not comma-separated
+        examples_text = " ".join(info.examples)
+        if "target-language" in examples_text:
+            # If examples show target-language usage, it should be repeatable form
+            assert (
+                "--target-language en --target-language" in examples_text
+                or examples_text.count("--target-language") <= 1
+            ), "Examples should show repeatable flag usage, not comma-separated"
+            assert "en,es" not in examples_text, (
+                "Examples should not show comma-separated language codes"
+            )
+
 
 class TestListCommands:
     """Tests for list_commands function."""
