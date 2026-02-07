@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tomllib
@@ -13,9 +14,19 @@ from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
+from rentl_agents.runtime import ProfileAgent
 from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import InitAnswers, generate_project
 from rentl_schemas.io import SourceLine
+from rentl_schemas.phases import (
+    IdiomAnnotation,
+    IdiomAnnotationList,
+    SceneSummary,
+    StyleGuideReviewLine,
+    StyleGuideReviewList,
+    TranslationResultLine,
+    TranslationResultList,
+)
 from rentl_schemas.primitives import FileFormat, JsonValue
 from rentl_schemas.validation import validate_run_config
 from tests.integration.conftest import FakeLlmRuntime
@@ -87,6 +98,7 @@ def then_all_expected_files_exist(ctx: InitContext) -> None:
     """Assert all expected files and directories were created."""
     assert ctx.target_dir is not None
     assert ctx.config_path is not None
+    assert ctx.answers is not None, "InitAnswers should be set by this step"
 
     # Check that all expected files exist
     expected_files = [
@@ -201,13 +213,20 @@ def then_pipeline_executes_end_to_end(
     cli_runner: CliRunner,
     mock_llm_runtime: FakeLlmRuntime,
 ) -> None:
-    """Assert the generated project can execute the full pipeline and produce exports.
+    """Assert the generated project can execute the full pipeline and exports.
 
     This test verifies that:
     1. Config validates and resolves
     2. Pipeline phases include required ingest and export
-    3. Full pipeline execution completes successfully
+    3. Full pipeline execution completes successfully with mocked agents
     4. Export artifacts are produced in the expected locations
+
+    Note on mocking strategy:
+    - We patch ProfileAgent.run() which is the actual execution boundary
+      used by the pipeline
+    - This avoids patching internal pydantic-ai details while still
+      providing deterministic results
+    - Each agent returns schema-valid output matching its output_type
     """
     assert ctx.config_path is not None
     assert ctx.answers is not None
@@ -254,17 +273,136 @@ def then_pipeline_executes_end_to_end(
         f"This mismatch would cause pipeline execution to fail immediately"
     )
 
-    # Execute the full pipeline end-to-end with mocked LLM runtime
+    # Track mock invocations to verify deterministic stub was used
+    mock_call_count = {"count": 0}
+    # Track which line index we're editing
+    # (for edit phase that processes one line at a time)
+    edit_line_index = {"index": 0}
+
+    # Create mock for ProfileAgent.run() to return deterministic
+    # schema-valid outputs. This is the execution boundary actually
+    # used by run-pipeline via build_agent_pools()
+
+    async def mock_agent_run(self: ProfileAgent, payload: object) -> object:
+        """Return schema-valid output based on agent's output_type.
+
+        For batch operations, returns outputs matching all input IDs to satisfy
+        the pipeline's alignment requirements.
+
+        Args:
+            self: ProfileAgent instance (patched method).
+            payload: Input payload for the agent (phase-specific schema).
+
+        Returns:
+            Schema-valid output matching the agent's output_type.
+
+        Raises:
+            ValueError: If the agent's output_type is unexpected.
+        """
+        # Make this a true async function with asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+        mock_call_count["count"] += 1
+
+        # Determine output type from the agent
+        output_type = self._output_type
+
+        # Return schema-valid output matching each agent type
+        if output_type == SceneSummary:
+            # Context phase: return summary for the scene
+            scene_id = getattr(payload, "scene_id", "scene_001")
+            return SceneSummary(
+                scene_id=scene_id,
+                summary="Test scene summary from mock agent",
+                characters=["Character A", "Character B"],
+            )
+        elif output_type == IdiomAnnotationList:
+            # Pretranslation phase: return idioms for batch of source lines
+            source_lines = getattr(payload, "source_lines", [])
+            idioms = [
+                IdiomAnnotation(
+                    line_id=line.line_id,
+                    idiom_text="test idiom",
+                    explanation="Test explanation",
+                )
+                for line in source_lines[:1]  # Return at least one idiom
+            ]
+            return IdiomAnnotationList(idioms=idioms)
+        elif output_type == TranslationResultList:
+            # Translation phase: return translation for each source line
+            source_lines = getattr(payload, "source_lines", [])
+            if not source_lines:
+                # Fallback: create at least one translation
+                translations = [
+                    TranslationResultLine(
+                        line_id="line_001",
+                        text="Test translation",
+                    )
+                ]
+            else:
+                translations = [
+                    TranslationResultLine(
+                        line_id=line.line_id,
+                        text=f"Test translation for {line.line_id}",
+                    )
+                    for line in source_lines
+                ]
+            return TranslationResultList(translations=translations)
+        elif output_type == StyleGuideReviewList:
+            # QA phase: return review for each translation (no violations)
+            translation_results = getattr(payload, "translation_results", [])
+            reviews = [
+                StyleGuideReviewLine(
+                    line_id=result.line_id,
+                    violations=[],  # Empty list means no violations (approved)
+                )
+                for result in translation_results
+            ]
+            return StyleGuideReviewList(reviews=reviews)
+        elif output_type == TranslationResultLine:
+            # Edit phase: return final translation for single line
+            # The agent is called once per line, but receives ALL lines in context
+            # We need to cycle through the lines to match what the orchestrator expects
+            translated_lines = getattr(payload, "translated_lines", [])
+            if not translated_lines:
+                # Fallback if no translated_lines provided
+                line_id = getattr(payload, "line_id", "line_001")
+            else:
+                # Get the current line index and cycle through available lines
+                current_index = edit_line_index["index"] % len(translated_lines)
+                line_id = translated_lines[current_index].line_id
+                # Increment for next call
+                edit_line_index["index"] += 1
+
+            return TranslationResultLine(
+                line_id=line_id,
+                text="Final edited translation",
+            )
+        else:
+            # Fallback for any other output types
+            raise ValueError(f"Unexpected output type in test mock: {output_type}")
+
+    monkeypatch.setattr(ProfileAgent, "run", mock_agent_run)
+
+    # Execute the full pipeline end-to-end with mocked agent execution
     result = cli_runner.invoke(
         cli_main.app,
         ["run-pipeline", "--config", str(ctx.config_path)],
+    )
+
+    # Verify the mock was actually invoked during pipeline execution
+    # This proves we're using deterministic test doubles, not real LLM calls
+    assert mock_call_count["count"] > 0, (
+        "Mock agent execution was never called - "
+        "the patch may not be at the correct execution boundary"
     )
 
     # Verify the pipeline completed successfully
     assert result.exit_code == 0, (
         f"Pipeline execution failed with exit code {result.exit_code}\n"
         f"Output: {result.stdout}\n"
-        f"Error: {result.stderr}"
+        f"Error: {result.stderr}\n"
+        f"Mock was called {mock_call_count['count']} times"
     )
 
     # Parse the response to verify execution succeeded
@@ -274,28 +412,42 @@ def then_pipeline_executes_end_to_end(
     )
     assert response.get("data") is not None, "Pipeline response missing data"
 
-    # Verify export artifacts were produced for each target language
-    output_dir = ctx.target_dir / "out"
-    assert output_dir.exists(), "Output directory not found after pipeline execution"
+    # Only verify export artifacts if pipeline completed successfully (exit_code == 0).
+    # This gating ensures the test doesn't fail on artifact assertions if
+    # execution failed.
+    if result.exit_code == 0:
+        # The config defines where output should be written
+        expected_output_dir = config.project.paths.output_dir
+        output_dir = ctx.target_dir / expected_output_dir
 
-    for target_lang in ctx.answers.target_languages:
-        lang_output_dir = output_dir / target_lang
-        assert lang_output_dir.exists(), (
-            f"Output directory not found for language '{target_lang}'"
+        assert output_dir.exists(), (
+            f"Output directory not found after pipeline execution\n"
+            f"Expected: {output_dir}\n"
+            f"Config output_dir: {expected_output_dir}"
         )
 
-        # Verify export file exists in the expected format
-        export_file = lang_output_dir / f"output.{ctx.answers.input_format}"
-        expected_format = ctx.answers.input_format
-        assert export_file.exists(), (
-            f"Export artifact not found: {export_file}\n"
-            f"Expected export file for language '{target_lang}' "
-            f"in format '{expected_format}'"
+        # The export phase creates output in a run-specific subdirectory
+        # Find the run directory (there should be exactly one)
+        run_dirs = list(output_dir.glob("run-*"))
+        assert len(run_dirs) == 1, (
+            f"Expected exactly one run directory, found {len(run_dirs)}: {run_dirs}"
         )
+        run_dir = run_dirs[0]
 
-        # Verify the export file is not empty
-        content = export_file.read_text(encoding="utf-8")
-        assert len(content.strip()) > 0, f"Export artifact is empty: {export_file}"
+        # Verify export artifacts were produced for each target language
+        for target_lang in ctx.answers.target_languages:
+            # Export file is named {lang}.{format} in the run directory
+            export_file = run_dir / f"{target_lang}.{ctx.answers.input_format}"
+            assert export_file.exists(), (
+                f"Export artifact not found: {export_file}\n"
+                f"Expected export file for language '{target_lang}' "
+                f"in format '{ctx.answers.input_format}'\n"
+                f"Run directory contents: {list(run_dir.glob('*'))}"
+            )
+
+            # Verify the export file is not empty
+            content = export_file.read_text(encoding="utf-8")
+            assert len(content.strip()) > 0, f"Export artifact is empty: {export_file}"
 
 
 def test_env_var_scoping_regression(
