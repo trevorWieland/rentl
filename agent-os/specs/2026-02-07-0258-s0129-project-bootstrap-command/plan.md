@@ -11,14 +11,14 @@ Users currently must manually copy and edit config files to start a project, vio
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Make `[agents]` config section optional
+- [x] Task 2: Make `[agents]` config section optional
   - Update `RunConfig` in `rentl-schemas/src/rentl_schemas/config.py` to make `agents` field optional (default `None`)
   - Update CLI `_resolve_agent_paths()` in `services/rentl-cli/src/rentl_cli/main.py` to skip resolution when agents is `None`
   - Update `build_agent_pools()` in `packages/rentl-agents/src/rentl_agents/wiring.py` to use `get_default_agents_dir()`/`get_default_prompts_dir()` when agents config is `None`
   - Update existing tests that assume agents config is always present
   - Test: config without `[agents]` section validates and pipeline resolves to package defaults
-  - [ ] Fix: Add a unit test that executes `build_agent_pools(config=...)` with `RunConfig.agents=None` and asserts default package directories are used through successful pool construction (`packages/rentl-agents/src/rentl_agents/wiring.py:1124`) (audit round 1)
-  - [ ] Fix: Strengthen the CLI regression test to verify pipeline/default-agent resolution instead of only config parsing; current assertion stops at `_load_resolved_config()` (`tests/unit/cli/test_main.py:367`) (audit round 1)
+  - [x] Fix: Add a unit test that executes `build_agent_pools(config=...)` with `RunConfig.agents=None` and asserts default package directories are used through successful pool construction (`packages/rentl-agents/src/rentl_agents/wiring.py:1124`) (audit round 1)
+  - [x] Fix: Strengthen the CLI regression test to verify pipeline/default-agent resolution instead of only config parsing; current assertion stops at `_load_resolved_config()` (`tests/unit/cli/test_main.py:367`) (audit round 1)
 - [ ] Task 3: Define init interview schema and core logic
   - Create `packages/rentl-core/src/rentl_core/init.py` with:
     - `InitAnswers` Pydantic model (project_name, game_name, source_language, target_languages, provider_name, base_url, api_key_env, model_id, input_format, include_seed_data)

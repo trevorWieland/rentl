@@ -13,6 +13,7 @@ import pytest
 from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
+from rentl_agents.wiring import build_agent_pools
 from rentl_cli.main import app
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
@@ -367,6 +368,14 @@ def test_run_pipeline_accepts_missing_agents_config(
     # Config should load successfully without [agents] section
     config = cli_main._load_resolved_config(config_path)
     assert config.agents is None
+
+    # Verify pipeline resolution to package defaults works end-to-end
+    pools = build_agent_pools(config=config)
+    assert len(pools.context_agents) == 1
+    assert len(pools.pretranslation_agents) == 1
+    assert len(pools.translate_agents) == 1
+    assert len(pools.qa_agents) == 1
+    assert len(pools.edit_agents) == 1
 
 
 def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:
