@@ -363,7 +363,9 @@ run_gate() {
 }
 
 count_unchecked() {
-    grep -cP '^\s*- \[ \]' "$SPEC_FOLDER/plan.md" 2>/dev/null || echo "0"
+    local count
+    count=$(grep -cP '^\s*- \[ \]' "$SPEC_FOLDER/plan.md" 2>/dev/null) || count=0
+    echo "$count"
 }
 
 plan_snapshot() {
@@ -388,6 +390,7 @@ tput "  ${DIM}Limits:${NC}  %ss timeout │ %d task retries │ %d stale cycles\
 cycle=0
 prev_snapshot=""
 stale_count=0
+had_tasks=false  # tracks whether there were ever tasks to implement
 
 while true; do
     cycle=$((cycle + 1))
@@ -397,9 +400,11 @@ while true; do
         exit 1
     fi
 
-    # Staleness detection
+    # Staleness detection — only applies when there were tasks to work on.
+    # When all tasks were already done at startup, plan.md won't change and
+    # that's expected, not stale.
     current_snapshot=$(plan_snapshot)
-    if [[ -n "$prev_snapshot" && "$current_snapshot" == "$prev_snapshot" ]]; then
+    if [[ "$had_tasks" == "true" && -n "$prev_snapshot" && "$current_snapshot" == "$prev_snapshot" ]]; then
         stale_count=$((stale_count + 1))
         if [[ $stale_count -ge $STALE_LIMIT ]]; then
             fail "Stale — plan.md unchanged for $stale_count cycles. See signposts.md / audit-log.md."
@@ -411,9 +416,14 @@ while true; do
     fi
     prev_snapshot="$current_snapshot"
 
-    tput "\n${BOLD}── Cycle %d ──${NC} %d tasks remaining\n" "$cycle" "$(count_unchecked)"
+    unchecked_at_cycle_start=$(count_unchecked)
+    tput "\n${BOLD}── Cycle %d ──${NC} %d tasks remaining\n" "$cycle" "$unchecked_at_cycle_start"
 
     # ─── Phase 1: Task Loop ───
+
+    if [[ "$unchecked_at_cycle_start" -eq 0 ]]; then
+        tput "  ${DIM}All tasks complete — skipping to verification${NC}\n"
+    fi
 
     task_attempts=0
     prev_task=""
@@ -423,6 +433,7 @@ while true; do
         if [[ "$unchecked" -eq 0 ]]; then
             break
         fi
+        had_tasks=true
 
         task_label=$(next_task_label)
 
@@ -523,6 +534,15 @@ $LAST_GATE_OUTPUT
         case "$signal" in
             pass)
                 end_phase "ok" "passed"
+                # Self-heal: if both do-task and audit-task agree the task is
+                # done but the checkbox wasn't persisted, check it off now.
+                # Without this, the inner loop retries the same task forever.
+                if [[ -n "$task_label" ]] && grep -qP "^\s*- \[ \] $(printf '%s' "$task_label" | sed 's/[]\[.*^$/]/\\&/g')" "$SPEC_FOLDER/plan.md" 2>/dev/null; then
+                    tput "  ${YELLOW}⚠ Task still unchecked after audit pass — checking it off${NC}\n"
+                    sed -i "0,/^\(\s*- \)\[ \] $(printf '%s' "$task_label" | sed 's/[]\[.*^$/\\&]/\\&/g')/{s//\1[x] $task_label/}" "$SPEC_FOLDER/plan.md"
+                    git add "$SPEC_FOLDER/plan.md"
+                    git commit --amend --no-edit 2>/dev/null || git commit -m "Fix: check off $task_label (bookkeeping)" 2>/dev/null || true
+                fi
                 ;;
             fail)
                 end_phase "ok" "issues found — fix items added"
