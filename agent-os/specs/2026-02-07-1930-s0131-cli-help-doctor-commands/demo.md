@@ -20,4 +20,12 @@ rentl now has built-in diagnostics so users can understand what's available, tro
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Full verification (2026-02-07 19:40)
+- Step 1: PASS — All commands listed with brief descriptions (doctor, explain, export, help, init, run-phase, run-pipeline, status, validate-connection, version)
+- Step 2: PASS — Detailed help for doctor command includes purpose, options, and examples
+- Step 3: PASS — Doctor outside project dir gracefully reports missing config with fix suggestion ("Run 'rentl init'"), exits with code 10
+- Step 4: PASS — All checks run in valid project. Python/config/workspace pass. API key/connectivity fail with actionable suggestions
+- Step 5: PASS — Lists all 7 phases with one-line descriptions (ingest, context, pretranslation, translate, qa, edit, export)
+- Step 6: PASS — Translate phase shows inputs, outputs, prerequisites, and config options
+- Step 7: PASS — Invalid phase produces helpful error listing valid phases, exits with code 11
+- **Overall: PASS**
