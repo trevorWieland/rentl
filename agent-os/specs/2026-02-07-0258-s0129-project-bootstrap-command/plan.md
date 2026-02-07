@@ -11,7 +11,7 @@ Users currently must manually copy and edit config files to start a project, vio
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Make `[agents]` config section optional
+- [x] Task 2: Make `[agents]` config section optional
   - Update `RunConfig` in `rentl-schemas/src/rentl_schemas/config.py` to make `agents` field optional (default `None`)
   - Update CLI `_resolve_agent_paths()` in `services/rentl-cli/src/rentl_cli/main.py` to skip resolution when agents is `None`
   - Update `build_agent_pools()` in `packages/rentl-agents/src/rentl_agents/wiring.py` to use `get_default_agents_dir()`/`get_default_prompts_dir()` when agents config is `None`

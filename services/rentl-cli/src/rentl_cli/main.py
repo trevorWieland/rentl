@@ -762,6 +762,8 @@ def _load_resolved_config(config_path: Path) -> RunConfig:
 
 
 def _resolve_agent_paths(config: RunConfig) -> RunConfig:
+    if config.agents is None:
+        return config
     workspace_dir = Path(config.project.paths.workspace_dir)
     agents_config = config.agents
     updated_agents = agents_config.model_copy(

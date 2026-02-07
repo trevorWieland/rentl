@@ -283,10 +283,10 @@ def test_validate_connection_emits_command_logs(
     assert CommandEvent.COMPLETED.value in events
 
 
-def test_run_pipeline_errors_when_agents_missing(
+def test_run_pipeline_accepts_missing_agents_config(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Run-pipeline returns config error when agents are missing."""
+    """Run-pipeline validates config without agents section (uses package defaults)."""
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     input_path = workspace_dir / "input.txt"
@@ -327,23 +327,23 @@ def test_run_pipeline_errors_when_agents_missing(
 
             [[pipeline.phases]]
             phase = "context"
-            agents = ["context_agent"]
+            agents = ["scene_summarizer"]
 
             [[pipeline.phases]]
             phase = "pretranslation"
-            agents = ["pretranslation_agent"]
+            agents = ["idiom_labeler"]
 
             [[pipeline.phases]]
             phase = "translate"
-            agents = ["translate_agent"]
+            agents = ["direct_translator"]
 
             [[pipeline.phases]]
             phase = "qa"
-            agents = ["qa_agent"]
+            agents = ["style_guide_critic"]
 
             [[pipeline.phases]]
             phase = "edit"
-            agents = ["edit_agent"]
+            agents = ["basic_editor"]
 
             [concurrency]
             max_parallel_requests = 1
@@ -364,17 +364,9 @@ def test_run_pipeline_errors_when_agents_missing(
 
     monkeypatch.setenv("TEST_KEY", "fake-key")
 
-    run_id = uuid7()
-    result = runner.invoke(
-        app,
-        ["run-pipeline", "--config", str(config_path), "--run-id", str(run_id)],
-    )
-
-    assert result.exit_code == 11  # ExitCode.VALIDATION_ERROR
-    response = ApiResponse[RunExecutionResult].model_validate_json(result.stdout)
-    assert response.error is not None
-    assert response.error.code == "validation_error"
-    assert response.error.exit_code == 11
+    # Config should load successfully without [agents] section
+    config = cli_main._load_resolved_config(config_path)
+    assert config.agents is None
 
 
 def test_run_pipeline_returns_config_error(tmp_path: Path) -> None:

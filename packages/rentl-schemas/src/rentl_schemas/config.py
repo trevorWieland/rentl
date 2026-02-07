@@ -640,7 +640,9 @@ class RunConfig(BaseSchema):
 
     project: ProjectConfig = Field(..., description="Project settings")
     logging: LoggingConfig = Field(..., description="Logging configuration")
-    agents: AgentsConfig = Field(..., description="Agent discovery configuration")
+    agents: AgentsConfig | None = Field(
+        None, description="Agent discovery configuration"
+    )
     endpoint: ModelEndpointConfig | None = Field(
         None, description="Legacy model endpoint settings"
     )

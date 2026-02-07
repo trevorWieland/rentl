@@ -583,3 +583,23 @@ def _base_pipeline_config(default_model: ModelSettings) -> PipelineConfig:
             ),
         ],
     )
+
+
+def test_run_config_accepts_none_agents_config() -> None:
+    """Ensure agents config can be omitted (defaults to package agents)."""
+    config = RunConfig(
+        project=_base_project_config(),
+        logging=_base_logging_config(),
+        agents=None,
+        endpoint=ModelEndpointConfig(
+            provider_name="test",
+            base_url="http://localhost:8002/api/v1",
+            api_key_env="TEST_KEY",
+        ),
+        endpoints=None,
+        pipeline=_base_pipeline_config(ModelSettings(model_id="gpt-4")),
+        concurrency=ConcurrencyConfig(),
+        retry=RetryConfig(),
+        cache=CacheConfig(),
+    )
+    assert config.agents is None
