@@ -37,7 +37,7 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - Unit tests for phase info retrieval and validation
   - Acceptance: all 7 phases have complete info; invalid names raise with valid phase list
 
-- [ ] Task 4: Core Help Content Module
+- [x] Task 4: Core Help Content Module
   - Create `packages/rentl-core/src/rentl_core/help.py`
   - Define `CommandInfo` Pydantic model (name, brief, detailed_help, args, options, examples)
   - Build command registry from existing CLI commands
@@ -46,8 +46,8 @@ Users need built-in diagnostics to troubleshoot setup issues, discover commands,
   - Acceptance: all existing commands plus new commands are registered; invalid names handled
   - [x] Fix: Correct `run-pipeline` help metadata to match the real CLI flag (`--target-language` repeatable, not `--target-languages`) and update the example invocation (`packages/rentl-core/src/rentl_core/help.py:120`, `packages/rentl-core/src/rentl_core/help.py:124`, `services/rentl-cli/src/rentl_cli/main.py:163`, `services/rentl-cli/src/rentl_cli/main.py:504`) (audit round 1)
   - [x] Fix: Add regression test coverage that fails if `run-pipeline` help advertises flags/examples not accepted by the CLI signature (`packages/rentl-core/tests/unit/core/test_help.py:148`, `services/rentl-cli/src/rentl_cli/main.py:163`, `services/rentl-cli/src/rentl_cli/main.py:504`) (audit round 1)
-  - [ ] Fix: Align `export --column-order` help metadata with the real CLI signature (repeatable option, not comma-separated input) in `packages/rentl-core/src/rentl_core/help.py:95` to match `services/rentl-cli/src/rentl_cli/main.py:145` (audit round 2)
-  - [ ] Fix: Add regression test coverage asserting export help text/examples do not advertise comma-separated `--column-order` usage and stay aligned with the repeatable CLI option (`packages/rentl-core/tests/unit/core/test_help.py`, `services/rentl-cli/src/rentl_cli/main.py:145`) (audit round 2)
+  - [x] Fix: Align `export --column-order` help metadata with the real CLI signature (repeatable option, not comma-separated input) in `packages/rentl-core/src/rentl_core/help.py:95` to match `services/rentl-cli/src/rentl_cli/main.py:145` (audit round 2)
+  - [x] Fix: Add regression test coverage asserting export help text/examples do not advertise comma-separated `--column-order` usage and stay aligned with the repeatable CLI option (`packages/rentl-core/tests/unit/core/test_help.py`, `services/rentl-cli/src/rentl_cli/main.py:145`) (audit round 2)
 
 - [ ] Task 5: CLI Commands — help, doctor, explain
   - Add `rentl help` command to CLI (thin adapter over core help module)

@@ -92,7 +92,7 @@ _COMMAND_REGISTRY: dict[str, CommandInfo] = {
             "--include-source-text    Include source text in output",
             "--include-scene-id       Include scene ID in output",
             "--include-speaker        Include speaker name in output",
-            "--column-order           Comma-separated column order",
+            "--column-order           Explicit CSV column order (repeatable)",
             "--expected-line-count    Expected number of lines (validation check)",
         ],
         examples=[

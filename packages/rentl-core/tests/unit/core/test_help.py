@@ -187,6 +187,37 @@ class TestGetCommandHelp:
                 "Examples should not show comma-separated language codes"
             )
 
+    def test_export_help_matches_cli_signature(self) -> None:
+        """Export help text matches the actual CLI flag signature.
+
+        Regression test for signpost 5: ensure export help registry stays in sync
+        with the real CLI. The CLI uses --column-order (repeatable option),
+        not comma-separated input.
+        """
+        info = get_command_help("export")
+
+        # Options should document the repeatable flag
+        options_text = " ".join(info.options)
+        assert "--column-order" in options_text, (
+            "Help should advertise --column-order flag"
+        )
+        # Should describe it as repeatable, not comma-separated
+        column_order_line = next(
+            (opt for opt in info.options if "--column-order" in opt), ""
+        )
+        assert "repeatable" in column_order_line.lower() or (
+            "comma" not in column_order_line.lower()
+        ), "Help should not describe --column-order as comma-separated"
+
+        # Examples should not demonstrate comma-separated column-order usage
+        examples_text = " ".join(info.examples)
+        if "column-order" in examples_text:
+            # If examples show column-order usage, it should be repeatable form
+            assert (
+                "--column-order" in examples_text
+                and "," not in examples_text.split("--column-order")[1].split()[0]
+            ), "Examples should show repeatable flag usage, not comma-separated"
+
 
 class TestListCommands:
     """Tests for list_commands function."""
