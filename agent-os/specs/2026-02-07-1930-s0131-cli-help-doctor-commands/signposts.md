@@ -324,3 +324,25 @@ Tests now verify the Rich rendering code paths execute without errors by:
 - tests/unit/cli/test_main.py:1895-1940 (doctor TTY tests with exit propagation)
 
 **Status:** Resolved - tests now validate that TTY code paths execute correctly within CliRunner's limitations
+
+
+## Signpost 10: Task completion was recorded without implementation delta
+
+**Task:** Task 6 (Cross-command Polish and Edge Cases)
+
+**Problem:** The task was marked complete, but the task commit contains no CLI or test implementation changes for the listed Task 6 scope.
+
+**Evidence:**
+
+Task scope requires edge-case handling and integration test coverage:
+- `agent-os/specs/2026-02-07-1930-s0131-cli-help-doctor-commands/plan.md:65`
+- `agent-os/specs/2026-02-07-1930-s0131-cli-help-doctor-commands/plan.md:70`
+
+Task commit file list shows only `plan.md` changed:
+```bash
+$ git show --name-status --oneline c6d57b7
+c6d57b7 Task 6: Cross-command Polish and Edge Cases
+M   agent-os/specs/2026-02-07-1930-s0131-cli-help-doctor-commands/plan.md
+```
+
+**Impact:** Future orchestration rounds can produce false positives where task completion is recorded without auditable implementation evidence, making regressions harder to detect and attribute.

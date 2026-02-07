@@ -15,3 +15,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 1): FAIL — New `help`/`doctor`/`explain` TTY Rich-rendering branches are untested, violating `mandatory-coverage` and leaving Rich output acceptance unverified.
 - **Task 5** (round 2): FAIL — New TTY tests patch `sys.stdout.isatty` in a way that does not affect `CliRunner` command streams, and `doctor` test still does not assert non-success exit propagation.
 - **Task 4** (round 4): PASS — Commit `65b7b48` keeps `export` help aligned with repeatable `--column-order` CLI semantics and the targeted regression suite passes (`32 passed`).
+- **Task 6** (round 1): FAIL — Commit `c6d57b7` only checks off `Task 6` in `plan.md` and includes no implementation/test changes for the task’s edge-case and pipe-degradation scope.
