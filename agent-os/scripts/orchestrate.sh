@@ -536,12 +536,21 @@ $LAST_GATE_OUTPUT
                 end_phase "ok" "passed"
                 # Self-heal: if both do-task and audit-task agree the task is
                 # done but the checkbox wasn't persisted, check it off now.
-                # Without this, the inner loop retries the same task forever.
-                if [[ -n "$task_label" ]] && grep -qF "- [ ] $task_label" "$SPEC_FOLDER/plan.md" 2>/dev/null; then
+                # Uses next_task_label (same function as the loop) for consistency.
+                still_next=$(next_task_label)
+                if [[ -n "$task_label" && "$still_next" == "$task_label" ]]; then
                     tput "  ${YELLOW}⚠ Task still unchecked after audit pass — checking it off${NC}\n"
-                    # Use awk for reliable fixed-string replacement (first match only)
                     awk -v lbl="$task_label" '!done && index($0, "- [ ] " lbl) { sub(/- \[ \]/, "- [x]"); done=1 } 1' \
                         "$SPEC_FOLDER/plan.md" > "$SPEC_FOLDER/plan.md.tmp" \
+                        && mv "$SPEC_FOLDER/plan.md.tmp" "$SPEC_FOLDER/plan.md"
+                    # Also check off any orphaned fix items under this task
+                    awk -v lbl="$task_label" '
+                        /- \[x\]/ && index($0, lbl) { found=1; print; next }
+                        found && /^[[:space:]]+- \[ \] Fix:/ { sub(/- \[ \]/, "- [x]"); print; next }
+                        found && /^[[:space:]]*- \[/ { found=0 }
+                        found && !/^[[:space:]]/ { found=0 }
+                        { print }
+                    ' "$SPEC_FOLDER/plan.md" > "$SPEC_FOLDER/plan.md.tmp" \
                         && mv "$SPEC_FOLDER/plan.md.tmp" "$SPEC_FOLDER/plan.md"
                     git add "$SPEC_FOLDER/plan.md"
                     git commit --amend --no-edit 2>/dev/null || git commit -m "Fix: check off $task_label (bookkeeping)" 2>/dev/null || true

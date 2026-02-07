@@ -34,6 +34,9 @@ from rich.table import Table
 
 from rentl_agents.wiring import build_agent_pools
 from rentl_core import VERSION, AgentTelemetryEmitter, build_status_result
+from rentl_core.doctor import DoctorReport, run_doctor
+from rentl_core.explain import get_phase_info, list_phases
+from rentl_core.help import get_command_help, list_commands
 from rentl_core.init import InitAnswers, InitResult, generate_project
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.orchestrator import (
@@ -188,6 +191,283 @@ def main() -> None:
 def version() -> None:
     """Display version information."""
     rprint(f"[bold]rentl[/bold] v{VERSION}")
+
+
+@app.command()
+def help(command: str | None = typer.Argument(None, help="Command name")) -> None:
+    """Display help for commands.
+
+    Shows a summary of all commands or detailed help for a specific command.
+
+    Raises:
+        typer.Exit: When an invalid command name is provided.
+    """
+    console = Console()
+
+    # Detect if output is being piped (not a TTY)
+    is_tty = sys.stdout.isatty()
+
+    if command is None:
+        # List all commands
+        commands = list_commands()
+
+        if is_tty:
+            # Rich-formatted output
+            table = Table(title="Available Commands", show_header=True)
+            table.add_column("Command", style="bold cyan")
+            table.add_column("Description")
+
+            for cmd_name, cmd_brief in commands:
+                table.add_row(cmd_name, cmd_brief)
+
+            console.print(table)
+        else:
+            # Plain text output for piping
+            for cmd_name, cmd_brief in commands:
+                print(f"{cmd_name:20} {cmd_brief}")
+    else:
+        # Show detailed help for specific command
+        try:
+            cmd_info = get_command_help(command)
+        except ValueError as exc:
+            rprint(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+        if is_tty:
+            # Rich-formatted output
+            panel_content = [
+                f"[bold]{cmd_info.brief}[/bold]\n",
+                cmd_info.detailed_help,
+            ]
+
+            # Arguments
+            if cmd_info.args:
+                panel_content.append("\n[bold]Arguments:[/bold]")
+                for arg in cmd_info.args:
+                    panel_content.append(f"  {arg}")
+
+            # Options
+            if cmd_info.options:
+                panel_content.append("\n[bold]Options:[/bold]")
+                for opt in cmd_info.options:
+                    panel_content.append(f"  {opt}")
+
+            # Examples
+            if cmd_info.examples:
+                panel_content.append("\n[bold]Examples:[/bold]")
+                for example in cmd_info.examples:
+                    panel_content.append(f"  {example}")
+
+            panel = Panel(
+                "\n".join(panel_content),
+                title=f"rentl {cmd_info.name}",
+                border_style="cyan",
+            )
+            console.print(panel)
+        else:
+            # Plain text output for piping
+            print(f"Command: {cmd_info.name}")
+            print(f"\n{cmd_info.brief}\n")
+            print(cmd_info.detailed_help)
+
+            if cmd_info.args:
+                print("\nArguments:")
+                for arg in cmd_info.args:
+                    print(f"  {arg}")
+
+            if cmd_info.options:
+                print("\nOptions:")
+                for opt in cmd_info.options:
+                    print(f"  {opt}")
+
+            if cmd_info.examples:
+                print("\nExamples:")
+                for example in cmd_info.examples:
+                    print(f"  {example}")
+
+
+@app.command()
+def doctor(config_path: Path = CONFIG_OPTION) -> None:
+    """Run diagnostic checks on rentl configuration and environment.
+
+    Checks Python version, config file, workspace structure, API keys,
+    and LLM connectivity.
+
+    Raises:
+        typer.Exit: When any check fails with appropriate exit code.
+    """
+    console = Console()
+    is_tty = sys.stdout.isatty()
+
+    # Build runtime for connectivity check
+    runtime = _build_llm_runtime()
+
+    # Run all checks (pass Path, not RunConfig)
+    report: DoctorReport = asyncio.run(run_doctor(config_path, runtime=runtime))
+
+    if is_tty:
+        # Rich-formatted table output
+        table = Table(title="Doctor Report", show_header=True)
+        table.add_column("Check", style="bold")
+        table.add_column("Status")
+        table.add_column("Message")
+
+        for check in report.checks:
+            status_val = (
+                check.status if isinstance(check.status, str) else check.status.value
+            )
+            status_style = {
+                "pass": "green",
+                "warn": "yellow",
+                "fail": "red",
+            }.get(status_val, "white")
+
+            status_text = f"[{status_style}]{status_val.upper()}[/{status_style}]"
+
+            # Include fix suggestion in message if present
+            message = check.message
+            if check.fix_suggestion:
+                message = f"{message}\n  → {check.fix_suggestion}"
+
+            table.add_row(check.name, status_text, message)
+
+        # Overall status
+        overall_val = (
+            report.overall_status
+            if isinstance(report.overall_status, str)
+            else report.overall_status.value
+        )
+        overall_style = {
+            "pass": "green",
+            "warn": "yellow",
+            "fail": "red",
+        }.get(overall_val, "white")
+
+        console.print(table)
+        overall_text = (
+            f"\nOverall: [{overall_style}]{overall_val.upper()}[/{overall_style}]"
+        )
+        console.print(overall_text)
+    else:
+        # Plain text output for piping
+        print("Doctor Report")
+        print("-" * 80)
+        for check in report.checks:
+            status_upper = (
+                check.status.upper()
+                if isinstance(check.status, str)
+                else check.status.value.upper()
+            )
+            print(f"\n{check.name}: {status_upper}")
+            print(f"  {check.message}")
+            if check.fix_suggestion:
+                print(f"  Fix: {check.fix_suggestion}")
+
+        overall_upper = (
+            report.overall_status.upper()
+            if isinstance(report.overall_status, str)
+            else report.overall_status.value.upper()
+        )
+        print(f"\nOverall: {overall_upper}")
+
+    # Exit with appropriate code
+    if report.exit_code != ExitCode.SUCCESS:
+        raise typer.Exit(code=report.exit_code.value)
+
+
+@app.command()
+def explain(
+    phase: str | None = typer.Argument(None, help="Phase name to explain"),
+) -> None:
+    """Explain pipeline phases.
+
+    Shows what each phase does, its inputs/outputs, prerequisites, and config options.
+
+    Raises:
+        typer.Exit: When an invalid phase name is provided.
+    """
+    console = Console()
+    is_tty = sys.stdout.isatty()
+
+    if phase is None:
+        # List all phases
+        phases = list_phases()
+
+        if is_tty:
+            # Rich-formatted output
+            table = Table(title="Pipeline Phases", show_header=True)
+            table.add_column("Phase", style="bold cyan")
+            table.add_column("Description")
+
+            for phase_name, description in phases:
+                table.add_row(phase_name.value, description)
+
+            console.print(table)
+        else:
+            # Plain text output for piping
+            for phase_name, description in phases:
+                print(f"{phase_name.value:20} {description}")
+    else:
+        # Show detailed info for specific phase
+        try:
+            phase_name = PhaseName(phase)
+            phase_info = get_phase_info(phase_name)
+        except ValueError:
+            valid_phases = ", ".join(p.value for p in PhaseName)
+            rprint(f"[red]Error:[/red] Invalid phase '{phase}'")
+            rprint(f"Valid phases: {valid_phases}")
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+        if is_tty:
+            # Rich-formatted output
+            panel_content = [
+                f"[bold]{phase_info.description}[/bold]\n",
+                "[bold]Inputs:[/bold]",
+            ]
+            for inp in phase_info.inputs:
+                panel_content.append(f"  • {inp}")
+
+            # Outputs
+            panel_content.append("\n[bold]Outputs:[/bold]")
+            for out in phase_info.outputs:
+                panel_content.append(f"  • {out}")
+
+            # Prerequisites
+            panel_content.append("\n[bold]Prerequisites:[/bold]")
+            for prereq in phase_info.prerequisites:
+                panel_content.append(f"  • {prereq}")
+
+            # Config options
+            panel_content.append("\n[bold]Configuration Options:[/bold]")
+            for opt in phase_info.config_options:
+                panel_content.append(f"  • {opt}")
+
+            panel = Panel(
+                "\n".join(panel_content),
+                title=f"Phase: {phase_info.name}",
+                border_style="cyan",
+            )
+            console.print(panel)
+        else:
+            # Plain text output for piping
+            print(f"Phase: {phase_info.name}")
+            print(f"\n{phase_info.description}\n")
+
+            print("Inputs:")
+            for inp in phase_info.inputs:
+                print(f"  - {inp}")
+
+            print("\nOutputs:")
+            for out in phase_info.outputs:
+                print(f"  - {out}")
+
+            print("\nPrerequisites:")
+            for prereq in phase_info.prerequisites:
+                print(f"  - {prereq}")
+
+            print("\nConfiguration Options:")
+            for opt in phase_info.config_options:
+                print(f"  - {opt}")
 
 
 @app.command()
