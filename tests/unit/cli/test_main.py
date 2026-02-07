@@ -5,6 +5,7 @@ import asyncio
 import inspect
 import json
 import textwrap
+import tomllib
 from pathlib import Path
 from typing import cast
 from uuid import uuid7
@@ -17,7 +18,9 @@ from rentl_agents.wiring import build_agent_pools
 from rentl_cli.main import app
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
+from rentl_schemas.config import RunConfig
 from rentl_schemas.events import CommandEvent, ProgressEvent
+from rentl_schemas.exit_codes import ExitCode
 from rentl_schemas.io import SourceLine
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 from rentl_schemas.logs import LogEntry
@@ -1549,4 +1552,109 @@ def test_init_command_overwrite_confirmation_cancel(
     assert not (tmp_path / "input").exists()
     assert not (tmp_path / "out").exists()
     assert not (tmp_path / "logs").exists()
+    assert not (tmp_path / ".env").exists()
+
+
+def test_init_command_target_languages_trailing_comma(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command sanitizes trailing comma in target languages."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Mock prompts with trailing comma in target languages
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "en,",  # target_languages with trailing comma
+        "",  # provider_name (default: openrouter)
+        "",  # base_url (default: https://openrouter.ai/api/v1)
+        "",  # api_key_env (default: OPENROUTER_API_KEY)
+        "",  # model_id (default: openai/gpt-4.1)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify generated config is valid
+    config_path = tmp_path / "rentl.toml"
+    assert config_path.exists()
+
+    with config_path.open("rb") as f:
+        config_dict = tomllib.load(f)
+
+    config = RunConfig.model_validate(config_dict, strict=True)
+    assert config.project.languages.target_languages == ["en"]
+
+
+def test_init_command_target_languages_multiple_with_spaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command handles multiple target languages with spaces."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Mock prompts with multiple languages and spaces
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "en, fr",  # target_languages with spaces
+        "",  # provider_name (default: openrouter)
+        "",  # base_url (default: https://openrouter.ai/api/v1)
+        "",  # api_key_env (default: OPENROUTER_API_KEY)
+        "",  # model_id (default: openai/gpt-4.1)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify generated config is valid
+    config_path = tmp_path / "rentl.toml"
+    assert config_path.exists()
+
+    with config_path.open("rb") as f:
+        config_dict = tomllib.load(f)
+
+    config = RunConfig.model_validate(config_dict, strict=True)
+    assert config.project.languages.target_languages == ["en", "fr"]
+
+
+def test_init_command_target_languages_blank_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command fails fast on blank target languages input."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Mock prompts with blank target languages (just commas)
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        ",",  # target_languages blank (just comma)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert validation error exit code
+    assert result.exit_code == ExitCode.VALIDATION_ERROR.value
+
+    # Verify error message is shown
+    assert "at least one target language" in result.stdout.lower()
+
+    # Verify no files were created
+    assert not (tmp_path / "rentl.toml").exists()
     assert not (tmp_path / ".env").exists()

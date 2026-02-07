@@ -32,7 +32,7 @@ Users currently must manually copy and edit config files to start a project, vio
   - Unit tests: `generate_project()` with default answers produces valid config and expected file structure
   - [x] Fix: Restrict `InitAnswers.input_format` to `RunConfig`-compatible formats so every accepted answer can produce a validating config (current `str` type accepts unsupported `tsv`) (`packages/rentl-core/src/rentl_core/init.py:43`, `packages/rentl-schemas/src/rentl_schemas/primitives.py:84`) (audit round 1)
   - [x] Fix: Align seed-data generation/tests with supported formats and add a regression test that unsupported formats are rejected before writing invalid TOML (`packages/rentl-core/src/rentl_core/init.py:226`, `tests/unit/core/test_init.py:164`) (audit round 1)
-- [ ] Task 4: Add `rentl init` CLI command
+- [x] Task 4: Add `rentl init` CLI command
   - Add `init` command to `services/rentl-cli/src/rentl_cli/main.py`
   - Use Typer `typer.prompt()` for each interview question with sensible defaults:
     - project_name: derived from current directory name
@@ -52,8 +52,8 @@ Users currently must manually copy and edit config files to start a project, vio
   - Unit tests: CLI command happy path, overwrite confirmation flow
   - [x] Fix: Preserve `typer.Exit` passthrough in `init()` so overwrite cancellation exits cleanly instead of entering `_error_from_exception()` (`services/rentl-cli/src/rentl_cli/main.py:211`, `services/rentl-cli/src/rentl_cli/main.py:290`) (audit round 1)
   - [x] Fix: Add CLI unit tests for `rentl init` happy path and overwrite confirmation/cancel flow (including cancellation exit code assertions) (`tests/unit/cli/test_main.py`) (audit round 1)
-  - [ ] Fix: Sanitize comma-separated target language input in CLI init to drop empty entries and fail fast on blank results before calling `generate_project()`; current split logic accepts trailing commas and can generate invalid config (`services/rentl-cli/src/rentl_cli/main.py:227`) (audit round 2)
-  - [ ] Fix: Add CLI regression coverage for `target_languages` parsing (for example `en,` and `en, fr`) and assert generated `rentl.toml` passes `validate_run_config()` for accepted inputs (`tests/unit/cli/test_main.py`) (audit round 2)
+  - [x] Fix: Sanitize comma-separated target language input in CLI init to drop empty entries and fail fast on blank results before calling `generate_project()`; current split logic accepts trailing commas and can generate invalid config (`services/rentl-cli/src/rentl_cli/main.py:227`) (audit round 2)
+  - [x] Fix: Add CLI regression coverage for `target_languages` parsing (for example `en,` and `en, fr`) and assert generated `rentl.toml` passes `validate_run_config()` for accepted inputs (`tests/unit/cli/test_main.py`) (audit round 2)
 - [ ] Task 5: Integration test — init produces runnable project
   - Integration test in `services/rentl-cli/tests/integration/` using BDD format
   - Given: empty temp directory

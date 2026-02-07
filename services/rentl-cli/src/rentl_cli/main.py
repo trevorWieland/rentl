@@ -224,7 +224,15 @@ def init() -> None:
         target_languages_input = typer.prompt(
             "Target language codes (comma-separated)", default="en"
         )
-        target_languages = [lang.strip() for lang in target_languages_input.split(",")]
+        # Sanitize: filter out empty entries from comma-separated input
+        target_languages = [
+            lang.strip() for lang in target_languages_input.split(",") if lang.strip()
+        ]
+        if not target_languages:
+            rprint(
+                "[red]Error: At least one target language is required[/red]",
+            )
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
         provider_name = typer.prompt("Provider name", default="openrouter")
         base_url = typer.prompt("API base URL", default="https://openrouter.ai/api/v1")
         api_key_env = typer.prompt("API key env var", default="OPENROUTER_API_KEY")
