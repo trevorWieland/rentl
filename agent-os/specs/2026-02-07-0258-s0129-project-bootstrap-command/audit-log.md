@@ -24,3 +24,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 4): PASS — Default agent-name mapping and env-var scoping regression coverage remain deterministic; targeted Task 6 pytest checks passed.
 - **Task 7** (round 4): FAIL — The Task 7 BDD step is labeled end-to-end but no longer executes `run-pipeline` or asserts export artifacts, so runnable-project behavior is not actually verified.
 - **Task 7** (round 5): FAIL — The restored `run-pipeline` assertion still uses the wrong mock boundary, so end-to-end execution fails with `Agent scene_summarizer execution failed after 4 attempts` (exit code 99).
+- **Task 6** (round 5): PASS — Agent-name mapping and deterministic API-key env-var scoping remain correct; targeted Task 6 regression tests pass.
