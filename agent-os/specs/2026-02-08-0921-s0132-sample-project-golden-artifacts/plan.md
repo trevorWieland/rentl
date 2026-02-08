@@ -50,7 +50,7 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Follow existing unit test patterns (pytest.mark.unit auto-applied)
   - Acceptance: `make check` passes, all golden artifact tests green
 
-- [ ] Task 5: Ingest Integration Test
+- [x] Task 5: Ingest Integration Test
   - Add BDD-style integration test in `tests/integration/`
   - Given: the golden script.jsonl file
   - When: ingested through the JSONL adapter
