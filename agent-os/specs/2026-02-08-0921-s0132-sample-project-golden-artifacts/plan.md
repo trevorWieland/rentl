@@ -16,7 +16,7 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch
 
-- [ ] Task 2: Write the Sample Script
+- [x] Task 2: Write the Sample Script
   - Create `samples/golden/script.jsonl` with an original Japanese VN-style script
   - At least 3 scenes, 2+ routes, 4+ named speakers
   - Include dialogue lines, narration lines, and at least one choice (`is_choice: true`)
