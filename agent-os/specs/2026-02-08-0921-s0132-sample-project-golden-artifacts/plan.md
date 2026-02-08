@@ -27,7 +27,7 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Add `samples/golden/LICENSE` with CC0 text
   - Acceptance: file parses as valid JSONL, every line validates as SourceLine
 
-- [ ] Task 3: Generate Golden Artifacts
+- [x] Task 3: Generate Golden Artifacts
   - Create `samples/golden/artifacts/` directory
   - `context.jsonl` — SceneSummary for each scene (scene_id, summary, characters list)
   - `pretranslation.jsonl` — IdiomAnnotationList with idiom annotations for culturally-specific lines
