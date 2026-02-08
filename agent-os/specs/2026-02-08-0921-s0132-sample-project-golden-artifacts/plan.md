@@ -50,14 +50,14 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Follow existing unit test patterns (pytest.mark.unit auto-applied)
   - Acceptance: `make check` passes, all golden artifact tests green
 
-- [ ] Task 5: Ingest Integration Test
+- [x] Task 5: Ingest Integration Test
   - Add BDD-style integration test in `tests/integration/`
   - Given: the golden script.jsonl file
   - When: ingested through the JSONL adapter
   - Then: output SourceLine records match golden data (line_ids, text, speakers, scenes)
   - Use existing integration test fixtures and patterns
   - Acceptance: test passes, <5s
-  - [ ] Fix: Replace sampled assertions with full-record equality checks for all ingested lines (`line_id`, `text`, `speaker`, `scene_id`) against `samples/golden/script.jsonl`; current checks only validate subsets/patterns (`tests/integration/ingest/test_golden_script.py:72`, `tests/integration/ingest/test_golden_script.py:98`, `tests/integration/ingest/test_golden_script.py:114`, `tests/integration/ingest/test_golden_script.py:138`) (audit round 1)
+  - [x] Fix: Replace sampled assertions with full-record equality checks for all ingested lines (`line_id`, `text`, `speaker`, `scene_id`) against `samples/golden/script.jsonl`; current checks only validate subsets/patterns (`tests/integration/ingest/test_golden_script.py:72`, `tests/integration/ingest/test_golden_script.py:98`, `tests/integration/ingest/test_golden_script.py:114`, `tests/integration/ingest/test_golden_script.py:138`) (audit round 1)
 
 - [ ] Task 6: Replace sample_scenes.jsonl
   - Update `rentl.toml` input_path → `samples/golden/script.jsonl`

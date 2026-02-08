@@ -7,6 +7,7 @@ the JSONL adapter and produces correct SourceLine records.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from pathlib import Path
 
@@ -71,20 +72,24 @@ def then_all_lines_parsed(ctx: IngestContext) -> None:
 
 @then("line IDs match the expected values")
 def then_line_ids_match(ctx: IngestContext) -> None:
-    """Assert line IDs match expected pattern."""
+    """Assert line IDs match expected pattern and golden data."""
     assert ctx.ingested_lines is not None
+    assert ctx.golden_script_path is not None
 
-    # Check first few line IDs
-    expected_first_ids = [
-        "scene_001_0001",
-        "scene_001_0002",
-        "scene_001_0003",
-        "scene_001_0004",
-        "scene_001_0005",
-    ]
-    actual_first_ids = [line.line_id for line in ctx.ingested_lines[:5]]
-    assert actual_first_ids == expected_first_ids, (
-        f"First line IDs mismatch: {actual_first_ids}"
+    # Load expected line_ids from golden script
+    expected_line_ids = []
+    with open(ctx.golden_script_path) as f:
+        for line in f:
+            if line.strip():
+                data = json.loads(line)
+                expected_line_ids.append(data["line_id"])
+
+    # Assert all line_ids match exactly
+    actual_line_ids = [line.line_id for line in ctx.ingested_lines]
+    assert actual_line_ids == expected_line_ids, (
+        f"Line IDs do not match golden data.\n"
+        f"Expected: {expected_line_ids}\n"
+        f"Actual: {actual_line_ids}"
     )
 
     # Verify all line_ids follow the pattern: ^[a-z]+(?:_[0-9]+)+$
@@ -97,13 +102,28 @@ def then_line_ids_match(ctx: IngestContext) -> None:
 
 @then("text content matches the expected values")
 def then_text_matches(ctx: IngestContext) -> None:
-    """Assert text content matches expected values."""
+    """Assert text content matches expected values and golden data."""
     assert ctx.ingested_lines is not None
+    assert ctx.golden_script_path is not None
 
-    # Check first line text
-    first_line = ctx.ingested_lines[0]
-    assert first_line.text == "春の朝、桜の花びらが風に舞う学園の門。", (
-        f"First line text mismatch: {first_line.text}"
+    # Load expected text from golden script
+    expected_texts = []
+    with open(ctx.golden_script_path) as f:
+        for line in f:
+            if line.strip():
+                data = json.loads(line)
+                expected_texts.append(data["text"])
+
+    # Assert all text matches exactly
+    actual_texts = [line.text for line in ctx.ingested_lines]
+    pairs = list(zip(actual_texts, expected_texts, strict=True))
+    mismatch_idx = next(
+        (i for i, (a, e) in enumerate(pairs) if a != e),
+        len(actual_texts),
+    )
+    assert actual_texts == expected_texts, (
+        f"Text content does not match golden data.\n"
+        f"First mismatch at index {mismatch_idx}"
     )
 
     # Check that all lines have non-empty text
@@ -113,19 +133,27 @@ def then_text_matches(ctx: IngestContext) -> None:
 
 @then("speakers match the expected values")
 def then_speakers_match(ctx: IngestContext) -> None:
-    """Assert speakers match expected values."""
+    """Assert speakers match expected values and golden data."""
     assert ctx.ingested_lines is not None
+    assert ctx.golden_script_path is not None
 
-    # Check second line has unknown speaker
-    second_line = ctx.ingested_lines[1]
-    assert second_line.speaker == "???", (
-        f"Expected unknown speaker '???', got {second_line.speaker}"
+    # Load expected speakers from golden script
+    expected_speakers = []
+    with open(ctx.golden_script_path) as f:
+        for line in f:
+            if line.strip():
+                data = json.loads(line)
+                expected_speakers.append(data.get("speaker"))
+
+    # Assert all speakers match exactly
+    actual_speakers = [line.speaker for line in ctx.ingested_lines]
+    pairs = list(zip(actual_speakers, expected_speakers, strict=True))
+    mismatch_idx = next(
+        (i for i, (a, e) in enumerate(pairs) if a != e),
+        len(actual_speakers),
     )
-
-    # Check fourth line has a named speaker
-    fourth_line = ctx.ingested_lines[3]
-    assert fourth_line.speaker == "佐藤健太", (
-        f"Expected speaker '佐藤健太', got {fourth_line.speaker}"
+    assert actual_speakers == expected_speakers, (
+        f"Speakers do not match golden data.\nFirst mismatch at index {mismatch_idx}"
     )
 
     # Verify that there are multiple unique speakers
@@ -137,19 +165,33 @@ def then_speakers_match(ctx: IngestContext) -> None:
 
 @then("scene IDs match the expected values")
 def then_scene_ids_match(ctx: IngestContext) -> None:
-    """Assert scene IDs match expected values."""
+    """Assert scene IDs match expected values and golden data."""
     assert ctx.ingested_lines is not None
+    assert ctx.golden_script_path is not None
+
+    # Load expected scene_ids from golden script
+    expected_scene_ids = []
+    with open(ctx.golden_script_path) as f:
+        for line in f:
+            if line.strip():
+                data = json.loads(line)
+                expected_scene_ids.append(data.get("scene_id"))
+
+    # Assert all scene_ids match exactly
+    actual_scene_ids = [line.scene_id for line in ctx.ingested_lines]
+    pairs = list(zip(actual_scene_ids, expected_scene_ids, strict=True))
+    mismatch_idx = next(
+        (i for i, (a, e) in enumerate(pairs) if a != e),
+        len(actual_scene_ids),
+    )
+    assert actual_scene_ids == expected_scene_ids, (
+        f"Scene IDs do not match golden data.\nFirst mismatch at index {mismatch_idx}"
+    )
 
     # Verify there are multiple scenes
     scene_ids = {line.scene_id for line in ctx.ingested_lines if line.scene_id}
     assert len(scene_ids) >= 3, (
         f"Expected at least 3 unique scenes, found {len(scene_ids)}"
-    )
-
-    # Check first line is in scene_001
-    first_line = ctx.ingested_lines[0]
-    assert first_line.scene_id == "scene_001", (
-        f"First line scene_id mismatch: {first_line.scene_id}"
     )
 
     # Verify scene transitions occur
