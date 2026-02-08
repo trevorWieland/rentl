@@ -13,6 +13,7 @@ import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
@@ -145,11 +146,15 @@ def given_golden_script_exists() -> PipelineContext:
 def given_pipeline_config(
     ctx: PipelineContext,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Create a config with all phases enabled."""
     assert ctx.golden_script_path is not None
     ctx.workspace_dir = tmp_path / "workspace"
     ctx.workspace_dir.mkdir()
+
+    # Set required API key environment variable for test isolation
+    monkeypatch.setenv("PRIMARY_KEY", "test-key-for-quality-pipeline")
 
     # Copy golden script to temp workspace for isolation
     script_copy = ctx.workspace_dir / "script.jsonl"
@@ -202,6 +207,55 @@ def then_all_phases_complete(ctx: PipelineContext) -> None:
     )
     assert ctx.response.get("data") is not None
     assert ctx.response["data"].get("run_id") is not None
+
+    # Verify per-phase execution by checking logs
+    # Expected phases: ingest, context, pretranslation, translate, qa, edit, export
+    expected_phases = [
+        "ingest",
+        "context",
+        "pretranslation",
+        "translate",
+        "qa",
+        "edit",
+        "export",
+    ]
+    assert ctx.workspace_dir is not None
+    logs_dir = ctx.workspace_dir / "logs"
+    assert logs_dir.exists(), f"Logs directory not found at {logs_dir}"
+
+    log_files = list(logs_dir.glob("*.jsonl"))
+    assert len(log_files) > 0, f"No log files found in {logs_dir}"
+
+    # Parse log file and collect phase events
+    phase_started = set()
+    phase_completed = set()
+    log_file = log_files[0]
+    with open(log_file) as f:
+        for line in f:
+            if line.strip():
+                try:
+                    event = json.loads(line)
+                    event_type = event.get("event")
+                    if event_type == "phase_started":
+                        phase = event.get("data", {}).get("phase")
+                        if phase:
+                            phase_started.add(phase)
+                    elif event_type == "phase_completed":
+                        phase = event.get("data", {}).get("phase")
+                        if phase:
+                            phase_completed.add(phase)
+                except json.JSONDecodeError:
+                    # Skip malformed lines
+                    continue
+
+    # Verify all expected phases started and completed
+    for phase in expected_phases:
+        assert phase in phase_started, (
+            f"Phase {phase} did not start. Started phases: {phase_started}"
+        )
+        assert phase in phase_completed, (
+            f"Phase {phase} did not complete. Completed phases: {phase_completed}"
+        )
 
 
 @then("the export output contains valid TranslatedLine records")
