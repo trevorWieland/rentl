@@ -39,8 +39,8 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Acceptance: zero validation errors for every artifact file
   - [x] Fix: Satisfy QA coverage requirement by representing all QA categories (`grammar`, `terminology`, `style`, `consistency`, `formatting`, `context`, `cultural`, `other`) instead of only 4 rule labels in `samples/golden/artifacts/qa.jsonl` (see `packages/rentl-schemas/src/rentl_schemas/primitives.py:155` and `samples/golden/artifacts/qa.jsonl:1`) (audit round 1)
   - [x] Fix: Clarify and enforce category mapping in artifact generation/tests so Task 3's "at least one per QA category" is machine-checkable (current output only exposes `rule_violated` free text) (`agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:35`, `packages/rentl-schemas/src/rentl_schemas/phases.py:89`) (audit round 1)
-  - [ ] Fix: Add at least one explicit `Other: ...` violation in `samples/golden/artifacts/qa.jsonl` so all 8 `QaCategory` enum values are represented (`packages/rentl-schemas/src/rentl_schemas/primitives.py:155`, `samples/golden/artifacts/qa.jsonl:1`) (audit round 2)
-  - [ ] Fix: Make category coverage machine-checkable by converting remaining non-prefixed `rule_violated` values (`Onomatopoeia formatting`, `Onomatopoeia consistency`) to the `<Category>: <specific rule>` format used in `samples/golden/artifacts/README.md:22` (`samples/golden/artifacts/qa.jsonl:1`) (audit round 2)
+  - [x] Fix: Add at least one explicit `Other: ...` violation in `samples/golden/artifacts/qa.jsonl` so all 8 `QaCategory` enum values are represented (`packages/rentl-schemas/src/rentl_schemas/primitives.py:155`, `samples/golden/artifacts/qa.jsonl:1`) (audit round 2)
+  - [x] Fix: Make category coverage machine-checkable by converting remaining non-prefixed `rule_violated` values (`Onomatopoeia formatting`, `Onomatopoeia consistency`) to the `<Category>: <specific rule>` format used in `samples/golden/artifacts/README.md:22` (`samples/golden/artifacts/qa.jsonl:1`) (audit round 2)
 
 - [ ] Task 4: Schema Validation Tests (Unit Tier)
   - Add `tests/unit/test_golden_artifacts.py`
