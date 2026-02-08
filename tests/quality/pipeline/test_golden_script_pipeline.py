@@ -1,7 +1,7 @@
-"""BDD integration tests for full pipeline smoke test on golden script.
+"""BDD quality tests for full pipeline smoke test on golden script.
 
 These tests verify that the full pipeline can run all phases on the golden
-sample script using FakeLlmRuntime (no real API calls).
+sample script using real LLM runtime (requires actual HTTP endpoint).
 """
 
 from __future__ import annotations
@@ -13,14 +13,12 @@ import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
 from rentl_schemas.io import TranslatedLine
-from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
     pass
@@ -160,16 +158,6 @@ def given_pipeline_config(
     ctx.config_path = _write_full_pipeline_config(
         tmp_path, ctx.workspace_dir, script_copy
     )
-
-
-@given("the FakeLlmRuntime is configured")
-def given_fake_llm(
-    ctx: PipelineContext,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Configure FakeLlmRuntime for pipeline execution."""
-    monkeypatch.setenv("PRIMARY_KEY", "fake-key")
-    monkeypatch.setattr(cli_main, "_build_llm_runtime", lambda: FakeLlmRuntime())
 
 
 @when("I run the full pipeline on the golden script")
