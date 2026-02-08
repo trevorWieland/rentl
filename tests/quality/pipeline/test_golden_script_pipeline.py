@@ -2,12 +2,17 @@
 
 These tests verify that the full pipeline can run all phases on the golden
 sample script using real LLM runtime (requires actual HTTP endpoint).
+
+IMPORTANT: These tests require a real LLM endpoint to be running.
+Set RENTL_QUALITY_API_KEY and RENTL_QUALITY_BASE_URL environment variables
+before running. The test will be skipped if these are not configured.
 """
 
 from __future__ import annotations
 
 import contextlib
 import json
+import os
 import shutil
 import textwrap
 from pathlib import Path
@@ -27,15 +32,24 @@ if TYPE_CHECKING:
 # Link feature file
 scenarios("../features/pipeline/golden_script_pipeline.feature")
 
+# Skip entire module if quality test environment is not configured
+pytestmark = pytest.mark.skipif(
+    not os.getenv("RENTL_QUALITY_API_KEY") or not os.getenv("RENTL_QUALITY_BASE_URL"),
+    reason="Requires RENTL_QUALITY_API_KEY and RENTL_QUALITY_BASE_URL to be set",
+)
+
 
 def _write_full_pipeline_config(
     config_path: Path, workspace_dir: Path, script_path: Path
 ) -> Path:
     """Write a rentl.toml config for full pipeline tests with all phases enabled.
 
+    Uses RENTL_QUALITY_BASE_URL and RENTL_QUALITY_API_KEY from environment.
+
     Returns:
         Path to the written config file.
     """
+    base_url = os.getenv("RENTL_QUALITY_BASE_URL", "http://localhost:8001/v1")
     content = textwrap.dedent(
         f"""\
         [project]
@@ -65,8 +79,8 @@ def _write_full_pipeline_config(
 
         [[endpoints.endpoints]]
         provider_name = "primary"
-        base_url = "http://localhost:8001/v1"
-        api_key_env = "PRIMARY_KEY"
+        base_url = "{base_url}"
+        api_key_env = "RENTL_QUALITY_API_KEY"
 
         [pipeline.default_model]
         model_id = "gpt-4"
@@ -146,15 +160,16 @@ def given_golden_script_exists() -> PipelineContext:
 def given_pipeline_config(
     ctx: PipelineContext,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Create a config with all phases enabled."""
+    """Create a config with all phases enabled.
+
+    Note: This quality test requires real LLM endpoints to be configured.
+    Set PRIMARY_KEY environment variable and ensure the configured endpoint
+    is accessible before running this test.
+    """
     assert ctx.golden_script_path is not None
     ctx.workspace_dir = tmp_path / "workspace"
     ctx.workspace_dir.mkdir()
-
-    # Set required API key environment variable for test isolation
-    monkeypatch.setenv("PRIMARY_KEY", "test-key-for-quality-pipeline")
 
     # Copy golden script to temp workspace for isolation
     script_copy = ctx.workspace_dir / "script.jsonl"
