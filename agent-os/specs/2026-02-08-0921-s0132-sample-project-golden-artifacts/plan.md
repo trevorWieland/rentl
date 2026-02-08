@@ -69,7 +69,7 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Acceptance: no broken operational references, `git grep sample_scenes.jsonl -- ':(exclude)agent-os/specs/'` returns zero results (spec docs may retain historical mentions)
   - [x] Fix: Make Task 6 acceptance machine-checkable for operational references by scoping the grep command (or equivalent verification) so intentional historical mentions in spec docs do not fail the task; current `git grep sample_scenes.jsonl` still returns matches at `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/demo.md:17`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:9`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:69`, and `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/spec.md:9` (audit round 1)
 
-- [x] Task 7: Full Pipeline Smoke Test
+- [ ] Task 7: Full Pipeline Smoke Test
   - Add quality test that runs the full pipeline on the sample script
   - Uses real LLM runtime (no mocking, requires HTTP endpoint)
   - Assert all phases (ingest → context → pretranslation → translate → QA → edit → export) complete
@@ -77,3 +77,6 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - BDD-style with Given/When/Then
   - Acceptance: test passes, <30s, `make all` green
   - [x] Fix: Move test from integration to quality layer to resolve FakeLlmRuntime incompatibility with agent pool execution (agents make direct HTTP calls via pydantic-ai that bypass CLI runtime injection); quality tests use real HTTP endpoints per layer rules (audit round 1)
+  - [ ] Fix: Align Task 7 with the spec/standards contract by restoring a full pipeline smoke test in `tests/integration/` using `FakeLlmRuntime` (or implement runtime injection so integration coverage remains possible); current implementation moved to `tests/quality/pipeline/test_golden_script_pipeline.py:1`, conflicting with `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/spec.md:35` and `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/standards.md:7` (audit round 2)
+  - [ ] Fix: Make the Task 7 smoke test self-contained by setting required endpoint auth env vars in test setup; current config uses `api_key_env = "PRIMARY_KEY"` at `tests/quality/pipeline/test_golden_script_pipeline.py:68` but no setup sets it, causing `config_error: Missing API key environment variable: PRIMARY_KEY` at assertion point `tests/quality/pipeline/test_golden_script_pipeline.py:192` (audit round 2)
+  - [ ] Fix: Strengthen the "all phases complete" assertion to verify per-phase execution (not just exit code/run_id); current checks in `tests/quality/pipeline/test_golden_script_pipeline.py:177` only assert success envelope and do not confirm each configured phase ran (audit round 2)
