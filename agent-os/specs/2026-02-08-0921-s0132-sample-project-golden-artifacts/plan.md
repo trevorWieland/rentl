@@ -1,0 +1,72 @@
+spec_id: s0.1.32
+issue: https://github.com/trevorWieland/rentl/issues/32
+version: v0.1
+
+# Plan: Sample Project + Golden Artifacts
+
+## Decision Record
+
+rentl needs a bundled, license-safe sample project for three purposes: (1) smoke/integration testing with validated golden artifacts, (2) product demo for new users to see what the pipeline produces, and (3) a default input for `rentl run` out of the box. The existing `sample_scenes.jsonl` is copyrighted and must be replaced.
+
+We're writing an original Japanese VN script rather than sourcing one externally because freely-licensed game scripts of the right size and variety are extremely scarce, and original content gives us full control over what pipeline features we exercise.
+
+## Tasks
+
+- [x] Task 1: Save Spec Documentation
+  - Write spec.md, plan.md, demo.md, standards.md, references.md
+  - Commit on issue branch
+
+- [ ] Task 2: Write the Sample Script
+  - Create `samples/golden/script.jsonl` with an original Japanese VN-style script
+  - At least 3 scenes, 2+ routes, 4+ named speakers
+  - Include dialogue lines, narration lines, and at least one choice (`is_choice: true`)
+  - Include lines with `"???"` speaker for future speaker-identification testing
+  - Include culturally-specific expressions: idioms, honorifics, onomatopoeia
+  - Target 50–80 lines — small but representative
+  - All line_ids follow `^[a-z]+(?:_[0-9]+)+$` pattern (e.g. `scene_001_0001`)
+  - Add `samples/golden/LICENSE` with CC0 text
+  - Acceptance: file parses as valid JSONL, every line validates as SourceLine
+
+- [ ] Task 3: Generate Golden Artifacts
+  - Create `samples/golden/artifacts/` directory
+  - `context.jsonl` — SceneSummary for each scene (scene_id, summary, characters list)
+  - `pretranslation.jsonl` — IdiomAnnotationList with idiom annotations for culturally-specific lines
+  - `translate.jsonl` — TranslationResultList with English translations for every line
+  - `qa.jsonl` — StyleGuideReviewList with sample violations (at least one per QA category)
+  - `edit.jsonl` — LineEdit records showing corrections applied from QA findings
+  - `export.jsonl` — Final TranslatedLine records (complete translated output)
+  - All artifacts must validate against rentl-schemas Pydantic models
+  - Acceptance: zero validation errors for every artifact file
+
+- [ ] Task 4: Schema Validation Tests (Unit Tier)
+  - Add `tests/unit/test_golden_artifacts.py`
+  - Test loads each golden artifact file and validates against its Pydantic model
+  - Test verifies script.jsonl lines validate as SourceLine
+  - Each test <250ms
+  - Follow existing unit test patterns (pytest.mark.unit auto-applied)
+  - Acceptance: `make check` passes, all golden artifact tests green
+
+- [ ] Task 5: Ingest Integration Test
+  - Add BDD-style integration test in `tests/integration/`
+  - Given: the golden script.jsonl file
+  - When: ingested through the JSONL adapter
+  - Then: output SourceLine records match golden data (line_ids, text, speakers, scenes)
+  - Use existing integration test fixtures and patterns
+  - Acceptance: test passes, <5s
+
+- [ ] Task 6: Replace sample_scenes.jsonl
+  - Update `rentl.toml` input_path → `samples/golden/script.jsonl`
+  - Update `scripts/validate_agents.py` docstring reference
+  - Update `debug_test.py` input_path reference
+  - Update `.gitignore` — remove `sample_scenes.jsonl` entry, add `samples/golden/` exclusions if needed
+  - Delete `sample_scenes.jsonl` from repo
+  - Update relevant spec doc references
+  - Acceptance: no broken references, `git grep sample_scenes.jsonl` returns zero results
+
+- [ ] Task 7: Full Pipeline Smoke Test
+  - Add integration test that runs the full pipeline on the sample script
+  - Use FakeLlmRuntime to mock LLM responses (no real API calls)
+  - Assert all phases (ingest → context → pretranslation → translate → QA → edit → export) complete
+  - Assert export output is valid TranslatedLine data
+  - BDD-style with Given/When/Then
+  - Acceptance: test passes, <5s, `make all` green
