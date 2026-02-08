@@ -69,7 +69,7 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Acceptance: no broken operational references, `git grep sample_scenes.jsonl -- ':(exclude)agent-os/specs/'` returns zero results (spec docs may retain historical mentions)
   - [x] Fix: Make Task 6 acceptance machine-checkable for operational references by scoping the grep command (or equivalent verification) so intentional historical mentions in spec docs do not fail the task; current `git grep sample_scenes.jsonl` still returns matches at `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/demo.md:17`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:9`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:69`, and `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/spec.md:9` (audit round 1)
 
-- [ ] Task 7: Full Pipeline Smoke Test
+- [x] Task 7: Full Pipeline Smoke Test
   - Add integration test that runs the full pipeline on the sample script
   - Use FakeLlmRuntime to mock LLM responses (no real API calls)
   - Assert all phases (ingest → context → pretranslation → translate → QA → edit → export) complete
