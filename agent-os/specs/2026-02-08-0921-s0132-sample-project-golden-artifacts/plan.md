@@ -27,7 +27,7 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Add `samples/golden/LICENSE` with CC0 text
   - Acceptance: file parses as valid JSONL, every line validates as SourceLine
 
-- [ ] Task 3: Generate Golden Artifacts
+- [x] Task 3: Generate Golden Artifacts
   - Create `samples/golden/artifacts/` directory
   - `context.jsonl` — SceneSummary for each scene (scene_id, summary, characters list)
   - `pretranslation.jsonl` — IdiomAnnotationList with idiom annotations for culturally-specific lines
@@ -37,8 +37,8 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - `export.jsonl` — Final TranslatedLine records (complete translated output)
   - All artifacts must validate against rentl-schemas Pydantic models
   - Acceptance: zero validation errors for every artifact file
-  - [ ] Fix: Satisfy QA coverage requirement by representing all QA categories (`grammar`, `terminology`, `style`, `consistency`, `formatting`, `context`, `cultural`, `other`) instead of only 4 rule labels in `samples/golden/artifacts/qa.jsonl` (see `packages/rentl-schemas/src/rentl_schemas/primitives.py:155` and `samples/golden/artifacts/qa.jsonl:1`) (audit round 1)
-  - [ ] Fix: Clarify and enforce category mapping in artifact generation/tests so Task 3’s “at least one per QA category” is machine-checkable (current output only exposes `rule_violated` free text) (`agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:35`, `packages/rentl-schemas/src/rentl_schemas/phases.py:89`) (audit round 1)
+  - [x] Fix: Satisfy QA coverage requirement by representing all QA categories (`grammar`, `terminology`, `style`, `consistency`, `formatting`, `context`, `cultural`, `other`) instead of only 4 rule labels in `samples/golden/artifacts/qa.jsonl` (see `packages/rentl-schemas/src/rentl_schemas/primitives.py:155` and `samples/golden/artifacts/qa.jsonl:1`) (audit round 1)
+  - [x] Fix: Clarify and enforce category mapping in artifact generation/tests so Task 3's "at least one per QA category" is machine-checkable (current output only exposes `rule_violated` free text) (`agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:35`, `packages/rentl-schemas/src/rentl_schemas/phases.py:89`) (audit round 1)
 
 - [ ] Task 4: Schema Validation Tests (Unit Tier)
   - Add `tests/unit/test_golden_artifacts.py`
