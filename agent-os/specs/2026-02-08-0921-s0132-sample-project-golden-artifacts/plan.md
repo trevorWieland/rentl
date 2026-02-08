@@ -42,7 +42,7 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - [x] Fix: Add at least one explicit `Other: ...` violation in `samples/golden/artifacts/qa.jsonl` so all 8 `QaCategory` enum values are represented (`packages/rentl-schemas/src/rentl_schemas/primitives.py:155`, `samples/golden/artifacts/qa.jsonl:1`) (audit round 2)
   - [x] Fix: Make category coverage machine-checkable by converting remaining non-prefixed `rule_violated` values (`Onomatopoeia formatting`, `Onomatopoeia consistency`) to the `<Category>: <specific rule>` format used in `samples/golden/artifacts/README.md:22` (`samples/golden/artifacts/qa.jsonl:1`) (audit round 2)
 
-- [ ] Task 4: Schema Validation Tests (Unit Tier)
+- [x] Task 4: Schema Validation Tests (Unit Tier)
   - Add `tests/unit/test_golden_artifacts.py`
   - Test loads each golden artifact file and validates against its Pydantic model
   - Test verifies script.jsonl lines validate as SourceLine
