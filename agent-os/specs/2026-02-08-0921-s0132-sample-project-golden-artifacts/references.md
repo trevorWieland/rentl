@@ -15,8 +15,10 @@
 ## Ingest Adapters
 - `packages/rentl-io/src/rentl_io/ingest/jsonl_adapter.py` — JSONL ingest adapter
 
-## Existing Sample Data (to be replaced)
-- `sample_scenes.jsonl` — Current copyrighted sample (473 lines)
+## Sample Data
+- `samples/golden/script.jsonl` — Original license-safe sample script
+- `samples/golden/LICENSE` — CC0 license
+- `samples/golden/artifacts/` — Golden artifacts for each pipeline phase
 - `samples/style-guide.md` — Style guide reference
 
 ## Test Infrastructure
@@ -26,14 +28,11 @@
 - `tests/integration/steps/cli_steps.py` — BDD step definitions
 
 ## Config
-- `rentl.toml` — Project config (references sample_scenes.jsonl on line 7)
+- `rentl.toml` — Project config (input_path now points to samples/golden/script.jsonl)
 - `rentl.toml.example` — Config template
 
-## Files Referencing sample_scenes.jsonl
-- `rentl.toml` — input_path
-- `debug_test.py` — test config generation
-- `scripts/validate_agents.py` — docstring example
-- `.gitignore` — ignore rule
-- `agent-os/specs/2026-02-07-0258-s0129-project-bootstrap-command/references.md`
-- `agent-os/specs/2026-02-01-1630-initial-phase-agent-translate/plan.md`
-- `agent-os/specs/2026-02-03-0848-observability-cli-status-viewer/plan.md`
+## Files Updated in Task 6
+- `rentl.toml` — input_path updated to samples/golden/script.jsonl
+- `debug_test.py` — test config generation updated
+- `scripts/validate_agents.py` — docstring example updated
+- `.gitignore` — sample_scenes.jsonl entry removed

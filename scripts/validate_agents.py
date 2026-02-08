@@ -19,7 +19,7 @@ Examples:
 
     # Validate with JSONL input file (full pipeline)
     uv run python scripts/validate_agents.py --config rentl.toml \
-        --input sample_scenes.jsonl
+        --input samples/golden/script.jsonl
 
     # Run only scene summarizer
     uv run python scripts/validate_agents.py --phase context

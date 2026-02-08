@@ -28,7 +28,7 @@
 
 ### Sample Data
 - `samples/style-guide.md` — Style guide example
-- `sample_scenes.jsonl` — Sample JSONL format reference
+- `samples/golden/script.jsonl` — Sample JSONL format reference
 
 ## Related Specs
 - s0.2.20 — Future expansion of init (more options, Copier integration)

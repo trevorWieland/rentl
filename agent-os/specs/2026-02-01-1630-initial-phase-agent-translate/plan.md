@@ -394,7 +394,7 @@ This task MUST pass before the spec is considered complete.
 3. **Schema validation**: `TranslationResult` validates with strict Pydantic
 4. **Mock validation**: `uv run python scripts/validate_agents.py --mock --phase translate` passes
 5. **Translate only**: `uv run python scripts/validate_agents.py --phase translate` produces valid translations
-6. **Full pipeline with sample data**: `uv run python scripts/validate_agents.py --input sample_scenes.jsonl` runs all phases (context → pretranslation → translate) on real data
+6. **Full pipeline with sample data**: `uv run python scripts/validate_agents.py --input samples/golden/script.jsonl` runs all phases (context → pretranslation → translate) on real data
 7. **Unit tests**: All pass in < 250ms
 8. **Integration tests**: All BDD scenarios pass
 9. **make all**: Format, lint, type, and unit tests all pass

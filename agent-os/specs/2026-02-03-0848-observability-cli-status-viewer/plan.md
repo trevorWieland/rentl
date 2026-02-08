@@ -80,9 +80,9 @@ Run `make all` to ensure all code passes quality checks:
 This task MUST pass before the spec is considered complete. Failures must be
 fixed and re-run until `make all` passes.
 
-## Task 9: Verification - Manual CLI Run (sample_scenes.jsonl)
+## Task 9: Verification - Manual CLI Run (samples/golden/script.jsonl)
 
-Run the CLI end-to-end against `sample_scenes.jsonl` and confirm:
+Run the CLI end-to-end against `samples/golden/script.jsonl` and confirm:
 - Progress tracking updates emit and render.
 - Phase completion summaries appear.
 - Run finishes cleanly (success or expected error).

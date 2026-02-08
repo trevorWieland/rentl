@@ -59,7 +59,7 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Acceptance: test passes, <5s
   - [x] Fix: Replace sampled assertions with full-record equality checks for all ingested lines (`line_id`, `text`, `speaker`, `scene_id`) against `samples/golden/script.jsonl`; current checks only validate subsets/patterns (`tests/integration/ingest/test_golden_script.py:72`, `tests/integration/ingest/test_golden_script.py:98`, `tests/integration/ingest/test_golden_script.py:114`, `tests/integration/ingest/test_golden_script.py:138`) (audit round 1)
 
-- [ ] Task 6: Replace sample_scenes.jsonl
+- [x] Task 6: Replace sample_scenes.jsonl
   - Update `rentl.toml` input_path → `samples/golden/script.jsonl`
   - Update `scripts/validate_agents.py` docstring reference
   - Update `debug_test.py` input_path reference
