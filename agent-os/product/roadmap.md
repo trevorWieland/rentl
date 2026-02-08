@@ -54,7 +54,7 @@
 - (s0.1.28) OpenRouter Full Support - Ensure that both local models and openrouter models are fully capable, using tools, and work reliantly. **Depends on:** s0.1.12, s0.1.13, s0.1.14.
 - ✅ (s0.1.29) Project Bootstrap Command — Add `rentl init` to create a project from the template with sample data and config defaults. **Depends on:** s0.1.01, s0.1.03, s0.1.11.
 - (s0.1.30) Onboarding Docs Pack — Quickstart, first-run tutorial, and troubleshooting checklist. **Depends on:** s0.1.22, s0.1.29.
-- (s0.1.31) CLI Help/Doctor Commands — `rentl help`, `rentl doctor`, and `rentl explain <phase>` for actionable diagnostics. **Depends on:** s0.1.06, s0.1.11, s0.1.12.
+- ✅ (s0.1.31) CLI Help/Doctor Commands — `rentl help`, `rentl doctor`, and `rentl explain <phase>` for actionable diagnostics. **Depends on:** s0.1.06, s0.1.11, s0.1.12.
 - (s0.1.32) Sample Project + Golden Artifacts — Small free-to-share script with expected artifacts for smoke tests (license verified, e.g., CC BY-NC-ND). **Depends on:** s0.1.03, s0.1.04, s0.1.24, s0.1.29.
 - (s0.1.33) Config Schema Versioning + Migrate — Versioned config with `rentl migrate` and a schema changelog. **Depends on:** s0.1.01.
 - (s0.1.34) Log Redaction & Safety Audit — Enforce secret redaction in logs and artifacts. **Depends on:** s0.1.06, s0.1.27.
