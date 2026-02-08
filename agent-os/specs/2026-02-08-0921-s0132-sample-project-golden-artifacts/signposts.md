@@ -14,3 +14,8 @@
 - **Problem:** The ingest BDD test uses spot checks and pattern checks instead of verifying full record equality with the golden script, so regressions in later rows can pass undetected.
 - **Evidence:** Plan contract requires matching golden data for `line_ids`, `text`, `speakers`, and `scenes` (`agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:57`), but assertions only sample the first IDs (`tests/integration/ingest/test_golden_script.py:77`), first text line (`tests/integration/ingest/test_golden_script.py:103`), selected speakers (`tests/integration/ingest/test_golden_script.py:119`), and scene-count heuristics (`tests/integration/ingest/test_golden_script.py:143`).
 - **Impact:** Adapter regressions that alter ordering or values outside sampled rows can still pass Task 5, weakening confidence in ingest correctness before Task 7 pipeline smoke coverage.
+
+- **Task:** Task 6 (Replace sample_scenes.jsonl)
+- **Problem:** Task 6 acceptance uses a repo-wide literal grep (`git grep sample_scenes.jsonl`) that fails on intentional historical references in spec artifacts, even though operational references were replaced.
+- **Evidence:** Current grep still matches `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/demo.md:17`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:9`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:69`, and `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/spec.md:9`.
+- **Impact:** Future auditors can repeatedly fail Task 6 despite correct code/config updates unless acceptance criteria are scoped to operational files or historical mentions are excluded by rule.
