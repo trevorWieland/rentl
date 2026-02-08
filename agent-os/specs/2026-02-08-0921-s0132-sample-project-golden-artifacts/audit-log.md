@@ -14,3 +14,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 2): PASS — Ingest integration test now validates full-record equality for `line_id`/`text`/`speaker`/`scene_id` across all lines against `samples/golden/script.jsonl`; `pytest tests/integration/ingest/test_golden_script.py` passes in 0.03s
 - **Task 6** (round 1): FAIL — Task updates are applied, but acceptance check fails because `git grep sample_scenes.jsonl` still returns matches in spec documents
 - **Task 6** (round 2): PASS — Acceptance is now scoped to operational references and `git grep sample_scenes.jsonl -- ':(exclude)agent-os/specs/'` returns zero matches
+- **Task 7** (round 1): FAIL — Full pipeline smoke test fails immediately with `config_error` because test `input_path` resolves outside `workspace_dir` (`Path must stay within workspace`)
