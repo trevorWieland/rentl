@@ -61,10 +61,6 @@ def _write_full_pipeline_config(
         [[logging.sinks]]
         type = "file"
 
-        [agents]
-        prompts_dir = "{workspace_dir}/prompts"
-        agents_dir = "{workspace_dir}/agents"
-
         [endpoints]
         default = "primary"
 
@@ -82,23 +78,23 @@ def _write_full_pipeline_config(
 
         [[pipeline.phases]]
         phase = "context"
-        agents = ["context_agent"]
+        agents = ["scene_summarizer"]
 
         [[pipeline.phases]]
         phase = "pretranslation"
-        agents = ["pretranslation_agent"]
+        agents = ["idiom_labeler"]
 
         [[pipeline.phases]]
         phase = "translate"
-        agents = ["translate_agent"]
+        agents = ["direct_translator"]
 
         [[pipeline.phases]]
         phase = "qa"
-        agents = ["qa_agent"]
+        agents = ["style_guide_critic"]
 
         [[pipeline.phases]]
         phase = "edit"
-        agents = ["edit_agent"]
+        agents = ["basic_editor"]
 
         [[pipeline.phases]]
         phase = "export"
@@ -158,7 +154,7 @@ def given_pipeline_config(
     ctx.workspace_dir.mkdir()
 
     # Copy golden script to temp workspace for isolation
-    script_copy = tmp_path / "script.jsonl"
+    script_copy = ctx.workspace_dir / "script.jsonl"
     shutil.copy(ctx.golden_script_path, script_copy)
 
     ctx.config_path = _write_full_pipeline_config(
@@ -194,6 +190,17 @@ def when_run_full_pipeline(ctx: PipelineContext, cli_runner: CliRunner) -> None:
 def then_all_phases_complete(ctx: PipelineContext) -> None:
     """Assert all phases complete successfully."""
     assert ctx.result is not None
+
+    # If test failed, try to read logs for debugging
+    if ctx.result.exit_code != 0 and ctx.workspace_dir:
+        logs_dir = ctx.workspace_dir / "logs"
+        if logs_dir.exists():
+            log_files = list(logs_dir.glob("*.jsonl"))
+            if log_files:
+                log_content = log_files[0].read_text()
+                # Only print first 5000 chars to avoid overwhelming output
+                print(f"\nLog file content (first 5000 chars):\n{log_content[:5000]}")
+
     assert ctx.result.exit_code == 0, (
         f"Pipeline failed with exit code {ctx.result.exit_code}.\n"
         f"stdout: {ctx.result.stdout}\n"
