@@ -59,15 +59,15 @@ We're writing an original Japanese VN script rather than sourcing one externally
   - Acceptance: test passes, <5s
   - [x] Fix: Replace sampled assertions with full-record equality checks for all ingested lines (`line_id`, `text`, `speaker`, `scene_id`) against `samples/golden/script.jsonl`; current checks only validate subsets/patterns (`tests/integration/ingest/test_golden_script.py:72`, `tests/integration/ingest/test_golden_script.py:98`, `tests/integration/ingest/test_golden_script.py:114`, `tests/integration/ingest/test_golden_script.py:138`) (audit round 1)
 
-- [ ] Task 6: Replace sample_scenes.jsonl
+- [x] Task 6: Replace sample_scenes.jsonl
   - Update `rentl.toml` input_path → `samples/golden/script.jsonl`
   - Update `scripts/validate_agents.py` docstring reference
   - Update `debug_test.py` input_path reference
   - Update `.gitignore` — remove `sample_scenes.jsonl` entry, add `samples/golden/` exclusions if needed
   - Delete `sample_scenes.jsonl` from repo
   - Update relevant spec doc references
-  - Acceptance: no broken references, `git grep sample_scenes.jsonl` returns zero results
-  - [ ] Fix: Make Task 6 acceptance machine-checkable for operational references by scoping the grep command (or equivalent verification) so intentional historical mentions in spec docs do not fail the task; current `git grep sample_scenes.jsonl` still returns matches at `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/demo.md:17`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:9`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:69`, and `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/spec.md:9` (audit round 1)
+  - Acceptance: no broken operational references, `git grep sample_scenes.jsonl -- ':(exclude)agent-os/specs/'` returns zero results (spec docs may retain historical mentions)
+  - [x] Fix: Make Task 6 acceptance machine-checkable for operational references by scoping the grep command (or equivalent verification) so intentional historical mentions in spec docs do not fail the task; current `git grep sample_scenes.jsonl` still returns matches at `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/demo.md:17`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:9`, `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/plan.md:69`, and `agent-os/specs/2026-02-08-0921-s0132-sample-project-golden-artifacts/spec.md:9` (audit round 1)
 
 - [ ] Task 7: Full Pipeline Smoke Test
   - Add integration test that runs the full pipeline on the sample script
