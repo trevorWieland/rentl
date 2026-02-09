@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -422,3 +424,37 @@ class TestGlobalRegistry:
         assert result["project"]["schema_version"]["major"] == 0
         assert result["project"]["schema_version"]["minor"] == 1
         assert result["project"]["schema_version"]["patch"] == 0
+
+    def test_changelog_synced_with_registry(self) -> None:
+        """Test that SCHEMA_CHANGELOG.md has an entry for every registered migration.
+
+        This test ensures the human-readable changelog stays in sync with the
+        machine-readable migration registry. Every registered migration step
+        must have a corresponding changelog entry.
+        """
+        # Read the changelog from project root
+        changelog_path = Path(__file__).parents[5] / "SCHEMA_CHANGELOG.md"
+        assert changelog_path.exists(), "SCHEMA_CHANGELOG.md not found at project root"
+
+        changelog_text = changelog_path.read_text()
+
+        # Get all registered migrations
+        registry = get_registry()
+        steps = registry.get_all_steps()
+
+        # For each registered migration, verify changelog has an entry
+        for step in steps:
+            src_ver = step.source_version
+            tgt_ver = step.target_version
+            source = f"{src_ver.major}.{src_ver.minor}.{src_ver.patch}"
+            target = f"{tgt_ver.major}.{tgt_ver.minor}.{tgt_ver.patch}"
+
+            # Look for a heading like "## 0.0.1 → 0.1.0" in the changelog
+            pattern = re.compile(
+                rf"##\s+{re.escape(source)}\s+→\s+{re.escape(target)}",
+                re.MULTILINE,
+            )
+
+            assert pattern.search(changelog_text), (
+                f"Missing changelog entry for migration {source} → {target}"
+            )

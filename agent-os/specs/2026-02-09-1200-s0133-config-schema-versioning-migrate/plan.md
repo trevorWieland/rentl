@@ -55,7 +55,7 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - Integration test: load an old config, verify backup created and config migrated
   - Files: `services/rentl-cli/src/rentl_cli/main.py`
 
-- [ ] Task 6: Schema Changelog Documentation
+- [x] Task 6: Schema Changelog Documentation
   - Create `SCHEMA_CHANGELOG.md` at project root documenting the migration registry in human-readable form
   - Each entry: version pair, date, description of changes
   - Verify changelog stays in sync with the registry (test that every registered migration has a changelog entry)
