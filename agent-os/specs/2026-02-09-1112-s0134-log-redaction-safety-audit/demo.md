@@ -28,3 +28,12 @@ In this demo, we'll prove that secret values are automatically redacted from all
 - Step 5: FAIL — Config scanner did not detect the hardcoded secret `sk-hardcoded-secret` in `api_key_env` field. Root cause: The demo test value contains hyphens which don't match the `sk-[a-zA-Z0-9]{20,}` pattern (pattern requires alphanumeric only). When tested with a compliant secret value `sk-test12345678901234567890abcdefgh`, the scanner correctly detected it and returned exit code 1.
 - Step 6: PASS — Config scanner returns exit code 0 for clean config with env var name `RENTL_OPENROUTER_API_KEY`
 - **Overall: FAIL** — Step 5 reveals a demo plan issue (test secret doesn't match expected pattern)
+
+### Run 2 — After Task 7 fix (2026-02-09 18:41)
+- Step 1: PASS — Fake API key `sk-test-secret-1234567890abcdef` set in environment
+- Step 2: PASS — Test `test_redaction_in_command_logs` passes; verifies secret redacted in log files and debug event `redaction_applied` emitted
+- Step 3: PASS — Console output test confirms secret redacted, `[REDACTED]` placeholder present, debug event emitted
+- Step 4: PASS — Integration test `test_artifact_jsonl_redacts_secrets` passes; artifact JSONL files redact secrets
+- Step 5: PASS — Config scanner detects hardcoded secret `sk-hardcodedsecret1234567890abc` in `endpoint.api_key_env` field, returns exit code 1 with security findings
+- Step 6: PASS — Config scanner returns exit code 0 for clean config with env var name `RENTL_OPENROUTER_API_KEY`
+- **Overall: PASS** — All demo steps verified

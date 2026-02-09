@@ -21,11 +21,12 @@
 - **Files affected:** `tests/unit/cli/test_main.py:2036-2095`
 
 - **Task:** Demo Step 5
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Demo plan specifies a test secret value `sk-hardcoded-secret` that contains hyphens, which don't match the `sk-[a-zA-Z0-9]{20,}` pattern in DEFAULT_PATTERNS.
 - **Evidence:** Running `rentl check-secrets` on a config with `api_key_env = "sk-hardcoded-secret"` returns exit code 0 (clean). When tested with a pattern-compliant value `sk-test12345678901234567890abcdefgh` (alphanumeric only), the scanner correctly detects it and returns exit code 1 with security findings.
 - **Evidence:** Demo execution Step 5 FAIL — scanner did not detect the hardcoded secret in the test config file.
 - **Impact:** The demo step as written will always fail unless the test value is changed to match the pattern (alphanumeric only after `sk-`).
 - **Root cause:** Demo plan author used a secret value with hyphens; the redaction pattern only matches alphanumeric characters after the `sk-` prefix.
 - **Solution:** Update demo.md Step 5 to use a pattern-compliant test secret value like `sk-hardcodedsecret1234567890abc` or expand the pattern to include hyphens if that's a valid secret format.
+- **Resolution:** do-task round 5 (Task 7) updated demo.md to use `sk-hardcodedsecret1234567890abc`; demo run 2 confirms all steps pass (2026-02-09)
 - **Files affected:** `agent-os/specs/2026-02-09-1112-s0134-log-redaction-safety-audit/demo.md`

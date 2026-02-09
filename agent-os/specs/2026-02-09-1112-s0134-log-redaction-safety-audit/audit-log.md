@@ -17,3 +17,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 2): PASS — debug redaction event emission, JSON artifact redactor passthrough, and targeted redaction tests are implemented and passing.
 - **Demo** (run 1): FAIL — Steps 1-4 and 6 pass (log/console/artifact redaction verified, clean config passes). Step 5 fails: demo test secret value `sk-hardcoded-secret` contains hyphens which don't match the `sk-[a-zA-Z0-9]{20,}` pattern. Task added to fix demo plan.
 - **Task 7** (round 1): PASS — Demo Step 5 now uses a pattern-compliant hardcoded secret example (`sk-hardcodedsecret1234567890abc`) that matches the scanner rule.
+- **Demo** (run 2): PASS — All steps verified: log/console/artifact redaction working, config scanner correctly detects hardcoded secrets in `endpoint.api_key_env` and passes on clean config.
