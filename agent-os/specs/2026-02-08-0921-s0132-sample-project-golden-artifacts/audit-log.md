@@ -20,3 +20,4 @@ Future auditors: check this log for regressions and patterns.
 - **Blockers resolved** (2026-02-08): spec.md acceptance criterion updated to reflect quality-layer test (FakeLlmRuntime architecturally infeasible per signposts). Signposts reformatted with machine-readable Status fields. All signposts marked resolved.
 - **Demo** (run 1): PASS — All 7 steps passed; full pipeline validation successful
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now 1
+- **Task 7** (round 4): PASS — Quality-layer smoke test uses `RENTL_QUALITY_API_KEY`/`RENTL_QUALITY_BASE_URL`, skips cleanly when unset, and retains per-phase + export-schema assertions.
