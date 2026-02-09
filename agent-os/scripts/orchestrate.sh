@@ -77,6 +77,8 @@ fanfare() {
 
 SCRIPT_START=$(date +%s)
 TIMER_PID=""
+AGENT_PID=""
+AGENT_OUTPUT_FILE=""
 
 SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
 
@@ -88,9 +90,32 @@ cleanup_timer() {
     fi
 }
 
+cleanup_agent() {
+    if [[ -n "$AGENT_PID" ]]; then
+        # Kill the agent and its entire process tree (timeout → claude/codex)
+        kill -TERM "$AGENT_PID" 2>/dev/null || true
+        # Also kill any children (grandchildren of this script)
+        pkill -TERM -P "$AGENT_PID" 2>/dev/null || true
+        # Brief grace period for clean shutdown
+        local i=0
+        while kill -0 "$AGENT_PID" 2>/dev/null && [[ $i -lt 5 ]]; do
+            sleep 1
+            i=$((i + 1))
+        done
+        # Force kill if still alive
+        kill -KILL "$AGENT_PID" 2>/dev/null || true
+        pkill -KILL -P "$AGENT_PID" 2>/dev/null || true
+        wait "$AGENT_PID" 2>/dev/null || true
+        AGENT_PID=""
+    fi
+}
+
 cleanup_all() {
     cleanup_timer
-    rm -f "${STATUS_FILE:-}" "${SPEC_BACKUP:-}" 2>/dev/null || true
+    cleanup_agent
+    rm -f "${STATUS_FILE:-}" "${SPEC_BACKUP:-}" "${AGENT_OUTPUT_FILE:-}" 2>/dev/null || true
+    # Clear the spinner line on interrupt so the terminal is clean
+    printf "\r\033[K" > /dev/tty 2>/dev/null || true
 }
 trap cleanup_all EXIT INT TERM
 
@@ -120,9 +145,6 @@ begin_phase() {
     local label="$1" model="${2:-}"
     _PHASE_START=$(date +%s)
     _PHASE_LABEL="$label"
-    # Redirect stdout/stderr to /dev/null so the background timer doesn't
-    # inherit the pipe fd from $(invoke_agent ...) — without this, the
-    # command substitution blocks forever waiting for the timer to close the fd.
     _timer_loop "$label" "$model" "$_PHASE_START" > /dev/null 2>&1 &
     TIMER_PID=$!
 }
@@ -273,6 +295,15 @@ extract_signal() {
     echo "$output" | grep -oP "${prefix}: \K\w[\w-]*" | tail -1 || true
 }
 
+# invoke_agent — runs an agent command and stores output in AGENT_OUTPUT.
+#
+# Uses background process + wait instead of command substitution so that
+# SIGINT (Ctrl+C) can interrupt the agent cleanly. The agent PID is tracked
+# in AGENT_PID so the cleanup trap can kill it on interrupt.
+#
+# Callers: use AGENT_OUTPUT after calling, not $(invoke_agent ...).
+AGENT_OUTPUT=""
+
 invoke_agent() {
     local command_name="$1"
     local cli="$2"
@@ -282,6 +313,7 @@ invoke_agent() {
     local command_file="$COMMANDS_DIR/${command_name}.md"
     if [[ ! -f "$command_file" ]]; then
         fail "Command file not found: $command_file"
+        AGENT_OUTPUT=""
         return 1
     fi
 
@@ -308,38 +340,53 @@ For example, write exactly one line like \`${command_name}-status: complete\` to
         cmd="$cmd --model $model"
     fi
 
-    # NOTE: caller must call begin_phase before and end_phase after.
-    # begin_phase cannot run here because $(invoke_agent ...) is a subshell
-    # and _PHASE_START would be lost when the subshell exits.
-
-    local output exit_code
+    # Use file-based output capture so we don't need command substitution.
+    # This keeps the agent in a background process where `wait` is interruptible.
+    AGENT_OUTPUT_FILE=$(mktemp)
+    local exit_code
 
     if [[ "$cli" == *codex* ]]; then
         local last_msg_file
         last_msg_file=$(mktemp)
-        eval "timeout $AGENT_TIMEOUT $cmd -o '$last_msg_file'" <<< "$prompt" > /dev/null 2>&1 && exit_code=0 || exit_code=$?
+        eval "timeout $AGENT_TIMEOUT $cmd -o '$last_msg_file'" <<< "$prompt" > /dev/null 2>&1 &
+        AGENT_PID=$!
+        wait "$AGENT_PID" && exit_code=0 || exit_code=$?
+        AGENT_PID=""
+
         if [[ $exit_code -eq 124 ]]; then
             fail "Agent timed out after ${AGENT_TIMEOUT}s: $command_name"
             rm -f "$last_msg_file"
-            echo ""
+            AGENT_OUTPUT=""
             return
         fi
         if [[ -s "$last_msg_file" ]]; then
-            output=$(cat "$last_msg_file")
+            AGENT_OUTPUT=$(<"$last_msg_file")
         else
-            output=""
+            AGENT_OUTPUT=""
         fi
         rm -f "$last_msg_file"
     else
-        output=$(eval "timeout $AGENT_TIMEOUT $cmd" <<< "$prompt" 2>&1) && exit_code=0 || exit_code=$?
+        eval "timeout $AGENT_TIMEOUT $cmd" <<< "$prompt" > "$AGENT_OUTPUT_FILE" 2>&1 &
+        AGENT_PID=$!
+        wait "$AGENT_PID" && exit_code=0 || exit_code=$?
+        AGENT_PID=""
+
         if [[ $exit_code -eq 124 ]]; then
             fail "Agent timed out after ${AGENT_TIMEOUT}s: $command_name"
-            echo ""
+            AGENT_OUTPUT=""
+            rm -f "$AGENT_OUTPUT_FILE"
+            AGENT_OUTPUT_FILE=""
             return
+        fi
+        if [[ -s "$AGENT_OUTPUT_FILE" ]]; then
+            AGENT_OUTPUT=$(<"$AGENT_OUTPUT_FILE")
+        else
+            AGENT_OUTPUT=""
         fi
     fi
 
-    echo "$output"
+    rm -f "$AGENT_OUTPUT_FILE"
+    AGENT_OUTPUT_FILE=""
 }
 
 # Run a gate command silently with spinner. Output stored in LAST_GATE_OUTPUT.
@@ -458,7 +505,8 @@ while true; do
 
         # do-task
         begin_phase "do-task" "$DO_MODEL"
-        output=$(invoke_agent "do-task" "$DO_CLI" "$DO_MODEL")
+        invoke_agent "do-task" "$DO_CLI" "$DO_MODEL"
+        output="$AGENT_OUTPUT"
         guard_spec_md
         signal=$(extract_signal "$output" "do-task-status")
 
@@ -508,12 +556,13 @@ while true; do
 
                 # Re-invoke do-task with gate errors
                 begin_phase "do-task" "$DO_MODEL"
-                output=$(invoke_agent "do-task" "$DO_CLI" "$DO_MODEL" \
+                invoke_agent "do-task" "$DO_CLI" "$DO_MODEL" \
                     "GATE FAILURE — '$TASK_GATE' FAILED. Fix these errors, run the gate yourself, then exit with do-task-status: complete.
 
 \`\`\`
 $LAST_GATE_OUTPUT
-\`\`\`")
+\`\`\`"
+                output="$AGENT_OUTPUT"
                 guard_spec_md
                 signal=$(extract_signal "$output" "do-task-status")
                 end_phase "ok" "gate fix"
@@ -527,7 +576,8 @@ $LAST_GATE_OUTPUT
 
         # audit-task
         begin_phase "audit-task" "$AUDIT_MODEL"
-        output=$(invoke_agent "audit-task" "$AUDIT_CLI" "$AUDIT_MODEL")
+        invoke_agent "audit-task" "$AUDIT_CLI" "$AUDIT_MODEL"
+        output="$AGENT_OUTPUT"
         guard_spec_md
         signal=$(extract_signal "$output" "audit-task-status")
 
@@ -580,12 +630,13 @@ $LAST_GATE_OUTPUT
     if ! run_gate "make all" "$SPEC_GATE"; then
         tput "  ${YELLOW}↳ spec gate failed, invoking do-task to fix${NC}\n"
         begin_phase "do-task" "$DO_MODEL"
-        output=$(invoke_agent "do-task" "$DO_CLI" "$DO_MODEL" \
+        invoke_agent "do-task" "$DO_CLI" "$DO_MODEL" \
             "The full verification gate ($SPEC_GATE) failed after all tasks were completed. Diagnose and fix.
 
 \`\`\`
 $LAST_GATE_OUTPUT
-\`\`\`")
+\`\`\`"
+        output="$AGENT_OUTPUT"
         guard_spec_md
         end_phase "ok" "gate fix applied"
         continue
@@ -594,7 +645,8 @@ $LAST_GATE_OUTPUT
     # ─── Phase 3: Demo ───
 
     begin_phase "run-demo" "$DEMO_MODEL"
-    output=$(invoke_agent "run-demo" "$DEMO_CLI" "$DEMO_MODEL")
+    invoke_agent "run-demo" "$DEMO_CLI" "$DEMO_MODEL"
+    output="$AGENT_OUTPUT"
     guard_spec_md
     signal=$(extract_signal "$output" "run-demo-status")
 
@@ -632,7 +684,8 @@ $LAST_GATE_OUTPUT
     fi
 
     begin_phase "audit-spec" "$SPEC_MODEL"
-    output=$(invoke_agent "audit-spec" "$SPEC_CLI" "$SPEC_MODEL")
+    invoke_agent "audit-spec" "$SPEC_CLI" "$SPEC_MODEL"
+    output="$AGENT_OUTPUT"
     guard_spec_md
 
     # Verify audit.md was actually written/updated by this invocation

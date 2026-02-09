@@ -85,7 +85,16 @@ Check demo.md Results:
 
 If the demo was not run, flag it as a **Fix Now** action item.
 
-#### 3e: Regression Check
+#### 3e: Signpost Cross-Reference
+
+Before flagging any issue as a Fix Now item, cross-reference signposts.md:
+
+1. **Resolved signposts** (`Status: resolved`): Verify the resolution is implemented in code. If it is — do NOT re-open the issue as a Fix Now item. If you believe the resolution is insufficient, you must provide **new evidence** (not the original problem) showing why it fails. Asking do-task to undo a documented resolution without counter-evidence wastes cycles.
+2. **Architectural constraints**: If a signpost documents that approach X is infeasible (with evidence of why), do NOT add a Fix Now item that requires approach X. Either propose an alternative approach or defer it.
+3. **Deferred signposts** (`Status: deferred`): These were explicitly deferred — do not promote them to Fix Now unless new evidence shows they're blocking.
+4. **Unresolved signposts**: These are fair game — they may warrant Fix Now items if they affect spec compliance.
+
+#### 3f: Regression Check
 
 Review audit-log.md for patterns:
 
@@ -93,7 +102,7 @@ Review audit-log.md for patterns:
 - Recurring issues across multiple tasks
 - Signposts that suggest systemic problems
 
-#### 3f: Cross-Cutting Concerns
+#### 3g: Cross-Cutting Concerns
 
 Things that only emerge at the full-picture level:
 
