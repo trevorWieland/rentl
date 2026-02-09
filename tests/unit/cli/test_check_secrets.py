@@ -307,3 +307,68 @@ def test_check_secrets_multi_endpoint_clean(runner: CliRunner, tmp_path: Path) -
 
     assert result.exit_code == 0
     assert "PASS" in result.stdout or "No hardcoded secrets detected" in result.stdout
+
+
+def test_check_secrets_gitignore_example_not_sufficient(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """Regression: .gitignore with .env.example should not match .env."""
+    config_file = tmp_path / "rentl.toml"
+    config_file.write_text(
+        dedent(
+            """
+            [project]
+            schema_version = { major = 0, minor = 1, patch = 0 }
+            project_name = "test"
+
+            [endpoint]
+            provider_name = "openrouter"
+            base_url = "https://openrouter.ai/api/v1"
+            api_key_env = "RENTL_OPENROUTER_API_KEY"
+            timeout_s = 180
+            """
+        )
+    )
+
+    # Create .env file
+    env_file = tmp_path / ".env"
+    env_file.write_text("RENTL_OPENROUTER_API_KEY=secret123\n")
+
+    # Initialize git repo
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+
+    # Create .gitignore with .env.example (not .env)
+    gitignore_file = tmp_path / ".gitignore"
+    gitignore_file.write_text("*.pyc\n.env.example\n__pycache__/\n")
+
+    subprocess.run(
+        ["git", "add", "rentl.toml", ".gitignore"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+
+    # .env exists and is not ignored (only .env.example is) — should fail
+    result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
+
+    assert result.exit_code == 1  # Findings detected
+    assert ".env file exists" in result.stdout
+    assert ".gitignore" in result.stdout

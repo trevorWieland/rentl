@@ -2847,32 +2847,38 @@ def check_secrets(
                         "(should be in .gitignore to avoid committing secrets)"
                     )
                 else:
-                    # .env exists but is not tracked; still check .gitignore
-                    gitignore_file = project_dir / ".gitignore"
-                    if gitignore_file.exists():
-                        with gitignore_file.open() as gitignore:
-                            gitignore_contents = gitignore.read()
-                            if ".env" not in gitignore_contents:
-                                findings.append(
-                                    f".env file exists at {env_file} but is not in "
-                                    ".gitignore (risk of committing secrets)"
-                                )
-                    else:
+                    # .env exists but is not tracked; use git check-ignore
+                    check_ignore = subprocess.run(
+                        ["git", "check-ignore", ".env"],
+                        cwd=project_dir,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    # Exit code 0 means .env is ignored; non-zero means not ignored
+                    if check_ignore.returncode != 0:
                         findings.append(
-                            f".env file exists at {env_file} but no .gitignore found "
-                            "(risk of committing secrets)"
+                            f".env file exists at {env_file} but is not in "
+                            ".gitignore (risk of committing secrets)"
                         )
         except Exception:
             # If git command fails, treat as non-git repo
             is_git_repo = False
 
-        # If not a git repo, fall back to .gitignore check
+        # If not a git repo, fall back to simple .gitignore substring check
         if not is_git_repo:
             gitignore_file = project_dir / ".gitignore"
             if gitignore_file.exists():
                 with gitignore_file.open() as gitignore:
                     gitignore_contents = gitignore.read()
-                    if ".env" not in gitignore_contents:
+                    # Parse .gitignore line-by-line (no git available for check-ignore)
+                    gitignore_lines = [
+                        line.strip()
+                        for line in gitignore_contents.splitlines()
+                        if line.strip() and not line.startswith("#")
+                    ]
+                    # Match .env exactly or as a pattern (e.g., *.env)
+                    if ".env" not in gitignore_lines and "*.env" not in gitignore_lines:
                         findings.append(
                             f".env file exists at {env_file} but is not in .gitignore "
                             "(risk of committing secrets)"
