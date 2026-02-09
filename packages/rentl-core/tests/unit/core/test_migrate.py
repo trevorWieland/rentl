@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from rentl_core.migrate import (
     MigrationRegistry,
+    MigrationTransform,
     apply_migrations,
     get_registry,
     plan_migrations,
 )
+from rentl_schemas.migration import MigrationStep
 from rentl_schemas.version import VersionInfo
 
 
@@ -38,8 +42,8 @@ class TestMigrationRegistry:
         assert steps[1].source_version == v010
         assert steps[1].target_version == v020
 
-    def test_get_transform_by_name(self) -> None:
-        """Test retrieving transform function by name."""
+    def test_get_transform_by_step(self) -> None:
+        """Test retrieving transform function by migration step."""
         registry = MigrationRegistry()
 
         v001 = VersionInfo(major=0, minor=0, patch=1)
@@ -50,7 +54,8 @@ class TestMigrationRegistry:
 
         registry.register(v001, v010, "Test migration", test_transform)
 
-        retrieved = registry.get_transform("test_transform")
+        steps = registry.get_all_steps()
+        retrieved = registry.get_transform(steps[0])
         assert retrieved is test_transform
 
         # Test function works
@@ -60,9 +65,19 @@ class TestMigrationRegistry:
     def test_get_transform_missing(self) -> None:
         """Test that getting a non-existent transform raises KeyError."""
         registry = MigrationRegistry()
+        v001 = VersionInfo(major=0, minor=0, patch=1)
+        v010 = VersionInfo(major=0, minor=1, patch=0)
+
+        # Create a step that was never registered
+        missing_step = MigrationStep(
+            source_version=v001,
+            target_version=v010,
+            description="Not registered",
+            transform_fn_name="nonexistent",
+        )
 
         with pytest.raises(KeyError):
-            registry.get_transform("nonexistent")
+            registry.get_transform(missing_step)
 
 
 class TestPlanMigrations:
@@ -243,6 +258,61 @@ class TestApplyMigrations:
         # Other data preserved
         assert result["important_data"] == [1, 2, 3]
         assert result["nested"] == {"key": "value"}
+
+    def test_same_function_name_different_migrations(self) -> None:
+        """Regression: two migrations with same function name execute both.
+
+        This tests that the registry keys transforms by migration edge rather
+        than function name, preventing collisions when different migration
+        steps share the same __name__.
+        """
+        registry = MigrationRegistry()
+
+        v001 = VersionInfo(major=0, minor=0, patch=1)
+        v010 = VersionInfo(major=0, minor=1, patch=0)
+        v020 = VersionInfo(major=0, minor=2, patch=0)
+
+        # Create two distinct transform functions that have the same __name__
+        # by using exec to define them in separate namespaces
+        namespace1: dict[str, object] = {}
+        exec(
+            """
+def transform(config: dict) -> dict:
+    return {**config, "first": True}
+""",
+            namespace1,
+        )
+        transform1 = cast(MigrationTransform, namespace1["transform"])
+
+        namespace2: dict[str, object] = {}
+        exec(
+            """
+def transform(config: dict) -> dict:
+    return {**config, "second": True}
+""",
+            namespace2,
+        )
+        transform2 = cast(MigrationTransform, namespace2["transform"])
+
+        # Verify they are different functions (even though they have same __name__)
+        assert transform1 is not transform2
+
+        # Register both migrations - the collision scenario occurs when different
+        # migration steps have transform functions with the same __name__
+        registry.register(v001, v010, "First migration", transform1)
+        registry.register(v010, v020, "Second migration", transform2)
+
+        # Apply migration chain
+        config = {"schema_version": "0.0.1"}
+        steps = registry.get_all_steps()
+        result = apply_migrations(config, steps, registry)
+
+        # Both transforms should have been applied, proving no collision
+        # If collision occurred, only the second transform would execute
+        assert "first" in result, "First transform did not execute (collision occurred)"
+        assert "second" in result, "Second transform did not execute"
+        assert result["first"] is True
+        assert result["second"] is True
 
 
 class TestGlobalRegistry:

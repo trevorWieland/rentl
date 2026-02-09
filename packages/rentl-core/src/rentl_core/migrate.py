@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from rentl_schemas.migration import MigrationStep
 from rentl_schemas.version import VersionInfo
 
+# Type alias for config dictionary (unstructured TOML data)
+type ConfigDict = dict[str, object]
+
 # Type alias for migration transform functions
-MigrationTransform = Callable[[dict[str, Any]], dict[str, Any]]
+type MigrationTransform = Callable[[ConfigDict], ConfigDict]
 
 
 class MigrationRegistry:
@@ -22,7 +24,9 @@ class MigrationRegistry:
     def __init__(self) -> None:
         """Initialize an empty migration registry."""
         self._steps: list[MigrationStep] = []
-        self._transforms: dict[str, MigrationTransform] = {}
+        # Key transforms by (source_version, target_version) tuple to avoid
+        # name collisions
+        self._transforms: dict[tuple[VersionInfo, VersionInfo], MigrationTransform] = {}
 
     def register(
         self,
@@ -57,7 +61,10 @@ class MigrationRegistry:
             insert_idx = i + 1
 
         self._steps.insert(insert_idx, step)
-        self._transforms[transform_fn_name] = transform_fn
+        # Key by migration edge to prevent collisions when different migrations
+        # have transform functions with the same __name__
+        migration_key = (source_version, target_version)
+        self._transforms[migration_key] = transform_fn
 
     def get_all_steps(self) -> list[MigrationStep]:
         """Return all registered migration steps in order.
@@ -67,16 +74,17 @@ class MigrationRegistry:
         """
         return self._steps.copy()
 
-    def get_transform(self, transform_fn_name: str) -> MigrationTransform:
-        """Get a registered transform function by name.
+    def get_transform(self, step: MigrationStep) -> MigrationTransform:
+        """Get the transform function for a migration step.
 
         Args:
-            transform_fn_name: Name of the transform function
+            step: Migration step to get transform for
 
         Returns:
             The transform function
         """
-        return self._transforms[transform_fn_name]
+        migration_key = (step.source_version, step.target_version)
+        return self._transforms[migration_key]
 
 
 def plan_migrations(
@@ -126,8 +134,8 @@ def plan_migrations(
 
 
 def apply_migrations(
-    config_dict: dict, steps: list[MigrationStep], registry: MigrationRegistry
-) -> dict:
+    config_dict: ConfigDict, steps: list[MigrationStep], registry: MigrationRegistry
+) -> ConfigDict:
     """Apply a chain of migration steps to a config dict.
 
     Each migration step is applied in sequence, with the output of one step
@@ -145,7 +153,7 @@ def apply_migrations(
     result = config_dict.copy()
 
     for step in steps:
-        transform = registry.get_transform(step.transform_fn_name)
+        transform = registry.get_transform(step)
         result = transform(result)
 
     return result
@@ -166,7 +174,7 @@ def get_registry() -> MigrationRegistry:
 
 # Seed migration: 0.0.1 → 0.1.0
 # This is the first real migration demonstrating the system.
-def _migrate_0_0_1_to_0_1_0(config: dict) -> dict:
+def _migrate_0_0_1_to_0_1_0(config: ConfigDict) -> ConfigDict:
     """Migrate config from schema version 0.0.1 to 0.1.0.
 
     Changes:
