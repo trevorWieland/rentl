@@ -40,12 +40,12 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - Integration test: write a log entry with a secret, read it back, confirm redacted
   - Acceptance: log sinks redact before write
 
-- [ ] Task 4: Wire redaction into artifact storage
+- [x] Task 4: Wire redaction into artifact storage
   - Modify `write_artifact_jsonl()` in `packages/rentl-io/src/rentl_io/storage/filesystem.py` to accept/apply redaction
   - Apply `redact_dict` to each record before serialization
   - Unit/integration tests for artifact redaction
   - Acceptance: artifact JSONL files are free of resolved secret values
-  - [ ] Fix: Preserve Pydantic JSON-mode serialization in redacted artifact writes. Current code uses `model_dump()` + `json.dumps()` and crashes on JSON-encoded fields such as `UUID` (`TypeError: Object of type UUID is not JSON serializable`) at `packages/rentl-io/src/rentl_io/storage/filesystem.py:644` and `packages/rentl-io/src/rentl_io/storage/filesystem.py:659` (audit round 1)
+  - [x] Fix: Preserve Pydantic JSON-mode serialization in redacted artifact writes. Current code uses `model_dump()` + `json.dumps()` and crashes on JSON-encoded fields such as `UUID` (`TypeError: Object of type UUID is not JSON serializable`) at `packages/rentl-io/src/rentl_io/storage/filesystem.py:644` and `packages/rentl-io/src/rentl_io/storage/filesystem.py:659` (audit round 1)
 
 - [ ] Task 5: Implement `rentl check-secrets` CLI command
   - Add `check-secrets` command to `services/rentl-cli/src/rentl_cli/main.py`

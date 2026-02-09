@@ -639,7 +639,8 @@ def _write_json_file(
     path.parent.mkdir(parents=True, exist_ok=True)
     if redactor is not None:
         # Apply redaction to the payload dict before serialization
-        payload_dict = payload.model_dump(exclude_none=True)
+        # Use mode='json' to ensure all types are JSON-serializable
+        payload_dict = payload.model_dump(mode="json", exclude_none=True)
         redacted_dict = redactor.redact_dict(payload_dict)
         payload_json = json.dumps(redacted_dict)
     else:
@@ -654,7 +655,8 @@ def _write_jsonl_file(
     with open(path, "w", encoding="utf-8") as handle:
         if redactor is not None:
             for item in payload:
-                item_dict = item.model_dump(exclude_none=True)
+                # Use mode='json' to ensure all types are JSON-serializable
+                item_dict = item.model_dump(mode="json", exclude_none=True)
                 redacted_dict = redactor.redact_dict(item_dict)
                 handle.write(json.dumps(redacted_dict) + "\n")
         else:
