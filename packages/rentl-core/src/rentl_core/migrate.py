@@ -183,7 +183,7 @@ def _migrate_0_0_1_to_0_1_0(config: ConfigDict) -> ConfigDict:
     """Migrate config from schema version 0.0.1 to 0.1.0.
 
     Changes:
-    - Updates schema_version field from 0.0.1 to 0.1.0
+    - Updates project.schema_version field from 0.0.1 to 0.1.0
     - Preserves all existing config fields (no data loss)
 
     Args:
@@ -194,8 +194,18 @@ def _migrate_0_0_1_to_0_1_0(config: ConfigDict) -> ConfigDict:
     """
     migrated = config.copy()
 
-    # Update schema version
-    migrated["schema_version"] = "0.1.0"
+    # Update schema version in project section
+    if "project" not in migrated:
+        migrated["project"] = {}
+
+    # Deep copy project section if it exists to avoid mutation
+    if isinstance(migrated["project"], dict):
+        migrated["project"] = dict(migrated["project"])
+        migrated["project"]["schema_version"] = {
+            "major": 0,
+            "minor": 1,
+            "patch": 0,
+        }
 
     return migrated
 

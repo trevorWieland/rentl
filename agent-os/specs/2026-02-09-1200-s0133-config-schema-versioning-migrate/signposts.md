@@ -21,7 +21,10 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/migrate.py`
 
 - **Task:** Task 4
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The `rentl migrate` flow reports success but does not update the config's source-of-truth schema version at `project.schema_version`; the seed transform writes a new top-level `schema_version` string instead.
 - **Evidence:** `packages/rentl-core/src/rentl_core/migrate.py:198` sets `migrated["schema_version"] = "0.1.0"`; `tests/integration/cli/test_migrate.py:167` expects `migrated_config["project"]["schema_version"]["minor"] == 1`; running `pytest -q tests/integration/cli/test_migrate.py` fails with `E assert 0 == 1`.
 - **Impact:** Task 4 acceptance ("applies migrations" to current schema) is not met in practice, and Non-negotiable #2 (`schema_version` field is the single source of truth) is violated by writing a side-channel top-level version field.
+- **Solution:** Changed `_migrate_0_0_1_to_0_1_0` to write `project.schema_version` as a dict with `major`, `minor`, `patch` keys set to `0, 1, 0` respectively, matching the expected nested structure. Added defensive copy of project section to avoid mutation.
+- **Resolution:** do-task round 4 (2026-02-09)
+- **Files affected:** `packages/rentl-core/src/rentl_core/migrate.py`, `packages/rentl-core/tests/unit/core/test_migrate.py` (added regression test `test_seed_migration_no_top_level_schema_version`)

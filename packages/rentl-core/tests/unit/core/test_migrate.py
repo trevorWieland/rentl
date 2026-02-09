@@ -346,7 +346,10 @@ class TestGlobalRegistry:
         registry = get_registry()
 
         config = {
-            "schema_version": "0.0.1",
+            "project": {
+                "schema_version": {"major": 0, "minor": 0, "patch": 1},
+                "project_name": "test-project",
+            },
             "llm": {"provider": "openai"},
             "other_data": 42,
         }
@@ -361,8 +364,61 @@ class TestGlobalRegistry:
 
         result = apply_migrations(config, [seed_step], registry)
 
-        # Version updated
-        assert result["schema_version"] == "0.1.0"
+        # Version updated in correct location
+        assert "project" in result
+        assert isinstance(result["project"], dict)
+        assert "schema_version" in result["project"]
+        schema_version = result["project"]["schema_version"]
+        assert isinstance(schema_version, dict)
+        assert schema_version["major"] == 0
+        assert schema_version["minor"] == 1
+        assert schema_version["patch"] == 0
         # Other data preserved
         assert result["llm"] == {"provider": "openai"}
         assert result["other_data"] == 42
+
+    def test_seed_migration_no_top_level_schema_version(self) -> None:
+        """Regression: seed migration does not create top-level schema_version.
+
+        The schema_version should be nested under project.schema_version, not
+        at the top level. This test ensures the seed migration writes to the
+        correct location.
+        """
+        registry = get_registry()
+
+        config = {
+            "project": {
+                "schema_version": {"major": 0, "minor": 0, "patch": 1},
+                "project_name": "test-project",
+            },
+            "other_field": "value",
+        }
+
+        steps = registry.get_all_steps()
+        seed_step = next(
+            s
+            for s in steps
+            if s.source_version == VersionInfo(major=0, minor=0, patch=1)
+        )
+
+        result = apply_migrations(config, [seed_step], registry)
+
+        # Should NOT have top-level schema_version
+        # (Only check if "schema_version" is at top level AND is a string,
+        # which would indicate the old incorrect behavior)
+        if "schema_version" in result and not isinstance(
+            result["schema_version"], dict
+        ):
+            pytest.fail(
+                f"Top-level schema_version should not exist as string. "
+                f"Found: {result.get('schema_version')}"
+            )
+
+        # Should have nested project.schema_version with correct structure
+        assert "project" in result
+        assert isinstance(result["project"], dict)
+        assert "schema_version" in result["project"]
+        assert isinstance(result["project"]["schema_version"], dict)
+        assert result["project"]["schema_version"]["major"] == 0
+        assert result["project"]["schema_version"]["minor"] == 1
+        assert result["project"]["schema_version"]["patch"] == 0

@@ -36,7 +36,7 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - [x] Fix: Remove `Any`/untyped `dict` usage from migration type signatures to satisfy `strict-typing-enforcement` (`packages/rentl-core/src/rentl_core/migrate.py:6`, `packages/rentl-core/src/rentl_core/migrate.py:12`, `packages/rentl-core/src/rentl_core/migrate.py:129`) (audit round 1)
   - [x] Fix: Replace `object` in migration config typing with a concrete recursively-typed config value alias to satisfy `strict-typing-enforcement` (`packages/rentl-core/src/rentl_core/migrate.py:11`) (audit round 2)
 
-- [ ] Task 4: Add `rentl migrate` CLI Command
+- [x] Task 4: Add `rentl migrate` CLI Command
   - Add `migrate` command to Typer CLI in `main.py`
   - Accepts `--config` and `--dry-run` options
   - Reads TOML, detects version, plans migrations
@@ -45,8 +45,8 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - "Already up to date" message when no migrations needed
   - Integration test for the CLI command (dry-run and normal mode)
   - Files: `services/rentl-cli/src/rentl_cli/main.py`
-  - [ ] Fix: Update the registered `0.0.1 -> 0.1.0` migration transform to write `project.schema_version` (`major/minor/patch`) instead of creating a top-level `schema_version` key, so `rentl migrate` actually upgrades the source-of-truth version field (`packages/rentl-core/src/rentl_core/migrate.py:198`, `tests/integration/cli/test_migrate.py:167`) (audit round 1)
-  - [ ] Fix: Add regression coverage that the seed migration does not introduce a top-level `schema_version` and that migrated output has `project.schema_version == 0.1.0` (`packages/rentl-core/tests/unit/core/test_migrate.py`, `tests/integration/cli/test_migrate.py:165`) (audit round 1)
+  - [x] Fix: Update the registered `0.0.1 -> 0.1.0` migration transform to write `project.schema_version` (`major/minor/patch`) instead of creating a top-level `schema_version` key, so `rentl migrate` actually upgrades the source-of-truth version field (`packages/rentl-core/src/rentl_core/migrate.py:198`, `tests/integration/cli/test_migrate.py:167`) (audit round 1)
+  - [x] Fix: Add regression coverage that the seed migration does not introduce a top-level `schema_version` and that migrated output has `project.schema_version == 0.1.0` (`packages/rentl-core/tests/unit/core/test_migrate.py`, `tests/integration/cli/test_migrate.py:165`) (audit round 1)
 
 - [ ] Task 5: Auto-Migrate on Config Load
   - Modify `_load_run_config()` in `main.py` to detect outdated schema version
