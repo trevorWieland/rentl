@@ -14,7 +14,7 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on the issue branch and push
 
-- [x] Task 2: Implement redaction core in `rentl-schemas`
+- [ ] Task 2: Implement redaction core in `rentl-schemas`
   - Create `packages/rentl-schemas/src/rentl_schemas/redaction.py`
     - `SecretPattern` model — compiled regex pattern + human label
     - `RedactionConfig` model — list of patterns, list of env var names to watch
@@ -28,6 +28,8 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
     - Deep dict traversal (nested dicts, lists of strings)
     - No false positives on env var *names* (e.g., `RENTL_OPENROUTER_API_KEY` is not redacted)
   - Acceptance: `redact_secrets()` function exists and replaces known patterns with `[REDACTED]`
+  - [ ] Fix: Make `Redactor.redact_dict` recurse into container values inside lists so all nested strings are redacted (currently `list[dict]` secrets leak). Evidence: `{'items': [{'nested': 'secret123'}, '[REDACTED]']}` from a direct call to `redact_dict`; code path at `packages/rentl-schemas/src/rentl_schemas/redaction.py:117` (audit round 1)
+  - [ ] Fix: Remove `Any`/`object` typing from redaction core to satisfy `python/strict-typing-enforcement` ("No `Any` or `object` types"). Current violations at `packages/rentl-schemas/src/rentl_schemas/redaction.py:6`, `packages/rentl-schemas/src/rentl_schemas/redaction.py:22`, and `packages/rentl-schemas/src/rentl_schemas/redaction.py:101` (audit round 1)
 
 - [ ] Task 3: Wire redaction into log sinks
   - Modify `build_log_sink()` in `packages/rentl-io/src/rentl_io/storage/log_sink.py` to accept a `Redactor`
