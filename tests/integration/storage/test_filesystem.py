@@ -334,18 +334,27 @@ def test_log_sink_redacts_secrets_end_to_end(tmp_path: Path) -> None:
 
     # Verify redaction occurred
     log_lines = log_path.read_text(encoding="utf-8").strip().splitlines()
-    assert len(log_lines) == 1
-    payload = json.loads(log_lines[0])
+    # Expect 2 lines: the redacted entry + the debug entry about redaction
+    assert len(log_lines) == 2
 
-    # Check message is redacted
-    assert "[REDACTED]" in payload["message"]
-    assert "sk-abc123def456ghi789jkl012" not in payload["message"]
-    assert "my-secret-value-123" not in payload["message"]
+    # Parse both entries
+    redacted_entry = json.loads(log_lines[0])
+    debug_entry = json.loads(log_lines[1])
 
-    # Check data is redacted
-    assert payload["data"]["api_key"] == "[REDACTED]"
-    assert payload["data"]["secret"] == "[REDACTED]"
-    assert payload["data"]["safe"] == "public-data"
+    # Check the original entry is redacted
+    assert "[REDACTED]" in redacted_entry["message"]
+    assert "sk-abc123def456ghi789jkl012" not in redacted_entry["message"]
+    assert "my-secret-value-123" not in redacted_entry["message"]
+    assert redacted_entry["data"]["api_key"] == "[REDACTED]"
+    assert redacted_entry["data"]["secret"] == "[REDACTED]"
+    assert redacted_entry["data"]["safe"] == "public-data"
+
+    # Check the debug entry records redaction metadata
+    assert debug_entry["event"] == "redaction_applied"
+    assert debug_entry["level"] == "debug"
+    assert debug_entry["data"]["original_event"] == "test_event"
+    assert debug_entry["data"]["message_redacted"] is True
+    assert debug_entry["data"]["data_redacted"] is True
 
 
 # --- Artifact Redaction Integration Tests ---
