@@ -346,3 +346,140 @@ def test_log_sink_redacts_secrets_end_to_end(tmp_path: Path) -> None:
     assert payload["data"]["api_key"] == "[REDACTED]"
     assert payload["data"]["secret"] == "[REDACTED]"
     assert payload["data"]["safe"] == "public-data"
+
+
+# --- Artifact Redaction Integration Tests ---
+
+
+class _ArtifactRecord(BaseSchema):
+    """Test record for artifact redaction tests."""
+
+    name: str = Field(..., description="Record name")
+    api_key: str = Field(..., description="API key field")
+    metadata: dict[str, str] = Field(..., description="Metadata dict")
+
+
+def test_artifact_jsonl_redacts_secrets(tmp_path: Path) -> None:
+    """Integration test: JSONL artifact redaction before writing."""
+    # Setup
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb800")
+    artifact_id: ArtifactId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb801")
+    store = FileSystemArtifactStore(base_dir=str(tmp_path / "artifacts"))
+
+    config = RedactionConfig(
+        patterns=[SecretPattern(pattern=r"sk-[a-zA-Z0-9]{20,}", label="API key")],
+        env_var_names=["SECRET_TOKEN"],
+    )
+    redactor = build_redactor(config, {"SECRET_TOKEN": "token-abc123xyz"})
+
+    # Write JSONL artifact with secrets
+    records = [
+        _ArtifactRecord(
+            name="record1",
+            api_key="sk-abc123def456ghi789jkl012",
+            metadata={"token": "token-abc123xyz", "safe": "public"},
+        ),
+        _ArtifactRecord(
+            name="record2",
+            api_key="sk-xyz987wvu654tsr321pqo098",
+            metadata={"value": "token-abc123xyz"},
+        ),
+    ]
+
+    metadata = ArtifactMetadata(
+        artifact_id=artifact_id,
+        run_id=run_id,
+        role=ArtifactRole.PHASE_OUTPUT,
+        phase=PhaseName.INGEST,
+        target_language=None,
+        format=ArtifactFormat.JSONL,
+        created_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        location=StorageReference(
+            backend=None, path="/tmp/placeholder.jsonl", uri=None
+        ),
+        description=None,
+        size_bytes=None,
+        checksum_sha256=None,
+        metadata=None,
+    )
+
+    stored = asyncio.run(store.write_artifact_jsonl(metadata, records, redactor))
+
+    # Read the artifact file directly
+    assert stored.location.path is not None
+    artifact_path = Path(stored.location.path)
+    assert artifact_path.exists()
+
+    lines = artifact_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 2
+
+    # Verify first record is redacted
+    record1 = json.loads(lines[0])
+    assert record1["name"] == "record1"
+    assert record1["api_key"] == "[REDACTED]"
+    assert record1["metadata"]["token"] == "[REDACTED]"
+    assert record1["metadata"]["safe"] == "public"
+    assert "sk-abc123def456ghi789jkl012" not in lines[0]
+    assert "token-abc123xyz" not in lines[0]
+
+    # Verify second record is redacted
+    record2 = json.loads(lines[1])
+    assert record2["name"] == "record2"
+    assert record2["api_key"] == "[REDACTED]"
+    assert record2["metadata"]["value"] == "[REDACTED]"
+    assert "sk-xyz987wvu654tsr321pqo098" not in lines[1]
+    assert "token-abc123xyz" not in lines[1]
+
+
+def test_artifact_json_redacts_secrets(tmp_path: Path) -> None:
+    """Integration test: JSON artifact redaction before writing."""
+    # Setup
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb900")
+    artifact_id: ArtifactId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb901")
+    store = FileSystemArtifactStore(base_dir=str(tmp_path / "artifacts"))
+
+    config = RedactionConfig(
+        patterns=[SecretPattern(pattern=r"sk-[a-zA-Z0-9]{20,}", label="API key")],
+        env_var_names=["API_SECRET"],
+    )
+    redactor = build_redactor(config, {"API_SECRET": "secret-value-456"})
+
+    # Write JSON artifact with secrets
+    record = _ArtifactRecord(
+        name="single-record",
+        api_key="sk-abc123def456ghi789jkl012",
+        metadata={"secret": "secret-value-456", "public": "data"},
+    )
+
+    metadata = ArtifactMetadata(
+        artifact_id=artifact_id,
+        run_id=run_id,
+        role=ArtifactRole.PHASE_OUTPUT,
+        phase=PhaseName.INGEST,
+        target_language=None,
+        format=ArtifactFormat.JSON,
+        created_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        location=StorageReference(backend=None, path="/tmp/placeholder.json", uri=None),
+        description=None,
+        size_bytes=None,
+        checksum_sha256=None,
+        metadata=None,
+    )
+
+    stored = asyncio.run(store.write_artifact_json(metadata, record, redactor))
+
+    # Read the artifact file directly
+    assert stored.location.path is not None
+    artifact_path = Path(stored.location.path)
+    assert artifact_path.exists()
+
+    content = artifact_path.read_text(encoding="utf-8")
+    payload = json.loads(content)
+
+    # Verify redaction
+    assert payload["name"] == "single-record"
+    assert payload["api_key"] == "[REDACTED]"
+    assert payload["metadata"]["secret"] == "[REDACTED]"
+    assert payload["metadata"]["public"] == "data"
+    assert "sk-abc123def456ghi789jkl012" not in content
+    assert "secret-value-456" not in content

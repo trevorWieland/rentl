@@ -40,7 +40,7 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - Integration test: write a log entry with a secret, read it back, confirm redacted
   - Acceptance: log sinks redact before write
 
-- [ ] Task 4: Wire redaction into artifact storage
+- [x] Task 4: Wire redaction into artifact storage
   - Modify `write_artifact_jsonl()` in `packages/rentl-io/src/rentl_io/storage/filesystem.py` to accept/apply redaction
   - Apply `redact_dict` to each record before serialization
   - Unit/integration tests for artifact redaction
