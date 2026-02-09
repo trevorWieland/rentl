@@ -12,7 +12,10 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/migrate.py`, `packages/rentl-core/tests/unit/core/test_migrate.py` (added regression test `test_same_function_name_different_migrations`)
 
 - **Task:** Task 3
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Migration config typing still uses `object` in `ConfigDict`, which violates this spec's `strict-typing-enforcement` rule.
 - **Evidence:** `packages/rentl-core/src/rentl_core/migrate.py:11` defines `type ConfigDict = dict[str, object]`; `standards.md` rule 2 requires no `Any` or `object` in migration types.
 - **Impact:** The task-level strict typing requirement remains unmet and can mask invalid migration data shapes at type-check time.
+- **Solution:** Replaced `object` with a recursively-typed `ConfigValue` alias that explicitly models valid TOML value types: `str | int | float | bool | list[ConfigValue] | dict[str, ConfigValue]`. This preserves flexibility for nested structures while maintaining strict type safety.
+- **Resolution:** do-task round 3 (2026-02-09)
+- **Files affected:** `packages/rentl-core/src/rentl_core/migrate.py`

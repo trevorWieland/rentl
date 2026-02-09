@@ -7,8 +7,13 @@ from collections.abc import Callable
 from rentl_schemas.migration import MigrationStep
 from rentl_schemas.version import VersionInfo
 
+# Type alias for valid TOML value types (recursive for nested structures)
+type ConfigValue = (
+    str | int | float | bool | list["ConfigValue"] | dict[str, "ConfigValue"]
+)
+
 # Type alias for config dictionary (unstructured TOML data)
-type ConfigDict = dict[str, object]
+type ConfigDict = dict[str, ConfigValue]
 
 # Type alias for migration transform functions
 type MigrationTransform = Callable[[ConfigDict], ConfigDict]
