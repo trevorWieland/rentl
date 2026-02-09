@@ -32,7 +32,7 @@ rentl has no bundled, license-safe sample data. The existing `sample_scenes.json
 - [ ] Integration test ingests the sample script through the JSONL adapter and asserts output matches golden SourceLine data
 - [ ] License file (CC0 or equivalent) is included at `samples/golden/LICENSE`
 - [ ] `sample_scenes.jsonl` is removed and all references updated to point to the new sample
-- [ ] Full pipeline integration test runs all phases on the sample script with FakeLlmRuntime and completes successfully
+- [ ] Full pipeline smoke test runs all phases on the sample script and completes successfully (quality-layer test with real LLM runtime; skips gracefully if endpoint not configured)
 - [ ] All tests pass including full verification gate (`make all`)
 - [ ] Demo passes (see demo.md)
 
