@@ -210,6 +210,145 @@ def _migrate_0_0_1_to_0_1_0(config: ConfigDict) -> ConfigDict:
     return migrated
 
 
+def dict_to_toml(data: ConfigDict) -> str:
+    """Convert a config dictionary to TOML format string.
+
+    Simple TOML serializer that handles the subset of TOML used in rentl configs.
+    Supports nested tables, strings, integers, floats, booleans, and arrays.
+
+    Args:
+        data: Dictionary to serialize to TOML
+
+    Returns:
+        TOML-formatted string
+    """
+    lines: list[str] = []
+
+    def _write_value(value: object) -> str:
+        """Serialize a single value to TOML format.
+
+        Returns:
+            TOML-formatted string representation of the value
+        """
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        elif isinstance(value, int | float):
+            return str(value)
+        elif isinstance(value, str):
+            # Escape quotes and backslashes
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            return f'"{escaped}"'
+        elif isinstance(value, list):
+            items = [_write_value(item) for item in value]
+            return f"[{', '.join(items)}]"
+        elif isinstance(value, dict):
+            # Inline table
+            items = [f"{k} = {_write_value(v)}" for k, v in value.items()]
+            return f"{{ {', '.join(items)} }}"
+        else:
+            return str(value)
+
+    def _write_table(table_data: dict, prefix: str = "") -> None:
+        """Recursively write tables and their contents."""
+        # Separate simple values from nested tables
+        simple_keys = []
+        table_keys = []
+
+        for key, value in table_data.items():
+            if isinstance(value, dict) and not all(
+                isinstance(v, int | float | str | bool) for v in value.values()
+            ):
+                table_keys.append(key)
+            else:
+                simple_keys.append(key)
+
+        # Write simple key-value pairs
+        if simple_keys:
+            if prefix:
+                lines.append(f"[{prefix}]")
+            for key in simple_keys:
+                value = table_data[key]
+                lines.append(f"{key} = {_write_value(value)}")
+            if table_keys:
+                lines.append("")  # Blank line before nested tables
+
+        # Write nested tables
+        for key in table_keys:
+            value = table_data[key]
+            new_prefix = f"{prefix}.{key}" if prefix else key
+            _write_table(value, new_prefix)
+            lines.append("")  # Blank line between tables
+
+    _write_table(data)
+
+    # Remove trailing blank lines
+    while lines and not lines[-1]:
+        lines.pop()
+
+    return "\n".join(lines) + "\n"
+
+
+def auto_migrate_config(
+    config_dict: ConfigDict,
+    target_version: VersionInfo,
+    *,
+    registry: MigrationRegistry | None = None,
+) -> tuple[ConfigDict, bool]:
+    """Auto-migrate a config dict to the target version if needed.
+
+    Detects the current schema version from the config, plans migrations,
+    and applies them. Returns the migrated config and a flag indicating
+    whether migration occurred.
+
+    Args:
+        config_dict: Configuration dict to potentially migrate
+        target_version: Target schema version to migrate to
+        registry: Migration registry to use (defaults to global registry)
+
+    Returns:
+        Tuple of (migrated_config, was_migrated) where was_migrated is True
+        if migration occurred, False if already up to date
+    """
+    if registry is None:
+        registry = get_registry()
+
+    # Extract current schema version from config
+    try:
+        project_data = config_dict.get("project")
+        if not isinstance(project_data, dict):
+            # No project section or invalid format — skip migration
+            return (config_dict, False)
+
+        schema_version_data = project_data.get("schema_version")
+        if not schema_version_data or not isinstance(schema_version_data, dict):
+            # No schema_version field or invalid format — skip migration
+            return (config_dict, False)
+
+        current_version = VersionInfo(
+            major=int(schema_version_data.get("major", 0)),
+            minor=int(schema_version_data.get("minor", 0)),
+            patch=int(schema_version_data.get("patch", 0)),
+        )
+    except TypeError, ValueError:
+        # Invalid schema_version format — skip migration
+        return (config_dict, False)
+
+    # Check if migration is needed
+    if current_version >= target_version:
+        return (config_dict, False)
+
+    # Plan migrations
+    migration_steps = plan_migrations(current_version, target_version, registry)
+
+    if not migration_steps:
+        return (config_dict, False)
+
+    # Apply migrations
+    migrated_config = apply_migrations(config_dict, migration_steps, registry)
+
+    return (migrated_config, True)
+
+
 # Register the seed migration
 _REGISTRY.register(
     source_version=VersionInfo(major=0, minor=0, patch=1),
