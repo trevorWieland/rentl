@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from json import JSONDecodeError
 from pathlib import Path
-from typing import Protocol, TypeVar
+from typing import TYPE_CHECKING, Protocol, TypeVar
 
 from pydantic import ValidationError
 
@@ -32,6 +33,9 @@ from rentl_schemas.storage import (
     StorageBackend,
     StorageReference,
 )
+
+if TYPE_CHECKING:
+    from rentl_schemas.redaction import Redactor
 
 ModelT = TypeVar("ModelT", bound=BaseSchema)
 
@@ -199,9 +203,17 @@ class FileSystemArtifactStore(ArtifactStoreProtocol):
         self._backend = backend
 
     async def write_artifact_json(
-        self, metadata: ArtifactMetadata, payload: BaseSchema
+        self,
+        metadata: ArtifactMetadata,
+        payload: BaseSchema,
+        redactor: Redactor | None = None,
     ) -> ArtifactMetadata:
         """Write a JSON artifact and return stored metadata.
+
+        Args:
+            metadata: Artifact metadata
+            payload: JSON payload to write
+            redactor: Optional redactor to apply before serialization
 
         Returns:
             ArtifactMetadata: Stored metadata with location populated.
@@ -227,7 +239,7 @@ class FileSystemArtifactStore(ArtifactStoreProtocol):
         )
         stored = self._with_location(metadata, path)
         try:
-            await asyncio.to_thread(_write_json_file, path, payload)
+            await asyncio.to_thread(_write_json_file, path, payload, redactor)
             await asyncio.to_thread(_append_jsonl, self._index_path, stored)
         except OSError as exc:
             raise StorageError(
@@ -246,9 +258,17 @@ class FileSystemArtifactStore(ArtifactStoreProtocol):
         return stored
 
     async def write_artifact_jsonl(
-        self, metadata: ArtifactMetadata, payload: Sequence[BaseSchema]
+        self,
+        metadata: ArtifactMetadata,
+        payload: Sequence[BaseSchema],
+        redactor: Redactor | None = None,
     ) -> ArtifactMetadata:
         """Write a JSONL artifact and return stored metadata.
+
+        Args:
+            metadata: Artifact metadata
+            payload: JSONL payload to write
+            redactor: Optional redactor to apply before serialization
 
         Returns:
             ArtifactMetadata: Stored metadata with location populated.
@@ -274,7 +294,7 @@ class FileSystemArtifactStore(ArtifactStoreProtocol):
         )
         stored = self._with_location(metadata, path)
         try:
-            await asyncio.to_thread(_write_jsonl_file, path, payload)
+            await asyncio.to_thread(_write_jsonl_file, path, payload, redactor)
             await asyncio.to_thread(_append_jsonl, self._index_path, stored)
         except OSError as exc:
             raise StorageError(
@@ -613,18 +633,36 @@ class FileSystemLogStore(LogStoreProtocol):
         return self._logs_dir / f"{run_id}.jsonl"
 
 
-def _write_json_file(path: Path, payload: BaseSchema) -> None:
+def _write_json_file(
+    path: Path, payload: BaseSchema, redactor: Redactor | None = None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload_json = payload.model_dump_json(exclude_none=True)
+    if redactor is not None:
+        # Apply redaction to the payload dict before serialization
+        # Use mode='json' to ensure all types are JSON-serializable
+        payload_dict = payload.model_dump(mode="json", exclude_none=True)
+        redacted_dict = redactor.redact_dict(payload_dict)
+        payload_json = json.dumps(redacted_dict)
+    else:
+        payload_json = payload.model_dump_json(exclude_none=True)
     path.write_text(payload_json, encoding="utf-8")
 
 
-def _write_jsonl_file(path: Path, payload: Sequence[BaseSchema]) -> None:
+def _write_jsonl_file(
+    path: Path, payload: Sequence[BaseSchema], redactor: Redactor | None = None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
-        handle.writelines(
-            item.model_dump_json(exclude_none=True) + "\n" for item in payload
-        )
+        if redactor is not None:
+            for item in payload:
+                # Use mode='json' to ensure all types are JSON-serializable
+                item_dict = item.model_dump(mode="json", exclude_none=True)
+                redacted_dict = redactor.redact_dict(item_dict)
+                handle.write(json.dumps(redacted_dict) + "\n")
+        else:
+            handle.writelines(
+                item.model_dump_json(exclude_none=True) + "\n" for item in payload
+            )
 
 
 def _append_jsonl(

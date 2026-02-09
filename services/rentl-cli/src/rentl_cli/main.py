@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import time
 import tomllib
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from enum import Enum
@@ -51,7 +53,11 @@ from rentl_core.ports.orchestrator import (
     OrchestrationError,
     ProgressSinkProtocol,
 )
-from rentl_core.ports.storage import StorageBatchError, StorageError
+from rentl_core.ports.storage import (
+    ArtifactStoreProtocol,
+    StorageBatchError,
+    StorageError,
+)
 from rentl_io import write_output
 from rentl_io.export.router import get_export_adapter
 from rentl_io.ingest.router import get_ingest_adapter
@@ -92,6 +98,7 @@ from rentl_schemas.phases import (
 from rentl_schemas.pipeline import PhaseRunRecord, RunState
 from rentl_schemas.primitives import (
     PIPELINE_PHASE_ORDER,
+    ArtifactId,
     FileFormat,
     JsonValue,
     LanguageCode,
@@ -112,6 +119,12 @@ from rentl_schemas.progress import (
     ProgressUpdate,
     RunProgress,
 )
+from rentl_schemas.redaction import (
+    DEFAULT_PATTERNS,
+    RedactionConfig,
+    Redactor,
+    build_redactor,
+)
 from rentl_schemas.responses import (
     ApiResponse,
     ErrorResponse,
@@ -120,7 +133,12 @@ from rentl_schemas.responses import (
     RunStatusResult,
 )
 from rentl_schemas.results import PhaseResultMetric, ResultMetricUnit
-from rentl_schemas.storage import LogFileReference, StorageBackend, StorageReference
+from rentl_schemas.storage import (
+    ArtifactMetadata,
+    LogFileReference,
+    StorageBackend,
+    StorageReference,
+)
 from rentl_schemas.validation import validate_run_config
 
 INPUT_OPTION = typer.Option(
@@ -811,6 +829,7 @@ def run_pipeline(
                 log_sink=bundle.log_sink,
                 progress_sink=reporter,
                 progress_path=bundle.progress_path,
+                redactor=bundle.redactor,
             )
         log_sink = bundle.log_sink
         args: dict[str, JsonValue] = {
@@ -1066,11 +1085,83 @@ class _ConfigError(Exception):
 
 class _StorageBundle(NamedTuple):
     run_state_store: FileSystemRunStateStore
-    artifact_store: FileSystemArtifactStore
+    artifact_store: ArtifactStoreProtocol
     log_store: FileSystemLogStore
     log_sink: LogSinkProtocol
     progress_sink: ProgressSinkProtocol
     progress_path: Path
+    redactor: Redactor | None
+
+
+_ModelT = TypeVar("_ModelT", bound=BaseSchema)
+
+
+class _RedactingArtifactStore:
+    """Artifact store wrapper that automatically injects redactor."""
+
+    def __init__(
+        self, delegate: FileSystemArtifactStore, redactor: Redactor | None
+    ) -> None:
+        """Initialize the wrapper.
+
+        Args:
+            delegate: Underlying artifact store
+            redactor: Redactor to inject into write operations
+        """
+        self._delegate = delegate
+        self._redactor = redactor
+
+    async def write_artifact_json(
+        self, metadata: ArtifactMetadata, payload: BaseSchema
+    ) -> ArtifactMetadata:
+        """Write a JSON artifact with automatic redaction.
+
+        Returns:
+            ArtifactMetadata: Stored artifact metadata.
+        """
+        return await self._delegate.write_artifact_json(
+            metadata, payload, redactor=self._redactor
+        )
+
+    async def write_artifact_jsonl(
+        self, metadata: ArtifactMetadata, payload: Sequence[BaseSchema]
+    ) -> ArtifactMetadata:
+        """Write a JSONL artifact with automatic redaction.
+
+        Returns:
+            ArtifactMetadata: Stored artifact metadata.
+        """
+        return await self._delegate.write_artifact_jsonl(
+            metadata, payload, redactor=self._redactor
+        )
+
+    async def list_artifacts(self, run_id: RunId) -> list[ArtifactMetadata]:
+        """List artifacts for a run.
+
+        Returns:
+            list[ArtifactMetadata]: List of artifacts for the run.
+        """
+        return await self._delegate.list_artifacts(run_id)
+
+    async def load_artifact_json(
+        self, artifact_id: ArtifactId, model: type[_ModelT]
+    ) -> _ModelT:
+        """Load a JSON artifact.
+
+        Returns:
+            _ModelT: Parsed artifact model.
+        """
+        return await self._delegate.load_artifact_json(artifact_id, model)
+
+    async def load_artifact_jsonl(
+        self, artifact_id: ArtifactId, model: type[_ModelT]
+    ) -> list[_ModelT]:
+        """Load a JSONL artifact.
+
+        Returns:
+            list[_ModelT]: List of parsed artifact models.
+        """
+        return await self._delegate.load_artifact_jsonl(artifact_id, model)
 
 
 def _now_timestamp() -> str:
@@ -1179,7 +1270,8 @@ def _resolve_agent_paths(config: RunConfig) -> RunConfig:
 
 def _build_command_log_sink(config: RunConfig) -> LogSinkProtocol:
     log_store = FileSystemLogStore(logs_dir=config.project.paths.logs_dir)
-    return build_log_sink(config.logging, log_store)
+    redactor = _build_redactor(config)
+    return build_log_sink(config.logging, log_store, redactor=redactor)
 
 
 async def _emit_command_log(log_sink: LogSinkProtocol, entry: LogEntry) -> None:
@@ -1506,6 +1598,40 @@ def _ensure_api_key(config: RunConfig, phases: list[PhaseName]) -> None:
             )
 
 
+def _build_redactor(config: RunConfig) -> Redactor:
+    """Build a redactor from config and resolved env var values.
+
+    Args:
+        config: Runtime configuration with endpoint definitions
+
+    Returns:
+        Redactor: Configured redactor instance
+    """
+    # Collect all api_key_env names from config
+    env_var_names: list[str] = []
+
+    # Legacy single endpoint
+    if config.endpoint is not None:
+        env_var_names.append(config.endpoint.api_key_env)
+
+    # Multi-endpoint configuration
+    if config.endpoints is not None:
+        for endpoint in config.endpoints.endpoints:
+            env_var_names.append(endpoint.api_key_env)
+
+    # Build redaction config with default patterns
+    redaction_config = RedactionConfig(
+        patterns=DEFAULT_PATTERNS, env_var_names=env_var_names
+    )
+
+    # Collect actual env var values
+    env_values = {
+        name: os.environ[name] for name in env_var_names if name in os.environ
+    }
+
+    return build_redactor(redaction_config, env_values)
+
+
 def _build_storage_bundle(
     config: RunConfig,
     run_id: RunId,
@@ -1520,15 +1646,19 @@ def _build_storage_bundle(
     log_store = FileSystemLogStore(logs_dir=config.project.paths.logs_dir)
     progress_path = _progress_path(config.project.paths.logs_dir, run_id)
     logging_config = _build_logging_config(config, allow_console_logs)
-    log_sink = build_log_sink(logging_config, log_store)
+    redactor = _build_redactor(config)
+    log_sink = build_log_sink(logging_config, log_store, redactor=redactor)
     file_progress_sink = FileSystemProgressSink(str(progress_path))
+    raw_artifact_store = FileSystemArtifactStore(base_dir=str(artifact_dir))
+    wrapped_artifact_store = _RedactingArtifactStore(raw_artifact_store, redactor)
     return _StorageBundle(
         run_state_store=FileSystemRunStateStore(base_dir=str(run_state_dir)),
-        artifact_store=FileSystemArtifactStore(base_dir=str(artifact_dir)),
+        artifact_store=wrapped_artifact_store,
         log_store=log_store,
         log_sink=log_sink,
         progress_sink=progress_sink or file_progress_sink,
         progress_path=progress_path,
+        redactor=redactor,
     )
 
 
@@ -1736,7 +1866,7 @@ def _latest_phase_records(
 
 
 async def _load_artifact_jsonl[ModelT: BaseSchema](
-    store: FileSystemArtifactStore,
+    store: ArtifactStoreProtocol,
     artifact_id: UUID,
     model: type[ModelT],
 ) -> list[ModelT]:
@@ -1744,7 +1874,7 @@ async def _load_artifact_jsonl[ModelT: BaseSchema](
 
 
 async def _load_single_artifact[ModelT: BaseSchema](
-    store: FileSystemArtifactStore,
+    store: ArtifactStoreProtocol,
     artifact_id: UUID,
     model: type[ModelT],
 ) -> ModelT | None:
@@ -2616,6 +2746,194 @@ def _batch_error_response(exc: ExportBatchError) -> ApiResponse[ExportResult]:
         exc.errors[0].to_error_response(), len(exc.errors), "export"
     )
     return _error_response(error)
+
+
+@app.command("check-secrets")
+def check_secrets(
+    config_path: Path = CONFIG_OPTION,
+) -> None:
+    """Scan configuration files for hardcoded secrets.
+
+    Checks rentl.toml for api_key_env values that look like actual secrets
+    (not env var names), and warns if .env files exist and are not in .gitignore.
+
+    Raises:
+        typer.Exit: Exit code 1 if findings are detected, 0 if clean.
+    """
+    console = Console()
+    is_tty = sys.stdout.isatty()
+
+    findings: list[str] = []
+
+    # Check if config file exists
+    if not config_path.exists():
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Config file not found: {config_path}",
+                style="red",
+            )
+        else:
+            print(f"Error: Config file not found: {config_path}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+
+    # Load TOML config
+    try:
+        with config_path.open("rb") as config_file:
+            config_data = tomllib.load(config_file)
+    except Exception as exc:
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Failed to parse config: {exc}", style="red"
+            )
+        else:
+            print(f"Error: Failed to parse config: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Check endpoint.api_key_env
+    if "endpoint" in config_data:
+        api_key_env = config_data["endpoint"].get("api_key_env", "")
+        if api_key_env and _looks_like_secret(api_key_env):
+            findings.append(
+                f"endpoint.api_key_env contains what looks like a secret value: "
+                f"'{api_key_env[:20]}...' (should be an env var name like "
+                "RENTL_OPENROUTER_API_KEY)"
+            )
+
+    # Check endpoints.endpoints[].api_key_env (multi-endpoint configs)
+    if "endpoints" in config_data:
+        endpoints_list = config_data["endpoints"].get("endpoints", [])
+        for idx, endpoint in enumerate(endpoints_list):
+            api_key_env = endpoint.get("api_key_env", "")
+            if api_key_env and _looks_like_secret(api_key_env):
+                provider_name = endpoint.get("provider_name", f"[{idx}]")
+                findings.append(
+                    f"endpoints.endpoints[{idx}] ({provider_name}) "
+                    f"api_key_env contains what looks like a secret value: "
+                    f"'{api_key_env[:20]}...' (should be an env var name like "
+                    "RENTL_OPENROUTER_API_KEY)"
+                )
+
+    # Check .env files in project directory
+    project_dir = config_path.parent
+    env_file = project_dir / ".env"
+
+    if env_file.exists():
+        # Check if .env is tracked in git
+        is_git_repo = False
+        try:
+            # First check if we're in a git repository
+            git_check = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            is_git_repo = git_check.returncode == 0
+
+            if is_git_repo:
+                # Check if .env is tracked
+                result = subprocess.run(
+                    ["git", "ls-files", "--error-unmatch", ".env"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                # Exit code 0 means file is tracked
+                if result.returncode == 0:
+                    findings.append(
+                        f".env file at {env_file} is tracked by git "
+                        "(should be in .gitignore to avoid committing secrets)"
+                    )
+                else:
+                    # .env exists but is not tracked; use git check-ignore
+                    check_ignore = subprocess.run(
+                        ["git", "check-ignore", ".env"],
+                        cwd=project_dir,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    # Exit code 0 means .env is ignored; non-zero means not ignored
+                    if check_ignore.returncode != 0:
+                        findings.append(
+                            f".env file exists at {env_file} but is not in "
+                            ".gitignore (risk of committing secrets)"
+                        )
+        except Exception:
+            # If git command fails, treat as non-git repo
+            is_git_repo = False
+
+        # If not a git repo, fall back to simple .gitignore substring check
+        if not is_git_repo:
+            gitignore_file = project_dir / ".gitignore"
+            if gitignore_file.exists():
+                with gitignore_file.open() as gitignore:
+                    gitignore_contents = gitignore.read()
+                    # Parse .gitignore line-by-line (no git available for check-ignore)
+                    gitignore_lines = [
+                        line.strip()
+                        for line in gitignore_contents.splitlines()
+                        if line.strip() and not line.startswith("#")
+                    ]
+                    # Match .env exactly or as a pattern (e.g., *.env)
+                    if ".env" not in gitignore_lines and "*.env" not in gitignore_lines:
+                        findings.append(
+                            f".env file exists at {env_file} but is not in .gitignore "
+                            "(risk of committing secrets)"
+                        )
+            else:
+                findings.append(
+                    f".env file exists at {env_file} but no .gitignore found "
+                    "(risk of committing secrets)"
+                )
+
+    # Report findings
+    if findings:
+        if is_tty:
+            console.print("[yellow]Security findings:[/yellow]", style="bold yellow")
+            for finding in findings:
+                console.print(f"  • {finding}")
+            console.print(
+                "\n[red]FAIL:[/red] Found potential security issues", style="bold red"
+            )
+        else:
+            print("Security findings:")
+            for finding in findings:
+                print(f"  - {finding}")
+            print("\nFAIL: Found potential security issues")
+        raise typer.Exit(code=1)
+
+    # Clean - no findings
+    if is_tty:
+        console.print(
+            "[green]PASS:[/green] No hardcoded secrets detected", style="bold green"
+        )
+    else:
+        print("PASS: No hardcoded secrets detected")
+
+
+def _looks_like_secret(value: str) -> bool:
+    """Check if a string looks like a secret value rather than an env var name.
+
+    Args:
+        value: String to check
+
+    Returns:
+        True if the value matches known secret patterns
+    """
+    # Env var names are typically UPPERCASE_WITH_UNDERSCORES
+    # If it looks like an env var name, it's not a secret
+    if value.isupper() and "_" in value and not any(c in value for c in "=-: "):
+        return False
+
+    # Check against default secret patterns
+    for pattern in DEFAULT_PATTERNS:
+        if pattern.compiled and pattern.compiled.search(value):
+            return True
+
+    return False
 
 
 if __name__ == "__main__":

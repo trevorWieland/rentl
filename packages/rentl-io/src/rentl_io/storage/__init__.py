@@ -9,6 +9,7 @@ from rentl_io.storage.log_sink import (
     CompositeLogSink,
     ConsoleLogSink,
     NoopLogSink,
+    RedactingLogSink,
     StorageLogSink,
     build_log_sink,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "FileSystemRunStateStore",
     "InMemoryProgressSink",
     "NoopLogSink",
+    "RedactingLogSink",
     "StorageLogSink",
     "build_log_sink",
 ]

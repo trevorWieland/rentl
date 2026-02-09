@@ -159,6 +159,14 @@ from rentl_schemas.progress import (
     compute_run_summary,
 )
 from rentl_schemas.qa import LineEdit, QaIssue, QaSummary, ReviewerNote
+from rentl_schemas.redaction import (
+    DEFAULT_PATTERNS,
+    RedactionConfig,
+    Redactor,
+    SecretPattern,
+    build_redactor,
+    redact_secrets,
+)
 from rentl_schemas.responses import (
     ApiResponse,
     ErrorDetails,
@@ -212,6 +220,7 @@ from rentl_schemas.version import VersionInfo
 __version__ = "0.1.0"
 
 __all__ = [
+    "DEFAULT_PATTERNS",
     "DOMAIN_PREFIXES",
     "ERROR_CODE_TO_EXIT_CODE",
     "PHASE_METRIC_DEFINITIONS",
@@ -343,6 +352,8 @@ __all__ = [
     "QaSeverity",
     "QaSummary",
     "ReasoningEffort",
+    "RedactionConfig",
+    "Redactor",
     "RequestId",
     "ResultMetricKey",
     "ResultMetricUnit",
@@ -367,6 +378,7 @@ __all__ = [
     "RunStatusResult",
     "SceneId",
     "SceneSummary",
+    "SecretPattern",
     "SourceLine",
     "StorageBackend",
     "StorageReference",
@@ -378,8 +390,10 @@ __all__ = [
     "TranslatedLine",
     "UntranslatedPolicy",
     "VersionInfo",
+    "build_redactor",
     "compute_phase_summary",
     "compute_run_summary",
+    "redact_secrets",
     "resolve_exit_code",
     "validate_context_input",
     "validate_context_output",
