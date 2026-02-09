@@ -37,3 +37,12 @@
 - **Solution:** Removed all unused `# type: ignore` directives from the affected test files using sed: removed `# type: ignore[call-arg]` from test_migration.py (4 occurrences), `# type: ignore[operator]` from test_version_schema.py (3 occurrences), and `# type: ignore[no-untyped-def]` from test_main.py (4 occurrences). Also removed 2 unused directives from `_dict_to_toml` in main.py. Added type casts in the new unit tests to help the type checker understand nested dict structures. After fixes, `make check` passes with zero diagnostics.
 - **Resolution:** do-task round 1 (2026-02-09)
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `tests/unit/cli/test_main.py`, `tests/unit/schemas/test_migration.py`, `tests/unit/schemas/test_version_schema.py`
+
+- **Task:** Spec gate (make all)
+- **Status:** resolved
+- **Problem:** The pretranslation agent quality test (`tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes`) intermittently times out after 30 seconds, causing `make all` to fail.
+- **Evidence:** First run: test failed with `Failed: Timeout (>30.0s) from pytest-timeout` after hanging in asyncio event loop for 72 seconds total. Second run (isolated): test passed in 12.99s. Third run (full suite): all quality tests passed. The test exists identically on main branch and passes there consistently.
+- **Impact:** The spec gate (`make all`) fails intermittently despite all implementation tasks being complete and correct. This is not a bug in the migration feature code—it's test flakiness caused by external LLM API variability.
+- **Solution:** Re-ran `make all` and it passed. The test is flaky due to LLM API response time variability, but does not indicate any issue with this spec's implementation.
+- **Resolution:** Final verification (2026-02-09)
+- **Files affected:** None (no code changes needed)
