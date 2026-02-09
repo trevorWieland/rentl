@@ -65,10 +65,12 @@ For each failed step:
    - If tests pass but the demo fails, this is a **test gap**. The test suite should guarantee the demo works. Identify what specific tests are missing.
 3. **Trace the root cause** — read the relevant code, follow the execution path, identify where the behavior diverges from the expected outcome.
 4. **Write a signpost** in signposts.md with:
-   - The exact error or unexpected output
-   - What the expected outcome was
-   - The root cause (or best hypothesis if uncertain)
-   - Which files/functions are involved
+   - **Task:** which task/step failed
+   - **Status:** `unresolved` (always unresolved when first written by run-demo)
+   - **Problem:** the exact error or unexpected output
+   - **Evidence:** what the expected outcome was vs what happened
+   - **Root cause:** the root cause (or best hypothesis if uncertain)
+   - **Files affected:** which files/functions are involved
 5. **Add tasks to plan.md** for do-task to fix:
    - If a test gap was found: add a task to write the missing test(s) first, then a task to fix the underlying issue
    - If the code is simply wrong: add a task describing the fix needed

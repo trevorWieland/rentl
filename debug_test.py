@@ -36,7 +36,7 @@ def write_multi_endpoint_config(
 
         [project.paths]
         workspace_dir = "{workspace_dir}"
-        input_path = "sample_scenes.jsonl"
+        input_path = "samples/golden/script.jsonl"
         output_dir = "out"
         logs_dir = "logs"
 

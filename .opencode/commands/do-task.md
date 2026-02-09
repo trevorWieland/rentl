@@ -81,10 +81,12 @@ If the task had fix items, check those off too.
 If you encountered any non-obvious issues, workarounds, or dead ends during implementation, write a signpost to signposts.md. Every signpost must include:
 
 - **Task:** which task number
+- **Status:** `unresolved` | `resolved` | `deferred` (machine-readable — auditors use this to avoid re-opening resolved issues)
 - **Problem:** what went wrong
 - **Evidence:** the exact error message, command output, or code snippet that demonstrates the problem
 - **Tried:** what you attempted
 - **Solution:** what worked (or "unresolved" if blocked)
+- **Resolution:** who/what resolved it and when (e.g., "do-task round 2", "user via resolve-blockers 2026-02-08"). Omit if unresolved.
 - **Files affected:** which files were involved
 
 Do not write signposts for routine work. Only write them when future tasks or iterations would benefit from knowing what happened.

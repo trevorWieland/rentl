@@ -42,6 +42,7 @@ Read these files:
 - **spec.md** — acceptance criteria and non-negotiables (the contract)
 - **plan.md** — the task description and its sub-items
 - **standards.md** — applicable standards
+- **signposts.md** (if it exists) — known issues, resolutions, and architectural constraints. Pay attention to the **Status** field on each entry.
 - **The implementation** — use `git diff HEAD~1` (or the task's commit) to see exactly what changed. Also read the full files at cited locations for broader context.
 
 ### Step 4: Evaluate
@@ -63,11 +64,24 @@ Do NOT check:
 - Whether the demo passes (that's run-demo's job)
 - Code that wasn't changed by this task
 
-### Step 5: Verdict
+### Step 5: Cross-Reference Signposts
+
+**Before writing any fix items**, check signposts.md for related entries:
+
+1. For each issue you found in Step 4, search signposts.md for entries about the same problem (match by task number, file references, and problem description).
+2. If a signpost with **Status: resolved** exists for the issue:
+   - **Verify the resolution is actually implemented in code.** Read the files cited in the signpost's Solution/Resolution fields.
+   - If the resolution is implemented and working: **do NOT add a fix item**. The issue is already solved. Note in your audit log entry that the resolution was verified.
+   - If the resolution is implemented but broken: add a fix item that references the signpost and explains what's still wrong (with new evidence).
+   - If the resolution was NOT implemented: add a fix item, but reference the signpost's proposed solution as the recommended approach.
+3. If a signpost documents an **architectural constraint** (e.g., "X is infeasible because Y"), verify the constraint by reading the cited code. Do NOT add fix items that ask do-task to do something the signpost proves is architecturally impossible. Instead, if you believe the constraint is wrong, write a NEW signpost with counter-evidence.
+4. If a signpost with **Status: deferred** exists: skip it — it's been explicitly deferred to a future spec.
+
+### Step 6: Verdict
 
 **If the task passes:**
 - Confirm it's clean
-- Skip to Step 7
+- Skip to Step 8 (Update Audit Log)
 
 **If issues are found:**
 1. Uncheck the task: `[x]` → `[ ]` in plan.md
@@ -78,17 +92,19 @@ Do NOT check:
      - [ ] Fix: Dead import of PromptedOutput in runtime.py:3 (audit round N)
    ```
 3. Each fix item must be specific enough that do-task can address it without ambiguity. Include file:line references.
+4. If a related signpost exists, reference it: `(see signposts.md: Task N, <problem summary>)`
 
-### Step 6: Signpost (If Needed)
+### Step 7: Signpost (If Needed)
 
 If the audit revealed a non-obvious issue or a pattern that future tasks should know about, write a signpost to signposts.md with:
 
 - **Task:** which task number
+- **Status:** `unresolved` | `resolved` | `deferred`
 - **Problem:** what was found
 - **Evidence:** exact code snippet, error, or standard violation with file:line
 - **Impact:** why this matters for future tasks
 
-### Step 7: Update Audit Log
+### Step 8: Update Audit Log
 
 Append a brief entry to audit-log.md:
 
@@ -109,7 +125,7 @@ Future auditors: check this log for regressions and patterns.
 - **Task N** (round R): PASS|FAIL — [one-line summary]
 ```
 
-### Step 8: Commit
+### Step 9: Commit
 
 Commit changes to plan.md, audit-log.md, and signposts.md (if modified):
 
@@ -118,7 +134,7 @@ git add plan.md audit-log.md signposts.md
 git commit -m "Audit: Task N — PASS|FAIL"
 ```
 
-### Step 9: Exit
+### Step 10: Exit
 
 Print one of these exit signals (machine-readable):
 
