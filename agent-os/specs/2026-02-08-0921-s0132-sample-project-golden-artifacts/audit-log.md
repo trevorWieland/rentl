@@ -16,3 +16,6 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 2): PASS — Acceptance is now scoped to operational references and `git grep sample_scenes.jsonl -- ':(exclude)agent-os/specs/'` returns zero matches
 - **Task 7** (round 1): FAIL — Full pipeline smoke test fails immediately with `config_error` because test `input_path` resolves outside `workspace_dir` (`Path must stay within workspace`)
 - **Task 7** (round 2): FAIL — Task 7 moved the smoke test from integration/FakeLlmRuntime to quality/real-runtime (which was correct per human guidance), but the new test currently fails with `Missing API key environment variable: PRIMARY_KEY` due to not using the same env vars as current passing quality tests.
+- **Task 7** (round 3): PASS — Fixed env vars to use RENTL_QUALITY_API_KEY/RENTL_QUALITY_BASE_URL (matching other quality tests), added pytest.mark.skipif for environments without LLM endpoint, and strengthened per-phase assertions. All fix items addressed.
+- **Blockers resolved** (2026-02-08): spec.md acceptance criterion updated to reflect quality-layer test (FakeLlmRuntime architecturally infeasible per signposts). Signposts reformatted with machine-readable Status fields. All signposts marked resolved.
+- **Demo** (run 1): PASS — All 7 steps passed; full pipeline validation successful

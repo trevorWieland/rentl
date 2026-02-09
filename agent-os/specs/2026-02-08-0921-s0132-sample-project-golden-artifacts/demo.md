@@ -20,4 +20,12 @@ rentl now ships with a bundled sample project — an original Japanese visual no
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Full pipeline validation (2026-02-08 19:30)
+- Step 1: PASS — Script has 58 lines with multiple speakers (???, 佐藤健太, 美咲), dialogue, and narration
+- Step 2: PASS — All 7 golden artifact validation tests passed in 0.20s
+- Step 3: PASS — Full verification gate (`make all`) passed: 626 unit tests, 61 integration tests, 5 quality tests
+- Step 4: PASS — Ingest integration test passed in 0.02s
+- Step 5: PASS — Covered by Step 3
+- Step 6: PASS — Zero operational references to sample_scenes.jsonl, file deleted
+- Step 7: PASS — CC0 1.0 Universal license present at samples/golden/LICENSE
+- **Overall: PASS**
