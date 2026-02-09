@@ -23,7 +23,7 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - [x] Fix: Add a transform-function reference field on `MigrationStep` (with `Field` description) to satisfy Task 2 contract (`packages/rentl-schemas/src/rentl_schemas/migration.py:25`) (audit round 1)
   - [x] Fix: Add/extend unit tests to validate and serialize the transform-function reference on `MigrationStep` (`tests/unit/schemas/test_migration.py:10`) (audit round 1)
 
-- [x] Task 3: Build Migration Registry & Engine
+- [ ] Task 3: Build Migration Registry & Engine
   - Create `rentl_core/migrate.py` with:
     - `MigrationRegistry` — ordered collection of migration steps
     - `plan_migrations(current_version, target_version)` — returns the chain of steps needed
@@ -31,6 +31,9 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - Register a seed migration: `0.0.1 → 0.1.0` (first real migration for demonstration)
   - Unit tests for registry ordering, chain planning, and transform application
   - Files: `packages/rentl-core/src/rentl_core/migrate.py`
+  - [ ] Fix: Prevent transform-function collisions by keying lookup on migration edge (or equivalent stable identifier); current name-keyed map can overwrite earlier steps and apply the wrong transform (`packages/rentl-core/src/rentl_core/migrate.py:43`, `packages/rentl-core/src/rentl_core/migrate.py:60`, `packages/rentl-core/src/rentl_core/migrate.py:148`) (audit round 1, see signposts.md: Task 3 transform name collision)
+  - [ ] Fix: Add regression coverage for two migration steps that share the same `__name__`, proving chain application runs both distinct transforms in order (`packages/rentl-core/tests/unit/core/test_migrate.py`) (audit round 1)
+  - [ ] Fix: Remove `Any`/untyped `dict` usage from migration type signatures to satisfy `strict-typing-enforcement` (`packages/rentl-core/src/rentl_core/migrate.py:6`, `packages/rentl-core/src/rentl_core/migrate.py:12`, `packages/rentl-core/src/rentl_core/migrate.py:129`) (audit round 1)
 
 - [ ] Task 4: Add `rentl migrate` CLI Command
   - Add `migrate` command to Typer CLI in `main.py`
