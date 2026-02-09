@@ -23,7 +23,7 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - [x] Fix: Add a transform-function reference field on `MigrationStep` (with `Field` description) to satisfy Task 2 contract (`packages/rentl-schemas/src/rentl_schemas/migration.py:25`) (audit round 1)
   - [x] Fix: Add/extend unit tests to validate and serialize the transform-function reference on `MigrationStep` (`tests/unit/schemas/test_migration.py:10`) (audit round 1)
 
-- [ ] Task 3: Build Migration Registry & Engine
+- [x] Task 3: Build Migration Registry & Engine
   - Create `rentl_core/migrate.py` with:
     - `MigrationRegistry` — ordered collection of migration steps
     - `plan_migrations(current_version, target_version)` — returns the chain of steps needed
