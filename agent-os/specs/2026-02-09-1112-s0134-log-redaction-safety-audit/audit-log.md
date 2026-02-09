@@ -19,3 +19,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 1): PASS — Demo Step 5 now uses a pattern-compliant hardcoded secret example (`sk-hardcodedsecret1234567890abc`) that matches the scanner rule.
 - **Demo** (run 2): PASS — All steps verified: log/console/artifact redaction working, config scanner correctly detects hardcoded secrets in `endpoint.api_key_env` and passes on clean config.
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 4/5, Completion 3/5, Security 3/5, Stability 4/5; fix-now count 2 (`check-secrets` misses multi-endpoint `api_key_env` scanning and has `.gitignore` substring false positives).
+- **Task 8** (round 1): PASS — `check-secrets` now scans `[[endpoints.endpoints]]` `api_key_env` fields and reports hardcoded-secret findings; added multi-endpoint regression tests pass.
