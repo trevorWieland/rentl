@@ -14,7 +14,7 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on the issue branch and push
 
-- [ ] Task 2: Implement redaction core in `rentl-schemas`
+- [x] Task 2: Implement redaction core in `rentl-schemas`
   - Create `packages/rentl-schemas/src/rentl_schemas/redaction.py`
     - `SecretPattern` model — compiled regex pattern + human label
     - `RedactionConfig` model — list of patterns, list of env var names to watch
