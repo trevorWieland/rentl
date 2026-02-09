@@ -59,9 +59,12 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - [x] Fix: In git repos, still flag `.env` files that exist but are not in `.gitignore`; current `is_git_repo` path checks only tracked files and skips `.gitignore` checks, causing false PASS (`services/rentl-cli/src/rentl_cli/main.py:2692`, `services/rentl-cli/src/rentl_cli/main.py:2712`) (audit round 2).
   - [x] Fix: Add a regression test for a git repo with an existing untracked `.env` and no ignore rule, asserting findings exit code `1` (`tests/unit/cli/test_check_secrets.py`) (audit round 2).
 
-- [x] Task 6: Bootstrap redactor at startup and pass through CLI
+- [ ] Task 6: Bootstrap redactor at startup and pass through CLI
   - In the CLI `run-pipeline` and other commands, build the `Redactor` from config + resolved env vars
   - Pass it to `build_log_sink()` and artifact storage
   - Emit debug-level log when redaction occurs
   - Integration test: end-to-end command with secret in env, verify log output is clean
   - Acceptance: redaction is active by default in all CLI commands; debug log confirms redaction happened
+  - [ ] Fix: Emit an explicit debug-level log entry when redaction changes a log payload (currently `RedactingLogSink.emit_log` redacts and forwards but never records a redaction event), violating `ux/trust-through-transparency` (`packages/rentl-io/src/rentl_io/storage/log_sink.py:83`).
+  - [ ] Fix: Pass the redactor through JSON artifact writes in `_RedactingArtifactStore.write_artifact_json`; current wrapper explicitly bypasses redaction for JSON writes (`services/rentl-cli/src/rentl_cli/main.py:1114`, `packages/rentl-io/src/rentl_io/storage/filesystem.py:205`) and leaves an artifact sink path unredacted.
+  - [ ] Fix: Replace the vacuous command-log redaction test with an actual end-to-end log assertion. Current `test_redaction_in_command_logs` uses `doctor` (which does not emit command logs), only asserts inside `if log_files`, and sets an env var not referenced by the test config (`tests/unit/cli/test_main.py:2036`, `tests/unit/cli/test_main.py:2053`, `tests/unit/cli/test_main.py:1085`, `tests/unit/cli/test_main.py:2046`; repro: `exit_code 10`, `log_file_count 0`).
