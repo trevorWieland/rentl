@@ -37,3 +37,12 @@ In this demo, we'll prove that secret values are automatically redacted from all
 - Step 5: PASS — Config scanner detects hardcoded secret `sk-hardcodedsecret1234567890abc` in `endpoint.api_key_env` field, returns exit code 1 with security findings
 - Step 6: PASS — Config scanner returns exit code 0 for clean config with env var name `RENTL_OPENROUTER_API_KEY`
 - **Overall: PASS** — All demo steps verified
+
+### Run 3 — Verification run (2026-02-09 19:15)
+- Step 1: PASS — Environment variable RENTL_LOCAL_API_KEY set to test secret value
+- Step 2: PASS — Test `test_redaction_in_command_logs` passes, verifies log file redaction
+- Step 3: PASS — Test `test_redacting_log_sink_redacts_message` passes, verifies console output redaction
+- Step 4: PASS — Test `test_artifact_jsonl_redacts_secrets` passes, verifies artifact JSONL redaction
+- Step 5: PASS — Config scanner correctly detects hardcoded secret `sk-hardcodedsecret1234567890abc` in temporary test config, returns exit code 1 with security findings message
+- Step 6: PASS — Config scanner returns exit code 0 on clean production config with env var name
+- **Overall: PASS** — All demo steps verified successfully
