@@ -14,14 +14,14 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on the issue branch
 
-- [ ] Task 2: Define Migration Schema Types
+- [x] Task 2: Define Migration Schema Types
   - Add `MigrationStep` Pydantic model to `rentl_schemas` (source_version, target_version, description, transform fn reference)
   - Add comparison operators to `VersionInfo` (`__lt__`, `__le__`, `__eq__`, `__gt__`, `__ge__`) for version ordering
   - Add `CURRENT_SCHEMA_VERSION` constant to `rentl_schemas`
   - Unit tests for version comparison and MigrationStep validation
   - Files: `packages/rentl-schemas/src/rentl_schemas/version.py`, `packages/rentl-schemas/src/rentl_schemas/migration.py`
-  - [ ] Fix: Add a transform-function reference field on `MigrationStep` (with `Field` description) to satisfy Task 2 contract (`packages/rentl-schemas/src/rentl_schemas/migration.py:25`) (audit round 1)
-  - [ ] Fix: Add/extend unit tests to validate and serialize the transform-function reference on `MigrationStep` (`tests/unit/schemas/test_migration.py:10`) (audit round 1)
+  - [x] Fix: Add a transform-function reference field on `MigrationStep` (with `Field` description) to satisfy Task 2 contract (`packages/rentl-schemas/src/rentl_schemas/migration.py:25`) (audit round 1)
+  - [x] Fix: Add/extend unit tests to validate and serialize the transform-function reference on `MigrationStep` (`tests/unit/schemas/test_migration.py:10`) (audit round 1)
 
 - [ ] Task 3: Build Migration Registry & Engine
   - Create `rentl_core/migrate.py` with:

@@ -18,8 +18,6 @@ class MigrationStep(BaseSchema):
     dict and returns a dict, with no side effects.
     """
 
-    # Note: The transform function is not stored in the Pydantic model itself.
-    # Instead, the registry maps (source, target) pairs to transform functions.
     model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
     source_version: VersionInfo = Field(
@@ -32,6 +30,14 @@ class MigrationStep(BaseSchema):
         ...,
         min_length=1,
         description="Human-readable description of what this migration changes",
+    )
+    transform_fn_name: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Name of the pure function that transforms config dict "
+            "from source to target version"
+        ),
     )
 
     def __str__(self) -> str:
