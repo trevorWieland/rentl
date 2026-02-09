@@ -214,8 +214,12 @@ def test_redacting_log_sink_redacts_message() -> None:
 
     asyncio.run(sink.emit_log(entry))
 
-    assert len(stub_sink.entries) == 1
+    # Expect 2 entries: the redacted entry + the debug log
+    assert len(stub_sink.entries) == 2
     assert stub_sink.entries[0].message == "Using API key [REDACTED]"
+    # Second entry is the debug log
+    assert stub_sink.entries[1].event == "redaction_applied"
+    assert stub_sink.entries[1].level == LogLevel.DEBUG
 
 
 def test_redacting_log_sink_redacts_data_dict() -> None:
@@ -239,10 +243,13 @@ def test_redacting_log_sink_redacts_data_dict() -> None:
 
     asyncio.run(sink.emit_log(entry))
 
-    assert len(stub_sink.entries) == 1
+    # Expect 2 entries: the redacted entry + the debug log
+    assert len(stub_sink.entries) == 2
     assert stub_sink.entries[0].data is not None
     assert stub_sink.entries[0].data["api_key"] == "[REDACTED]"
     assert stub_sink.entries[0].data["user"] == "alice"
+    # Second entry is the debug log
+    assert stub_sink.entries[1].event == "redaction_applied"
 
 
 def test_redacting_log_sink_redacts_nested_data() -> None:
@@ -276,7 +283,8 @@ def test_redacting_log_sink_redacts_nested_data() -> None:
 
     asyncio.run(sink.emit_log(entry))
 
-    assert len(stub_sink.entries) == 1
+    # Expect 2 entries: the redacted entry + the debug log
+    assert len(stub_sink.entries) == 2
     assert stub_sink.entries[0].data is not None
     headers = stub_sink.entries[0].data["headers"]
     assert isinstance(headers, dict)
@@ -286,6 +294,8 @@ def test_redacting_log_sink_redacts_nested_data() -> None:
     assert isinstance(items, list)
     assert items[0] == "[REDACTED]"
     assert items[1] == "safe_value"
+    # Second entry is the debug log
+    assert stub_sink.entries[1].event == "redaction_applied"
 
 
 def test_redacting_log_sink_redacts_env_var_values() -> None:
@@ -307,12 +317,15 @@ def test_redacting_log_sink_redacts_env_var_values() -> None:
 
     asyncio.run(sink.emit_log(entry))
 
-    assert len(stub_sink.entries) == 1
+    # Expect 2 entries: the redacted entry + the debug log
+    assert len(stub_sink.entries) == 2
     assert stub_sink.entries[0].message == "API key: [REDACTED]"
     assert stub_sink.entries[0].data is not None
     config_data = stub_sink.entries[0].data["config"]
     assert isinstance(config_data, dict)
     assert config_data["key"] == "[REDACTED]"
+    # Second entry is the debug log
+    assert stub_sink.entries[1].event == "redaction_applied"
 
 
 def test_build_log_sink_with_redactor(tmp_path: Path) -> None:

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Iterable
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TextIO
 
 from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
 from rentl_schemas.config import LoggingConfig
 from rentl_schemas.logs import LogEntry
-from rentl_schemas.primitives import LogSinkType
+from rentl_schemas.primitives import LogLevel, LogSinkType
 
 if TYPE_CHECKING:
     from rentl_schemas.redaction import Redactor
@@ -90,6 +91,10 @@ class RedactingLogSink(LogSinkProtocol):
         if entry.data is not None:
             redacted_data = self._redactor.redact_dict(entry.data)
 
+        # Detect if redaction occurred
+        message_changed = redacted_message != entry.message
+        data_changed = entry.data is not None and redacted_data != entry.data
+
         # Create a new entry with redacted values
         redacted_entry = entry.model_copy(
             update={"message": redacted_message, "data": redacted_data}
@@ -97,6 +102,23 @@ class RedactingLogSink(LogSinkProtocol):
 
         # Forward to delegate
         await self._delegate.emit_log(redacted_entry)
+
+        # Emit a debug log if redaction occurred
+        if message_changed or data_changed:
+            debug_entry = LogEntry(
+                timestamp=datetime.now(UTC).isoformat(),
+                level=LogLevel.DEBUG,
+                event="redaction_applied",
+                run_id=entry.run_id,
+                phase=entry.phase,
+                message="Secret redaction applied to log entry",
+                data={
+                    "original_event": entry.event,
+                    "message_redacted": message_changed,
+                    "data_redacted": data_changed,
+                },
+            )
+            await self._delegate.emit_log(debug_entry)
 
 
 def build_log_sink(

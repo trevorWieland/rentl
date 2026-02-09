@@ -11,8 +11,11 @@
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py:2692-2726`, `tests/unit/cli/test_check_secrets.py:183-235`
 
 - **Task:** Task 6 (redactor bootstrap + CLI wiring)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The new command-log redaction test can pass without validating any persisted logs, so Task 6 acceptance ("debug log confirms redaction happened") is not currently verified.
 - **Evidence:** `test_redaction_in_command_logs` guards assertions with `if log_files` and invokes `doctor`, which does not emit command logs (`tests/unit/cli/test_main.py:2036-2059`, `services/rentl-cli/src/rentl_cli/main.py:308-394`).
 - **Evidence:** Repro output from running the same flow: `exit_code 10`, `log_file_count 0`.
 - **Impact:** Regressions in CLI redaction/debug visibility can slip through CI while the test remains green.
+- **Solution:** Replaced the test with a direct integration test that creates a log entry with a secret via the storage layer, verifies redaction occurs, and confirms the `redaction_applied` debug event is emitted.
+- **Resolution:** do-task round 4 (2026-02-09)
+- **Files affected:** `tests/unit/cli/test_main.py:2036-2095`

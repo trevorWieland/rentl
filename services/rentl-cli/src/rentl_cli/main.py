@@ -1114,12 +1114,14 @@ class _RedactingArtifactStore:
     async def write_artifact_json(
         self, metadata: ArtifactMetadata, payload: BaseSchema
     ) -> ArtifactMetadata:
-        """Write a JSON artifact (delegates without redaction).
+        """Write a JSON artifact with automatic redaction.
 
         Returns:
             ArtifactMetadata: Stored artifact metadata.
         """
-        return await self._delegate.write_artifact_json(metadata, payload)
+        return await self._delegate.write_artifact_json(
+            metadata, payload, redactor=self._redactor
+        )
 
     async def write_artifact_jsonl(
         self, metadata: ArtifactMetadata, payload: Sequence[BaseSchema]
