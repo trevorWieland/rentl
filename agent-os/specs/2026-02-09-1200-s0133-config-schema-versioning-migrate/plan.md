@@ -14,7 +14,7 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on the issue branch
 
-- [ ] Task 2: Define Migration Schema Types
+- [x] Task 2: Define Migration Schema Types
   - Add `MigrationStep` Pydantic model to `rentl_schemas` (source_version, target_version, description, transform fn reference)
   - Add comparison operators to `VersionInfo` (`__lt__`, `__le__`, `__eq__`, `__gt__`, `__ge__`) for version ordering
   - Add `CURRENT_SCHEMA_VERSION` constant to `rentl_schemas`

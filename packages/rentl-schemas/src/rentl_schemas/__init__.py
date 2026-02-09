@@ -83,6 +83,7 @@ from rentl_schemas.llm import (
     LlmRuntimeSettings,
 )
 from rentl_schemas.logs import LogEntry
+from rentl_schemas.migration import MigrationStep
 from rentl_schemas.phases import (
     ContextNote,
     ContextPhaseInput,
@@ -215,11 +216,12 @@ from rentl_schemas.validation import (
     validate_translate_input,
     validate_translate_output,
 )
-from rentl_schemas.version import VersionInfo
+from rentl_schemas.version import CURRENT_SCHEMA_VERSION, VersionInfo
 
 __version__ = "0.1.0"
 
 __all__ = [
+    "CURRENT_SCHEMA_VERSION",
     "DEFAULT_PATTERNS",
     "DOMAIN_PREFIXES",
     "ERROR_CODE_TO_EXIT_CODE",
@@ -303,6 +305,7 @@ __all__ = [
     "LogSinkType",
     "LoggingConfig",
     "MetaInfo",
+    "MigrationStep",
     "ModelEndpointConfig",
     "ModelHints",
     "ModelSettings",
