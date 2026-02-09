@@ -56,8 +56,8 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - Acceptance: `rentl check-secrets` catches hardcoded secrets and passes on clean configs
   - [x] Fix: Return exit code `1` for findings in `check-secrets` per task contract, and align tests that currently assert `11` (`services/rentl-cli/src/rentl_cli/main.py:2708`, `tests/unit/cli/test_check_secrets.py:68`).
   - [x] Fix: Implement `.env` committed-file detection (not just `.gitignore` substring checks) and fail when `.env` is tracked; current logic only reads `.gitignore` text and cannot detect tracked secrets (`services/rentl-cli/src/rentl_cli/main.py:2678`, `services/rentl-cli/src/rentl_cli/main.py:2683`).
-  - [ ] Fix: In git repos, still flag `.env` files that exist but are not in `.gitignore`; current `is_git_repo` path checks only tracked files and skips `.gitignore` checks, causing false PASS (`services/rentl-cli/src/rentl_cli/main.py:2692`, `services/rentl-cli/src/rentl_cli/main.py:2712`) (audit round 2).
-  - [ ] Fix: Add a regression test for a git repo with an existing untracked `.env` and no ignore rule, asserting findings exit code `1` (`tests/unit/cli/test_check_secrets.py`) (audit round 2).
+  - [x] Fix: In git repos, still flag `.env` files that exist but are not in `.gitignore`; current `is_git_repo` path checks only tracked files and skips `.gitignore` checks, causing false PASS (`services/rentl-cli/src/rentl_cli/main.py:2692`, `services/rentl-cli/src/rentl_cli/main.py:2712`) (audit round 2).
+  - [x] Fix: Add a regression test for a git repo with an existing untracked `.env` and no ignore rule, asserting findings exit code `1` (`tests/unit/cli/test_check_secrets.py`) (audit round 2).
 
 - [ ] Task 6: Bootstrap redactor at startup and pass through CLI
   - In the CLI `run-pipeline` and other commands, build the `Redactor` from config + resolved env vars

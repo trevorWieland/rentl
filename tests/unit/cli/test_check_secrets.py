@@ -1,5 +1,6 @@
 """Unit tests for check-secrets CLI command."""
 
+import subprocess
 from pathlib import Path
 from textwrap import dedent
 
@@ -177,3 +178,60 @@ def test_check_secrets_bearer_token_pattern(runner: CliRunner, tmp_path: Path) -
 
     assert result.exit_code == 1  # Findings detected
     assert "endpoint.api_key_env contains what looks like a secret" in result.stdout
+
+
+def test_check_secrets_git_repo_untracked_env_no_gitignore_rule(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """Regression: git repo with untracked .env and no .gitignore rule fails."""
+    config_file = tmp_path / "rentl.toml"
+    config_file.write_text(
+        dedent(
+            """
+            [project]
+            schema_version = { major = 0, minor = 1, patch = 0 }
+            project_name = "test"
+
+            [endpoint]
+            provider_name = "openrouter"
+            base_url = "https://openrouter.ai/api/v1"
+            api_key_env = "RENTL_OPENROUTER_API_KEY"
+            timeout_s = 180
+            """
+        )
+    )
+
+    # Create .env file
+    env_file = tmp_path / ".env"
+    env_file.write_text("RENTL_OPENROUTER_API_KEY=secret123\n")
+
+    # Initialize git repo (don't add or commit .env)
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "add", "rentl.toml"], cwd=tmp_path, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Initial commit"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+
+    # .env exists, is untracked, and has no .gitignore rule — should fail
+    result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
+
+    assert result.exit_code == 1  # Findings detected
+    assert ".env file exists" in result.stdout
+    assert ".gitignore" in result.stdout

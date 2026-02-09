@@ -2704,6 +2704,22 @@ def check_secrets(
                         f".env file at {env_file} is tracked by git "
                         "(should be in .gitignore to avoid committing secrets)"
                     )
+                else:
+                    # .env exists but is not tracked; still check .gitignore
+                    gitignore_file = project_dir / ".gitignore"
+                    if gitignore_file.exists():
+                        with gitignore_file.open() as gitignore:
+                            gitignore_contents = gitignore.read()
+                            if ".env" not in gitignore_contents:
+                                findings.append(
+                                    f".env file exists at {env_file} but is not in "
+                                    ".gitignore (risk of committing secrets)"
+                                )
+                    else:
+                        findings.append(
+                            f".env file exists at {env_file} but no .gitignore found "
+                            "(risk of committing secrets)"
+                        )
         except Exception:
             # If git command fails, treat as non-git repo
             is_git_repo = False
