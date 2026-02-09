@@ -28,3 +28,11 @@ Config evolves as rentl evolves. When a user upgrades rentl, their existing `ren
 - Step 4: FAIL — `rentl doctor` does not auto-migrate; it validates config directly without calling migration logic
 - Step 5: PASS — Already up-to-date message shown, no new backup created
 - **Overall: FAIL** — Auto-migrate on load works for most commands (e.g., `validate-connection`) but not for `doctor` command
+
+### Run 2 — Post Task 7 fix (2026-02-09 17:27)
+- Step 1: PASS — Config with schema version 0.0.1 is parseable and recognized as outdated
+- Step 2: PASS — Dry-run shows migration plan from 0.0.1 to 0.1.0, lists migration step description, no file modification
+- Step 3: PASS — Backup created at `test_rentl.toml.bak`, config migrated to schema version 0.1.0 (inline format)
+- Step 4: PASS — `rentl doctor` auto-migrated outdated config, created backup, config validation passed
+- Step 5: PASS — Already up-to-date message shown, no new backup created
+- **Overall: PASS** — All acceptance criteria met, auto-migration works consistently across all commands

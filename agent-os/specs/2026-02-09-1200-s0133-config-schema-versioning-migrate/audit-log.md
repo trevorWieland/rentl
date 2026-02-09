@@ -15,3 +15,5 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 1): PASS — Auto-migration runs before validation with backup-first writes, source/target migration output, and passing unit/integration/check gates.
 - **Demo** (run 1): FAIL — Steps 1-3, 5 pass (migrate command, dry-run, backup, already-current). Step 4 fails: `rentl doctor` does not auto-migrate outdated configs. Root cause: doctor.py bypasses CLI's auto-migration path. Task 7 added to plan.md.
 - **Task 7** (round 1): FAIL — Doctor auto-migration logic is implemented, but the required integration test file `tests/integration/core/test_doctor.py` is missing; coverage was added only at unit level.
+- **Task 7** (round 2): PASS — Integration test coverage added for doctor auto-migration with full backup and validation flow.
+- **Demo** (run 2): PASS — All steps passed: migrate command, dry-run, backup, auto-migration on doctor load, and already-current detection work correctly.
