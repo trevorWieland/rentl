@@ -112,6 +112,7 @@ from rentl_schemas.progress import (
     ProgressUpdate,
     RunProgress,
 )
+from rentl_schemas.redaction import DEFAULT_PATTERNS
 from rentl_schemas.responses import (
     ApiResponse,
     ErrorResponse,
@@ -2616,6 +2617,125 @@ def _batch_error_response(exc: ExportBatchError) -> ApiResponse[ExportResult]:
         exc.errors[0].to_error_response(), len(exc.errors), "export"
     )
     return _error_response(error)
+
+
+@app.command("check-secrets")
+def check_secrets(
+    config_path: Path = CONFIG_OPTION,
+) -> None:
+    """Scan configuration files for hardcoded secrets.
+
+    Checks rentl.toml for api_key_env values that look like actual secrets
+    (not env var names), and warns if .env files exist and are not in .gitignore.
+
+    Raises:
+        typer.Exit: Exit code 1 if findings are detected, 0 if clean.
+    """
+    console = Console()
+    is_tty = sys.stdout.isatty()
+
+    findings: list[str] = []
+
+    # Check if config file exists
+    if not config_path.exists():
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Config file not found: {config_path}",
+                style="red",
+            )
+        else:
+            print(f"Error: Config file not found: {config_path}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+
+    # Load TOML config
+    try:
+        with config_path.open("rb") as config_file:
+            config_data = tomllib.load(config_file)
+    except Exception as exc:
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Failed to parse config: {exc}", style="red"
+            )
+        else:
+            print(f"Error: Failed to parse config: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Check endpoint.api_key_env
+    if "endpoint" in config_data:
+        api_key_env = config_data["endpoint"].get("api_key_env", "")
+        if api_key_env and _looks_like_secret(api_key_env):
+            findings.append(
+                f"endpoint.api_key_env contains what looks like a secret value: "
+                f"'{api_key_env[:20]}...' (should be an env var name like "
+                "RENTL_OPENROUTER_API_KEY)"
+            )
+
+    # Check .env files in project directory
+    project_dir = config_path.parent
+    env_file = project_dir / ".env"
+    gitignore_file = project_dir / ".gitignore"
+
+    if env_file.exists():
+        # Check if .env is in .gitignore
+        if gitignore_file.exists():
+            with gitignore_file.open() as gitignore:
+                gitignore_contents = gitignore.read()
+                if ".env" not in gitignore_contents:
+                    findings.append(
+                        f".env file exists at {env_file} but is not in .gitignore "
+                        "(risk of committing secrets)"
+                    )
+        else:
+            findings.append(
+                f".env file exists at {env_file} but no .gitignore found "
+                "(risk of committing secrets)"
+            )
+
+    # Report findings
+    if findings:
+        if is_tty:
+            console.print("[yellow]Security findings:[/yellow]", style="bold yellow")
+            for finding in findings:
+                console.print(f"  • {finding}")
+            console.print(
+                "\n[red]FAIL:[/red] Found potential security issues", style="bold red"
+            )
+        else:
+            print("Security findings:")
+            for finding in findings:
+                print(f"  - {finding}")
+            print("\nFAIL: Found potential security issues")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+
+    # Clean - no findings
+    if is_tty:
+        console.print(
+            "[green]PASS:[/green] No hardcoded secrets detected", style="bold green"
+        )
+    else:
+        print("PASS: No hardcoded secrets detected")
+
+
+def _looks_like_secret(value: str) -> bool:
+    """Check if a string looks like a secret value rather than an env var name.
+
+    Args:
+        value: String to check
+
+    Returns:
+        True if the value matches known secret patterns
+    """
+    # Env var names are typically UPPERCASE_WITH_UNDERSCORES
+    # If it looks like an env var name, it's not a secret
+    if value.isupper() and "_" in value and not any(c in value for c in "=-: "):
+        return False
+
+    # Check against default secret patterns
+    for pattern in DEFAULT_PATTERNS:
+        if pattern.compiled and pattern.compiled.search(value):
+            return True
+
+    return False
 
 
 if __name__ == "__main__":
