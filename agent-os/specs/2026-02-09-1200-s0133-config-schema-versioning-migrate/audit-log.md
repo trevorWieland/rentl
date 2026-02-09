@@ -13,3 +13,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 1): FAIL — `rentl migrate` completes but leaves `project.schema_version` unchanged (`0.0.1`), because the seed transform writes a top-level `schema_version` field instead.
 - **Task 4** (round 2): PASS — Seed migration now updates `project.schema_version` correctly, and Task 4 migrate/dry-run/backup coverage passes.
 - **Task 5** (round 1): PASS — Auto-migration runs before validation with backup-first writes, source/target migration output, and passing unit/integration/check gates.
+- **Demo** (run 1): FAIL — Steps 1-3, 5 pass (migrate command, dry-run, backup, already-current). Step 4 fails: `rentl doctor` does not auto-migrate outdated configs. Root cause: doctor.py bypasses CLI's auto-migration path. Task 7 added to plan.md.

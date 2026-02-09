@@ -21,4 +21,10 @@ Config evolves as rentl evolves. When a user upgrades rentl, their existing `ren
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Full demo validation (2026-02-09 16:42)
+- Step 1: PASS — Config with schema version 0.0.1 is parseable and recognized as outdated
+- Step 2: PASS — Dry-run shows migration plan from 0.0.1 to 0.1.0 without modifying file
+- Step 3: PASS — Backup created at `.bak`, config migrated to schema version 0.1.0
+- Step 4: FAIL — `rentl doctor` does not auto-migrate; it validates config directly without calling migration logic
+- Step 5: PASS — Already up-to-date message shown, no new backup created
+- **Overall: FAIL** — Auto-migrate on load works for most commands (e.g., `validate-connection`) but not for `doctor` command

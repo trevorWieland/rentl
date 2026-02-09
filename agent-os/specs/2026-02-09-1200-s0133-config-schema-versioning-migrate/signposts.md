@@ -46,3 +46,19 @@
 - **Solution:** Re-ran `make all` and it passed. The test is flaky due to LLM API response time variability, but does not indicate any issue with this spec's implementation.
 - **Resolution:** Final verification (2026-02-09)
 - **Files affected:** None (no code changes needed)
+
+- **Task:** Demo Step 4 (Auto-migrate on load)
+- **Status:** unresolved
+- **Problem:** The `rentl doctor` command does not auto-migrate outdated configs; it validates the raw config without calling `_auto_migrate_if_needed`, causing validation failures on old configs.
+- **Evidence:**
+  - Created config with `schema_version = 0.0.1`
+  - Ran `rentl doctor --config /tmp/test_rentl.toml`
+  - Result: `Config Valid: FAIL` with validation errors, no auto-migration occurred
+  - Tested `rentl validate-connection --config /tmp/test_rentl.toml` with same config
+  - Result: "Auto-migrating config: 0.0.1 → 0.1.0" and "Migration complete: Backup saved to test_rentl.toml.bak"
+  - Root cause: `packages/rentl-core/src/rentl_core/doctor.py:145` function `check_config_valid` loads config directly via `tomllib.load()` and calls `validate_run_config()` without migration (line 165, 183)
+  - Root cause: `packages/rentl-core/src/rentl_core/doctor.py:31` function `_load_config_sync` also loads directly without migration (line 41-43)
+  - Compare to: `services/rentl-cli/src/rentl_cli/main.py:1559` function `_load_run_config` calls `_auto_migrate_if_needed` (line 1572) before validation
+- **Impact:** Violates Acceptance Criterion "Config loading auto-migrates on load" — `doctor` command is a config-loading command but fails to auto-migrate. Users with old configs will see validation errors instead of seamless migration. Violates spec.md non-negotiable #2 (schema_version as single source of truth) because doctor ignores the version field.
+- **Root cause:** The `doctor` command in `rentl-core` has its own config loading path that bypasses the CLI's `_load_run_config` + `_auto_migrate_if_needed` flow.
+- **Files affected:** `packages/rentl-core/src/rentl_core/doctor.py` (functions `check_config_valid`, `_load_config_sync`)

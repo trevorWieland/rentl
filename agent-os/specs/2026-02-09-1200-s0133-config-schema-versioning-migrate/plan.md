@@ -60,3 +60,14 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - Each entry: version pair, date, description of changes
   - Verify changelog stays in sync with the registry (test that every registered migration has a changelog entry)
   - Files: `SCHEMA_CHANGELOG.md`
+
+- [ ] Task 7: Fix Doctor Auto-Migration
+  - Modify `packages/rentl-core/src/rentl_core/doctor.py` to auto-migrate configs before validation
+  - Update `check_config_valid()` to detect outdated schema version and call migration logic before validation
+  - Update `_load_config_sync()` to also include auto-migration
+  - Option 1: Extract migration logic from CLI's `_auto_migrate_if_needed` to a shared core function that both CLI and doctor can use
+  - Option 2: Make doctor accept a pre-loaded config from CLI (breaking change to API)
+  - Option 3: Import and use CLI's migration function from core (creates circular dependency)
+  - Recommendation: Option 1 — refactor migration orchestration (detect version, plan, apply, backup, write) into `rentl_core.migrate` module so both CLI and doctor use the same path
+  - Add integration test: doctor with outdated config should auto-migrate and pass validation
+  - Files: `packages/rentl-core/src/rentl_core/doctor.py`, `packages/rentl-core/src/rentl_core/migrate.py`, `tests/integration/core/test_doctor.py`
