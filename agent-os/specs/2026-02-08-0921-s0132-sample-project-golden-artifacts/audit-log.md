@@ -19,3 +19,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 3): PASS — Fixed env vars to use RENTL_QUALITY_API_KEY/RENTL_QUALITY_BASE_URL (matching other quality tests), added pytest.mark.skipif for environments without LLM endpoint, and strengthened per-phase assertions. All fix items addressed.
 - **Blockers resolved** (2026-02-08): spec.md acceptance criterion updated to reflect quality-layer test (FakeLlmRuntime architecturally infeasible per signposts). Signposts reformatted with machine-readable Status fields. All signposts marked resolved.
 - **Demo** (run 1): PASS — All 7 steps passed; full pipeline validation successful
+- **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now 1
