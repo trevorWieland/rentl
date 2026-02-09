@@ -17,3 +17,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 1): FAIL — Doctor auto-migration logic is implemented, but the required integration test file `tests/integration/core/test_doctor.py` is missing; coverage was added only at unit level.
 - **Task 7** (round 2): PASS — Integration test coverage added for doctor auto-migration with full backup and validation flow.
 - **Demo** (run 2): PASS — All steps passed: migrate command, dry-run, backup, auto-migration on doctor load, and already-current detection work correctly.
+- **Spec Audit** (round 1): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0.
