@@ -15,3 +15,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 2): FAIL — in git repos, `check-secrets` now detects tracked `.env` files but misses existing unignored `.env` files, returning a false PASS.
 - **Task 6** (round 1): FAIL — debug redaction visibility is still missing, JSON artifact redaction is only partial in the CLI wrapper, and the new command-log redaction test is vacuous.
 - **Task 6** (round 2): PASS — debug redaction event emission, JSON artifact redactor passthrough, and targeted redaction tests are implemented and passing.
+- **Demo** (run 1): FAIL — Steps 1-4 and 6 pass (log/console/artifact redaction verified, clean config passes). Step 5 fails: demo test secret value `sk-hardcoded-secret` contains hyphens which don't match the `sk-[a-zA-Z0-9]{20,}` pattern. Task added to fix demo plan.

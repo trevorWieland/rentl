@@ -20,4 +20,11 @@ In this demo, we'll prove that secret values are automatically redacted from all
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Initial demo execution (2026-02-09 18:32)
+- Step 1: PASS — Fake API key `sk-test-secret-1234567890abcdef` set in environment
+- Step 2: PASS — Log entry created with secret embedded; log file shows `[REDACTED]` placeholders and no secret value; debug log entry `redaction_applied` present
+- Step 3: PASS — Console output redacted; `[REDACTED]` placeholder found, secret not present in console output
+- Step 4: PASS — Artifact JSONL file created with secret embedded; artifact file shows `[REDACTED]` placeholders and no secret value
+- Step 5: FAIL — Config scanner did not detect the hardcoded secret `sk-hardcoded-secret` in `api_key_env` field. Root cause: The demo test value contains hyphens which don't match the `sk-[a-zA-Z0-9]{20,}` pattern (pattern requires alphanumeric only). When tested with a compliant secret value `sk-test12345678901234567890abcdefgh`, the scanner correctly detected it and returned exit code 1.
+- Step 6: PASS — Config scanner returns exit code 0 for clean config with env var name `RENTL_OPENROUTER_API_KEY`
+- **Overall: FAIL** — Step 5 reveals a demo plan issue (test secret doesn't match expected pattern)

@@ -68,3 +68,9 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - [x] Fix: Emit an explicit debug-level log entry when redaction changes a log payload (currently `RedactingLogSink.emit_log` redacts and forwards but never records a redaction event), violating `ux/trust-through-transparency` (`packages/rentl-io/src/rentl_io/storage/log_sink.py:83`).
   - [x] Fix: Pass the redactor through JSON artifact writes in `_RedactingArtifactStore.write_artifact_json`; current wrapper explicitly bypasses redaction for JSON writes (`services/rentl-cli/src/rentl_cli/main.py:1114`, `packages/rentl-io/src/rentl_io/storage/filesystem.py:205`) and leaves an artifact sink path unredacted.
   - [x] Fix: Replace the vacuous command-log redaction test with an actual end-to-end log assertion. Current `test_redaction_in_command_logs` uses `doctor` (which does not emit command logs), only asserts inside `if log_files`, and sets an env var not referenced by the test config (`tests/unit/cli/test_main.py:2036`, `tests/unit/cli/test_main.py:2053`, `tests/unit/cli/test_main.py:1085`, `tests/unit/cli/test_main.py:2046`; repro: `exit_code 10`, `log_file_count 0`).
+
+- [ ] Task 7: Fix demo Step 5 test secret value
+  - Update `agent-os/specs/2026-02-09-1112-s0134-log-redaction-safety-audit/demo.md` Step 5 to use a pattern-compliant test secret
+  - Current value `sk-hardcoded-secret` contains hyphens which don't match the `sk-[a-zA-Z0-9]{20,}` pattern
+  - Replace with alphanumeric-only value like `sk-hardcodedsecret1234567890abc`
+  - Acceptance: Demo Step 5 passes when executed
