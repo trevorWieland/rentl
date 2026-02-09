@@ -25,3 +25,10 @@ Feature: Migrate Command
     Then the command succeeds
     And the output indicates the config is already up to date
     And no backup file is created
+
+  Scenario: Auto-migrate on config load
+    Given a config file with an old schema version
+    When I load the config via run command
+    Then the config is auto-migrated before validation
+    And a backup file is created
+    And the output shows auto-migration occurred

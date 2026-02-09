@@ -99,13 +99,13 @@ def test_version_info_comparison_with_non_version() -> None:
 
     # These should raise TypeError when compared with non-VersionInfo
     with pytest.raises(TypeError):
-        _ = version < "1.2.3"  # type: ignore[operator]
+        _ = version < "1.2.3"
 
     with pytest.raises(TypeError):
-        _ = version <= 123  # type: ignore[operator]
+        _ = version <= 123
 
     with pytest.raises(TypeError):
-        _ = version > (1, 2, 3)  # type: ignore[operator]
+        _ = version > (1, 2, 3)
 
 
 def test_current_schema_version_constant() -> None:

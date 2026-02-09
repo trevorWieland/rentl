@@ -48,7 +48,7 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - [x] Fix: Update the registered `0.0.1 -> 0.1.0` migration transform to write `project.schema_version` (`major/minor/patch`) instead of creating a top-level `schema_version` key, so `rentl migrate` actually upgrades the source-of-truth version field (`packages/rentl-core/src/rentl_core/migrate.py:198`, `tests/integration/cli/test_migrate.py:167`) (audit round 1)
   - [x] Fix: Add regression coverage that the seed migration does not introduce a top-level `schema_version` and that migrated output has `project.schema_version == 0.1.0` (`packages/rentl-core/tests/unit/core/test_migrate.py`, `tests/integration/cli/test_migrate.py:165`) (audit round 1)
 
-- [ ] Task 5: Auto-Migrate on Config Load
+- [x] Task 5: Auto-Migrate on Config Load
   - Modify `_load_run_config()` in `main.py` to detect outdated schema version
   - When outdated: back up `rentl.toml` to `rentl.toml.bak`, apply migrations, write migrated file, then proceed with validation
   - Log the auto-migration with Rich output (source → target version)

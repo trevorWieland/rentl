@@ -1771,7 +1771,7 @@ def test_help_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Patch Console in the CLI module to force terminal mode and capture config
     class PatchedConsole(RichConsole):
-        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003
+        def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
             # Force terminal mode to emit ANSI codes
             kwargs["force_terminal"] = True
             console_configs.append(kwargs.copy())
@@ -1818,7 +1818,7 @@ def test_explain_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Patch Console in the CLI module to force terminal mode and capture config
     class PatchedConsole(RichConsole):
-        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003
+        def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
             # Force terminal mode to emit ANSI codes
             kwargs["force_terminal"] = True
             console_configs.append(kwargs.copy())
@@ -1869,7 +1869,7 @@ def test_doctor_command_tty_rendering(
 
     # Patch Console in the CLI module to force terminal mode and capture config
     class PatchedConsole(RichConsole):
-        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003
+        def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
             # Force terminal mode to emit ANSI codes
             kwargs["force_terminal"] = True
             console_configs.append(kwargs.copy())
@@ -1911,7 +1911,7 @@ def test_doctor_command_exit_propagation(
 
     # Patch Console in the CLI module to force terminal mode
     class PatchedConsole(RichConsole):
-        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003
+        def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
             kwargs["force_terminal"] = True
             super().__init__(*args, **kwargs)
 
@@ -2161,3 +2161,107 @@ def test_dict_to_toml_escaping() -> None:
     # Parse the result back to verify escaping worked
     parsed = tomllib.loads(result)
     assert parsed["test"]["value"] == 'quote" and backslash\\ here'
+
+
+def test_auto_migrate_if_needed_up_to_date(tmp_path: Path) -> None:
+    """Test auto-migrate skips migration when config is already up to date."""
+    config_path = tmp_path / "rentl.toml"
+    payload = {
+        "project": {
+            "schema_version": {"major": 0, "minor": 1, "patch": 0},
+            "project_name": "test",
+        }
+    }
+
+    result = cli_main._auto_migrate_if_needed(config_path, payload)
+
+    # Should return the same payload unchanged
+    assert result == payload
+    # Should not create a backup
+    assert not (config_path.with_suffix(".toml.bak")).exists()
+
+
+def test_auto_migrate_if_needed_outdated(tmp_path: Path) -> None:
+    """Test auto-migrate upgrades outdated config and creates backup."""
+    config_path = tmp_path / "rentl.toml"
+
+    # Write an old config
+    old_config_content = """[project]
+schema_version = { major = 0, minor = 0, patch = 1 }
+project_name = "test-project"
+
+[project.paths]
+workspace_dir = "."
+input_path = "./input/test.jsonl"
+output_dir = "./out"
+logs_dir = "./logs"
+
+[project.formats]
+input_format = "jsonl"
+output_format = "jsonl"
+
+[project.languages]
+source_language = "ja"
+target_languages = ["en"]
+
+[logging]
+sinks = [
+    { type = "console" },
+]
+
+[endpoint]
+provider_name = "test"
+base_url = "http://localhost"
+api_key_env = "TEST_API_KEY"
+model_id = "test-model"
+"""
+    config_path.write_text(old_config_content, encoding="utf-8")
+
+    # Load the old config
+    with config_path.open("rb") as f:
+        payload = tomllib.load(f)
+
+    # Run auto-migrate
+    result = cli_main._auto_migrate_if_needed(config_path, payload)
+
+    # Should have upgraded the schema version
+    project = cast(dict, result["project"])
+    schema_version = cast(dict, project["schema_version"])
+    assert schema_version["major"] == 0
+    assert schema_version["minor"] == 1
+    assert schema_version["patch"] == 0
+
+    # Should have created a backup
+    backup_path = config_path.with_suffix(".toml.bak")
+    assert backup_path.exists()
+
+    # Backup should contain the original version
+    with backup_path.open("rb") as f:
+        backup = tomllib.load(f)
+    backup_project = cast(dict, backup["project"])
+    backup_schema_version = cast(dict, backup_project["schema_version"])
+    assert backup_schema_version["major"] == 0
+    assert backup_schema_version["minor"] == 0
+    assert backup_schema_version["patch"] == 1
+
+    # Config file should have been updated
+    with config_path.open("rb") as f:
+        updated = tomllib.load(f)
+    updated_project = cast(dict, updated["project"])
+    updated_schema_version = cast(dict, updated_project["schema_version"])
+    assert updated_schema_version["major"] == 0
+    assert updated_schema_version["minor"] == 1
+    assert updated_schema_version["patch"] == 0
+
+
+def test_auto_migrate_if_needed_no_schema_version(tmp_path: Path) -> None:
+    """Test auto-migrate skips migration when no schema_version field exists."""
+    config_path = tmp_path / "rentl.toml"
+    payload = {"project": {"project_name": "test"}}
+
+    result = cli_main._auto_migrate_if_needed(config_path, payload)
+
+    # Should return the same payload unchanged
+    assert result == payload
+    # Should not create a backup
+    assert not (config_path.with_suffix(".toml.bak")).exists()

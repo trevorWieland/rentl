@@ -63,7 +63,7 @@ def test_migration_step_requires_all_fields() -> None:
     """Ensure MigrationStep requires all mandatory fields."""
     # Missing source_version
     with pytest.raises(ValidationError) as exc_info:
-        MigrationStep(  # type: ignore[call-arg]
+        MigrationStep(
             target_version=VersionInfo(major=0, minor=1, patch=0),
             description="Test",
             transform_fn_name="migrate_test",
@@ -73,7 +73,7 @@ def test_migration_step_requires_all_fields() -> None:
 
     # Missing target_version
     with pytest.raises(ValidationError) as exc_info:
-        MigrationStep(  # type: ignore[call-arg]
+        MigrationStep(
             source_version=VersionInfo(major=0, minor=0, patch=1),
             description="Test",
             transform_fn_name="migrate_test",
@@ -83,7 +83,7 @@ def test_migration_step_requires_all_fields() -> None:
 
     # Missing description
     with pytest.raises(ValidationError) as exc_info:
-        MigrationStep(  # type: ignore[call-arg]
+        MigrationStep(
             source_version=VersionInfo(major=0, minor=0, patch=1),
             target_version=VersionInfo(major=0, minor=1, patch=0),
             transform_fn_name="migrate_test",
@@ -93,7 +93,7 @@ def test_migration_step_requires_all_fields() -> None:
 
     # Missing transform_fn_name
     with pytest.raises(ValidationError) as exc_info:
-        MigrationStep(  # type: ignore[call-arg]
+        MigrationStep(
             source_version=VersionInfo(major=0, minor=0, patch=1),
             target_version=VersionInfo(major=0, minor=1, patch=0),
             description="Test",

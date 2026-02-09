@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import subprocess
@@ -41,7 +42,12 @@ from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
 from rentl_core.init import InitAnswers, InitResult, generate_project
 from rentl_core.llm.connection import build_connection_plan, validate_connections
-from rentl_core.migrate import apply_migrations, get_registry, plan_migrations
+from rentl_core.migrate import (
+    ConfigDict,
+    apply_migrations,
+    get_registry,
+    plan_migrations,
+)
 from rentl_core.orchestrator import (
     PipelineOrchestrator,
     PipelineRunContext,
@@ -1442,6 +1448,114 @@ def _resolve_api_key(endpoint: LlmEndpointTarget) -> str | None:
     return os.getenv(endpoint.api_key_env)
 
 
+def _auto_migrate_if_needed(
+    config_path: Path, payload: dict[str, JsonValue]
+) -> dict[str, JsonValue]:
+    """Auto-migrate config if schema version is outdated.
+
+    Args:
+        config_path: Path to the config file
+        payload: Loaded config dict
+
+    Returns:
+        Migrated config dict (or original if already up to date)
+
+    Raises:
+        _ConfigError: If migration fails
+    """
+    console = Console()
+    is_tty = sys.stdout.isatty()
+
+    # Extract current schema version from config
+    try:
+        project_data = payload.get("project")
+        if not isinstance(project_data, dict):
+            # No project section or invalid format — skip migration
+            return payload
+
+        schema_version_data = project_data.get("schema_version")
+        if not schema_version_data or not isinstance(schema_version_data, dict):
+            # No schema_version field or invalid format — skip migration
+            return payload
+
+        current_version = VersionInfo(
+            major=int(schema_version_data.get("major", 0)),
+            minor=int(schema_version_data.get("minor", 0)),
+            patch=int(schema_version_data.get("patch", 0)),
+        )
+    except TypeError, ValueError:
+        # Invalid schema_version format — skip migration
+        return payload
+
+    # Get target version
+    target_version = VersionInfo(
+        major=CURRENT_SCHEMA_VERSION[0],
+        minor=CURRENT_SCHEMA_VERSION[1],
+        patch=CURRENT_SCHEMA_VERSION[2],
+    )
+
+    # Check if migration is needed
+    if current_version >= target_version:
+        return payload
+
+    # Plan migrations
+    registry = get_registry()
+    try:
+        migration_steps = plan_migrations(current_version, target_version, registry)
+    except ValueError as exc:
+        raise _ConfigError(f"Migration planning failed: {exc}") from exc
+
+    if not migration_steps:
+        return payload
+
+    # Log auto-migration
+    if is_tty:
+        console.print(
+            f"\n[yellow]Auto-migrating config:[/yellow] {current_version} → "
+            f"{target_version}",
+            style="bold yellow",
+        )
+    else:
+        print(f"\nAuto-migrating config: {current_version} → {target_version}")
+
+    # Apply migrations
+    try:
+        # Cast to ConfigDict for migration (JsonValue is compatible with ConfigValue)
+        config_dict = cast(ConfigDict, payload)
+        migrated_config = apply_migrations(config_dict, migration_steps, registry)
+    except Exception as exc:
+        raise _ConfigError(f"Auto-migration failed: {exc}") from exc
+
+    # Back up original config
+    backup_path = config_path.with_suffix(".toml.bak")
+    try:
+        backup_path.write_bytes(config_path.read_bytes())
+    except Exception as exc:
+        raise _ConfigError(f"Failed to create backup: {exc}") from exc
+
+    # Write migrated config
+    try:
+        migrated_toml = _dict_to_toml(migrated_config)
+        config_path.write_text(migrated_toml, encoding="utf-8")
+    except Exception as exc:
+        # Attempt to restore from backup
+        with contextlib.suppress(Exception):
+            config_path.write_bytes(backup_path.read_bytes())
+        raise _ConfigError(f"Failed to write migrated config: {exc}") from exc
+
+    # Log success
+    if is_tty:
+        console.print(
+            f"[green]Migration complete:[/green] Backup saved to {backup_path}",
+            style="dim green",
+        )
+    else:
+        print(f"Migration complete: Backup saved to {backup_path}")
+
+    # Cast back to JsonValue dict for validation
+    return cast(dict[str, JsonValue], migrated_config)
+
+
 def _load_run_config(config_path: Path) -> RunConfig:
     _load_dotenv(config_path)
     if not config_path.exists():
@@ -1453,6 +1567,10 @@ def _load_run_config(config_path: Path) -> RunConfig:
         raise _ConfigError(f"Failed to read config: {exc}") from exc
     if not isinstance(payload, dict):
         raise _ConfigError("Config root must be a TOML table")
+
+    # Auto-migrate if schema version is outdated
+    payload = _auto_migrate_if_needed(config_path, payload)
+
     return validate_run_config(payload)
 
 
@@ -3114,7 +3232,7 @@ def migrate(
         print(f"Backup saved to: {backup_path}")
 
 
-def _dict_to_toml(data: dict) -> str:  # type: ignore[type-arg]
+def _dict_to_toml(data: dict) -> str:
     """Convert a dictionary to TOML format string.
 
     Simple TOML serializer that handles the subset of TOML used in rentl configs.
@@ -3155,7 +3273,7 @@ def _dict_to_toml(data: dict) -> str:  # type: ignore[type-arg]
         else:
             return str(value)
 
-    def _write_table(table_data: dict, prefix: str = "") -> None:  # type: ignore[type-arg]
+    def _write_table(table_data: dict, prefix: str = "") -> None:
         """Recursively write tables and their contents."""
         # Separate simple values from nested tables
         simple_keys = []

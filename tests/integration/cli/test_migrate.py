@@ -226,3 +226,46 @@ def then_output_shows_up_to_date(ctx: MigrateContext) -> None:
     assert (
         "already up to date" in ctx.stdout.lower() or "up to date" in ctx.stdout.lower()
     )
+
+
+@when("I load the config via run command")
+def when_load_config_via_run(ctx: MigrateContext, cli_runner: CliRunner) -> None:
+    """Attempt to load config via validate-connection (fails validation).
+
+    Args:
+        ctx: Migrate context with config path.
+        cli_runner: CLI test runner.
+    """
+    assert ctx.config_path is not None
+    # Use "validate-connection" which loads the config
+    # It will fail validation, but we only care about auto-migration
+    ctx.result = cli_runner.invoke(
+        cli_main.app, ["validate-connection", "--config", str(ctx.config_path)]
+    )
+    ctx.stdout = ctx.result.stdout
+
+
+@then("the config is auto-migrated before validation")
+def then_config_auto_migrated(ctx: MigrateContext) -> None:
+    """Assert the config file was auto-migrated."""
+    assert ctx.config_path is not None
+    assert ctx.config_path.exists()
+
+    # Parse the migrated config
+    with ctx.config_path.open("rb") as f:
+        migrated_config = tomllib.load(f)
+
+    # Check schema version was updated
+    schema_version = migrated_config["project"]["schema_version"]
+    assert schema_version["major"] == 0
+    assert schema_version["minor"] == 1
+    assert schema_version["patch"] == 0
+
+
+@then("the output shows auto-migration occurred")
+def then_output_shows_auto_migration(ctx: MigrateContext) -> None:
+    """Assert the output shows auto-migration occurred."""
+    assert (
+        "auto-migrating" in ctx.stdout.lower()
+        or "migration complete" in ctx.stdout.lower()
+    )
