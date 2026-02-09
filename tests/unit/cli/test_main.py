@@ -1419,11 +1419,13 @@ def test_no_hardcoded_exit_codes() -> None:
                 and node.func.attr == "Exit"
             ):
                 # Check if code argument is a hardcoded integer
+                # Allow exit code 1 for check-secrets (scanner convention)
                 for keyword in node.keywords:
                     if (
                         keyword.arg == "code"
                         and isinstance(keyword.value, ast.Constant)
                         and isinstance(keyword.value.value, int)
+                        and keyword.value.value != 1  # Allow exit 1 for check-secrets
                     ):
                         hardcoded_exits.append((
                             getattr(node, "lineno", "unknown"),

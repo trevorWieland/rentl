@@ -65,7 +65,7 @@ def test_check_secrets_hardcoded_api_key(runner: CliRunner, tmp_path: Path) -> N
 
     result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
 
-    assert result.exit_code == 11  # VALIDATION_ERROR
+    assert result.exit_code == 1  # Findings detected
     assert "endpoint.api_key_env contains what looks like a secret" in result.stdout
 
 
@@ -96,7 +96,7 @@ def test_check_secrets_env_file_not_in_gitignore(
 
     result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
 
-    assert result.exit_code == 11  # VALIDATION_ERROR
+    assert result.exit_code == 1  # Findings detected
     assert ".env file exists" in result.stdout
     assert ".gitignore" in result.stdout
 
@@ -139,7 +139,7 @@ def test_check_secrets_nonexistent_config(runner: CliRunner, tmp_path: Path) -> 
 
     result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
 
-    assert result.exit_code == 11  # VALIDATION_ERROR
+    assert result.exit_code == 11  # VALIDATION_ERROR (not a finding, but an error)
     assert "Config file not found" in result.stdout
 
 
@@ -150,7 +150,7 @@ def test_check_secrets_invalid_toml(runner: CliRunner, tmp_path: Path) -> None:
 
     result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
 
-    assert result.exit_code == 11  # VALIDATION_ERROR
+    assert result.exit_code == 11  # VALIDATION_ERROR (not a finding, but an error)
     assert "Failed to parse config" in result.stdout
 
 
@@ -175,5 +175,5 @@ def test_check_secrets_bearer_token_pattern(runner: CliRunner, tmp_path: Path) -
 
     result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
 
-    assert result.exit_code == 11  # VALIDATION_ERROR
+    assert result.exit_code == 1  # Findings detected
     assert "endpoint.api_key_env contains what looks like a secret" in result.stdout

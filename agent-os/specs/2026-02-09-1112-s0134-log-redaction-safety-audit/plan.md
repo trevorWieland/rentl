@@ -47,15 +47,15 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - Acceptance: artifact JSONL files are free of resolved secret values
   - [x] Fix: Preserve Pydantic JSON-mode serialization in redacted artifact writes. Current code uses `model_dump()` + `json.dumps()` and crashes on JSON-encoded fields such as `UUID` (`TypeError: Object of type UUID is not JSON serializable`) at `packages/rentl-io/src/rentl_io/storage/filesystem.py:644` and `packages/rentl-io/src/rentl_io/storage/filesystem.py:659` (audit round 1)
 
-- [ ] Task 5: Implement `rentl check-secrets` CLI command
+- [x] Task 5: Implement `rentl check-secrets` CLI command
   - Add `check-secrets` command to `services/rentl-cli/src/rentl_cli/main.py`
   - Scan `rentl.toml` for `api_key_env` values that look like actual secrets (not env var names)
   - Scan `.env` files for presence (warn if committed / not in .gitignore)
   - Exit 0 for clean, exit 1 for findings
   - Unit tests for scanner logic in `tests/unit/cli/test_check_secrets.py`
   - Acceptance: `rentl check-secrets` catches hardcoded secrets and passes on clean configs
-  - [ ] Fix: Return exit code `1` for findings in `check-secrets` per task contract, and align tests that currently assert `11` (`services/rentl-cli/src/rentl_cli/main.py:2708`, `tests/unit/cli/test_check_secrets.py:68`).
-  - [ ] Fix: Implement `.env` committed-file detection (not just `.gitignore` substring checks) and fail when `.env` is tracked; current logic only reads `.gitignore` text and cannot detect tracked secrets (`services/rentl-cli/src/rentl_cli/main.py:2678`, `services/rentl-cli/src/rentl_cli/main.py:2683`).
+  - [x] Fix: Return exit code `1` for findings in `check-secrets` per task contract, and align tests that currently assert `11` (`services/rentl-cli/src/rentl_cli/main.py:2708`, `tests/unit/cli/test_check_secrets.py:68`).
+  - [x] Fix: Implement `.env` committed-file detection (not just `.gitignore` substring checks) and fail when `.env` is tracked; current logic only reads `.gitignore` text and cannot detect tracked secrets (`services/rentl-cli/src/rentl_cli/main.py:2678`, `services/rentl-cli/src/rentl_cli/main.py:2683`).
 
 - [ ] Task 6: Bootstrap redactor at startup and pass through CLI
   - In the CLI `run-pipeline` and other commands, build the `Redactor` from config + resolved env vars

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import time
 import tomllib
@@ -2673,23 +2674,56 @@ def check_secrets(
     # Check .env files in project directory
     project_dir = config_path.parent
     env_file = project_dir / ".env"
-    gitignore_file = project_dir / ".gitignore"
 
     if env_file.exists():
-        # Check if .env is in .gitignore
-        if gitignore_file.exists():
-            with gitignore_file.open() as gitignore:
-                gitignore_contents = gitignore.read()
-                if ".env" not in gitignore_contents:
-                    findings.append(
-                        f".env file exists at {env_file} but is not in .gitignore "
-                        "(risk of committing secrets)"
-                    )
-        else:
-            findings.append(
-                f".env file exists at {env_file} but no .gitignore found "
-                "(risk of committing secrets)"
+        # Check if .env is tracked in git
+        is_git_repo = False
+        try:
+            # First check if we're in a git repository
+            git_check = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
             )
+            is_git_repo = git_check.returncode == 0
+
+            if is_git_repo:
+                # Check if .env is tracked
+                result = subprocess.run(
+                    ["git", "ls-files", "--error-unmatch", ".env"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                # Exit code 0 means file is tracked
+                if result.returncode == 0:
+                    findings.append(
+                        f".env file at {env_file} is tracked by git "
+                        "(should be in .gitignore to avoid committing secrets)"
+                    )
+        except Exception:
+            # If git command fails, treat as non-git repo
+            is_git_repo = False
+
+        # If not a git repo, fall back to .gitignore check
+        if not is_git_repo:
+            gitignore_file = project_dir / ".gitignore"
+            if gitignore_file.exists():
+                with gitignore_file.open() as gitignore:
+                    gitignore_contents = gitignore.read()
+                    if ".env" not in gitignore_contents:
+                        findings.append(
+                            f".env file exists at {env_file} but is not in .gitignore "
+                            "(risk of committing secrets)"
+                        )
+            else:
+                findings.append(
+                    f".env file exists at {env_file} but no .gitignore found "
+                    "(risk of committing secrets)"
+                )
 
     # Report findings
     if findings:
@@ -2705,7 +2739,7 @@ def check_secrets(
             for finding in findings:
                 print(f"  - {finding}")
             print("\nFAIL: Found potential security issues")
-        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+        raise typer.Exit(code=1)
 
     # Clean - no findings
     if is_tty:
