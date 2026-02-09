@@ -235,3 +235,75 @@ def test_check_secrets_git_repo_untracked_env_no_gitignore_rule(
     assert result.exit_code == 1  # Findings detected
     assert ".env file exists" in result.stdout
     assert ".gitignore" in result.stdout
+
+
+def test_check_secrets_multi_endpoint_hardcoded_secret(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """Test check-secrets detects hardcoded secrets in [[endpoints.endpoints]]."""
+    config_file = tmp_path / "rentl.toml"
+    config_file.write_text(
+        dedent(
+            """
+            [project]
+            schema_version = { major = 0, minor = 1, patch = 0 }
+            project_name = "test"
+
+            [endpoints]
+            default = "primary"
+
+            [[endpoints.endpoints]]
+            provider_name = "primary"
+            base_url = "https://openrouter.ai/api/v1"
+            api_key_env = "RENTL_PRIMARY_KEY"
+            timeout_s = 180
+
+            [[endpoints.endpoints]]
+            provider_name = "secondary"
+            base_url = "https://api.openai.com/v1"
+            api_key_env = "sk-1234567890abcdefghijklmnop"
+            timeout_s = 60
+            """
+        )
+    )
+
+    result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
+
+    assert result.exit_code == 1  # Findings detected
+    assert "endpoints.endpoints[1]" in result.stdout
+    assert "secondary" in result.stdout
+    assert "api_key_env contains what looks like a secret" in result.stdout
+
+
+def test_check_secrets_multi_endpoint_clean(runner: CliRunner, tmp_path: Path) -> None:
+    """Test check-secrets passes with clean multi-endpoint config."""
+    config_file = tmp_path / "rentl.toml"
+    config_file.write_text(
+        dedent(
+            """
+            [project]
+            schema_version = { major = 0, minor = 1, patch = 0 }
+            project_name = "test"
+
+            [endpoints]
+            default = "primary"
+
+            [[endpoints.endpoints]]
+            provider_name = "primary"
+            base_url = "https://openrouter.ai/api/v1"
+            api_key_env = "RENTL_PRIMARY_KEY"
+            timeout_s = 180
+
+            [[endpoints.endpoints]]
+            provider_name = "secondary"
+            base_url = "https://api.openai.com/v1"
+            api_key_env = "RENTL_SECONDARY_KEY"
+            timeout_s = 60
+            """
+        )
+    )
+
+    result = runner.invoke(app, ["check-secrets", "--config", str(config_file)])
+
+    assert result.exit_code == 0
+    assert "PASS" in result.stdout or "No hardcoded secrets detected" in result.stdout

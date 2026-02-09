@@ -2799,6 +2799,20 @@ def check_secrets(
                 "RENTL_OPENROUTER_API_KEY)"
             )
 
+    # Check endpoints.endpoints[].api_key_env (multi-endpoint configs)
+    if "endpoints" in config_data:
+        endpoints_list = config_data["endpoints"].get("endpoints", [])
+        for idx, endpoint in enumerate(endpoints_list):
+            api_key_env = endpoint.get("api_key_env", "")
+            if api_key_env and _looks_like_secret(api_key_env):
+                provider_name = endpoint.get("provider_name", f"[{idx}]")
+                findings.append(
+                    f"endpoints.endpoints[{idx}] ({provider_name}) "
+                    f"api_key_env contains what looks like a secret value: "
+                    f"'{api_key_env[:20]}...' (should be an env var name like "
+                    "RENTL_OPENROUTER_API_KEY)"
+                )
+
     # Check .env files in project directory
     project_dir = config_path.parent
     env_file = project_dir / ".env"
