@@ -4,6 +4,7 @@ import ast
 import asyncio
 import inspect
 import json
+import math
 import textwrap
 import tomllib
 from pathlib import Path
@@ -2094,3 +2095,69 @@ def test_redaction_in_command_logs(
     assert '"event":"redaction_applied"' in content, (
         "No redaction_applied debug event found"
     )
+
+
+def test_dict_to_toml_simple_values() -> None:
+    """Test TOML serialization of simple values."""
+    data = {
+        "project": {
+            "project_name": "test",
+            "enabled": True,
+            "count": 42,
+            "ratio": math.pi,
+        }
+    }
+
+    result = cli_main._dict_to_toml(data)
+
+    # Parse the result back to verify it's valid TOML
+    parsed = tomllib.loads(result)
+    assert parsed["project"]["project_name"] == "test"
+    assert parsed["project"]["enabled"] is True
+    assert parsed["project"]["count"] == 42
+    assert parsed["project"]["ratio"] == math.pi
+
+
+def test_dict_to_toml_nested_tables() -> None:
+    """Test TOML serialization of nested tables."""
+    data = {
+        "project": {
+            "schema_version": {"major": 0, "minor": 1, "patch": 0},
+            "project_name": "test",
+        }
+    }
+
+    result = cli_main._dict_to_toml(data)
+
+    # Parse the result back to verify it's valid TOML
+    parsed = tomllib.loads(result)
+    assert parsed["project"]["schema_version"]["major"] == 0
+    assert parsed["project"]["schema_version"]["minor"] == 1
+    assert parsed["project"]["schema_version"]["patch"] == 0
+
+
+def test_dict_to_toml_arrays() -> None:
+    """Test TOML serialization of arrays."""
+    data = {
+        "project": {"target_languages": ["en", "fr", "de"]},
+        "logging": {"sinks": [{"type": "console"}, {"type": "file"}]},
+    }
+
+    result = cli_main._dict_to_toml(data)
+
+    # Parse the result back to verify it's valid TOML
+    parsed = tomllib.loads(result)
+    assert parsed["project"]["target_languages"] == ["en", "fr", "de"]
+    assert len(parsed["logging"]["sinks"]) == 2
+    assert parsed["logging"]["sinks"][0]["type"] == "console"
+
+
+def test_dict_to_toml_escaping() -> None:
+    """Test TOML serialization handles escaping correctly."""
+    data = {"test": {"value": 'quote" and backslash\\ here'}}
+
+    result = cli_main._dict_to_toml(data)
+
+    # Parse the result back to verify escaping worked
+    parsed = tomllib.loads(result)
+    assert parsed["test"]["value"] == 'quote" and backslash\\ here'

@@ -41,6 +41,7 @@ from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
 from rentl_core.init import InitAnswers, InitResult, generate_project
 from rentl_core.llm.connection import build_connection_plan, validate_connections
+from rentl_core.migrate import apply_migrations, get_registry, plan_migrations
 from rentl_core.orchestrator import (
     PipelineOrchestrator,
     PipelineRunContext,
@@ -140,6 +141,7 @@ from rentl_schemas.storage import (
     StorageReference,
 )
 from rentl_schemas.validation import validate_run_config
+from rentl_schemas.version import CURRENT_SCHEMA_VERSION, VersionInfo
 
 INPUT_OPTION = typer.Option(
     ..., "--input", "-i", help="JSONL file of TranslatedLine records"
@@ -2912,6 +2914,285 @@ def check_secrets(
         )
     else:
         print("PASS: No hardcoded secrets detected")
+
+
+@app.command()
+def migrate(
+    config_path: Path = CONFIG_OPTION,
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would change without writing"
+    ),
+) -> None:
+    """Migrate rentl.toml config file to the current schema version.
+
+    Detects the current schema version in the config file, plans all necessary
+    migration steps to reach the current version, and applies them. The original
+    file is backed up to rentl.toml.bak before any changes are written.
+
+    With --dry-run, shows what migrations would be applied without modifying files.
+
+    Raises:
+        typer.Exit: With appropriate exit code if migration fails or config invalid.
+    """
+    console = Console()
+    is_tty = sys.stdout.isatty()
+
+    # Check if config file exists
+    if not config_path.exists():
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Config file not found: {config_path}",
+                style="red",
+            )
+        else:
+            print(f"Error: Config file not found: {config_path}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+
+    # Load TOML config
+    try:
+        with config_path.open("rb") as config_file:
+            config_data = tomllib.load(config_file)
+    except Exception as exc:
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Failed to parse config: {exc}", style="red"
+            )
+        else:
+            print(f"Error: Failed to parse config: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Extract current schema version from config
+    try:
+        schema_version_data = config_data.get("project", {}).get("schema_version")
+        if not schema_version_data:
+            if is_tty:
+                console.print(
+                    "[red]Error:[/red] No schema_version field found in config",
+                    style="red",
+                )
+            else:
+                print("Error: No schema_version field found in config")
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+
+        current_version = VersionInfo(
+            major=schema_version_data.get("major", 0),
+            minor=schema_version_data.get("minor", 0),
+            patch=schema_version_data.get("patch", 0),
+        )
+    except Exception as exc:
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Invalid schema_version format: {exc}", style="red"
+            )
+        else:
+            print(f"Error: Invalid schema_version format: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Get target version
+    target_version = VersionInfo(
+        major=CURRENT_SCHEMA_VERSION[0],
+        minor=CURRENT_SCHEMA_VERSION[1],
+        patch=CURRENT_SCHEMA_VERSION[2],
+    )
+
+    # Plan migrations
+    registry = get_registry()
+    try:
+        migration_steps = plan_migrations(current_version, target_version, registry)
+    except ValueError as exc:
+        if is_tty:
+            console.print(f"[red]Error:[/red] {exc}", style="red")
+        else:
+            print(f"Error: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Check if already up to date
+    if not migration_steps:
+        if is_tty:
+            console.print(
+                f"[green]Already up to date:[/green] Config is at version "
+                f"{current_version}",
+                style="bold green",
+            )
+        else:
+            print(f"Already up to date: Config is at version {current_version}")
+        return
+
+    # Display migration plan
+    if is_tty:
+        table = Table(title="Migration Plan", show_header=True)
+        table.add_column("From", style="cyan")
+        table.add_column("To", style="cyan")
+        table.add_column("Description")
+
+        for step in migration_steps:
+            table.add_row(
+                str(step.source_version), str(step.target_version), step.description
+            )
+
+        console.print(table)
+        console.print(f"\n[bold]Source version:[/bold] {current_version}", style="bold")
+        console.print(f"[bold]Target version:[/bold] {target_version}", style="bold")
+    else:
+        print("Migration Plan:")
+        for step in migration_steps:
+            print(
+                f"  {step.source_version} → {step.target_version}: {step.description}"
+            )
+        print(f"\nSource version: {current_version}")
+        print(f"Target version: {target_version}")
+
+    # Dry-run mode: exit after showing plan
+    if dry_run:
+        if is_tty:
+            console.print(
+                "\n[yellow]Dry-run mode:[/yellow] No changes written", style="bold"
+            )
+        else:
+            print("\nDry-run mode: No changes written")
+        return
+
+    # Apply migrations
+    try:
+        migrated_config = apply_migrations(config_data, migration_steps, registry)
+    except Exception as exc:
+        if is_tty:
+            console.print(f"[red]Error:[/red] Migration failed: {exc}", style="red")
+        else:
+            print(f"Error: Migration failed: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Back up original config
+    backup_path = config_path.with_suffix(".toml.bak")
+    try:
+        backup_path.write_bytes(config_path.read_bytes())
+    except Exception as exc:
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Failed to create backup: {exc}", style="red"
+            )
+        else:
+            print(f"Error: Failed to create backup: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Write migrated config
+    try:
+        migrated_toml = _dict_to_toml(migrated_config)
+        config_path.write_text(migrated_toml, encoding="utf-8")
+    except Exception as exc:
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] Failed to write migrated config: {exc}",
+                style="red",
+            )
+        else:
+            print(f"Error: Failed to write migrated config: {exc}")
+        # Attempt to restore from backup
+        try:
+            config_path.write_bytes(backup_path.read_bytes())
+            if is_tty:
+                console.print(
+                    "[yellow]Restored original config from backup[/yellow]",
+                    style="yellow",
+                )
+            else:
+                print("Restored original config from backup")
+        except Exception:
+            pass  # Best effort restore
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Success
+    if is_tty:
+        console.print(
+            f"\n[green]Migration complete:[/green] {current_version} → "
+            f"{target_version}",
+            style="bold green",
+        )
+        console.print(f"[dim]Backup saved to:[/dim] {backup_path}")
+    else:
+        print(f"\nMigration complete: {current_version} → {target_version}")
+        print(f"Backup saved to: {backup_path}")
+
+
+def _dict_to_toml(data: dict) -> str:  # type: ignore[type-arg]
+    """Convert a dictionary to TOML format string.
+
+    Simple TOML serializer that handles the subset of TOML used in rentl configs.
+    Supports nested tables, strings, integers, floats, booleans, and arrays.
+
+    Args:
+        data: Dictionary to serialize to TOML
+
+    Returns:
+        TOML-formatted string
+    """
+    lines: list[str] = []
+
+    def _write_value(value: object) -> str:
+        """Serialize a single value to TOML format.
+
+        Args:
+            value: Value to serialize
+
+        Returns:
+            TOML-formatted string representation of the value
+        """
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        elif isinstance(value, int | float):
+            return str(value)
+        elif isinstance(value, str):
+            # Escape quotes and backslashes
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            return f'"{escaped}"'
+        elif isinstance(value, list):
+            items = [_write_value(item) for item in value]
+            return f"[{', '.join(items)}]"
+        elif isinstance(value, dict):
+            # Inline table
+            items = [f"{k} = {_write_value(v)}" for k, v in value.items()]
+            return f"{{ {', '.join(items)} }}"
+        else:
+            return str(value)
+
+    def _write_table(table_data: dict, prefix: str = "") -> None:  # type: ignore[type-arg]
+        """Recursively write tables and their contents."""
+        # Separate simple values from nested tables
+        simple_keys = []
+        table_keys = []
+
+        for key, value in table_data.items():
+            if isinstance(value, dict) and not all(
+                isinstance(v, int | float | str | bool) for v in value.values()
+            ):
+                table_keys.append(key)
+            else:
+                simple_keys.append(key)
+
+        # Write simple key-value pairs
+        if simple_keys:
+            if prefix:
+                lines.append(f"[{prefix}]")
+            for key in simple_keys:
+                value = table_data[key]
+                lines.append(f"{key} = {_write_value(value)}")
+            if table_keys:
+                lines.append("")  # Blank line before nested tables
+
+        # Write nested tables
+        for key in table_keys:
+            value = table_data[key]
+            new_prefix = f"{prefix}.{key}" if prefix else key
+            _write_table(value, new_prefix)
+            lines.append("")  # Blank line between tables
+
+    _write_table(data)
+
+    # Remove trailing blank lines
+    while lines and not lines[-1]:
+        lines.pop()
+
+    return "\n".join(lines) + "\n"
 
 
 def _looks_like_secret(value: str) -> bool:

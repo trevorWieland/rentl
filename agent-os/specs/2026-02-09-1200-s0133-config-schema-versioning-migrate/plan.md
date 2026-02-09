@@ -36,7 +36,7 @@ The `rentl.toml` config already carries a `schema_version` field but has no migr
   - [x] Fix: Remove `Any`/untyped `dict` usage from migration type signatures to satisfy `strict-typing-enforcement` (`packages/rentl-core/src/rentl_core/migrate.py:6`, `packages/rentl-core/src/rentl_core/migrate.py:12`, `packages/rentl-core/src/rentl_core/migrate.py:129`) (audit round 1)
   - [x] Fix: Replace `object` in migration config typing with a concrete recursively-typed config value alias to satisfy `strict-typing-enforcement` (`packages/rentl-core/src/rentl_core/migrate.py:11`) (audit round 2)
 
-- [ ] Task 4: Add `rentl migrate` CLI Command
+- [x] Task 4: Add `rentl migrate` CLI Command
   - Add `migrate` command to Typer CLI in `main.py`
   - Accepts `--config` and `--dry-run` options
   - Reads TOML, detects version, plans migrations
