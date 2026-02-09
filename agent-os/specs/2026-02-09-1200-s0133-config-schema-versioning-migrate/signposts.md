@@ -10,3 +10,9 @@
 - **Solution:** Changed `_transforms` dict key from `transform_fn_name` (string) to `(source_version, target_version)` tuple. Each migration edge is now uniquely identified regardless of function name. Updated `get_transform()` to accept a `MigrationStep` and derive the key from its version fields.
 - **Resolution:** do-task round 2 (2026-02-09)
 - **Files affected:** `packages/rentl-core/src/rentl_core/migrate.py`, `packages/rentl-core/tests/unit/core/test_migrate.py` (added regression test `test_same_function_name_different_migrations`)
+
+- **Task:** Task 3
+- **Status:** unresolved
+- **Problem:** Migration config typing still uses `object` in `ConfigDict`, which violates this spec's `strict-typing-enforcement` rule.
+- **Evidence:** `packages/rentl-core/src/rentl_core/migrate.py:11` defines `type ConfigDict = dict[str, object]`; `standards.md` rule 2 requires no `Any` or `object` in migration types.
+- **Impact:** The task-level strict typing requirement remains unmet and can mask invalid migration data shapes at type-check time.
