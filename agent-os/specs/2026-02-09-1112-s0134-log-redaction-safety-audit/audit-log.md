@@ -9,3 +9,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 2** (round 2): PASS — nested list recursion and strict typing fixes are implemented; redaction tests pass.
 - **Task 3** (round 1): PASS — log sinks are redaction-wrapped via composition, and unit/integration redaction tests pass.
 - **Task 4** (round 1): FAIL — redacted artifact serialization uses `model_dump()` + `json.dumps()`, which crashes on JSON-encoded schema fields like `UUID` instead of producing redacted artifacts.
+- **Task 4** (round 2): PASS — artifact redaction preserves JSON-mode serialization (`mode=\"json\"`) and redaction tests pass, including UUID-containing payloads.
