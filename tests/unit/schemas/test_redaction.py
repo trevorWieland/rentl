@@ -1,6 +1,7 @@
 """Unit tests for secret redaction."""
 
 import math
+from typing import cast
 
 from rentl_schemas.redaction import (
     DEFAULT_PATTERNS,
@@ -131,9 +132,11 @@ def test_redactor_dict_nested() -> None:
     }
     result = redactor.redact_dict(data)
 
-    assert result["outer"]["inner"]["secret"] == "[REDACTED]"
-    assert result["outer"]["inner"]["safe"] == "ok"
-    assert result["outer"]["also_safe"] == "ok"
+    outer = cast(dict[str, str | dict], result["outer"])
+    inner = cast(dict[str, str], outer["inner"])
+    assert inner["secret"] == "[REDACTED]"
+    assert inner["safe"] == "ok"
+    assert outer["also_safe"] == "ok"
 
 
 def test_redactor_dict_with_list() -> None:
@@ -171,7 +174,8 @@ def test_redactor_dict_mixed_types() -> None:
     assert result["bool"] is True
     assert result["none"] is None
     assert result["list"] == [1, "[REDACTED]", None]
-    assert result["dict"]["nested"] == "[REDACTED]"
+    nested_dict = cast(dict[str, str], result["dict"])
+    assert nested_dict["nested"] == "[REDACTED]"
 
 
 def test_env_var_names_not_redacted() -> None:
@@ -290,3 +294,31 @@ def test_no_false_positive_on_short_strings() -> None:
     for safe in safe_strings:
         result = redactor.redact(safe)
         assert result == safe, f"False positive: '{safe}' was redacted"
+
+
+def test_redactor_dict_with_nested_list_of_dicts() -> None:
+    """Ensure redact_dict recurses into dicts inside lists."""
+    redactor = Redactor(patterns=[], literal_values=["secret123"])
+
+    data = {
+        "items": [
+            {"nested": "secret123", "safe": "ok"},
+            {"another": "secret123"},
+            "plain string secret123",
+        ],
+        "count": 3,
+    }
+    result = redactor.redact_dict(data)
+
+    # Type assertions to help the type checker
+    items = result["items"]
+    assert isinstance(items, list)
+    assert isinstance(items[0], dict)
+    assert isinstance(items[1], dict)
+    assert isinstance(items[2], str)
+
+    assert items[0]["nested"] == "[REDACTED]"
+    assert items[0]["safe"] == "ok"
+    assert items[1]["another"] == "[REDACTED]"
+    assert items[2] == "plain string [REDACTED]"
+    assert result["count"] == 3

@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from pydantic import Field
 
 from rentl_schemas.base import BaseSchema
+
+if TYPE_CHECKING:
+    # Recursive type for JSON-like data structures
+    JsonValue = (
+        str | int | float | bool | dict[str, "JsonValue"] | list["JsonValue"] | None
+    )
 
 
 class SecretPattern(BaseSchema):
@@ -19,7 +26,7 @@ class SecretPattern(BaseSchema):
         default=None, description="Compiled regex (set during initialization)"
     )
 
-    def model_post_init(self, __context: object) -> None:
+    def model_post_init(self, __context: dict[str, str] | None) -> None:
         """Compile the pattern after initialization."""
         if self.compiled is None:
             self.compiled = re.compile(self.pattern)
@@ -98,7 +105,7 @@ class Redactor:
 
         return result
 
-    def redact_dict(self, data: dict[str, Any]) -> dict[str, Any]:
+    def redact_dict(self, data: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         """Deep-walk a dict and redact all string values.
 
         Args:
@@ -107,19 +114,37 @@ class Redactor:
         Returns:
             New dictionary with secrets redacted
         """
-        result: dict[str, Any] = {}
+        result: dict[str, JsonValue] = {}
         for key, value in data.items():
             if isinstance(value, str):
                 result[key] = self.redact(value)
             elif isinstance(value, dict):
                 result[key] = self.redact_dict(value)
             elif isinstance(value, list):
-                result[key] = [
-                    self.redact(item) if isinstance(item, str) else item
-                    for item in value
-                ]
+                result[key] = self._redact_list(value)
             else:
                 result[key] = value
+        return result
+
+    def _redact_list(self, items: list[JsonValue]) -> list[JsonValue]:
+        """Recursively redact all string values in a list.
+
+        Args:
+            items: List that may contain secrets in strings or nested structures
+
+        Returns:
+            New list with secrets redacted
+        """
+        result: list[JsonValue] = []
+        for item in items:
+            if isinstance(item, str):
+                result.append(self.redact(item))
+            elif isinstance(item, dict):
+                result.append(self.redact_dict(item))
+            elif isinstance(item, list):
+                result.append(self._redact_list(item))
+            else:
+                result.append(item)
         return result
 
 
