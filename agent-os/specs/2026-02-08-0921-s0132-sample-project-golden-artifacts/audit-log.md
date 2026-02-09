@@ -22,3 +22,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now 1
 - **Task 7** (round 4): PASS — Quality-layer smoke test uses `RENTL_QUALITY_API_KEY`/`RENTL_QUALITY_BASE_URL`, skips cleanly when unset, and retains per-phase + export-schema assertions.
 - **Demo** (run 2): PASS — All 7 steps passed; post-audit verification successful
+- **Spec Audit** (round 2): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now 0
