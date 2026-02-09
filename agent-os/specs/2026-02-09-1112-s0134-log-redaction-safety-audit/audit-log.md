@@ -22,3 +22,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 8** (round 1): PASS — `check-secrets` now scans `[[endpoints.endpoints]]` `api_key_env` fields and reports hardcoded-secret findings; added multi-endpoint regression tests pass.
 - **Task 9** (round 1): PASS — `.env` ignore evaluation now uses `git check-ignore` in git repos (eliminating `.env.example` false positives), with regression coverage validating the case.
 - **Demo** (run 3): PASS — All demo steps pass: log/console/artifact redaction tests pass, config scanner correctly detects hardcoded secrets and passes on clean configs.
+- **Spec Audit** (round 2): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0.
