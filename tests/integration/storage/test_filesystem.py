@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
@@ -10,17 +11,20 @@ from uuid import UUID
 from pydantic import Field
 from pytest_bdd import given, scenarios, then, when
 
+from rentl_io.storage import build_log_sink
 from rentl_io.storage.filesystem import (
     FileSystemArtifactStore,
     FileSystemLogStore,
     FileSystemRunStateStore,
 )
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.config import LoggingConfig, LogSinkConfig
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.pipeline import RunMetadata, RunState
 from rentl_schemas.primitives import (
     ArtifactId,
     LogLevel,
+    LogSinkType,
     PhaseName,
     PhaseStatus,
     RunId,
@@ -32,6 +36,7 @@ from rentl_schemas.progress import (
     ProgressSummary,
     RunProgress,
 )
+from rentl_schemas.redaction import RedactionConfig, SecretPattern, build_redactor
 from rentl_schemas.storage import (
     ArtifactFormat,
     ArtifactMetadata,
@@ -285,3 +290,59 @@ def then_log_file_exists(ctx: StorageContext) -> None:
     assert ctx.log_reference.location.path is not None
     log_path = Path(ctx.log_reference.location.path)
     assert log_path.exists(), f"Log file not found: {log_path}"
+
+
+# --- Log Redaction Integration Test ---
+
+
+def test_log_sink_redacts_secrets_end_to_end(tmp_path: Path) -> None:
+    """Integration test: log sink redacts secrets before writing to file."""
+    # Setup
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb700")
+    log_store = FileSystemLogStore(logs_dir=str(tmp_path / "logs"))
+    logging_config = LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.FILE)])
+    config = RedactionConfig(
+        patterns=[SecretPattern(pattern=r"sk-[a-zA-Z0-9]{20,}", label="API key")],
+        env_var_names=["TEST_SECRET"],
+    )
+    redactor = build_redactor(config, {"TEST_SECRET": "my-secret-value-123"})
+    sink = build_log_sink(logging_config, log_store, redactor=redactor)
+
+    # Write a log entry with secrets
+    entry = LogEntry(
+        timestamp="2026-02-09T12:00:00Z",
+        level=LogLevel.INFO,
+        event="test_event",
+        run_id=run_id,
+        phase=None,
+        message="Using key sk-abc123def456ghi789jkl012 and value my-secret-value-123",
+        data={
+            "api_key": "sk-abc123def456ghi789jkl012",
+            "secret": "my-secret-value-123",
+            "safe": "public-data",
+        },
+    )
+
+    asyncio.run(sink.emit_log(entry))
+
+    # Read the log file back
+    log_file_ref = asyncio.run(log_store.get_log_reference(run_id))
+    assert log_file_ref is not None
+    assert log_file_ref.location.path is not None
+    log_path = Path(log_file_ref.location.path)
+    assert log_path.exists()
+
+    # Verify redaction occurred
+    log_lines = log_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(log_lines) == 1
+    payload = json.loads(log_lines[0])
+
+    # Check message is redacted
+    assert "[REDACTED]" in payload["message"]
+    assert "sk-abc123def456ghi789jkl012" not in payload["message"]
+    assert "my-secret-value-123" not in payload["message"]
+
+    # Check data is redacted
+    assert payload["data"]["api_key"] == "[REDACTED]"
+    assert payload["data"]["secret"] == "[REDACTED]"
+    assert payload["data"]["safe"] == "public-data"

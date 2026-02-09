@@ -31,7 +31,7 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - [x] Fix: Make `Redactor.redact_dict` recurse into container values inside lists so all nested strings are redacted (currently `list[dict]` secrets leak). Evidence: `{'items': [{'nested': 'secret123'}, '[REDACTED]']}` from a direct call to `redact_dict`; code path at `packages/rentl-schemas/src/rentl_schemas/redaction.py:117` (audit round 1)
   - [x] Fix: Remove `Any`/`object` typing from redaction core to satisfy `python/strict-typing-enforcement` ("No `Any` or `object` types"). Current violations at `packages/rentl-schemas/src/rentl_schemas/redaction.py:6`, `packages/rentl-schemas/src/rentl_schemas/redaction.py:22`, and `packages/rentl-schemas/src/rentl_schemas/redaction.py:101` (audit round 1)
 
-- [ ] Task 3: Wire redaction into log sinks
+- [x] Task 3: Wire redaction into log sinks
   - Modify `build_log_sink()` in `packages/rentl-io/src/rentl_io/storage/log_sink.py` to accept a `Redactor`
   - `StorageLogSink` and `ConsoleLogSink` apply `redact_dict` to `entry.data` and `redact` to `entry.message` before writing
   - `CompositeLogSink` passes redactor to child sinks

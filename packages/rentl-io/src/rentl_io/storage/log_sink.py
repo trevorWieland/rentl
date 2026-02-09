@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Iterable
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
 
 from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
 from rentl_schemas.config import LoggingConfig
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.primitives import LogSinkType
+
+if TYPE_CHECKING:
+    from rentl_schemas.redaction import Redactor
 
 
 class StorageLogSink(LogSinkProtocol):
@@ -64,11 +67,44 @@ class NoopLogSink(LogSinkProtocol):
         return None
 
 
+class RedactingLogSink(LogSinkProtocol):
+    """Log sink wrapper that redacts secrets before forwarding to a delegate sink."""
+
+    def __init__(self, delegate: LogSinkProtocol, redactor: Redactor) -> None:
+        """Initialize the redacting log sink.
+
+        Args:
+            delegate: Underlying sink to forward redacted entries to
+            redactor: Redactor instance to apply before writing
+        """
+        self._delegate = delegate
+        self._redactor = redactor
+
+    async def emit_log(self, entry: LogEntry) -> None:
+        """Redact secrets from entry before forwarding to delegate sink."""
+        # Redact the message field
+        redacted_message = self._redactor.redact(entry.message)
+
+        # Redact the data field if present
+        redacted_data = None
+        if entry.data is not None:
+            redacted_data = self._redactor.redact_dict(entry.data)
+
+        # Create a new entry with redacted values
+        redacted_entry = entry.model_copy(
+            update={"message": redacted_message, "data": redacted_data}
+        )
+
+        # Forward to delegate
+        await self._delegate.emit_log(redacted_entry)
+
+
 def build_log_sink(
     logging_config: LoggingConfig,
     log_store: LogStoreProtocol,
     *,
     stream: TextIO | None = None,
+    redactor: Redactor | None = None,
 ) -> LogSinkProtocol:
     """Build a log sink from configuration.
 
@@ -76,6 +112,7 @@ def build_log_sink(
         logging_config: Logging configuration for the run.
         log_store: Log store for file-backed logging.
         stream: Optional stream for console logging.
+        redactor: Optional redactor to apply before writing logs.
 
     Returns:
         LogSinkProtocol: Configured log sink.
@@ -93,6 +130,11 @@ def build_log_sink(
             sinks.append(NoopLogSink())
         else:
             raise ValueError(f"Unsupported log sink type: {sink_config.type}")
+
+    # Wrap each sink with redaction if a redactor is provided
+    if redactor is not None:
+        sinks = [RedactingLogSink(sink, redactor) for sink in sinks]
+
     if len(sinks) == 1:
         return sinks[0]
     return CompositeLogSink(sinks)
