@@ -14,7 +14,7 @@ In this demo, we'll prove that secret values are automatically redacted from all
 
 4. **Verify artifact redaction** — If any artifact data could contain the secret (e.g., error messages referencing the key), confirm it's redacted in the artifact JSONL.
 
-5. **Run the config scanner on a bad config** — Create a temporary `rentl.toml` with a hardcoded API key value (e.g., `api_key_env = "sk-hardcoded-secret"` instead of an env var name). Run `rentl check-secrets` and confirm it flags the issue with exit code 1.
+5. **Run the config scanner on a bad config** — Create a temporary `rentl.toml` with a hardcoded API key value (e.g., `api_key_env = "sk-hardcodedsecret1234567890abc"` instead of an env var name). Run `rentl check-secrets` and confirm it flags the issue with exit code 1.
 
 6. **Run the config scanner on a clean config** — Run `rentl check-secrets` on the normal `rentl.toml` (which uses env var names). Confirm it passes clean with exit code 0.
 
