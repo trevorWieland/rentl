@@ -19,3 +19,9 @@
 - **Solution:** Replaced `object` with a recursively-typed `ConfigValue` alias that explicitly models valid TOML value types: `str | int | float | bool | list[ConfigValue] | dict[str, ConfigValue]`. This preserves flexibility for nested structures while maintaining strict type safety.
 - **Resolution:** do-task round 3 (2026-02-09)
 - **Files affected:** `packages/rentl-core/src/rentl_core/migrate.py`
+
+- **Task:** Task 4
+- **Status:** unresolved
+- **Problem:** The `rentl migrate` flow reports success but does not update the config's source-of-truth schema version at `project.schema_version`; the seed transform writes a new top-level `schema_version` string instead.
+- **Evidence:** `packages/rentl-core/src/rentl_core/migrate.py:198` sets `migrated["schema_version"] = "0.1.0"`; `tests/integration/cli/test_migrate.py:167` expects `migrated_config["project"]["schema_version"]["minor"] == 1`; running `pytest -q tests/integration/cli/test_migrate.py` fails with `E assert 0 == 1`.
+- **Impact:** Task 4 acceptance ("applies migrations" to current schema) is not met in practice, and Non-negotiable #2 (`schema_version` field is the single source of truth) is violated by writing a side-channel top-level version field.
