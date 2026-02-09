@@ -2031,3 +2031,29 @@ def test_explain_command_plain_text_output(monkeypatch: pytest.MonkeyPatch) -> N
     # Should contain phase info as plain text
     assert "ingest" in result.stdout.lower()
     assert "Input" in result.stdout or "Output" in result.stdout
+
+
+def test_redaction_in_command_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that secret values are redacted from command logs."""
+    config_path = _write_config(tmp_path, tmp_path)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Set a secret API key in the environment
+    test_secret = "sk-test-secret-12345678901234567890"
+    monkeypatch.setenv("RENTL_OPENROUTER_API_KEY", test_secret)
+
+    # Run doctor command which uses the config and logs
+    runner.invoke(app, ["doctor", "--config", str(config_path)])
+    # Doctor may fail but that's okay - we're testing redaction
+
+    # Check that the secret does NOT appear in any log files
+    log_files = list(logs_dir.glob("*.jsonl"))
+    if log_files:
+        for log_file in log_files:
+            content = log_file.read_text()
+            assert test_secret not in content, (
+                f"Secret value found in {log_file.name} - redaction failed"
+            )

@@ -59,7 +59,7 @@ Rentl stores API keys as env var references in config (`api_key_env`), but resol
   - [x] Fix: In git repos, still flag `.env` files that exist but are not in `.gitignore`; current `is_git_repo` path checks only tracked files and skips `.gitignore` checks, causing false PASS (`services/rentl-cli/src/rentl_cli/main.py:2692`, `services/rentl-cli/src/rentl_cli/main.py:2712`) (audit round 2).
   - [x] Fix: Add a regression test for a git repo with an existing untracked `.env` and no ignore rule, asserting findings exit code `1` (`tests/unit/cli/test_check_secrets.py`) (audit round 2).
 
-- [ ] Task 6: Bootstrap redactor at startup and pass through CLI
+- [x] Task 6: Bootstrap redactor at startup and pass through CLI
   - In the CLI `run-pipeline` and other commands, build the `Redactor` from config + resolved env vars
   - Pass it to `build_log_sink()` and artifact storage
   - Emit debug-level log when redaction occurs

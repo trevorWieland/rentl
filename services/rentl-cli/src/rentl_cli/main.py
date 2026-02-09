@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import tomllib
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from enum import Enum
@@ -52,7 +53,11 @@ from rentl_core.ports.orchestrator import (
     OrchestrationError,
     ProgressSinkProtocol,
 )
-from rentl_core.ports.storage import StorageBatchError, StorageError
+from rentl_core.ports.storage import (
+    ArtifactStoreProtocol,
+    StorageBatchError,
+    StorageError,
+)
 from rentl_io import write_output
 from rentl_io.export.router import get_export_adapter
 from rentl_io.ingest.router import get_ingest_adapter
@@ -93,6 +98,7 @@ from rentl_schemas.phases import (
 from rentl_schemas.pipeline import PhaseRunRecord, RunState
 from rentl_schemas.primitives import (
     PIPELINE_PHASE_ORDER,
+    ArtifactId,
     FileFormat,
     JsonValue,
     LanguageCode,
@@ -113,7 +119,12 @@ from rentl_schemas.progress import (
     ProgressUpdate,
     RunProgress,
 )
-from rentl_schemas.redaction import DEFAULT_PATTERNS
+from rentl_schemas.redaction import (
+    DEFAULT_PATTERNS,
+    RedactionConfig,
+    Redactor,
+    build_redactor,
+)
 from rentl_schemas.responses import (
     ApiResponse,
     ErrorResponse,
@@ -122,7 +133,12 @@ from rentl_schemas.responses import (
     RunStatusResult,
 )
 from rentl_schemas.results import PhaseResultMetric, ResultMetricUnit
-from rentl_schemas.storage import LogFileReference, StorageBackend, StorageReference
+from rentl_schemas.storage import (
+    ArtifactMetadata,
+    LogFileReference,
+    StorageBackend,
+    StorageReference,
+)
 from rentl_schemas.validation import validate_run_config
 
 INPUT_OPTION = typer.Option(
@@ -813,6 +829,7 @@ def run_pipeline(
                 log_sink=bundle.log_sink,
                 progress_sink=reporter,
                 progress_path=bundle.progress_path,
+                redactor=bundle.redactor,
             )
         log_sink = bundle.log_sink
         args: dict[str, JsonValue] = {
@@ -1068,11 +1085,81 @@ class _ConfigError(Exception):
 
 class _StorageBundle(NamedTuple):
     run_state_store: FileSystemRunStateStore
-    artifact_store: FileSystemArtifactStore
+    artifact_store: ArtifactStoreProtocol
     log_store: FileSystemLogStore
     log_sink: LogSinkProtocol
     progress_sink: ProgressSinkProtocol
     progress_path: Path
+    redactor: Redactor | None
+
+
+_ModelT = TypeVar("_ModelT", bound=BaseSchema)
+
+
+class _RedactingArtifactStore:
+    """Artifact store wrapper that automatically injects redactor."""
+
+    def __init__(
+        self, delegate: FileSystemArtifactStore, redactor: Redactor | None
+    ) -> None:
+        """Initialize the wrapper.
+
+        Args:
+            delegate: Underlying artifact store
+            redactor: Redactor to inject into write operations
+        """
+        self._delegate = delegate
+        self._redactor = redactor
+
+    async def write_artifact_json(
+        self, metadata: ArtifactMetadata, payload: BaseSchema
+    ) -> ArtifactMetadata:
+        """Write a JSON artifact (delegates without redaction).
+
+        Returns:
+            ArtifactMetadata: Stored artifact metadata.
+        """
+        return await self._delegate.write_artifact_json(metadata, payload)
+
+    async def write_artifact_jsonl(
+        self, metadata: ArtifactMetadata, payload: Sequence[BaseSchema]
+    ) -> ArtifactMetadata:
+        """Write a JSONL artifact with automatic redaction.
+
+        Returns:
+            ArtifactMetadata: Stored artifact metadata.
+        """
+        return await self._delegate.write_artifact_jsonl(
+            metadata, payload, redactor=self._redactor
+        )
+
+    async def list_artifacts(self, run_id: RunId) -> list[ArtifactMetadata]:
+        """List artifacts for a run.
+
+        Returns:
+            list[ArtifactMetadata]: List of artifacts for the run.
+        """
+        return await self._delegate.list_artifacts(run_id)
+
+    async def load_artifact_json(
+        self, artifact_id: ArtifactId, model: type[_ModelT]
+    ) -> _ModelT:
+        """Load a JSON artifact.
+
+        Returns:
+            _ModelT: Parsed artifact model.
+        """
+        return await self._delegate.load_artifact_json(artifact_id, model)
+
+    async def load_artifact_jsonl(
+        self, artifact_id: ArtifactId, model: type[_ModelT]
+    ) -> list[_ModelT]:
+        """Load a JSONL artifact.
+
+        Returns:
+            list[_ModelT]: List of parsed artifact models.
+        """
+        return await self._delegate.load_artifact_jsonl(artifact_id, model)
 
 
 def _now_timestamp() -> str:
@@ -1181,7 +1268,8 @@ def _resolve_agent_paths(config: RunConfig) -> RunConfig:
 
 def _build_command_log_sink(config: RunConfig) -> LogSinkProtocol:
     log_store = FileSystemLogStore(logs_dir=config.project.paths.logs_dir)
-    return build_log_sink(config.logging, log_store)
+    redactor = _build_redactor(config)
+    return build_log_sink(config.logging, log_store, redactor=redactor)
 
 
 async def _emit_command_log(log_sink: LogSinkProtocol, entry: LogEntry) -> None:
@@ -1508,6 +1596,40 @@ def _ensure_api_key(config: RunConfig, phases: list[PhaseName]) -> None:
             )
 
 
+def _build_redactor(config: RunConfig) -> Redactor:
+    """Build a redactor from config and resolved env var values.
+
+    Args:
+        config: Runtime configuration with endpoint definitions
+
+    Returns:
+        Redactor: Configured redactor instance
+    """
+    # Collect all api_key_env names from config
+    env_var_names: list[str] = []
+
+    # Legacy single endpoint
+    if config.endpoint is not None:
+        env_var_names.append(config.endpoint.api_key_env)
+
+    # Multi-endpoint configuration
+    if config.endpoints is not None:
+        for endpoint in config.endpoints.endpoints:
+            env_var_names.append(endpoint.api_key_env)
+
+    # Build redaction config with default patterns
+    redaction_config = RedactionConfig(
+        patterns=DEFAULT_PATTERNS, env_var_names=env_var_names
+    )
+
+    # Collect actual env var values
+    env_values = {
+        name: os.environ[name] for name in env_var_names if name in os.environ
+    }
+
+    return build_redactor(redaction_config, env_values)
+
+
 def _build_storage_bundle(
     config: RunConfig,
     run_id: RunId,
@@ -1522,15 +1644,19 @@ def _build_storage_bundle(
     log_store = FileSystemLogStore(logs_dir=config.project.paths.logs_dir)
     progress_path = _progress_path(config.project.paths.logs_dir, run_id)
     logging_config = _build_logging_config(config, allow_console_logs)
-    log_sink = build_log_sink(logging_config, log_store)
+    redactor = _build_redactor(config)
+    log_sink = build_log_sink(logging_config, log_store, redactor=redactor)
     file_progress_sink = FileSystemProgressSink(str(progress_path))
+    raw_artifact_store = FileSystemArtifactStore(base_dir=str(artifact_dir))
+    wrapped_artifact_store = _RedactingArtifactStore(raw_artifact_store, redactor)
     return _StorageBundle(
         run_state_store=FileSystemRunStateStore(base_dir=str(run_state_dir)),
-        artifact_store=FileSystemArtifactStore(base_dir=str(artifact_dir)),
+        artifact_store=wrapped_artifact_store,
         log_store=log_store,
         log_sink=log_sink,
         progress_sink=progress_sink or file_progress_sink,
         progress_path=progress_path,
+        redactor=redactor,
     )
 
 
@@ -1738,7 +1864,7 @@ def _latest_phase_records(
 
 
 async def _load_artifact_jsonl[ModelT: BaseSchema](
-    store: FileSystemArtifactStore,
+    store: ArtifactStoreProtocol,
     artifact_id: UUID,
     model: type[ModelT],
 ) -> list[ModelT]:
@@ -1746,7 +1872,7 @@ async def _load_artifact_jsonl[ModelT: BaseSchema](
 
 
 async def _load_single_artifact[ModelT: BaseSchema](
-    store: FileSystemArtifactStore,
+    store: ArtifactStoreProtocol,
     artifact_id: UUID,
     model: type[ModelT],
 ) -> ModelT | None:
