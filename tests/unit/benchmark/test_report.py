@@ -1,5 +1,9 @@
-"""Unit tests for benchmark report schemas."""
+"""Unit tests for benchmark report schemas and report generation."""
 
+from rentl_core.benchmark.report import (
+    BenchmarkReportBuilder,
+    format_report_summary,
+)
 from rentl_schemas.benchmark.report import (
     BenchmarkReport,
     EloRating,
@@ -289,3 +293,355 @@ def test_benchmark_report_no_slice() -> None:
         overall_ranking=["sys1", "sys2"],
     )
     assert report.slice_name is None
+
+
+# --- BenchmarkReportBuilder Tests ---
+
+
+def test_build_pairwise_summary_basic() -> None:
+    """Test building pairwise summary from head-to-head results."""
+    results = [
+        HeadToHeadResult(
+            line_id="line1",
+            source_text="源1",
+            candidate_a_name="rentl",
+            candidate_b_name="mtl",
+            translation_a="Trans A1",
+            translation_b="Trans B1",
+            winner="A",
+            reasoning="A is better",
+            dimension_winners={
+                RubricDimension.ACCURACY: "A",
+                RubricDimension.STYLE_FIDELITY: "B",
+                RubricDimension.CONSISTENCY: "tie",
+            },
+        ),
+        HeadToHeadResult(
+            line_id="line2",
+            source_text="源2",
+            candidate_a_name="rentl",
+            candidate_b_name="mtl",
+            translation_a="Trans A2",
+            translation_b="Trans B2",
+            winner="B",
+            reasoning="B is better",
+            dimension_winners={
+                RubricDimension.ACCURACY: "B",
+                RubricDimension.STYLE_FIDELITY: "A",
+                RubricDimension.CONSISTENCY: "A",
+            },
+        ),
+    ]
+
+    summary = BenchmarkReportBuilder.build_pairwise_summary(results, "rentl", "mtl")
+
+    assert summary.candidate_a_name == "rentl"
+    assert summary.candidate_b_name == "mtl"
+    assert summary.total_comparisons == 2
+    assert summary.candidate_a_wins == 1
+    assert summary.candidate_b_wins == 1
+    assert summary.ties == 0
+
+    # Check dimension win rates
+    assert summary.dimension_win_rates[RubricDimension.ACCURACY]["A"] == 0.5
+    assert summary.dimension_win_rates[RubricDimension.ACCURACY]["B"] == 0.5
+    assert summary.dimension_win_rates[RubricDimension.ACCURACY]["tie"] == 0.0
+
+    assert summary.dimension_win_rates[RubricDimension.STYLE_FIDELITY]["A"] == 0.5
+    assert summary.dimension_win_rates[RubricDimension.STYLE_FIDELITY]["B"] == 0.5
+
+    assert summary.dimension_win_rates[RubricDimension.CONSISTENCY]["A"] == 0.5
+    assert summary.dimension_win_rates[RubricDimension.CONSISTENCY]["tie"] == 0.5
+
+
+def test_build_pairwise_summary_with_ties() -> None:
+    """Test pairwise summary calculation with ties."""
+    results = [
+        HeadToHeadResult(
+            line_id="line1",
+            source_text="源1",
+            candidate_a_name="a",
+            candidate_b_name="b",
+            translation_a="Trans A",
+            translation_b="Trans B",
+            winner="tie",
+            reasoning="Equal",
+        ),
+        HeadToHeadResult(
+            line_id="line2",
+            source_text="源2",
+            candidate_a_name="a",
+            candidate_b_name="b",
+            translation_a="Trans A",
+            translation_b="Trans B",
+            winner="tie",
+            reasoning="Equal",
+        ),
+    ]
+
+    summary = BenchmarkReportBuilder.build_pairwise_summary(results, "a", "b")
+
+    assert summary.candidate_a_wins == 0
+    assert summary.candidate_b_wins == 0
+    assert summary.ties == 2
+
+
+def test_build_pairwise_summary_empty_results() -> None:
+    """Test pairwise summary with empty results list."""
+    summary = BenchmarkReportBuilder.build_pairwise_summary([], "a", "b")
+
+    assert summary.total_comparisons == 0
+    assert summary.candidate_a_wins == 0
+    assert summary.candidate_b_wins == 0
+    assert summary.ties == 0
+
+    # Should handle division by zero gracefully
+    for dimension in RubricDimension:
+        assert summary.dimension_win_rates[dimension]["A"] == 0.0
+        assert summary.dimension_win_rates[dimension]["B"] == 0.0
+        assert summary.dimension_win_rates[dimension]["tie"] == 0.0
+
+
+def test_compute_elo_ratings_basic() -> None:
+    """Test Elo rating computation from pairwise summaries."""
+    pairwise = [
+        PairwiseSummary(
+            candidate_a_name="winner",
+            candidate_b_name="loser",
+            total_comparisons=10,
+            candidate_a_wins=8,
+            candidate_b_wins=2,
+            ties=0,
+        )
+    ]
+
+    ratings = BenchmarkReportBuilder.compute_elo_ratings(["winner", "loser"], pairwise)
+
+    # Winner should have higher rating than initial
+    winner_rating = next(r for r in ratings if r.candidate_name == "winner")
+    loser_rating = next(r for r in ratings if r.candidate_name == "loser")
+
+    assert winner_rating.rating > 1500.0
+    assert loser_rating.rating < 1500.0
+
+
+def test_compute_elo_ratings_ties() -> None:
+    """Test Elo rating computation with ties."""
+    pairwise = [
+        PairwiseSummary(
+            candidate_a_name="a",
+            candidate_b_name="b",
+            total_comparisons=10,
+            candidate_a_wins=0,
+            candidate_b_wins=0,
+            ties=10,
+        )
+    ]
+
+    ratings = BenchmarkReportBuilder.compute_elo_ratings(["a", "b"], pairwise)
+
+    # Both should remain at initial rating with all ties
+    a_rating = next(r for r in ratings if r.candidate_name == "a")
+    b_rating = next(r for r in ratings if r.candidate_name == "b")
+
+    # Ratings should be very close to initial (small rounding differences allowed)
+    assert abs(a_rating.rating - 1500.0) < 1.0
+    assert abs(b_rating.rating - 1500.0) < 1.0
+
+
+def test_compute_elo_ratings_three_way() -> None:
+    """Test Elo rating computation with 3 candidates."""
+    pairwise = [
+        PairwiseSummary(
+            candidate_a_name="best",
+            candidate_b_name="mid",
+            total_comparisons=10,
+            candidate_a_wins=8,
+            candidate_b_wins=2,
+            ties=0,
+        ),
+        PairwiseSummary(
+            candidate_a_name="best",
+            candidate_b_name="worst",
+            total_comparisons=10,
+            candidate_a_wins=10,
+            candidate_b_wins=0,
+            ties=0,
+        ),
+        PairwiseSummary(
+            candidate_a_name="mid",
+            candidate_b_name="worst",
+            total_comparisons=10,
+            candidate_a_wins=7,
+            candidate_b_wins=3,
+            ties=0,
+        ),
+    ]
+
+    ratings = BenchmarkReportBuilder.compute_elo_ratings(
+        ["best", "mid", "worst"], pairwise
+    )
+
+    best_rating = next(r for r in ratings if r.candidate_name == "best")
+    mid_rating = next(r for r in ratings if r.candidate_name == "mid")
+    worst_rating = next(r for r in ratings if r.candidate_name == "worst")
+
+    # Should be ordered correctly
+    assert best_rating.rating > mid_rating.rating
+    assert mid_rating.rating > worst_rating.rating
+
+
+def test_build_report() -> None:
+    """Test building complete benchmark report."""
+    head_to_head = [
+        HeadToHeadResult(
+            line_id="line1",
+            source_text="源",
+            candidate_a_name="a",
+            candidate_b_name="b",
+            translation_a="Trans A",
+            translation_b="Trans B",
+            winner="A",
+            reasoning="A wins",
+        )
+    ]
+    pairwise = [
+        PairwiseSummary(
+            candidate_a_name="a",
+            candidate_b_name="b",
+            total_comparisons=1,
+            candidate_a_wins=1,
+            candidate_b_wins=0,
+            ties=0,
+        )
+    ]
+    elo_ratings = [
+        EloRating(candidate_name="a", rating=1520.0),
+        EloRating(candidate_name="b", rating=1480.0),
+    ]
+
+    report = BenchmarkReportBuilder.build_report(
+        eval_set="test-set",
+        slice_name="test-slice",
+        judge_model="gpt-4o",
+        candidates=["a", "b"],
+        head_to_head_results=head_to_head,
+        pairwise_summaries=pairwise,
+        elo_ratings=elo_ratings,
+        overall_ranking=["a", "b"],
+    )
+
+    assert report.eval_set == "test-set"
+    assert report.slice_name == "test-slice"
+    assert report.judge_model == "gpt-4o"
+    assert report.candidates == ["a", "b"]
+    assert len(report.head_to_head_results) == 1
+    assert len(report.pairwise_summaries) == 1
+    assert len(report.elo_ratings) == 2
+    assert report.overall_ranking == ["a", "b"]
+
+
+def test_format_report_summary_basic() -> None:
+    """Test formatting report as human-readable summary."""
+    head_to_head = [
+        HeadToHeadResult(
+            line_id="line1",
+            source_text="源",
+            candidate_a_name="rentl",
+            candidate_b_name="mtl",
+            translation_a="Trans A",
+            translation_b="Trans B",
+            winner="A",
+            reasoning="A wins",
+        )
+    ]
+    pairwise = [
+        PairwiseSummary(
+            candidate_a_name="rentl",
+            candidate_b_name="mtl",
+            total_comparisons=10,
+            candidate_a_wins=7,
+            candidate_b_wins=2,
+            ties=1,
+            dimension_win_rates={
+                RubricDimension.ACCURACY: {"A": 0.7, "B": 0.2, "tie": 0.1},
+                RubricDimension.STYLE_FIDELITY: {"A": 0.6, "B": 0.3, "tie": 0.1},
+            },
+        )
+    ]
+    elo_ratings = [
+        EloRating(candidate_name="rentl", rating=1542.3),
+        EloRating(candidate_name="mtl", rating=1457.7),
+    ]
+    report = BenchmarkReport(
+        eval_set="katawa-shoujo",
+        slice_name="demo",
+        judge_model="gpt-4o",
+        candidates=["rentl", "mtl"],
+        head_to_head_results=head_to_head,
+        pairwise_summaries=pairwise,
+        elo_ratings=elo_ratings,
+        overall_ranking=["rentl", "mtl"],
+    )
+
+    summary = format_report_summary(report)
+
+    # Check key parts are present
+    assert "=== Benchmark Report: katawa-shoujo ===" in summary
+    assert "Slice: demo" in summary
+    assert "Judge Model: gpt-4o" in summary
+    assert "rentl" in summary
+    assert "mtl" in summary
+    assert "Elo 1542.3" in summary
+    assert "Elo 1457.7" in summary
+    assert "7 wins" in summary
+    assert "2 wins" in summary
+    assert "Ties: 1" in summary
+    assert "accuracy" in summary
+    assert "style_fidelity" in summary
+
+
+def test_format_report_summary_no_slice() -> None:
+    """Test formatting report with no slice."""
+    head_to_head = [
+        HeadToHeadResult(
+            line_id="line1",
+            source_text="源",
+            candidate_a_name="a",
+            candidate_b_name="b",
+            translation_a="Trans A",
+            translation_b="Trans B",
+            winner="tie",
+            reasoning="Equal",
+        )
+    ]
+    pairwise = [
+        PairwiseSummary(
+            candidate_a_name="a",
+            candidate_b_name="b",
+            total_comparisons=1,
+            candidate_a_wins=0,
+            candidate_b_wins=0,
+            ties=1,
+        )
+    ]
+    elo_ratings = [
+        EloRating(candidate_name="a", rating=1500.0),
+        EloRating(candidate_name="b", rating=1500.0),
+    ]
+    report = BenchmarkReport(
+        eval_set="test-set",
+        slice_name=None,
+        judge_model="gpt-4o",
+        candidates=["a", "b"],
+        head_to_head_results=head_to_head,
+        pairwise_summaries=pairwise,
+        elo_ratings=elo_ratings,
+        overall_ranking=["a", "b"],
+    )
+
+    summary = format_report_summary(report)
+
+    # Should not include slice line
+    assert "Slice:" not in summary
+    assert "=== Benchmark Report: test-set ===" in summary
