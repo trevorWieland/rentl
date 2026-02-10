@@ -1232,10 +1232,10 @@ def benchmark_compare(
         help="Paths to 2+ rentl run output JSONL files",
         metavar="OUTPUT_PATH...",
     ),
-    candidate_names: list[str] | None = typer.Option(  # noqa: B008
+    candidate_names: str | None = typer.Option(
         None,
         "--candidate-names",
-        help="Human-readable names for candidates (defaults to filenames)",
+        help="Comma-separated names for candidates (defaults to filenames)",
     ),
     judge_model: str | None = typer.Option(
         None, "--judge-model", help="Override judge model ID"
@@ -1254,10 +1254,15 @@ def benchmark_compare(
 
     Requires ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable.
     """
+    # Parse comma-separated candidate names
+    parsed_names = None
+    if candidate_names:
+        parsed_names = [name.strip() for name in candidate_names.split(",")]
+
     asyncio.run(
         _benchmark_compare_async(
             output_paths,
-            candidate_names,
+            parsed_names,
             judge_model,
             judge_base_url,
             output,

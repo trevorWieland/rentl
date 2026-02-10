@@ -154,9 +154,7 @@ def run_benchmark_compare(ctx: BenchmarkContext) -> None:
             "--output",
             str(ctx.report_path),
             "--candidate-names",
-            "candidate-a",
-            "--candidate-names",
-            "candidate-b",
+            "candidate-a,candidate-b",
         ],
         env={
             "OPENAI_API_KEY": api_key,
