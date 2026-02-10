@@ -62,7 +62,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Remove stale `RubricJudge` monkeypatch from `tests/integration/benchmark/test_cli_command.py:179` and `tests/integration/benchmark/test_cli_command.py:183` (`pytest -q tests/integration/benchmark/test_cli_command.py` currently fails with `AttributeError: module 'rentl_cli.main' has no attribute 'RubricJudge'`) (audit round 7; see signposts.md Task 4 stale CLI BDD mismatch)
   - [x] Fix: Align `tests/features/benchmark/cli_command.feature:6` and `tests/integration/benchmark/test_cli_command.py:329`/`tests/integration/benchmark/test_cli_command.py:489` with current benchmark command stub behavior in `services/rentl-cli/src/rentl_cli/main.py:1113`-`services/rentl-cli/src/rentl_cli/main.py:1115` so stale success/API-key assertions no longer fail the Task 4 benchmark CLI integration suite (audit round 7; see signposts.md Task 4 stale CLI BDD mismatch)
 
-- [ ] Task 5: Revise judge for pairwise-only comparison
+- [x] Task 5: Revise judge for pairwise-only comparison
   - **Remove** `score_translation` method (isolated scoring)
   - **Remove** reference-based/reference-free mode distinction from judge
   - **Keep and adapt** `compare_head_to_head` for pairwise use:

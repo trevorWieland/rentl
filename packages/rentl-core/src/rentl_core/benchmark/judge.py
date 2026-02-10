@@ -1,7 +1,7 @@
 """LLM-as-judge for translation quality evaluation.
 
-Scores translations using rubric-based evaluation with configurable judge model.
-Supports reference-based, reference-free, and head-to-head comparison modes.
+Compares translations head-to-head using rubric-based evaluation with configurable
+judge model. Evaluates accuracy, style fidelity, and consistency with source text.
 """
 
 import asyncio
@@ -22,8 +22,9 @@ from rentl_schemas.llm import LlmPromptRequest, LlmRuntimeSettings
 class RubricJudge:
     """LLM-as-judge for rubric-based translation evaluation.
 
-    Scores translations on accuracy, style fidelity, and consistency using
-    structured prompts and output parsing. Supports multiple scoring modes.
+    Compares translations pairwise on accuracy, style fidelity, and consistency
+    using structured prompts and output parsing. Supports randomized A/B order
+    to reduce position bias.
     """
 
     def __init__(
@@ -60,9 +61,9 @@ class RubricJudge:
         Returns:
             Structured comparison prompt
         """
-        return f"""You are comparing two translations from Japanese to English.
+        return f"""You are comparing two translations of the same source text.
 
-Source text (Japanese):
+Source text:
 {source_text}
 
 Translation A:
@@ -76,7 +77,8 @@ plus which wins on each dimension.
 
 Dimensions:
 1. ACCURACY: Which translation more faithfully conveys the source meaning?
-2. STYLE FIDELITY: Which translation reads more naturally and appropriately in English?
+2. STYLE FIDELITY: Which translation reads more naturally and appropriately
+   in the target language?
 3. CONSISTENCY: Which translation uses more consistent terminology and naming?
 
 For ties, use "tie" if both translations are equally good or equally flawed.
