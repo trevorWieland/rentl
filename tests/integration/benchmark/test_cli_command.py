@@ -92,6 +92,19 @@ def then_command_exits_with_usage_error(ctx: BenchmarkCLIContext) -> None:
     )
 
 
+@then("the command exits with status 1")
+def then_command_exits_with_error(ctx: BenchmarkCLIContext) -> None:
+    """Verify command exited with status 1 (general error).
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert ctx.result is not None
+    assert ctx.result.exit_code == 1, (
+        f"Expected exit code 1, got {ctx.result.exit_code}"
+    )
+
+
 @then("the output indicates a subcommand is required")
 def then_output_indicates_subcommand_required(ctx: BenchmarkCLIContext) -> None:
     """Verify output indicates a subcommand is required.
