@@ -133,7 +133,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Add integration test: `rentl benchmark download --eval-set katawa-shoujo --slice demo` succeeds
   - Verify existing unit tests still pass (they use snake_case directly in Python, which is fine)
 
-- [ ] Task 10: Use project endpoint config for benchmark compare judge
+- [x] Task 10: Use project endpoint config for benchmark compare judge
   - **Critical**: `_benchmark_compare_async` hardcodes `os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")` at `services/rentl-cli/src/rentl_cli/main.py:1320` — must use the codebase's endpoint config system instead
   - **Remove** hardcoded API key checks (`main.py:1319-1326`)
   - **Remove** hardcoded `provider_name="openai"` and `api_key_env="OPENAI_API_KEY"` (`main.py:1334`, `main.py:1336`)
@@ -153,8 +153,8 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Update benchmark compare integration tests to validate config-driven endpoint resolution and override-mode behavior; current coverage still only injects `OPENAI_API_KEY` with no `--config` in `tests/integration/benchmark/test_cli_command.py:320` and `tests/integration/benchmark/test_cli_command.py:420` (audit round 1)
   - [x] Fix: Update quality benchmark test to use project endpoint config (`--config`) instead of only `--judge-base-url` + direct `OPENAI_API_KEY` injection (`tests/quality/benchmark/test_benchmark_quality.py:152`, `tests/quality/benchmark/test_benchmark_quality.py:160`) (audit round 1)
   - [x] Fix: Update demo Step 3 command to include `--config` per Task 10 contract (`agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:16`) (audit round 1)
-  - [ ] Fix: Repair new override-mode BDD scenarios to provide a `ctx` fixture; `pytest -q tests/integration/benchmark/test_cli_command.py` fails with `fixture 'ctx' not found` for `tests/features/benchmark/cli_command.feature:38` and `tests/features/benchmark/cli_command.feature:44` because steps require `ctx` in `tests/integration/benchmark/test_cli_command.py:525` and `tests/integration/benchmark/test_cli_command.py:562` (audit round 2)
-  - [ ] Fix: Remove remaining hardcoded judge token budget in compare runtime settings; `services/rentl-cli/src/rentl_cli/main.py:1454` still sets `max_output_tokens=4096` instead of deriving from config/default model settings or explicit CLI options per Task 10 contract (see signposts.md: Task 10 endpoint-config migration) (audit round 2)
+  - [x] Fix: Repair new override-mode BDD scenarios to provide a `ctx` fixture; `pytest -q tests/integration/benchmark/test_cli_command.py` fails with `fixture 'ctx' not found` for `tests/features/benchmark/cli_command.feature:38` and `tests/features/benchmark/cli_command.feature:44` because steps require `ctx` in `tests/integration/benchmark/test_cli_command.py:525` and `tests/integration/benchmark/test_cli_command.py:562` (audit round 2)
+  - [x] Fix: Remove remaining hardcoded judge token budget in compare runtime settings; `services/rentl-cli/src/rentl_cli/main.py:1454` still sets `max_output_tokens=4096` instead of deriving from config/default model settings or explicit CLI options per Task 10 contract (see signposts.md: Task 10 endpoint-config migration) (audit round 2)
 
 - [ ] Task 11: Make judge response parsing robust across model families
   - **Problem**: Judge parser at `packages/rentl-core/src/rentl_core/benchmark/judge.py:114-127` fails when models produce verbose reasoning before JSON, reasoning/thinking tokens that consume the output budget, or slightly malformed JSON

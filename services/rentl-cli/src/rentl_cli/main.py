@@ -1375,6 +1375,8 @@ async def _benchmark_compare_async(
                 )
                 raise typer.Exit(code=1)
             model_id = judge_model
+            # In override mode, use ModelSettings default for max_output_tokens
+            max_output_tokens = 4096
         else:
             # Config-based mode - load config for judge endpoint
             _load_dotenv(config_path)
@@ -1439,6 +1441,17 @@ async def _benchmark_compare_async(
                 )
                 raise typer.Exit(code=1)
 
+            # Derive max_output_tokens from config if available
+            if (
+                config.pipeline
+                and config.pipeline.default_model
+                and config.pipeline.default_model.max_output_tokens is not None
+            ):
+                max_output_tokens = config.pipeline.default_model.max_output_tokens
+            else:
+                # Use ModelSettings default
+                max_output_tokens = 4096
+
         # Check that the API key is available
         api_key = os.getenv(api_key_env_name)
         if not api_key:
@@ -1451,7 +1464,7 @@ async def _benchmark_compare_async(
             model=LlmModelSettings(
                 model_id=model_id,
                 temperature=0.7,
-                max_output_tokens=4096,  # Increased from 2000 for verbose models
+                max_output_tokens=max_output_tokens,
                 reasoning_effort=ReasoningEffort.MEDIUM,
                 top_p=1.0,
                 presence_penalty=0.0,

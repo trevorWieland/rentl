@@ -140,6 +140,15 @@
 - **Resolution:** do-task round 14 (2026-02-10)
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
 
+- **Task:** Task 10 BDD fixture and token budget
+- **Status:** resolved
+- **Problem:** Two remaining audit-round-2 fix items blocked Task 10 completion: (1) Override-mode BDD scenarios failed with `fixture 'ctx' not found` because `given_two_translation_output_files` expected `ctx` as input instead of creating it via `target_fixture`. (2) `max_output_tokens=4096` was hardcoded in runtime settings at `main.py:1454` instead of deriving from config's `default_model.max_output_tokens`.
+- **Evidence:** `pytest -q tests/integration/benchmark/test_cli_command.py` failed on scenarios at `tests/features/benchmark/cli_command.feature:38` and `tests/features/benchmark/cli_command.feature:44` with `fixture 'ctx' not found` error. The test step at `tests/integration/benchmark/test_cli_command.py:187` expected `ctx: BenchmarkCLIContext` but had no fixture providing it for scenarios starting with "Given two translation output files exist". The hardcoded token budget at `main.py:1454` violated Task 10 contract requiring config-derived values.
+- **Impact:** Task 10 could not be checked off because two audit fix items remained unresolved. BDD scenarios for override mode were non-functional. Token budget was not configurable per the task contract.
+- **Solution:** (1) Modified `given_two_translation_output_files` to use `target_fixture="ctx"` and create/return a new `BenchmarkCLIContext` instance. (2) Introduced `max_output_tokens` variable set to 4096 in override mode (ModelSettings default) or derived from `config.pipeline.default_model.max_output_tokens` in config-based mode, with 4096 fallback. Updated runtime settings to use the variable instead of hardcoded value.
+- **Resolution:** do-task round 15 (2026-02-10)
+- **Files affected:** `tests/integration/benchmark/test_cli_command.py`, `services/rentl-cli/src/rentl_cli/main.py`
+
 - **Task:** Task 11
 - **Status:** unresolved
 - **Problem:** The benchmark judge response parser fails across multiple model families during real-world use. Models that produce reasoning/thinking tokens before JSON, or that generate verbose output exceeding the hardcoded 2000-token limit, cause parse failures that abort the entire benchmark run.

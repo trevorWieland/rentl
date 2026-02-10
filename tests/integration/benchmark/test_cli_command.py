@@ -182,16 +182,17 @@ def then_download_succeeds(ctx: BenchmarkCLIContext) -> None:
     )
 
 
-@given("two translation output files exist")
-def given_two_translation_output_files(
-    ctx: BenchmarkCLIContext, tmp_path: Path
-) -> None:
+@given("two translation output files exist", target_fixture="ctx")
+def given_two_translation_output_files(tmp_path: Path) -> BenchmarkCLIContext:
     """Create two mock translation output files.
 
     Args:
-        ctx: Benchmark CLI context.
         tmp_path: Temporary directory for test files.
+
+    Returns:
+        BenchmarkCLIContext with output files configured.
     """
+    ctx = BenchmarkCLIContext()
     # Create minimal translation output files with 3 lines each
     lines_a = [
         {
@@ -245,6 +246,8 @@ def given_two_translation_output_files(
     with ctx.output_file_b.open("w") as f:
         for line in lines_b:
             f.write(json.dumps(line) + "\n")
+
+    return ctx
 
 
 @when("I run benchmark compare with staggered judge responses")
