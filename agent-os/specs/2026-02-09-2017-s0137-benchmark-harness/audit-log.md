@@ -11,3 +11,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 2** (round 2): PASS — Task 2 schema contract remains satisfied in current tree; strict typed Pydantic models and benchmark schema tests still pass (32/32).
 - **Task 4** (round 1): FAIL — Integration test uses direct pytest assertions instead of required BDD Given/When/Then structure for integration tier scenarios.
 - **Task 4** (round 2): FAIL — BDD conversion is present but broken: async `When` step is never awaited, so integration scenarios do not execute and required prompt/result assertions fail.
+- **Task 4** (round 3): FAIL — Metadata assertions in Task 4 unit/integration tests are partially no-op because expected-value checks were accidentally placed inside comments after `# type: ignore`.

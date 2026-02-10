@@ -42,7 +42,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - [x] Fix: Replace placeholder empty-file SHA-256 values in `manifest.json` with real KSRE script hashes; current committed hashes (`e3b0...`) fail runtime validation and break downloader flow (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json:6`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:92`) (audit round 2, see signposts.md: Task 3, manifest hash mismatch)
   - [x] Fix: Update `demo` slice to include the required content mix (dialogue, narration, choices, multiple speakers) and add test coverage that asserts those content properties for the configured slice (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json:8`, `tests/unit/benchmark/eval_sets/test_loader.py:21`) (audit round 2, see signposts.md: Task 3, demo slice content mismatch)
 
-- [x] Task 4: MTL baseline generator
+- [ ] Task 4: MTL baseline generator
   - Create `rentl-core/src/rentl_core/benchmark/mtl_baseline.py`
   - Minimal translation prompt: "Translate the following Japanese text to English:" + source text
   - No context injection, no QA, no edit phases — raw single-shot LLM translation
@@ -53,6 +53,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - Integration tests: mocked LLM, validates correct prompt structure
   - [x] Fix: Rewrite `tests/integration/benchmark/test_mtl_baseline_flow.py` using BDD Given/When/Then scenarios (`pytest-bdd`) instead of direct pytest assertions to satisfy `testing/bdd-for-integration-quality` and `testing/three-tier-test-structure` (`agent-os/standards/testing/bdd-for-integration-quality.md:3`, `agent-os/standards/testing/three-tier-test-structure.md:33`) (audit round 1)
   - [x] Fix: Make the BDD `When I generate MTL baseline translations` step execute the async translation flow; current async step is not awaited (`RuntimeWarning: coroutine 'when_generate_baseline' was never awaited`), leaving `ctx.results` unset and prompt capture empty (`tests/integration/benchmark/test_mtl_baseline_flow.py:172`, `tests/integration/benchmark/test_mtl_baseline_flow.py:202`, `tests/integration/benchmark/test_mtl_baseline_flow.py:274`) (audit round 2)
+  - [ ] Fix: Correct metadata assertions that currently comment out equality checks after `# type: ignore`, so tests fail to validate exact `mtl_baseline` and `model` values (`tests/unit/benchmark/test_mtl_baseline.py:139`, `tests/unit/benchmark/test_mtl_baseline.py:140`, `tests/unit/benchmark/test_mtl_baseline.py:230`, `tests/integration/benchmark/test_mtl_baseline_flow.py:252`, `tests/integration/benchmark/test_mtl_baseline_flow.py:253`) (audit round 3)
 
 - [ ] Task 5: Rubric judge implementation
   - Create `rentl-core/src/rentl_core/benchmark/judge.py`
