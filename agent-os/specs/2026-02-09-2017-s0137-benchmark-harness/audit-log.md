@@ -75,3 +75,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 11): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (800 unit + 85 integration + 5 quality tests).
 - **Spec Audit** (round 9): FAIL — Rubric `4/4/4/5/3`, non-negotiables PASS, demo latest PASS (run 11), fix-now count 2 (OpenRouter override-mode `config` regression + missing integration coverage for that path).
 - **Demo** (run 12): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (800 unit + 86 integration + 5 quality tests).
+- **Spec Audit** (round 10): PASS — Rubric `5/5/5/5/5`, non-negotiables PASS, demo latest PASS (run 12), fix-now count 0.

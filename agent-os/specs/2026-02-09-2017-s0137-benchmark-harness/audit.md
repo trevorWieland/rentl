@@ -1,51 +1,50 @@
-status: fail
-fix_now_count: 2
+status: pass
+fix_now_count: 0
 
 # Audit: s0.1.37 Benchmark Harness v0.1
 
 - Spec: s0.1.37
 - Issue: https://github.com/trevorWieland/rentl/issues/37
 - Date: 2026-02-10
-- Round: 9
+- Round: 10
 
 ## Rubric Scores (1-5)
-- Performance: 4/5
-- Intent: 4/5
-- Completion: 4/5
+- Performance: 5/5
+- Intent: 5/5
+- Completion: 5/5
 - Security: 5/5
-- Stability: 3/5
+- Stability: 5/5
 
 ## Non-Negotiable Compliance
-1. **No committed copyrighted text**: **PASS** — eval-set artifacts contain metadata/hashes only (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json:1`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json:1`), and source text is downloaded at runtime with hash validation (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:13`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:87`).
-2. **Apples-to-apples comparison**: **PASS** — compare validates matching line IDs before judging (`services/rentl-cli/src/rentl_cli/main.py:1319`, `services/rentl-cli/src/rentl_cli/main.py:1321`, `packages/rentl-core/src/rentl_core/benchmark/output_loader.py:67`) and uses one judge configuration for all pair tasks (`services/rentl-cli/src/rentl_cli/main.py:1467`, `services/rentl-cli/src/rentl_cli/main.py:1510`).
-3. **Scores must include per-line evidence**: **PASS** — per-line reasoning is required in schema (`packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:33`) and persisted in report output (`packages/rentl-schemas/src/rentl_schemas/benchmark/report.py:51`).
-4. **Benchmark must be runnable standalone**: **PASS** — first-class CLI subcommands exist for both flows (`services/rentl-cli/src/rentl_cli/main.py:1097`, `services/rentl-cli/src/rentl_cli/main.py:1226`) and are executed directly via CLI entrypoints (`services/rentl-cli/src/rentl_cli/main.py:1114`, `services/rentl-cli/src/rentl_cli/main.py:1266`).
+1. **No committed copyrighted text**: **PASS** — only metadata/hashes are committed (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json:1`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json:1`), while source scripts are downloaded and hash-validated at runtime (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:33`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:87`).
+2. **Apples-to-apples comparison**: **PASS** — compare enforces shared line-ID coverage before judging (`services/rentl-cli/src/rentl_cli/main.py:1319`, `services/rentl-cli/src/rentl_cli/main.py:1321`, `packages/rentl-core/src/rentl_core/benchmark/output_loader.py:67`) and runs all pair tasks through one judge configuration (`services/rentl-cli/src/rentl_cli/main.py:1466`, `services/rentl-cli/src/rentl_cli/main.py:1509`).
+3. **Scores must include per-line evidence**: **PASS** — per-line reasoning is required by schema (`packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:33`), persisted in report line items (`packages/rentl-schemas/src/rentl_schemas/benchmark/report.py:51`), and validated in integration/quality tests (`tests/integration/benchmark/test_cli_command.py:497`, `tests/quality/benchmark/test_benchmark_quality.py:191`).
+4. **Benchmark must be runnable standalone**: **PASS** — first-class CLI subcommands exist and execute independently (`services/rentl-cli/src/rentl_cli/main.py:1097`, `services/rentl-cli/src/rentl_cli/main.py:1226`, `services/rentl-cli/src/rentl_cli/main.py:1114`, `services/rentl-cli/src/rentl_cli/main.py:1266`).
 
 ## Demo Status
-- Latest run: **PASS** (Run 11, 2026-02-10; `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:107`).
-- Summary: Step 1 executed; Steps 2-5 were documented as environment-dependent and validated via quality testing (`agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:108`, `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:113`).
-- Verification gate: **PASS in this audit round** — `make all` completed successfully (Unit 800, Integration 85, Quality 5).
+- Latest run: **PASS** (Run 12, 2026-02-10; `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:115`).
+- Summary: Step 1 executed successfully; Steps 2-5 were explicitly environment-gated and validated via quality tests (`agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:116`, `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:121`).
+- Verification: non-mutating full-gate equivalent passed in this audit round (`uv run ruff format --check .`, `make lint-check`, `make type`, `make unit`, `make integration`, `make quality`).
 
 ## Standards Adherence
-- `testing/three-tier-test-structure`: **PASS** — benchmark coverage exists in all tiers (`tests/unit/benchmark/test_judge.py:1`, `tests/integration/benchmark/test_cli_command.py:1`, `tests/quality/benchmark/test_benchmark_quality.py:1`; standard `agent-os/standards/testing/three-tier-test-structure.md:3`).
-- `testing/no-mocks-for-quality-tests`: **PASS** — quality benchmark flow invokes the real compare command path and real judge endpoint when env is configured (`tests/quality/benchmark/test_benchmark_quality.py:134`; standard `agent-os/standards/testing/no-mocks-for-quality-tests.md:41`).
-- `testing/bdd-for-integration-quality`: **PASS** — integration and quality suites are feature-backed Given/When/Then (`tests/features/benchmark/cli_command.feature:1`, `tests/quality/features/benchmark/benchmark_quality.feature:1`; standard `agent-os/standards/testing/bdd-for-integration-quality.md:3`).
-- `python/pydantic-only-schemas`: **PASS** — benchmark schema contracts are Pydantic models (`packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:17`, `packages/rentl-schemas/src/rentl_schemas/benchmark/report.py:39`; standard `agent-os/standards/python/pydantic-only-schemas.md:3`).
-- `python/async-first-design`: **PASS** — CLI entrypoints bridge to async implementations immediately and compare uses structured concurrency (`services/rentl-cli/src/rentl_cli/main.py:1114`, `services/rentl-cli/src/rentl_cli/main.py:1266`, `services/rentl-cli/src/rentl_cli/main.py:1539`; standard `agent-os/standards/python/async-first-design.md:39`).
-- `python/strict-typing-enforcement`: **PASS** — benchmark schema fields are explicitly typed with `Field(..., description=...)` (`packages/rentl-schemas/src/rentl_schemas/benchmark/config.py:62`, `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:20`; standard `agent-os/standards/python/strict-typing-enforcement.md:32`).
-- `ux/trust-through-transparency`: **violation (Medium)** — override-mode OpenRouter path crashes with a Python local-variable error instead of actionable user guidance (`services/rentl-cli/src/rentl_cli/main.py:1461`, repro output: `Unexpected error: cannot access local variable 'config' where it is not associated with a value`; standard `agent-os/standards/ux/trust-through-transparency.md:67`, `agent-os/standards/ux/trust-through-transparency.md:73`).
-- `testing/validate-generated-artifacts`: **PASS** — compare report artifacts are schema-validated in integration and quality tests (`tests/integration/benchmark/test_cli_command.py:443`, `tests/quality/benchmark/test_benchmark_quality.py:165`; standard `agent-os/standards/testing/validate-generated-artifacts.md:7`).
+- `testing/three-tier-test-structure`: **PASS** — benchmark tests exist in unit/integration/quality tiers (`tests/unit/benchmark/test_judge.py:1`, `tests/integration/benchmark/test_cli_command.py:1`, `tests/quality/benchmark/test_benchmark_quality.py:1`; rule `agent-os/standards/testing/three-tier-test-structure.md:3`).
+- `testing/no-mocks-for-quality-tests`: **PASS** — quality scenario executes CLI compare path with real endpoint configuration and no mocked judge (`tests/quality/benchmark/test_benchmark_quality.py:134`; rule `agent-os/standards/testing/no-mocks-for-quality-tests.md:41`).
+- `testing/bdd-for-integration-quality`: **PASS** — integration and quality suites are feature-backed Given/When/Then tests (`tests/features/benchmark/cli_command.feature:1`, `tests/quality/features/benchmark/benchmark_quality.feature:1`; rule `agent-os/standards/testing/bdd-for-integration-quality.md:3`).
+- `python/pydantic-only-schemas`: **PASS** — benchmark contracts are Pydantic models (`packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:17`, `packages/rentl-schemas/src/rentl_schemas/benchmark/report.py:39`; rule `agent-os/standards/python/pydantic-only-schemas.md:3`).
+- `python/async-first-design`: **PASS** — CLI immediately bridges to async implementations and compare runs concurrent judging (`services/rentl-cli/src/rentl_cli/main.py:1114`, `services/rentl-cli/src/rentl_cli/main.py:1266`, `services/rentl-cli/src/rentl_cli/main.py:1538`; rule `agent-os/standards/python/async-first-design.md:39`).
+- `python/strict-typing-enforcement`: **PASS** — benchmark schemas use explicit types with `Field` descriptions and no `Any` usage (`packages/rentl-schemas/src/rentl_schemas/benchmark/config.py:62`, `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:30`; rule `agent-os/standards/python/strict-typing-enforcement.md:32`).
+- `ux/trust-through-transparency`: **PASS** — compare/download emit explicit progress and contextual error messages (`services/rentl-cli/src/rentl_cli/main.py:1300`, `services/rentl-cli/src/rentl_cli/main.py:1488`, `services/rentl-cli/src/rentl_cli/main.py:1592`; rule `agent-os/standards/ux/trust-through-transparency.md:67`).
+- `testing/validate-generated-artifacts`: **PASS** — generated reports are schema-validated in integration and quality tests (`tests/integration/benchmark/test_cli_command.py:443`, `tests/quality/benchmark/test_benchmark_quality.py:165`; rule `agent-os/standards/testing/validate-generated-artifacts.md:7`).
 
 ## Regression Check
-- Regression detected in Task 10 override-mode area that previously failed for config coupling: OpenRouter override now fails at runtime due `config` dereference outside config mode (`services/rentl-cli/src/rentl_cli/main.py:1461`), despite prior Task 10 fixes tracked in `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/audit-log.md:70`.
-- Resolved Task 11 signpost remains implemented (judge now uses pydantic-ai `Agent` with `output_type`) (`packages/rentl-core/src/rentl_core/benchmark/judge.py:13`, `packages/rentl-core/src/rentl_core/benchmark/judge.py:186`).
-- Benchmark-focused test suites are currently green (`uv run pytest -q tests/unit/benchmark tests/integration/benchmark` → 108 passed).
+- Prior round-9 OpenRouter override regression is resolved: runtime now reads OpenRouter routing flags from `endpoint_target` in both config and override modes (`services/rentl-cli/src/rentl_cli/main.py:1461`), with dedicated OpenRouter override BDD coverage (`tests/features/benchmark/cli_command.feature:50`, `tests/integration/benchmark/test_cli_command.py:647`).
+- Previously fixed async progress monotonicity remains covered (`tests/features/benchmark/cli_command.feature:20`, `tests/integration/benchmark/test_cli_command.py:342`).
+- Benchmark-focused suites remain green in this audit run (`uv run pytest -q tests/unit/benchmark tests/integration/benchmark tests/quality/benchmark` → `109 passed, 1 skipped`) and full tier checks pass (`make unit` 800, `make integration` 86, `make quality` 5).
 
 ## Action Items
 
 ### Fix Now
-- Override-mode OpenRouter compare path crashes because `config` is referenced outside config-based branch (`services/rentl-cli/src/rentl_cli/main.py:1461`). Repro: `RENTL_OPENROUTER_API_KEY=dummy uv run rentl benchmark compare <a.jsonl> <b.jsonl> --judge-base-url https://openrouter.ai/api/v1 --judge-model test-model --judge-api-key-env RENTL_OPENROUTER_API_KEY`.
-- Add integration BDD regression coverage for OpenRouter override mode and `openrouter_provider.require_parameters` propagation (`tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`).
+- None.
 
 ### Deferred
 - None.
