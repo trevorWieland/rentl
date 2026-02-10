@@ -59,6 +59,14 @@ class KatawaShoujoDownloader:
 
                 cached_path = self.cache_dir / script_file
 
+                # Enforce manifest coverage: all scripts must have hash
+                # entry
+                if hash_manifest is not None and script_file not in hash_manifest:
+                    raise ValueError(
+                        f"Script '{script_file}' not found in hash manifest. "
+                        f"All requested scripts must have a corresponding hash entry."
+                    )
+
                 # Check if file exists and hash matches (skip download if cached)
                 if cached_path.exists() and hash_manifest:
                     existing_hash = self._compute_sha256(cached_path)
@@ -78,8 +86,10 @@ class KatawaShoujoDownloader:
                 # Validate hash if manifest provided
                 if hash_manifest:
                     actual_hash = self._compute_sha256(cached_path)
-                    expected_hash = hash_manifest.get(script_file)
-                    if expected_hash and actual_hash != expected_hash:
+                    expected_hash = hash_manifest[
+                        script_file
+                    ]  # Already validated above
+                    if actual_hash != expected_hash:
                         cached_path.unlink()  # Remove invalid file
                         raise ValueError(
                             f"Hash validation failed for {script_file}: "

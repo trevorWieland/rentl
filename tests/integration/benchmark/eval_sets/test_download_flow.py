@@ -9,7 +9,9 @@ import httpx
 import pytest
 import respx
 
+from rentl_core.benchmark.eval_sets.aligner import LineAligner
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
+from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
 
 
 @pytest.mark.asyncio
@@ -144,3 +146,77 @@ class TestDownloadFlow:
 
         with pytest.raises(httpx.HTTPStatusError):
             await downloader.download_scripts(["missing.rpy"])
+
+    @respx.mock
+    async def test_download_enforces_manifest_coverage(self, temp_cache: Path) -> None:
+        """Downloader raises ValueError when script not in manifest."""
+        downloader = KatawaShoujoDownloader(cache_dir=temp_cache)
+
+        # Manifest is provided but doesn't contain the requested script
+        manifest = {"other.rpy": "abc123"}
+
+        with pytest.raises(
+            ValueError,
+            match=r"Script 'test\.rpy' not found in hash manifest",
+        ):
+            await downloader.download_scripts(["test.rpy"], hash_manifest=manifest)
+
+    @respx.mock
+    async def test_download_parse_align_end_to_end(self, temp_cache: Path) -> None:
+        """Full end-to-end flow: download -> parse -> align."""
+        # Mock Japanese source script
+        ja_content = b"""# Japanese source
+hisao "\xe3\x81\x93\xe3\x82\x93\xe3\x81\xab\xe3\x81\xa1\xe3\x81\xaf"
+emi "\xe3\x82\x84\xe3\x81\x82\xef\xbc\x81"
+"""
+        ja_hash = hashlib.sha256(ja_content).hexdigest()
+
+        # Mock English reference script
+        en_content = b"""# English reference
+hisao "Hello"
+emi "Hey!"
+"""
+        en_hash = hashlib.sha256(en_content).hexdigest()
+
+        # Mock HTTP requests
+        respx.get(
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/ja-script.rpy"
+        ).mock(return_value=httpx.Response(200, content=ja_content))
+        respx.get(
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/en-script.rpy"
+        ).mock(return_value=httpx.Response(200, content=en_content))
+
+        # Download
+        downloader = KatawaShoujoDownloader(cache_dir=temp_cache)
+        results = await downloader.download_scripts(
+            ["ja-script.rpy", "en-script.rpy"],
+            hash_manifest={
+                "ja-script.rpy": ja_hash,
+                "en-script.rpy": en_hash,
+            },
+        )
+
+        # Parse both scripts
+        parser = RenpyDialogueParser()
+        ja_lines = parser.parse_script(results["ja-script.rpy"])
+        parser_en = RenpyDialogueParser()  # Fresh parser for different scene
+        en_lines = parser_en.parse_script(results["en-script.rpy"])
+
+        # Verify parsing worked
+        assert len(ja_lines) == 2
+        assert ja_lines[0].speaker == "hisao"
+        assert len(en_lines) == 2
+        assert en_lines[0].speaker == "hisao"
+        assert en_lines[0].text == "Hello"
+
+        # Align by position (since auto-normalized scene_ids differ)
+        aligner = LineAligner()
+        aligned = aligner.align_by_position(ja_lines, en_lines)
+
+        assert len(aligned) == 2
+        assert aligned[0].source.speaker == "hisao"
+        assert aligned[0].reference is not None
+        assert aligned[0].reference.text == "Hello"
+        assert aligned[1].source.speaker == "emi"
+        assert aligned[1].reference is not None
+        assert aligned[1].reference.text == "Hey!"

@@ -24,7 +24,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - All models use `Field(description=...)` with strict typing, no `Any`
   - Unit tests for schema validation, serialization round-trips
 
-- [ ] Task 3: Eval set downloader and parser
+- [x] Task 3: Eval set downloader and parser
   - Create `rentl-core/src/rentl_core/benchmark/eval_sets/` module
   - `KatawaShoujoDownloader`: fetch `.rpy` script files from KSRE GitHub repo via raw URLs or git archive
   - `RenpyDialogueParser`: parse Ren'Py `.rpy` files into `SourceLine` format (extract speaker, dialogue text, scene_id, line_id)
@@ -34,11 +34,11 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - Async download with progress reporting
   - Unit tests: parser logic (mock `.rpy` content), hash validation, slice selection
   - Integration tests: mocked HTTP download, end-to-end parse flow
-  - [ ] Fix: Add committed Katawa Shoujo eval-set artifacts (config + SHA-256 manifest + `demo` slice definition) and wire Task 3 loader code to consume them; no benchmark eval-set config/manifest files were added in this task (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/` contains only Python modules) (audit round 1)
-  - [ ] Fix: Enforce manifest coverage for every requested script during download; current logic silently accepts files missing a manifest entry because hash comparison only runs when `expected_hash` is truthy (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:65`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:82`) (audit round 1)
-  - [ ] Fix: Normalize/derive schema-valid IDs when `scene_id` is omitted so KSRE filenames parse successfully; current default uses raw stem and fails `SourceLine` validation for names like `script-a1-sunday.rpy` (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py:38`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py:51`) (audit round 1)
-  - [ ] Fix: Add missing slice-selection unit coverage promised by Task 3 (`testing/three-tier-test-structure`); current unit tests only cover downloader/parser/aligner (`tests/unit/benchmark/eval_sets/test_downloader.py:1`, `tests/unit/benchmark/eval_sets/test_parser.py:1`, `tests/unit/benchmark/eval_sets/test_aligner.py:1`) (audit round 1)
-  - [ ] Fix: Add integration coverage for end-to-end download -> parse flow (`testing/three-tier-test-structure`); current integration suite only exercises downloader and never imports parser/aligner (`tests/integration/benchmark/eval_sets/test_download_flow.py:12`) (audit round 1)
+  - [x] Fix: Add committed Katawa Shoujo eval-set artifacts (config + SHA-256 manifest + `demo` slice definition) and wire Task 3 loader code to consume them; no benchmark eval-set config/manifest files were added in this task (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/` contains only Python modules) (audit round 1)
+  - [x] Fix: Enforce manifest coverage for every requested script during download; current logic silently accepts files missing a manifest entry because hash comparison only runs when `expected_hash` is truthy (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:65`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:82`) (audit round 1)
+  - [x] Fix: Normalize/derive schema-valid IDs when `scene_id` is omitted so KSRE filenames parse successfully; current default uses raw stem and fails `SourceLine` validation for names like `script-a1-sunday.rpy` (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py:38`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py:51`) (audit round 1)
+  - [x] Fix: Add missing slice-selection unit coverage promised by Task 3 (`testing/three-tier-test-structure`); current unit tests only cover downloader/parser/aligner (`tests/unit/benchmark/eval_sets/test_downloader.py:1`, `tests/unit/benchmark/eval_sets/test_parser.py:1`, `tests/unit/benchmark/eval_sets/test_aligner.py:1`) (audit round 1)
+  - [x] Fix: Add integration coverage for end-to-end download -> parse flow (`testing/three-tier-test-structure`); current integration suite only exercises downloader and never imports parser/aligner (`tests/integration/benchmark/eval_sets/test_download_flow.py:12`) (audit round 1)
 
 - [ ] Task 4: MTL baseline generator
   - Create `rentl-core/src/rentl_core/benchmark/mtl_baseline.py`

@@ -1,0 +1,13 @@
+{
+  "slices": {
+    "demo": {
+      "description": "Small demo slice for quick validation (20-30 lines)",
+      "scripts": [
+        {
+          "file": "script-a1-sunday.rpy",
+          "line_range": [1, 30]
+        }
+      ]
+    }
+  }
+}

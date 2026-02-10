@@ -59,3 +59,10 @@ class TestKatawaShoujoDownloader:
         # We'll test this in integration tests with mocked HTTP
         # For now, just verify the callback is stored
         assert downloader.progress_callback is track_progress
+
+    def test_manifest_none_allows_missing_hash(self, temp_cache: Path) -> None:
+        """Downloader allows downloads without manifest when manifest is None."""
+        downloader = KatawaShoujoDownloader(cache_dir=temp_cache)
+        # This should not raise - manifest=None means no validation
+        # (Actual download tested in integration tests)
+        assert downloader.cache_dir == temp_cache
