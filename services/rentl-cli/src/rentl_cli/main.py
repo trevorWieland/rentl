@@ -40,8 +40,6 @@ from rentl_core import VERSION, AgentTelemetryEmitter, build_status_result
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
 from rentl_core.benchmark.eval_sets.loader import EvalSetLoader
 from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
-from rentl_core.benchmark.judge import RubricJudge
-from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_summary
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
@@ -101,8 +99,6 @@ from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedL
 from rentl_schemas.llm import (
     LlmConnectionReport,
     LlmEndpointTarget,
-    LlmModelSettings,
-    LlmRuntimeSettings,
 )
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import (
@@ -2258,7 +2254,7 @@ async def _run_benchmark_async(
         console.print(f"Slice: {slice_name}")
 
     # Load configuration
-    config = _load_resolved_config(config_path)
+    _ = _load_resolved_config(config_path)
 
     # Ensure API keys are available
     api_key = os.getenv("OPENAI_API_KEY")
@@ -2328,198 +2324,14 @@ async def _run_benchmark_async(
 
     # Build LLM runtime for MTL
 
-    runtime = OpenAICompatibleRuntime()
-
-    # Build runtime settings for MTL
-    default_model_settings = config.pipeline.default_model
-    if default_model_settings is None:
-        raise ValueError("No default model configured in pipeline")
-
-    # NOTE: MTLBaselineGenerator removed in Task 4
-    # All MTL-related setup commented out (will be removed in Task 7):
-    # mtl_endpoint = LlmEndpointTarget(
-    #     endpoint_ref="default",
-    #     provider_name="openai",
-    #     base_url="https://api.openai.com/v1",
-    #     api_key_env="OPENAI_API_KEY",
-    #     timeout_s=30.0,
-    #     openrouter_provider=None,
-    # )
-    # mtl_model = LlmModelSettings(
-    #     model_id=default_model_settings.model_id,
-    #     temperature=0.3,
-    #     max_output_tokens=None,
-    #     reasoning_effort=None,
-    #     top_p=1.0,
-    #     presence_penalty=0.0,
-    #     frequency_penalty=0.0,
-    # )
-    # mtl_retry = config.retry
-    # mtl_runtime_settings = LlmRuntimeSettings(
-    #     endpoint=mtl_endpoint,
-    #     model=mtl_model,
-    #     retry=mtl_retry,
-    # )
-    # This entire function will be removed in Task 7
-    # Placeholder stub to avoid import errors:
-    mtl_translations: list = []
-    console.print("  [yellow]MTL generation disabled (Task 4)[/yellow]")
-
-    # Step 3: Run rentl pipeline
-    console.print("\n[bold]Step 3/5:[/bold] Running rentl pipeline...")
-    console.print(
-        "  [yellow]Note: Full pipeline not yet implemented in benchmark[/yellow]"
+    # TODO: This entire function will be replaced in Task 7 with new
+    # benchmark compare CLI. For now, placeholder to avoid import errors
+    console.print("\n[bold]Benchmark command:[/bold]")
+    console.print("  [yellow]Full benchmark flow not yet implemented[/yellow]")
+    console.print("  [yellow]This function will be replaced in Task 7[/yellow]")
+    raise NotImplementedError(
+        "Benchmark command not yet implemented - will be added in Task 7"
     )
-    console.print("  [yellow]Using MTL as placeholder for rentl translations[/yellow]")
-
-    # TODO: Implement actual rentl pipeline execution
-    # For now, use MTL translations as placeholder
-    rentl_translations = mtl_translations
-
-    # Step 4: Judge both translations
-    console.print("\n[bold]Step 4/5:[/bold] Judging translations...")
-
-    # Determine judge model and endpoint
-    if judge_model is None:
-        judge_model = default_model_settings.model_id
-
-    judge_endpoint = LlmEndpointTarget(
-        endpoint_ref="judge",
-        provider_name="openai",
-        base_url=judge_base_url or "https://api.openai.com/v1",
-        api_key_env="OPENAI_API_KEY",
-        timeout_s=30.0,
-        openrouter_provider=None,
-    )
-    judge_model_settings = LlmModelSettings(
-        model_id=judge_model,
-        temperature=0.3,
-        max_output_tokens=None,
-        reasoning_effort=None,
-        top_p=1.0,
-        presence_penalty=0.0,
-        frequency_penalty=0.0,
-    )
-    judge_runtime_settings = LlmRuntimeSettings(
-        endpoint=judge_endpoint,
-        model=judge_model_settings,
-        retry=config.retry,
-    )
-
-    judge = RubricJudge(
-        runtime=runtime,
-        runtime_settings=judge_runtime_settings,
-        api_key=api_key,
-        concurrency_limit=3,
-    )
-
-    # Determine and validate scoring mode
-    # Normalize hyphenated input to underscore format
-    raw_scoring_mode = scoring_mode or "reference_based"
-    actual_scoring_mode = raw_scoring_mode.replace("-", "_")
-    valid_modes = ["reference_based", "reference_free"]
-    if actual_scoring_mode not in valid_modes:
-        raise ValueError(
-            f"Invalid scoring mode '{raw_scoring_mode}'. "
-            f"Must be one of: reference-based, reference-free"
-        )
-
-    # TODO: Load reference translations for reference-based mode
-    # Currently reference loading is not implemented, so we use reference-free mode
-    # regardless of the selected mode
-    reference_lines: dict[str, str] = {}  # Map line_id -> reference_text
-    if actual_scoring_mode == "reference_based":
-        console.print(
-            "  [yellow]Warning: Reference-based mode requested but reference "
-            "loading not yet implemented[/yellow]"
-        )
-        console.print("  [yellow]Falling back to reference-free mode[/yellow]")
-        # Update mode to reflect actual scoring behavior
-        actual_scoring_mode = "reference_free"
-
-    # Judge MTL translations
-    # TODO: Update for new head-to-head schema (Task 7)
-    mtl_scores: list = []
-    for mtl_line in mtl_translations:
-        # Find matching source line
-        source_line = next(
-            (
-                s
-                for s in all_source_lines
-                if s.scene_id == mtl_line.scene_id and s.line_id == mtl_line.line_id
-            ),
-            None,
-        )
-        if not source_line:
-            continue
-
-        # Use reference if available for reference-based mode
-        reference_text = reference_lines.get(mtl_line.line_id)
-        score = await judge.score_translation(  # type: ignore[attr-defined]
-            line_id=mtl_line.line_id,
-            source_text=source_line.text,
-            translation=mtl_line.text,
-            reference=reference_text,
-        )
-        mtl_scores.append(score)
-
-    console.print(f"  Judged {len(mtl_scores)} MTL translations")
-
-    # Judge rentl translations
-    # TODO: Update for new head-to-head schema (Task 7)
-    rentl_scores: list = []
-    for rentl_line in rentl_translations:
-        source_line = next(
-            (
-                s
-                for s in all_source_lines
-                if s.scene_id == rentl_line.scene_id and s.line_id == rentl_line.line_id
-            ),
-            None,
-        )
-        if not source_line:
-            continue
-
-        # Use reference if available for reference-based mode
-        reference_text = reference_lines.get(rentl_line.line_id)
-        score = await judge.score_translation(  # type: ignore[attr-defined]
-            line_id=rentl_line.line_id,
-            source_text=source_line.text,
-            translation=rentl_line.text,
-            reference=reference_text,
-        )
-        rentl_scores.append(score)
-
-    console.print(f"  Judged {len(rentl_scores)} rentl translations")
-
-    # Step 5: Generate report
-    console.print("\n[bold]Step 5/5:[/bold] Generating report...")
-
-    # TODO: Update for new head-to-head schema (Task 7)
-    report = BenchmarkReportBuilder.build_report(  # type: ignore[call-arg]
-        eval_set=eval_set,
-        slice_name=slice_name,
-        scoring_mode=actual_scoring_mode,  # type: ignore[arg-type]
-        judge_model=judge_model,
-        mtl_line_scores=mtl_scores,  # type: ignore[arg-type]
-        rentl_line_scores=rentl_scores,  # type: ignore[arg-type]
-        head_to_head_results=[],  # type: ignore[arg-type]
-    )
-
-    # Write JSON report if requested
-    if output_path:
-        # Use asyncio.to_thread for I/O operations
-        def _write_report() -> None:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(report.model_dump_json(indent=2))
-
-        await asyncio.to_thread(_write_report)
-        console.print(f"  Report written to: {output_path}")
-
-    # Print summary
-    console.print("\n" + "=" * 60)
-    console.print(format_report_summary(report))
-    console.print("=" * 60)
 
 
 async def _run_phase_async(

@@ -176,14 +176,10 @@ def given_llm_mocked(ctx: BenchmarkCLIContext, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr("rentl_cli.main.RenpyDialogueParser", lambda: mock_parser)
     monkeypatch.setattr("rentl_cli.main.OpenAICompatibleRuntime", lambda: mock_runtime)
 
-    # Patch MTLBaselineGenerator and RubricJudge constructors
-    def mock_mtl_constructor(*args: object, **kwargs: object) -> MagicMock:
-        return mock_mtl_generator
-
+    # Patch RubricJudge constructor
     def mock_judge_constructor(*args: object, **kwargs: object) -> MagicMock:
         return mock_judge
 
-    monkeypatch.setattr("rentl_cli.main.MTLBaselineGenerator", mock_mtl_constructor)
     monkeypatch.setattr("rentl_cli.main.RubricJudge", mock_judge_constructor)
 
 

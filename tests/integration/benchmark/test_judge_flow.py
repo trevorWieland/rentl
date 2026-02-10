@@ -26,22 +26,6 @@ FEATURES_DIR = Path(__file__).parent.parent.parent / "features" / "benchmark"
 
 @scenario(
     str(FEATURES_DIR / "judge_evaluation.feature"),
-    "Reference-based rubric evaluation",
-)
-def test_reference_based_evaluation() -> None:
-    """Test reference-based rubric evaluation flow."""
-
-
-@scenario(
-    str(FEATURES_DIR / "judge_evaluation.feature"),
-    "Reference-free rubric evaluation",
-)
-def test_reference_free_evaluation() -> None:
-    """Test reference-free rubric evaluation flow."""
-
-
-@scenario(
-    str(FEATURES_DIR / "judge_evaluation.feature"),
     "Head-to-head comparison",
 )
 def test_head_to_head_comparison() -> None:
@@ -62,11 +46,8 @@ class JudgeContext:
     def __init__(self) -> None:
         """Initialize judge test context."""
         self.judge: RubricJudge | None = None
-        self.translations: list[TranslatedLine] = []
-        self.references: dict[str, str] = {}
         self.translations_mtl: list[TranslatedLine] = []
         self.translations_rentl: list[TranslatedLine] = []
-        self.rubric_results: list = []
         self.head_to_head_results: list = []
         self.mock_responses: list[str] = []
 
@@ -153,37 +134,6 @@ def given_judge_with_mock(ctx: JudgeContext, monkeypatch: pytest.MonkeyPatch) ->
     )
 
 
-@given("translation lines")
-def given_translation_lines(ctx: JudgeContext, datatable: list) -> None:
-    """Set up translation lines for evaluation."""
-    lines = []
-    # datatable is a list of lists: first row is header, rest are data
-    for row in datatable[1:]:  # Skip header row
-        line_id, source, translation = row
-
-        lines.append(
-            TranslatedLine(
-                line_id=line_id,
-                text=translation,
-                source_text=source,
-            )
-        )
-
-    ctx.translations = lines
-
-
-@given("reference translations")
-def given_reference_translations(ctx: JudgeContext, datatable: list) -> None:
-    """Set up reference translations."""
-    refs = {}
-    # datatable is a list of lists: first row is header, rest are data
-    for row in datatable[1:]:  # Skip header row
-        line_id, reference = row
-        refs[line_id] = reference
-
-    ctx.references = refs
-
-
 @given("MTL translations")
 def given_mtl_translations(ctx: JudgeContext, datatable: list) -> None:
     """Set up MTL baseline translations."""
@@ -222,20 +172,6 @@ def given_rentl_translations(ctx: JudgeContext, datatable: list) -> None:
     ctx.translations_rentl = lines
 
 
-@given("judge responds with scores")
-def given_judge_scores(ctx: JudgeContext, docstring: str) -> None:
-    """Configure mock judge responses."""
-    # Parse the expected score structure and create mock responses
-    # docstring contains the triple-quoted text from the feature file
-    for _ in ctx.translations:
-        mock_response = json.dumps({
-            "accuracy": {"score": 5, "reasoning": "Accurate translation"},
-            "style_fidelity": {"score": 4, "reasoning": "Natural style"},
-            "consistency": {"score": 5, "reasoning": "Consistent terminology"},
-        })
-        ctx.mock_responses.append(mock_response)
-
-
 @given("judge responds with comparison")
 def given_judge_comparison(ctx: JudgeContext, docstring: str) -> None:
     """Configure mock head-to-head responses for winner B."""
@@ -270,26 +206,6 @@ def given_judge_winner_a(ctx: JudgeContext, docstring: str) -> None:
         ctx.mock_responses.append(mock_response)
 
 
-@when("I score translations with reference-based mode")
-def when_score_reference_based(ctx: JudgeContext) -> None:
-    """Execute reference-based scoring."""
-    assert ctx.judge is not None
-    # TODO: Removed in Task 2 - isolated scoring removed
-    ctx.rubric_results = asyncio.run(
-        ctx.judge.score_batch(ctx.translations, ctx.references)  # type: ignore[attr-defined]
-    )
-
-
-@when("I score translations with reference-free mode")
-def when_score_reference_free(ctx: JudgeContext) -> None:
-    """Execute reference-free scoring."""
-    assert ctx.judge is not None
-    # TODO: Removed in Task 2 - isolated scoring removed
-    ctx.rubric_results = asyncio.run(
-        ctx.judge.score_batch(ctx.translations, references=None)  # type: ignore[attr-defined]
-    )
-
-
 @when("I compare translations head-to-head")
 def when_compare_head_to_head(ctx: JudgeContext) -> None:
     """Execute head-to-head comparison."""
@@ -320,56 +236,6 @@ def when_compare_head_to_head_randomized(ctx: JudgeContext) -> None:
             randomize_order=True,
         )
     )
-
-
-@then(parsers.parse("each line has scores for {count:d} dimensions"))
-def then_line_has_dimension_scores(ctx: JudgeContext, count: int) -> None:
-    """Verify each line has scores for all dimensions."""
-    assert len(ctx.rubric_results) > 0
-    for result in ctx.rubric_results:
-        assert len(result.scores) == count
-
-
-@then("each dimension score includes reasoning")
-def then_scores_include_reasoning(ctx: JudgeContext) -> None:
-    """Verify scores include reasoning text."""
-    for result in ctx.rubric_results:
-        for score in result.scores:
-            assert score.reasoning is not None
-            assert len(score.reasoning) > 0
-
-
-@then("scores are in valid 1-5 range")
-def then_scores_in_valid_range(ctx: JudgeContext) -> None:
-    """Verify all scores are within valid range."""
-    for result in ctx.rubric_results:
-        for score in result.scores:
-            assert 1 <= score.score <= 5
-
-
-@then("each result includes source text and translation")
-def then_results_include_text(ctx: JudgeContext) -> None:
-    """Verify results include source and translation text."""
-    for result in ctx.rubric_results:
-        assert result.source_text is not None
-        assert len(result.source_text) > 0
-        assert result.translation is not None
-        assert len(result.translation) > 0
-
-
-@then("each result includes reference translation")
-def then_results_include_reference(ctx: JudgeContext) -> None:
-    """Verify results include reference translation."""
-    for result in ctx.rubric_results:
-        assert result.reference is not None
-        assert len(result.reference) > 0
-
-
-@then("each result does not include reference")
-def then_results_exclude_reference(ctx: JudgeContext) -> None:
-    """Verify results exclude reference translation."""
-    for result in ctx.rubric_results:
-        assert result.reference is None
 
 
 @then(parsers.parse("each comparison has a winner (A, B, or tie)"))
