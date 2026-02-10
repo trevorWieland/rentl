@@ -1,15 +1,15 @@
 # Demo: Benchmark Harness v0.1
 
-rentl now includes a benchmark harness that proves the pipeline produces better translations than raw machine translation. It downloads a curated evaluation set from Katawa Shoujo's KSRE scripts (Japanese source + English reference), runs both a bare MTL baseline and the full rentl pipeline on a representative slice, then uses an LLM judge to score both on accuracy, style fidelity, and consistency.
+rentl now includes a benchmark harness that compares translation quality across different pipeline configurations. It downloads a curated evaluation set from Katawa Shoujo's KSRE scripts, and uses an LLM judge to perform head-to-head comparisons between any two or more rentl run outputs (e.g., a full-pipeline run vs a translate-only "MTL" run). The judge scores per-dimension (accuracy, style fidelity, consistency) and overall winner per line with reasoning. Results are aggregated into pairwise win rates and Elo ratings.
 
 ## Steps
 
-1. Run `rentl benchmark --eval-set katawa-shoujo --slice demo` — expected: downloads eval set from KSRE GitHub, selects a small representative slice (~20-30 lines with dialogue, narration, choices, multiple speakers), shows line count and hash validation
-2. Observe MTL baseline + rentl pipeline running on the slice — expected: both complete within minutes, progress visible for each stage
-3. Observe judge scoring — expected: both translations scored per-line on accuracy, style fidelity, and consistency with reasoning for each score
-4. Review the benchmark report — expected: per-dimension scores (mean/median), head-to-head win rates, overall comparison. Report is structured Pydantic output (JSON).
-5. Verify the report is coherent — expected: scores are numeric (1-5), reasoning is present for each line, aggregates are mathematically consistent
-6. Confirm the harness is ready for a full-game run — expected: `rentl benchmark --eval-set katawa-shoujo` (no slice flag) would run the same logic on the full evaluation set
+1. Run `rentl benchmark download --eval-set katawa-shoujo --slice demo` — expected: downloads eval set from KSRE GitHub, selects a small representative slice, shows line count and hash validation, writes rentl-ingestable source files
+2. Run `rentl run` twice with different configs on the downloaded source (full pipeline vs translate-only) — expected: two output JSONL files produced
+3. Run `rentl benchmark compare output-full.jsonl output-mtl.jsonl --judge-model <model>` — expected: all-pairs head-to-head comparison runs with progress, randomized A/B presentation
+4. Review the benchmark report — expected: per-line head-to-head results with reasoning, pairwise win rates per dimension, Elo ratings, overall ranking
+5. Verify the report is coherent — expected: each compared line has per-dimension winners + overall winner + reasoning, win rates sum correctly, Elo ratings produce a ranking
+6. Confirm N-way support — expected: `rentl benchmark compare a.jsonl b.jsonl c.jsonl` runs 3 pairwise comparisons and produces a 3-candidate ranking with Elo
 
 ## Results
 

@@ -6,110 +6,102 @@ version: v0.1
 
 ## Decision Record
 
-rentl needs to prove its quality claims with data, not anecdotes. The benchmark harness downloads Katawa Shoujo scripts from the KSRE GitHub repo at runtime (Japanese source + English reference), generates both an MTL baseline and a full rentl pipeline translation, then uses an LLM-as-judge to score both on a rubric. The harness supports reference-based scoring (against the known-good English original), reference-free scoring, and head-to-head comparison. It is exposed as a first-class `rentl benchmark` CLI command usable by end users, not just developers. CI quality tests validate the judging mechanics on a narrow slice without asserting rentl beats MTL (that's validated manually on full runs).
+rentl needs to prove its quality claims with data, not anecdotes. The benchmark harness downloads evaluation source material (starting with Katawa Shoujo KSRE scripts) at runtime, then compares the outputs of separate rentl pipeline runs head-to-head using an LLM judge. The "MTL baseline" is not a separate component — it's simply a rentl run with only the translate phase enabled (no context, no QA, no edit). The harness uses all-pairs comparison: for N candidate outputs, it runs N*(N-1)/2 pairwise head-to-head judgments with randomized presentation order, scoring per-dimension (accuracy, style fidelity, consistency) and overall winner per line with reasoning. Results are aggregated into pairwise win rates and Elo ratings. The harness is language-agnostic and exposed as first-class `rentl benchmark download` and `rentl benchmark compare` CLI subcommands.
+
+### Architecture Change (v0.1 revision)
+
+The original design embedded pipeline execution inside the benchmark command and included a custom MTL baseline generator. This was architecturally wrong — the benchmark should compare outputs, not run pipelines. The revised design:
+
+1. User runs `rentl run` with full config → output JSONL (the "rentl" candidate)
+2. User runs `rentl run` with minimal config (translate-only) → output JSONL (the "MTL" candidate)
+3. User runs `rentl benchmark compare <output-a> <output-b>` → head-to-head comparison report
+
+This eliminates the pipeline integration blocker, removes the MTL baseline generator, and makes the benchmark a pure comparison tool. Isolated absolute scoring (1-5 per line) is dropped in favor of head-to-head comparison only, which is more reliable for subjective quality assessment.
 
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit and push spec artifacts on issue branch
+  - Note: spec.md revised via resolve-blockers (2026-02-10) to head-to-head-only N-way architecture
 
-- [x] Task 2: Benchmark schemas and rubric models
-  - Create `rentl-schemas/src/rentl_schemas/benchmark/` module
-  - Pydantic models: `BenchmarkConfig`, `EvalSetConfig`, `SliceConfig`
-  - Rubric models: `RubricDimension`, `RubricScore` (1-5 scale with reasoning)
-  - Score models: `LineScore` (per-line scores across dimensions), `HeadToHeadResult` (winner + reasoning)
-  - Report model: `BenchmarkReport` (per-line scores, per-dimension aggregates, head-to-head win rates, overall comparison)
-  - Support `scoring_mode: Literal["reference_based", "reference_free"]` in config
+- [ ] Task 2: Revise benchmark schemas for head-to-head N-way comparison
+  - **Remove** from `rentl_schemas/benchmark/rubric.py`: `RubricScore`, `LineScore` (isolated scoring models)
+  - **Keep** `RubricDimension` enum (accuracy, style_fidelity, consistency)
+  - **Keep** `HeadToHeadResult` — already has `winner`, `reasoning`, `dimension_winners`; add `candidate_a_name` and `candidate_b_name` fields to track which candidates were compared
+  - **Revise** `rentl_schemas/benchmark/report.py`:
+    - Remove `DimensionAggregate`, `TranslationResult` (isolated scoring aggregates)
+    - Revise `HeadToHeadSummary` to be per-pair: add `candidate_a_name`, `candidate_b_name`
+    - Add `EloRating` model: `candidate_name: str`, `rating: float`
+    - Revise `BenchmarkReport`: remove `mtl_result`/`rentl_result`/`scoring_mode`, add `candidates: list[str]`, `pairwise_results: list[PairwiseSummary]` (one per candidate pair), `elo_ratings: list[EloRating]`, `overall_ranking: list[str]`
+  - **Revise** `rentl_schemas/benchmark/config.py`:
+    - Remove `scoring_mode`, `head_to_head` from `BenchmarkConfig` (always head-to-head now)
+    - Keep `EvalSetConfig`, `SliceConfig` as-is
+  - Update `__init__.py` exports
+  - Update unit tests: remove isolated scoring tests, add N-way schema validation
   - All models use `Field(description=...)` with strict typing, no `Any`
-  - Unit tests for schema validation, serialization round-trips
 
 - [x] Task 3: Eval set downloader and parser
-  - Create `rentl-core/src/rentl_core/benchmark/eval_sets/` module
-  - `KatawaShoujoDownloader`: fetch `.rpy` script files from KSRE GitHub repo via raw URLs or git archive
-  - `RenpyDialogueParser`: parse Ren'Py `.rpy` files into `SourceLine` format (extract speaker, dialogue text, scene_id, line_id)
-  - `LineAligner`: align English↔Japanese line pairs by scene/line ID
-  - Hash validation: SHA-256 manifest file committed to repo, validated after download
-  - Slice definitions: `demo` slice (~20-30 lines with dialogue, narration, choices, multiple speakers) defined in committed config
-  - Async download with progress reporting
-  - Unit tests: parser logic (mock `.rpy` content), hash validation, slice selection
-  - Integration tests: mocked HTTP download, end-to-end parse flow
-  - [x] Fix: Add committed Katawa Shoujo eval-set artifacts (config + SHA-256 manifest + `demo` slice definition) and wire Task 3 loader code to consume them; no benchmark eval-set config/manifest files were added in this task (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/` contains only Python modules) (audit round 1)
-  - [x] Fix: Enforce manifest coverage for every requested script during download; current logic silently accepts files missing a manifest entry because hash comparison only runs when `expected_hash` is truthy (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:65`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:82`) (audit round 1)
-  - [x] Fix: Normalize/derive schema-valid IDs when `scene_id` is omitted so KSRE filenames parse successfully; current default uses raw stem and fails `SourceLine` validation for names like `script-a1-sunday.rpy` (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py:38`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py:51`) (audit round 1)
-  - [x] Fix: Add missing slice-selection unit coverage promised by Task 3 (`testing/three-tier-test-structure`); current unit tests only cover downloader/parser/aligner (`tests/unit/benchmark/eval_sets/test_downloader.py:1`, `tests/unit/benchmark/eval_sets/test_parser.py:1`, `tests/unit/benchmark/eval_sets/test_aligner.py:1`) (audit round 1)
-  - [x] Fix: Add integration coverage for end-to-end download -> parse flow (`testing/three-tier-test-structure`); current integration suite only exercises downloader and never imports parser/aligner (`tests/integration/benchmark/eval_sets/test_download_flow.py:12`) (audit round 1)
-  - [x] Fix: Replace placeholder empty-file SHA-256 values in `manifest.json` with real KSRE script hashes; current committed hashes (`e3b0...`) fail runtime validation and break downloader flow (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json:6`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:92`) (audit round 2, see signposts.md: Task 3, manifest hash mismatch)
-  - [x] Fix: Update `demo` slice to include the required content mix (dialogue, narration, choices, multiple speakers) and add test coverage that asserts those content properties for the configured slice (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json:8`, `tests/unit/benchmark/eval_sets/test_loader.py:21`) (audit round 2, see signposts.md: Task 3, demo slice content mismatch)
+  - Existing work is valid and tested (downloader, parser, aligner, loader, manifest, slices)
+  - No changes needed — `benchmark download` CLI will reuse this directly
 
-- [x] Task 4: MTL baseline generator
-  - Create `rentl-core/src/rentl_core/benchmark/mtl_baseline.py`
-  - Minimal translation prompt: "Translate the following Japanese text to English:" + source text
-  - No context injection, no QA, no edit phases — raw single-shot LLM translation
-  - Uses configured model endpoint (same model as rentl pipeline for fair comparison)
-  - Async execution with concurrency limits and progress reporting
-  - Output: list of `TranslatedLine` (same schema as pipeline output for apples-to-apples)
-  - Unit tests: prompt construction, output schema validation
-  - Integration tests: mocked LLM, validates correct prompt structure
-  - [x] Fix: Rewrite `tests/integration/benchmark/test_mtl_baseline_flow.py` using BDD Given/When/Then scenarios (`pytest-bdd`) instead of direct pytest assertions to satisfy `testing/bdd-for-integration-quality` and `testing/three-tier-test-structure` (`agent-os/standards/testing/bdd-for-integration-quality.md:3`, `agent-os/standards/testing/three-tier-test-structure.md:33`) (audit round 1)
-  - [x] Fix: Make the BDD `When I generate MTL baseline translations` step execute the async translation flow; current async step is not awaited (`RuntimeWarning: coroutine 'when_generate_baseline' was never awaited`), leaving `ctx.results` unset and prompt capture empty (`tests/integration/benchmark/test_mtl_baseline_flow.py:172`, `tests/integration/benchmark/test_mtl_baseline_flow.py:202`, `tests/integration/benchmark/test_mtl_baseline_flow.py:274`) (audit round 2)
-  - [x] Fix: Correct metadata assertions that currently comment out equality checks after `# type: ignore`, so tests fail to validate exact `mtl_baseline` and `model` values (`tests/unit/benchmark/test_mtl_baseline.py:139`, `tests/unit/benchmark/test_mtl_baseline.py:140`, `tests/unit/benchmark/test_mtl_baseline.py:230`, `tests/integration/benchmark/test_mtl_baseline_flow.py:252`, `tests/integration/benchmark/test_mtl_baseline_flow.py:253`) (audit round 3)
+- [ ] Task 4: Output loader and dead code removal
+  - **Create** `rentl-core/src/rentl_core/benchmark/output_loader.py`:
+    - Read rentl run output JSONL files into `TranslatedLine` format
+    - Support loading from export output paths (the files `rentl run` produces)
+    - Validate that all candidate outputs cover the same set of line IDs
+    - Raise clear errors when line ID sets don't match across candidates
+  - **Remove** `rentl-core/src/rentl_core/benchmark/mtl_baseline.py` and all its tests:
+    - `tests/unit/benchmark/test_mtl_baseline.py`
+    - `tests/integration/benchmark/test_mtl_baseline_flow.py`
+    - `tests/features/benchmark/mtl_baseline_generation.feature` (if exists)
+  - Unit tests: output loading, line ID validation, error cases
 
-- [x] Task 5: Rubric judge implementation
-  - Create `rentl-core/src/rentl_core/benchmark/judge.py`
-  - `RubricJudge` class with configurable judge model (separate from translation model)
-  - Three rubric dimensions scored 1-5:
-    - **Accuracy**: faithfulness to source meaning (does the translation convey what the original says?)
-    - **Style fidelity**: natural target-language expression, character voice preservation, register appropriateness
-    - **Consistency**: terminology consistency, naming consistency across lines
-  - Reference-based mode: judge prompt includes source + reference + candidate
-  - Reference-free mode: judge prompt includes source + candidate only
-  - Head-to-head mode: judge sees source + both candidates (labels "Translation A" / "Translation B", randomized assignment), picks winner per dimension + overall with reasoning
-  - Per-line structured output with `RubricScore` per dimension
-  - Async execution with concurrency limits
-  - Unit tests: prompt construction, score parsing, randomization logic
-  - Integration tests: mocked judge LLM, validates structured output extraction
-  - [x] Fix: Repair pytest-bdd step bindings for table-based Given steps so Task 5 integration scenarios execute; current step patterns in `tests/integration/benchmark/test_judge_flow.py` do not match feature-table steps and fail with `StepDefinitionNotFoundError` for `Given "translation lines:"` / `Given "MTL translations:"` (`tests/integration/benchmark/test_judge_flow.py:147`, `tests/integration/benchmark/test_judge_flow.py:178`, `tests/features/benchmark/judge_evaluation.feature:8`, `tests/features/benchmark/judge_evaluation.feature:46`) (audit round 1)
-  - [x] Fix: Add explicit coverage for head-to-head randomization/remapping logic (`randomize_order=True` path); current Task 5 tests only exercise `randomize_order=False` and never validate winner remapping when A/B assignments are swapped (`tests/unit/benchmark/test_judge.py:403`, `tests/unit/benchmark/test_judge.py:448`, `tests/integration/benchmark/test_judge_flow.py:269`) (audit round 1)
-  - [x] Fix: Enforce and test per-dimension winners (accuracy/style_fidelity/consistency) in head-to-head parsing; current parser accepts missing `dimension_winners` keys and can return an empty result, contrary to Task 5 requirement to pick winners per dimension (`packages/rentl-core/src/rentl_core/benchmark/judge.py:285`, `packages/rentl-core/src/rentl_core/benchmark/judge.py:296`) (audit round 1)
+- [ ] Task 5: Revise judge for pairwise-only comparison
+  - **Remove** `score_translation` method (isolated scoring)
+  - **Remove** reference-based/reference-free mode distinction from judge
+  - **Keep and adapt** `compare_head_to_head` for pairwise use:
+    - Source text is provided alongside both candidates for context
+    - Rubric dimensions (accuracy, style fidelity, consistency) guide comparison
+    - Judge picks per-dimension winner + overall winner with reasoning, ties allowed
+    - Randomized A/B presentation order preserved
+  - **Ensure** judge prompt includes source text so judge has context for accuracy evaluation
+  - Update unit tests: remove isolated scoring tests, verify pairwise comparison
+  - Update integration BDD tests: remove reference-based/reference-free scenarios, keep head-to-head scenarios
 
-- [x] Task 6: Benchmark report generator
-  - Create `rentl-core/src/rentl_core/benchmark/report.py`
-  - Aggregate per-line `RubricScore` into per-dimension mean/median/stddev
-  - Head-to-head win rates per dimension and overall
-  - `BenchmarkReport` builder that assembles all results into the Pydantic report model
-  - JSON serialization for programmatic consumption
-  - Human-readable summary formatter for CLI output (table or structured text)
-  - Unit tests: aggregation math, report construction, formatting
+- [ ] Task 6: Report generator — pairwise win rates and Elo
+  - **Rewrite** `rentl-core/src/rentl_core/benchmark/report.py`:
+    - Build per-pair `HeadToHeadSummary` from list of `HeadToHeadResult`
+    - Compute pairwise win rates per dimension and overall
+    - Implement Elo rating computation from pairwise head-to-head results
+    - Derive overall ranking from Elo ratings
+    - Assemble `BenchmarkReport` from all pairwise summaries + Elo
+  - Human-readable summary formatter for CLI output (ranking table, win rates)
+  - Unit tests: pairwise aggregation, Elo computation, report assembly, formatting
 
-- [ ] Task 7: `rentl benchmark` CLI command
-  - Add `benchmark` command to CLI router in `rentl-cli`
-  - Wire together: download eval set → generate MTL baseline → run rentl pipeline → judge both → generate report
-  - CLI flags:
+- [ ] Task 7: `rentl benchmark` CLI subcommands
+  - **Rewrite** benchmark CLI as two subcommands:
+  - `rentl benchmark download`:
     - `--eval-set` (required): eval set name (e.g., `katawa-shoujo`)
-    - `--slice` (optional): slice name (e.g., `demo`) for subset evaluation
+    - `--slice` (optional): slice name for subset
+    - `--output-dir` (optional): where to write parsed source files
+    - Downloads, parses, validates hashes, writes rentl-ingestable source files
+  - `rentl benchmark compare`:
+    - Positional args: 2+ paths to rentl run output files
     - `--judge-model` (optional): override judge model ID
     - `--judge-base-url` (optional): override judge endpoint
-    - `--scoring-mode` (optional): `reference-based` or `reference-free` (default: `reference-based` when reference available)
     - `--output` (optional): path to write JSON report
-  - Progress output: download status, baseline progress, pipeline progress, judging progress, report summary
-  - Error handling: missing API keys, download failures, judge failures
-  - Integration tests: mocked end-to-end flow via CLI
-  - [x] Fix: Replace placeholder benchmark wiring with real rentl pipeline execution; current implementation prints a placeholder warning and reuses MTL output as rentl output (`services/rentl-cli/src/rentl_cli/main.py:2386`, `services/rentl-cli/src/rentl_cli/main.py:2390`) (audit round 1; see signposts.md: Task 7 placeholder pipeline - requires orchestrator integration architecture)
-  - [x] Fix: Implement `--scoring-mode` contract end-to-end (validate `reference-based|reference-free`, map to schema mode, and pass references when reference-based is selected); current benchmark path always sends `reference=None` to judge calls (`services/rentl-cli/src/rentl_cli/main.py:1099`, `services/rentl-cli/src/rentl_cli/main.py:2430`, `services/rentl-cli/src/rentl_cli/main.py:2452`) (audit round 1; partial - validation added, reference loading not yet implemented, see signposts.md)
-  - [x] Fix: Align eval-set flag example/handling with loader path resolution so documented `katawa-shoujo` works (or normalize to `katawa_shoujo` before loading manifest/slices) (`services/rentl-cli/src/rentl_cli/main.py:1088`, `services/rentl-cli/src/rentl_cli/main.py:2284`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/loader.py:58`) (audit round 1)
-  - [x] Fix: Correct head-to-head winner aggregation to use schema winner slots (`A|B|tie`) rather than system-name strings; current report builder miscounts wins and rates (`packages/rentl-core/src/rentl_core/benchmark/report.py:110`, `packages/rentl-core/src/rentl_core/benchmark/report.py:127`, see signposts.md: Task 8 winner label mismatch) (audit round 1)
-  - [x] Fix: Normalize CLI scoring-mode inputs from `reference-based|reference-free` to schema values (`reference_based|reference_free`) before validation, so documented flag values are accepted (`services/rentl-cli/src/rentl_cli/main.py:1100`, `services/rentl-cli/src/rentl_cli/main.py:2433`, `services/rentl-cli/src/rentl_cli/main.py:2434`) (audit round 2)
-  - [x] Fix: Implement true reference-based judging (load and pass reference lines) or force `actual_scoring_mode="reference_free"` on fallback so report metadata does not claim reference-based scoring while `reference_lines` is empty (`services/rentl-cli/src/rentl_cli/main.py:2441`, `services/rentl-cli/src/rentl_cli/main.py:2444`, `services/rentl-cli/src/rentl_cli/main.py:2450`, `services/rentl-cli/src/rentl_cli/main.py:2511`) (audit round 2; see signposts.md: Task 7 reference mode CLI contract mismatch)
-  - [ ] Fix: Replace the current placeholder benchmark pipeline step with real rentl pipeline execution; `_run_benchmark_async` still logs placeholder warnings and aliases outputs via `rentl_translations = mtl_translations`, so Task 7 does not run MTL vs rentl (`services/rentl-cli/src/rentl_cli/main.py:2386`, `services/rentl-cli/src/rentl_cli/main.py:2393`) (audit round 4; see signposts.md: Task 7 placeholder pipeline)
+    - `--candidate-names` (optional): human-readable names for each candidate (defaults to filenames)
+    - Loads all outputs, validates matching line IDs, runs all-pairs head-to-head judging, generates report
+  - **Remove** old monolithic `rentl benchmark` command and `_run_benchmark_async`
+  - Progress output: comparison progress, report summary
+  - Error handling: missing API keys, mismatched line IDs, file not found
+  - Integration tests: mocked end-to-end flow via CLI subcommands
 
 - [ ] Task 8: Tests (unit + integration + quality)
-  - Unit tests: all schema validation, parser logic, aggregation math, prompt construction
-  - Integration tests (mocked LLM): full benchmark CLI flow, eval set download + parse, MTL baseline generation, judge wiring, report output
-  - Quality test (real LLMs): run benchmark on demo slice, assert judge returns per-line scores with reasoning for all rubric dimensions, assert report structure is complete (no assertion on rentl beating MTL)
+  - Unit tests: all schema validation, output loading, pairwise aggregation, Elo math, prompt construction
+  - Integration tests (mocked LLM): full `rentl benchmark compare` CLI flow, `rentl benchmark download` flow
+  - Quality test (real LLMs): run comparison on demo slice outputs, assert judge returns per-line results with reasoning for all rubric dimensions, assert report structure is complete
   - BDD feature files for integration and quality tiers
   - All tests within tier timing limits (unit <250ms, integration <5s, quality <30s)
-  - [x] Fix: Add missing benchmark CLI integration BDD coverage that invokes `rentl benchmark` and validates end-to-end mocked flow/report output (audit round 1; `plan.md:101`; no benchmark command invocation tests found via `rg "invoke\\(.*benchmark"` in `tests/integration`)
-  - [x] Fix: Add benchmark quality-tier BDD coverage under `tests/quality/benchmark/` with real LLM calls on demo slice and report-structure assertions (audit round 1; `plan.md:102`; `NO_QUALITY_BENCHMARK_TESTS_FOUND`; `testing/three-tier-test-structure`, `testing/no-mocks-for-quality-tests`, `testing/bdd-for-integration-quality`)
-  - [x] Fix: Correct head-to-head winner mapping (`A`/`B`/`tie`) in report summary aggregation and update Task 8 assertions to validate correct winner counts, not the known mismatch (`packages/rentl-core/src/rentl_core/benchmark/report.py:109`, `tests/unit/benchmark/test_report_generation.py:221`; see signposts.md: Task 8 winner label mismatch)
-  - [x] Fix: Correct benchmark CLI integration BDD feature path so scenarios load from the committed feature file; `scenarios("../features/benchmark/cli_command.feature")` in `tests/integration/benchmark/test_cli_command.py:31` resolves to missing `tests/integration/features/benchmark/cli_command.feature` and fails collection with `FileNotFoundError` (audit round 2; see signposts.md: Task 8 integration feature path mismatch)
+  - Clean up stale test files from old architecture (old CLI command tests, MTL baseline features)

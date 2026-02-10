@@ -24,3 +24,7 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 3): PASS — Verified fallback metadata fix: when reference-based mode falls back, `actual_scoring_mode` is set to `reference_free` before report generation (`services/rentl-cli/src/rentl_cli/main.py:2454`, `services/rentl-cli/src/rentl_cli/main.py:2515`).
 - **Task 8** (round 2): FAIL — Benchmark CLI integration BDD coverage is broken at collection time because `test_cli_command.py` references a non-existent feature path (`FileNotFoundError`), so Task 8 cannot remain checked off.
 - **Task 7** (round 4): FAIL — Benchmark CLI still uses placeholder pipeline wiring (`rentl_translations = mtl_translations`), so the task contract to run the real rentl pipeline is not met.
+
+---
+
+**Architecture revision** (resolve-blockers, 2026-02-10): spec.md, plan.md, demo.md, signposts.md rewritten. Original design embedded pipeline execution inside benchmark command and hardcoded JP→EN 2-system comparison. Revised to: benchmark is a pure comparison tool taking 2+ rentl run output files, head-to-head only (no isolated scoring), N-way all-pairs with Elo, language-agnostic. MTL baseline is just a translate-only rentl run. Tasks 1+3 remain done; Tasks 2/4/5/6/7/8 require rework under new plan. Old Task 4 (MTL baseline generator) replaced with output loader + dead code removal.
