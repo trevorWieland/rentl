@@ -34,6 +34,7 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 4): PASS — Verified fix commit `aa21171`: `compute_elo_ratings` skips zero-comparison pairs and `build_report` derives `overall_ranking` from Elo; validation passed (`pytest -q tests/unit/benchmark/test_report.py` → `20 passed`, `uv run pyright packages/rentl-core/src/rentl_core/benchmark/report.py tests/unit/benchmark/test_report.py` → `0 errors`).
 
 - **Demo** (run 1): FAIL — Step 1 command syntax mismatch: demo.md documents `--eval-set katawa-shoujo` (kebab-case) but CLI expects `katawa_shoujo` (snake_case). No normalization in CLI. Task 9 added to fix.
+- **Task 9** (round 1): PASS — Verified eval-set kebab→snake normalization in benchmark download CLI (`services/rentl-cli/src/rentl_cli/main.py:1131`), with integration BDD coverage and passing target suite (`pytest -q tests/integration/benchmark/test_cli_command.py` → `2 passed`).
 
 ---
 
