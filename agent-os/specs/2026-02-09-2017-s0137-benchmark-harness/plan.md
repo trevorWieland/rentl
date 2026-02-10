@@ -102,7 +102,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - [x] Fix: Normalize CLI scoring-mode inputs from `reference-based|reference-free` to schema values (`reference_based|reference_free`) before validation, so documented flag values are accepted (`services/rentl-cli/src/rentl_cli/main.py:1100`, `services/rentl-cli/src/rentl_cli/main.py:2433`, `services/rentl-cli/src/rentl_cli/main.py:2434`) (audit round 2)
   - [x] Fix: Implement true reference-based judging (load and pass reference lines) or force `actual_scoring_mode="reference_free"` on fallback so report metadata does not claim reference-based scoring while `reference_lines` is empty (`services/rentl-cli/src/rentl_cli/main.py:2441`, `services/rentl-cli/src/rentl_cli/main.py:2444`, `services/rentl-cli/src/rentl_cli/main.py:2450`, `services/rentl-cli/src/rentl_cli/main.py:2511`) (audit round 2; see signposts.md: Task 7 reference mode CLI contract mismatch)
 
-- [ ] Task 8: Tests (unit + integration + quality)
+- [x] Task 8: Tests (unit + integration + quality)
   - Unit tests: all schema validation, parser logic, aggregation math, prompt construction
   - Integration tests (mocked LLM): full benchmark CLI flow, eval set download + parse, MTL baseline generation, judge wiring, report output
   - Quality test (real LLMs): run benchmark on demo slice, assert judge returns per-line scores with reasoning for all rubric dimensions, assert report structure is complete (no assertion on rentl beating MTL)
