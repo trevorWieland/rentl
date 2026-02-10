@@ -78,6 +78,14 @@
 - **Resolution:** do-task round 7 (2026-02-09)
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `packages/rentl-core/src/rentl_core/benchmark/report.py`
 
+- **Task:** Task 7
+- **Status:** unresolved
+- **Problem:** `rentl benchmark` is wired with placeholder comparison logic: it never executes the rentl pipeline and does not honor reference-based scoring mode.
+- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:2386` prints `Using MTL as placeholder for rentl translations`, `services/rentl-cli/src/rentl_cli/main.py:2390` sets `rentl_translations = mtl_translations`, and judge calls always pass `reference=None` at `services/rentl-cli/src/rentl_cli/main.py:2452` / `services/rentl-cli/src/rentl_cli/main.py:2476` despite exposing `--scoring-mode` at `services/rentl-cli/src/rentl_cli/main.py:1099`.
+- **Impact:** Benchmark output can report scores but does not measure the actual rentl pipeline or true reference-based behavior, weakening result validity and violating task intent.
+- **Solution:** Replace the placeholder branch with real pipeline execution and connect scoring-mode handling to aligned reference data (`reference-based` vs `reference-free`) before judge calls.
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
+
 - **Task:** Task 8
 - **Status:** resolved
 - **Problem:** Coverage dropped to 79.31% after Task 7; report.py had only 20% coverage; missing unit tests for report generation logic
