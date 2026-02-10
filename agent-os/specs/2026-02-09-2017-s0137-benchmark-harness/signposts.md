@@ -166,14 +166,13 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `services/rentl-cli/src/rentl_cli/main.py`
 
 - **Task:** Task 11 structured-output dimension completeness
-- **Status:** unresolved
-- **Problem:** The new structured-output path can return incomplete per-dimension winners. `JudgeOutput.dimension_winners` is typed as `dict[str, Literal["A", "B", "tie"]]`, and `compare_head_to_head` accepts whatever keys are present instead of enforcing `accuracy`, `style_fidelity`, and `consistency`.
-- **Evidence:** Schema allows arbitrary/missing keys at `packages/rentl-core/src/rentl_core/benchmark/judge.py:32`. Structured branch copies keys directly at `packages/rentl-core/src/rentl_core/benchmark/judge.py:279`-`packages/rentl-core/src/rentl_core/benchmark/judge.py:281`. Repro command output:
-  `uv run python - <<'PY' ... structured_output=JudgeOutput(..., dimension_winners={'accuracy': 'A'}) ... print(sorted(d.value for d in result.dimension_winners.keys())) ... PY`
-  prints `dimension keys: ['accuracy']`.
-- **Impact:** Task 11 can emit head-to-head results missing required rubric dimensions, violating the plan/spec contract that per-line output includes winners for accuracy, style fidelity, and consistency.
-- **Solution:** Make the structured schema require all three dimensions (explicit fields or validator), and in `compare_head_to_head` treat missing dimensions as parse failure so retry logic applies. Add a unit regression test for missing-dimension structured output.
-- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `tests/unit/benchmark/test_judge.py`
+- **Status:** resolved
+- **Problem:** The new structured-output path could return incomplete per-dimension winners. `JudgeOutput.dimension_winners` was typed as `dict[str, Literal["A", "B", "tie"]]`, allowing arbitrary/missing keys instead of enforcing all three required dimensions (accuracy, style_fidelity, consistency).
+- **Evidence:** Original schema at `packages/rentl-core/src/rentl_core/benchmark/judge.py:32` allowed arbitrary dict keys. Structured branch at `packages/rentl-core/src/rentl_core/benchmark/judge.py:279`-`packages/rentl-core/src/rentl_core/benchmark/judge.py:281` copied keys directly without validation.
+- **Impact:** Before fix, Task 11 could emit head-to-head results missing required rubric dimensions, violating the plan/spec contract that per-line output includes winners for accuracy, style fidelity, and consistency.
+- **Solution:** Replaced `dimension_winners` dict with explicit required fields (`accuracy_winner`, `style_fidelity_winner`, `consistency_winner`) in `JudgeOutput` schema. Updated structured-output parsing to map these explicit fields to `RubricDimension` enum keys. Updated judge prompt to match new field names. Added regression test `test_compare_head_to_head_structured_output` verifying all three dimensions are present. Also replaced `Any`-typed `result_schema`/`structured_output` fields in `llm.py` with explicit `type[BaseModel]` and `BaseModel | None` types per strict-typing standard.
+- **Resolution:** do-task round 17 (2026-02-10)
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `packages/rentl-schemas/src/rentl_schemas/llm.py`, `packages/rentl-llm/src/rentl_llm/openai_runtime.py`, `tests/unit/benchmark/test_judge.py`
 
 - **Task:** Task 12
 - **Status:** unresolved

@@ -29,8 +29,14 @@ class JudgeOutput(BaseModel):
         ..., description="Overall winner of the comparison"
     )
     reasoning: str = Field(..., description="Explanation for overall winner")
-    dimension_winners: dict[str, Literal["A", "B", "tie"]] = Field(
-        ..., description="Winners per dimension (accuracy, style_fidelity, consistency)"
+    accuracy_winner: Literal["A", "B", "tie"] = Field(
+        ..., description="Winner for accuracy dimension"
+    )
+    style_fidelity_winner: Literal["A", "B", "tie"] = Field(
+        ..., description="Winner for style fidelity dimension"
+    )
+    consistency_winner: Literal["A", "B", "tie"] = Field(
+        ..., description="Winner for consistency dimension"
     )
 
 
@@ -105,11 +111,9 @@ Provide your evaluation in this exact JSON format:
 {{
     "overall_winner": "<A|B|tie>",
     "reasoning": "<explanation for overall winner>",
-    "dimension_winners": {{
-        "accuracy": "<A|B|tie>",
-        "style_fidelity": "<A|B|tie>",
-        "consistency": "<A|B|tie>"
-    }}
+    "accuracy_winner": "<A|B|tie>",
+    "style_fidelity_winner": "<A|B|tie>",
+    "consistency_winner": "<A|B|tie>"
 }}"""
 
     def _extract_json_from_text(self, text: str) -> str:
@@ -272,13 +276,18 @@ Provide your evaluation in this exact JSON format:
                             )
                         overall_winner = judge_output.overall_winner
                         reasoning = judge_output.reasoning
-                        # Convert string keys to RubricDimension enum
+                        # Map explicit dimension fields to enum keys
                         dimension_winners: dict[
                             RubricDimension, Literal["A", "B", "tie"]
-                        ] = {}
-                        for dim_str, winner in judge_output.dimension_winners.items():
-                            dim = RubricDimension(dim_str)
-                            dimension_winners[dim] = winner
+                        ] = {
+                            RubricDimension.ACCURACY: judge_output.accuracy_winner,
+                            RubricDimension.STYLE_FIDELITY: (
+                                judge_output.style_fidelity_winner
+                            ),
+                            RubricDimension.CONSISTENCY: (
+                                judge_output.consistency_winner
+                            ),
+                        }
                     else:
                         # Fallback to text parsing for backwards compatibility
                         overall_winner, reasoning, dimension_winners = (

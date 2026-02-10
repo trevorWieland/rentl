@@ -81,7 +81,7 @@ class OpenAICompatibleRuntime(LlmRuntimeProtocol):
                 return LlmPromptResponse(
                     model_id=request.runtime.model.model_id,
                     output_text=str(result.output),
-                    structured_output=result.output,
+                    structured_output=result.output,  # type: ignore[arg-type]
                 )
             else:
                 agent = Agent(model, instructions=instructions)
@@ -120,7 +120,7 @@ class OpenAICompatibleRuntime(LlmRuntimeProtocol):
                 return LlmPromptResponse(
                     model_id=request.runtime.model.model_id,
                     output_text=str(result.output),
-                    structured_output=result.output,
+                    structured_output=result.output,  # type: ignore[arg-type]
                 )
             else:
                 agent = Agent(model, instructions=instructions)

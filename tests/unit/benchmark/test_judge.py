@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rentl_core.benchmark.judge import RubricJudge
+from rentl_core.benchmark.judge import JudgeOutput, RubricJudge
 from rentl_schemas.benchmark.rubric import RubricDimension
 from rentl_schemas.config import RetryConfig
 from rentl_schemas.io import TranslatedLine
@@ -80,7 +80,9 @@ def test_head_to_head_prompt_construction(
     assert "Hello" in prompt
     assert "Hi there" in prompt
     assert "overall_winner" in prompt
-    assert "dimension_winners" in prompt
+    assert "accuracy_winner" in prompt
+    assert "style_fidelity_winner" in prompt
+    assert "consistency_winner" in prompt
 
 
 def test_parse_head_to_head_from_json(
@@ -609,3 +611,43 @@ async def test_compare_head_to_head_retry_exhaustion(
         )
 
     assert mock_runtime.run_prompt.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_compare_head_to_head_structured_output(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test structured output with explicit dimension fields."""
+    mock_runtime.run_prompt = AsyncMock(
+        return_value=LlmPromptResponse(
+            model_id="gpt-4o-mini",
+            output_text="(structured output)",
+            structured_output=JudgeOutput(
+                overall_winner="A",
+                reasoning="Translation A is more accurate",
+                accuracy_winner="A",
+                style_fidelity_winner="tie",
+                consistency_winner="B",
+            ),
+        )
+    )
+
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    result = await judge.compare_head_to_head(
+        line_id="line_1",
+        source_text="こんにちは",
+        translation_1="Hello",
+        translation_2="Hi there",
+        candidate_1_name="c1",
+        candidate_2_name="c2",
+        randomize_order=False,
+    )
+
+    assert result.winner == "A"
+    assert result.reasoning == "Translation A is more accurate"
+    assert result.dimension_winners[RubricDimension.ACCURACY] == "A"
+    assert result.dimension_winners[RubricDimension.STYLE_FIDELITY] == "tie"
+    assert result.dimension_winners[RubricDimension.CONSISTENCY] == "B"
