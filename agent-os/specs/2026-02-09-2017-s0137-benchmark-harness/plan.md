@@ -76,7 +76,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Remove stale skipped isolated-scoring unit tests and dead calls to removed judge APIs (`_build_reference_based_prompt`, `_build_reference_free_prompt`, `_parse_rubric_scores`, `score_translation`, `score_batch`) from `tests/unit/benchmark/test_judge.py:63`, `tests/unit/benchmark/test_judge.py:88`, `tests/unit/benchmark/test_judge.py:135`, `tests/unit/benchmark/test_judge.py:163`, `tests/unit/benchmark/test_judge.py:189`, `tests/unit/benchmark/test_judge.py:276`, `tests/unit/benchmark/test_judge.py:314`, and `tests/unit/benchmark/test_judge.py:348` (audit round 3)
   - [x] Fix: Replace skip-based legacy coverage with active pairwise-only assertions in `tests/unit/benchmark/test_judge.py` so Task 5 test migration is complete and no longer relies on `pytest.mark.skip` placeholders for removed modes (audit round 3; see signposts.md Task 5 skipped legacy judge tests)
 
-- [ ] Task 6: Report generator — pairwise win rates and Elo
+- [x] Task 6: Report generator — pairwise win rates and Elo
   - **Rewrite** `rentl-core/src/rentl_core/benchmark/report.py`:
     - Build per-pair `HeadToHeadSummary` from list of `HeadToHeadResult`
     - Compute pairwise win rates per dimension and overall
