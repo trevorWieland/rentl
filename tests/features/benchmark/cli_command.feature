@@ -34,3 +34,15 @@ Feature: Benchmark CLI Command
     And the report contains per-line head-to-head results
     And the report contains pairwise summaries
     And the report contains Elo ratings
+
+  Scenario: Benchmark compare requires judge model in override mode
+    Given two translation output files exist
+    When I run benchmark compare with judge override but no model
+    Then the command exits with status 1
+    And the output indicates judge model is required
+
+  Scenario: Benchmark compare works with full CLI override mode
+    Given two translation output files exist
+    When I run benchmark compare with full judge overrides
+    Then the command completes successfully
+    And the judge was configured from CLI overrides

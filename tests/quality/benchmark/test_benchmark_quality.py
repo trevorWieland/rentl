@@ -136,10 +136,9 @@ def run_benchmark_compare(ctx: BenchmarkContext) -> None:
     """Run benchmark compare command with real LLM judge."""
     ctx.report_path = ctx.tmp_path / "benchmark_report.json"
 
-    base_url = os.getenv("RENTL_QUALITY_BASE_URL", "http://localhost:8001/v1")
-    api_key = os.getenv("RENTL_QUALITY_API_KEY", "")
-
     runner = CliRunner()
+    # Use config-based mode to test proper endpoint resolution
+    config_path = Path("rentl.toml")
     result = runner.invoke(
         cli_main.app,
         [
@@ -147,18 +146,15 @@ def run_benchmark_compare(ctx: BenchmarkContext) -> None:
             "compare",
             str(ctx.output_a_path),
             str(ctx.output_b_path),
+            "--config",
+            str(config_path),
             "--judge-model",
             "gpt-4o-mini",
-            "--judge-base-url",
-            base_url,
             "--output",
             str(ctx.report_path),
             "--candidate-names",
             "candidate-a,candidate-b",
         ],
-        env={
-            "OPENAI_API_KEY": api_key,
-        },
         catch_exceptions=False,
     )
     ctx.result = result

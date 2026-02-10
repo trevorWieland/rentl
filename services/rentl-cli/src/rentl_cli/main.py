@@ -1328,13 +1328,12 @@ async def _benchmark_compare_async(
             rprint(f"[red]Line ID validation failed:[/red]\n{e}")
             raise typer.Exit(code=1) from None
 
-        # Load config for judge endpoint
-        _load_dotenv(config_path)
-        config = _load_resolved_config(config_path)
-
         # Determine judge endpoint (CLI override or config default)
         if judge_base_url:
-            # CLI override mode
+            # CLI override mode - config loading is optional
+            with contextlib.suppress(Exception):
+                # Config not available, use explicit env vars only
+                _load_dotenv(config_path)
             base_url = judge_base_url
             # Detect provider from URL
             provider_caps = detect_provider(base_url)
@@ -1368,8 +1367,19 @@ async def _benchmark_compare_async(
                     }
                 )
 
-            model_id = judge_model or "gpt-4o-mini"
+            # In override mode, model must be explicitly provided
+            if not judge_model:
+                rprint(
+                    "[red]Error:[/red] --judge-model is required when using "
+                    "--judge-base-url override mode"
+                )
+                raise typer.Exit(code=1)
+            model_id = judge_model
         else:
+            # Config-based mode - load config for judge endpoint
+            _load_dotenv(config_path)
+            config = _load_resolved_config(config_path)
+
             # Use config endpoint (legacy single endpoint or multi-endpoint default)
             if config.endpoint is not None:
                 # Legacy single endpoint mode
@@ -1417,7 +1427,17 @@ async def _benchmark_compare_async(
                     update={"openrouter_provider": byok_config.openrouter_provider}
                 )
 
-            model_id = judge_model or "gpt-4o-mini"
+            # Use judge_model CLI override or config default_model
+            if judge_model:
+                model_id = judge_model
+            elif config.pipeline and config.pipeline.default_model:
+                model_id = config.pipeline.default_model.model_id
+            else:
+                rprint(
+                    "[red]Error:[/red] No judge model specified. Set default_model "
+                    "in rentl.toml or use --judge-model"
+                )
+                raise typer.Exit(code=1)
 
         # Check that the API key is available
         api_key = os.getenv(api_key_env_name)

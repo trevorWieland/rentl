@@ -519,3 +519,109 @@ def then_report_contains_elo_ratings(ctx: BenchmarkCLIContext) -> None:
     assert len(ctx.report.overall_ranking) == 2, (
         f"Expected 2 candidates in ranking, got {len(ctx.report.overall_ranking)}"
     )
+
+
+@when("I run benchmark compare with judge override but no model")
+def when_run_benchmark_compare_override_no_model(
+    ctx: BenchmarkCLIContext, cli_runner: CliRunner
+) -> None:
+    """Run benchmark compare with judge override but missing model.
+
+    Args:
+        ctx: Benchmark CLI context.
+        cli_runner: CLI test runner.
+    """
+    ctx.result = cli_runner.invoke(
+        cli_main.app,
+        [
+            "benchmark",
+            "compare",
+            str(ctx.output_file_a),
+            str(ctx.output_file_b),
+            "--judge-base-url",
+            "http://localhost:8000/v1",
+            "--judge-api-key-env",
+            "TEST_KEY",
+        ],
+        env={"TEST_KEY": "test-key"},
+    )
+    ctx.stdout = ctx.result.stdout + ctx.result.stderr
+
+
+@then("the output indicates judge model is required")
+def then_output_indicates_model_required(ctx: BenchmarkCLIContext) -> None:
+    """Verify the output indicates judge model is required.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert "--judge-model is required" in ctx.stdout
+
+
+@when("I run benchmark compare with full judge overrides")
+def when_run_benchmark_compare_full_overrides(
+    ctx: BenchmarkCLIContext, cli_runner: CliRunner
+) -> None:
+    """Run benchmark compare with full judge overrides.
+
+    Args:
+        ctx: Benchmark CLI context.
+        cli_runner: CLI test runner.
+    """
+
+    # Mock judge to return realistic head-to-head results
+    async def mock_compare_head_to_head(**kwargs: str) -> HeadToHeadResult:
+        """Mock judge comparison.
+
+        Returns:
+            HeadToHeadResult with test data.
+        """
+        await asyncio.sleep(0)
+        return HeadToHeadResult(
+            line_id=kwargs.get("line_id", ""),
+            source_text=kwargs.get("source_text", ""),
+            candidate_a_name=kwargs.get("candidate_1_name", "A"),
+            candidate_b_name=kwargs.get("candidate_2_name", "B"),
+            translation_a=kwargs.get("translation_1", ""),
+            translation_b=kwargs.get("translation_2", ""),
+            winner="A",
+            reasoning="Test reasoning.",
+            dimension_winners={
+                RubricDimension.ACCURACY: "A",
+                RubricDimension.STYLE_FIDELITY: "tie",
+                RubricDimension.CONSISTENCY: "B",
+            },
+        )
+
+    mock_judge = MagicMock()
+    mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
+
+    with patch("rentl_cli.main.RubricJudge", return_value=mock_judge):
+        ctx.result = cli_runner.invoke(
+            cli_main.app,
+            [
+                "benchmark",
+                "compare",
+                str(ctx.output_file_a),
+                str(ctx.output_file_b),
+                "--judge-base-url",
+                "http://localhost:8000/v1",
+                "--judge-model",
+                "test-model",
+                "--judge-api-key-env",
+                "TEST_KEY",
+            ],
+            env={"TEST_KEY": "test-key"},
+        )
+        ctx.stdout = ctx.result.stdout + ctx.result.stderr
+
+
+@then("the judge was configured from CLI overrides")
+def then_judge_configured_from_overrides(ctx: BenchmarkCLIContext) -> None:
+    """Verify the judge was configured with CLI overrides.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    # The command should succeed without needing a config file
+    assert ctx.result.exit_code == 0

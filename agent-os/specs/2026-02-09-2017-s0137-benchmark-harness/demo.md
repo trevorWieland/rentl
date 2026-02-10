@@ -13,7 +13,7 @@ rentl now includes a benchmark harness that compares translation quality across 
    - `qwen/qwen3-vl-30b-a3b-instruct` with translate-only
    - Expected: four output JSONL files produced, one per run
 
-3. Run `rentl benchmark compare gpt-oss-full.jsonl gpt-oss-mtl.jsonl qwen3-full.jsonl qwen3-mtl.jsonl --judge-model "openai/gpt-oss-120b" --candidate-names "gpt-oss-full,gpt-oss-mtl,qwen3-full,qwen3-mtl"` — expected: 6 pairwise head-to-head comparisons (C(4,2)=6) run with progress, randomized A/B presentation for each pair
+3. Run `rentl benchmark compare gpt-oss-full.jsonl gpt-oss-mtl.jsonl qwen3-full.jsonl qwen3-mtl.jsonl --config rentl.toml --judge-model "openai/gpt-oss-120b" --candidate-names "gpt-oss-full,gpt-oss-mtl,qwen3-full,qwen3-mtl"` — expected: 6 pairwise head-to-head comparisons (C(4,2)=6) run with progress, randomized A/B presentation for each pair
 
 4. Review the benchmark report — expected: per-line head-to-head results with reasoning for all 6 pairs, pairwise win rates per dimension, Elo ratings for all 4 candidates, overall ranking
 
