@@ -159,7 +159,7 @@ def run_benchmark_compare(ctx: BenchmarkContext) -> None:
             "candidate-b",
         ],
         env={
-            "RENTL_QUALITY_API_KEY": api_key,
+            "OPENAI_API_KEY": api_key,
         },
         catch_exceptions=False,
     )
