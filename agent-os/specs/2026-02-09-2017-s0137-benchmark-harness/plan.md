@@ -115,3 +115,10 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - All tests within tier timing limits (unit <250ms, integration <5s, quality <30s)
   - Clean up stale test files from old architecture (old CLI command tests, MTL baseline features)
   - Note: Quality test updated to head-to-head N-way architecture in do-task round 10
+
+- [ ] Task 9: Fix eval-set name normalization
+  - Add kebab-case to snake_case normalization in `_benchmark_download_async` so CLI accepts `--eval-set katawa-shoujo` (user-facing format)
+  - Normalize before passing to `EvalSetLoader.load_manifest()` and `EvalSetLoader.load_slices()`
+  - Update demo.md to use correct `--eval-set katawa-shoujo` format (kebab-case)
+  - Add integration test: `rentl benchmark download --eval-set katawa-shoujo --slice demo` succeeds
+  - Verify existing unit tests still pass (they use snake_case directly in Python, which is fine)

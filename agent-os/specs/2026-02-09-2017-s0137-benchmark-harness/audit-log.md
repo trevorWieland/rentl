@@ -33,6 +33,8 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 3): FAIL — Task 6 remains incomplete: report generation still requires caller-supplied `overall_ranking` and `compute_elo_ratings` crashes with `ZeroDivisionError` for zero-comparison summaries.
 - **Task 6** (round 4): PASS — Verified fix commit `aa21171`: `compute_elo_ratings` skips zero-comparison pairs and `build_report` derives `overall_ranking` from Elo; validation passed (`pytest -q tests/unit/benchmark/test_report.py` → `20 passed`, `uv run pyright packages/rentl-core/src/rentl_core/benchmark/report.py tests/unit/benchmark/test_report.py` → `0 errors`).
 
+- **Demo** (run 1): FAIL — Step 1 command syntax mismatch: demo.md documents `--eval-set katawa-shoujo` (kebab-case) but CLI expects `katawa_shoujo` (snake_case). No normalization in CLI. Task 9 added to fix.
+
 ---
 
 **Architecture revision** (resolve-blockers, 2026-02-10): spec.md, plan.md, demo.md, signposts.md rewritten. Original design embedded pipeline execution inside benchmark command and hardcoded JP→EN 2-system comparison. Revised to: benchmark is a pure comparison tool taking 2+ rentl run output files, head-to-head only (no isolated scoring), N-way all-pairs with Elo, language-agnostic. MTL baseline is just a translate-only rentl run. Tasks 1+3 remain done; Tasks 2/4/5/6/7/8 require rework under new plan. Old Task 4 (MTL baseline generator) replaced with output loader + dead code removal.

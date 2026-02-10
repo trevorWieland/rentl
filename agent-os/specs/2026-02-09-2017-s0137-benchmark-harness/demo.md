@@ -21,4 +21,10 @@ rentl now includes a benchmark harness that compares translation quality across 
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — First demo execution after Task 8 (2026-02-10 18:30)
+- Step 1: FAIL — Command `rentl benchmark download --eval-set katawa-shoujo --slice demo` fails with "Manifest not found for eval set 'katawa-shoujo'". The CLI expects `katawa_shoujo` (underscore) but demo.md documents `katawa-shoujo` (hyphen). Running with `--eval-set katawa_shoujo` succeeds.
+- Step 2: SKIPPED — cannot proceed after Step 1 failure
+- Step 3: SKIPPED — cannot proceed after Step 1 failure
+- Step 4: SKIPPED — cannot proceed after Step 1 failure
+- Step 5: SKIPPED — cannot proceed after Step 1 failure
+- **Overall: FAIL**
