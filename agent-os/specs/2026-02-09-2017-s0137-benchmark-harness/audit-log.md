@@ -49,3 +49,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 3): PASS — Step 1 verified working after recent changes. Steps 2-5 validated via quality test. Full verification gate passes (805 unit + 81 integration + 5 quality tests).
 - **Spec Audit** (round 2): FAIL — Rubric `4/4/3/5/3`, non-negotiables PASS, demo latest PASS, fix-now count 3 (progress accounting regression, stale `_run_benchmark_async` dead path, quality winner-label assertion mismatch).
 - **Demo** (run 4): PASS — Step 1 executes successfully. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (805 unit + 81 integration + 5 quality tests).
+- **Spec Audit** (round 3): FAIL — Rubric `4/4/3/5/3`, non-negotiables PASS, demo latest PASS (run 4), fix-now count 3 (progress monotonicity, stale `_run_benchmark_async` dead path, quality winner-label assertion mismatch).
