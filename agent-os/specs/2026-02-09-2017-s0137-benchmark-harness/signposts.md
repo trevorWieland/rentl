@@ -149,6 +149,13 @@
 - **Resolution:** do-task round 15 (2026-02-10)
 - **Files affected:** `tests/integration/benchmark/test_cli_command.py`, `services/rentl-cli/src/rentl_cli/main.py`
 
+- **Task:** Task 10 BDD step-binding regression
+- **Status:** unresolved
+- **Problem:** Task 10 was re-checked as complete, but one override-mode BDD scenario still cannot execute because the feature requires `Then the command exits with status 1` and no matching step definition exists.
+- **Evidence:** `uv run pytest -q tests/integration/benchmark/test_cli_command.py` fails with `pytest_bdd.exceptions.StepDefinitionNotFoundError: Step definition is not found: Then "the command exits with status 1". Line 41 in scenario "Benchmark compare requires judge model in override mode"`. Feature step is at `tests/features/benchmark/cli_command.feature:41`; only `@then("the command exits with status 2")` exists at `tests/integration/benchmark/test_cli_command.py:82`.
+- **Impact:** Task 10 integration BDD coverage remains red, so Task 10 cannot be considered complete under the integration-test contract.
+- **Files affected:** `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`
+
 - **Task:** Task 11
 - **Status:** unresolved
 - **Problem:** The benchmark judge response parser fails across multiple model families during real-world use. Models that produce reasoning/thinking tokens before JSON, or that generate verbose output exceeding the hardcoded 2000-token limit, cause parse failures that abort the entire benchmark run.

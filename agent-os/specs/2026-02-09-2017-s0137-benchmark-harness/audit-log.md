@@ -65,3 +65,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 8): PASS — Rubric `5/5/5/5/5`, non-negotiables PASS, demo latest PASS (run 9), fix-now count 0.
 - **Task 10** (round 1): FAIL — Endpoint-config migration is incomplete: override mode still hard-requires config parsing, remaining judge defaults stay hardcoded, and required integration/quality/demo follow-up updates were not implemented.
 - **Task 10** (round 2): FAIL — Override-mode BDD coverage regressed (`fixture 'ctx' not found` in new scenarios), and benchmark compare still hardcodes `max_output_tokens=4096` instead of deriving token settings from config/default model settings.
+- **Task 10** (round 3): FAIL — Task remains incomplete because integration BDD has an unbound step (`Then the command exits with status 1`), causing `StepDefinitionNotFoundError` in `tests/features/benchmark/cli_command.feature:41`.
