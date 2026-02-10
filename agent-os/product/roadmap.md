@@ -60,7 +60,7 @@
 - ✅ (s0.1.34) Log Redaction & Safety Audit — Enforce secret redaction in logs and artifacts. **Depends on:** s0.1.06, s0.1.27.
 - ✅ (s0.1.35) CLI Exit Codes + Error Taxonomy — Stable exit codes for CI and scripting. **Depends on:** s0.1.06, s0.1.11.
 - (s0.1.36) Deterministic Rerun Validation — Same inputs + config produce identical artifacts and summaries. **Depends on:** s0.1.07, s0.1.09.
-- (s0.1.37) Benchmark Harness v0.1 — Curated small evaluation set with baseline MTL comparison; runnable outside default CI. **Depends on:** s0.1.17, s0.1.19, s0.1.20.
+- ✅ (s0.1.37) Benchmark Harness v0.1 — Curated small evaluation set with baseline MTL comparison; runnable outside default CI. **Depends on:** s0.1.17, s0.1.19, s0.1.20.
 - (s0.1.38) Benchmark Transparency Pack — Publish configs, prompts, rubric, and input/output hashes with a reproducibility guide (no text release). **Depends on:** s0.1.37.
 - (s0.1.39) Install Verification (uvx/uv tool) — Validate install + `rentl init` + full run on a clean environment. **Depends on:** s0.1.29, s0.1.24.
 
