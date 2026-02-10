@@ -6,3 +6,4 @@ Future auditors: check this log for regressions and patterns.
 ---
 
 - **Task 2** (round 1): PASS — Benchmark schema module, rubric/report models, and unit validation/round-trip coverage align with plan and standards.
+- **Task 3** (round 1): FAIL — Eval-set task marked complete prematurely; committed manifest/slice artifacts and parse-flow coverage are missing, and default parser IDs fail schema validation on KSRE-style filenames.
