@@ -72,3 +72,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 11** (round 3): FAIL — Structured-output field migration introduced a fallback contract regression: `_parse_head_to_head` still requires `dimension_winners`, so text-mode responses using `accuracy_winner`/`style_fidelity_winner`/`consistency_winner` fail with `ValueError`.
 - **Task 12** (round 1): PASS — Demo workflow now matches actual CLI capabilities: Step 2 uses `run-pipeline`, and Step 3 includes `--config rentl.toml` for benchmark compare.
 - **Demo** (run 11): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (800 unit + 85 integration + 5 quality tests).
+- **Spec Audit** (round 9): FAIL — Rubric `4/4/4/5/3`, non-negotiables PASS, demo latest PASS (run 11), fix-now count 2 (OpenRouter override-mode `config` regression + missing integration coverage for that path).
