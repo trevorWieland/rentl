@@ -82,7 +82,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - Human-readable summary formatter for CLI output (table or structured text)
   - Unit tests: aggregation math, report construction, formatting
 
-- [ ] Task 7: `rentl benchmark` CLI command
+- [x] Task 7: `rentl benchmark` CLI command
   - Add `benchmark` command to CLI router in `rentl-cli`
   - Wire together: download eval set → generate MTL baseline → run rentl pipeline → judge both → generate report
   - CLI flags:
@@ -95,7 +95,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - Progress output: download status, baseline progress, pipeline progress, judging progress, report summary
   - Error handling: missing API keys, download failures, judge failures
   - Integration tests: mocked end-to-end flow via CLI
-  - [ ] Fix: Replace placeholder benchmark wiring with real rentl pipeline execution; current implementation prints a placeholder warning and reuses MTL output as rentl output (`services/rentl-cli/src/rentl_cli/main.py:2386`, `services/rentl-cli/src/rentl_cli/main.py:2390`) (audit round 1; see signposts.md: Task 7 placeholder pipeline - requires orchestrator integration architecture)
+  - [x] Fix: Replace placeholder benchmark wiring with real rentl pipeline execution; current implementation prints a placeholder warning and reuses MTL output as rentl output (`services/rentl-cli/src/rentl_cli/main.py:2386`, `services/rentl-cli/src/rentl_cli/main.py:2390`) (audit round 1; see signposts.md: Task 7 placeholder pipeline - requires orchestrator integration architecture)
   - [x] Fix: Implement `--scoring-mode` contract end-to-end (validate `reference-based|reference-free`, map to schema mode, and pass references when reference-based is selected); current benchmark path always sends `reference=None` to judge calls (`services/rentl-cli/src/rentl_cli/main.py:1099`, `services/rentl-cli/src/rentl_cli/main.py:2430`, `services/rentl-cli/src/rentl_cli/main.py:2452`) (audit round 1; partial - validation added, reference loading not yet implemented, see signposts.md)
   - [x] Fix: Align eval-set flag example/handling with loader path resolution so documented `katawa-shoujo` works (or normalize to `katawa_shoujo` before loading manifest/slices) (`services/rentl-cli/src/rentl_cli/main.py:1088`, `services/rentl-cli/src/rentl_cli/main.py:2284`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/loader.py:58`) (audit round 1)
   - [x] Fix: Correct head-to-head winner aggregation to use schema winner slots (`A|B|tie`) rather than system-name strings; current report builder miscounts wins and rates (`packages/rentl-core/src/rentl_core/benchmark/report.py:110`, `packages/rentl-core/src/rentl_core/benchmark/report.py:127`, see signposts.md: Task 8 winner label mismatch) (audit round 1)
