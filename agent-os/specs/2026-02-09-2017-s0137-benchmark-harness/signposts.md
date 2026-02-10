@@ -185,10 +185,12 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `packages/rentl-schemas/src/rentl_schemas/llm.py`, `packages/rentl-llm/src/rentl_llm/openai_runtime.py`, `tests/unit/benchmark/test_judge.py`
 
 - **Task:** Task 12
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** demo.md Steps 2-5 reference `rentl run` which does not exist as a CLI command — the actual command is `rentl run-pipeline`.
-- **Evidence:** `uv run rentl run --help` → `No such command 'run'`. `uv run rentl --help` shows `run-pipeline` as the correct command.
+- **Evidence:** `uv run rentl run --help` → `No such command 'run'`. `uv run rentl --help` shows `run-pipeline` as the correct command. `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:9` now uses `rentl run-pipeline` for Step 2 and `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:16` includes `--config rentl.toml` in Step 3.
 - **Impact:** Demo steps 2-5 cannot be followed as written.
+- **Solution:** Updated demo steps to use the real CLI command (`run-pipeline`) and included `--config rentl.toml` in benchmark compare step.
+- **Resolution:** commit `22b4afa` (2026-02-10)
 - **Files affected:** `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md`
 
 - **Task:** Task 11 structured-output fallback mismatch

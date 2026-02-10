@@ -70,3 +70,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 11** (round 1): FAIL — Retry and JSON extraction are implemented, but Task 11’s structured-output requirement is still missing (judge calls remain free-form text), and `JudgeOutput` is unused dead code.
 - **Task 11** (round 2): FAIL — Structured output is wired, but Task 11 still violates standards/contract: `Any` was added to shared schema types and structured judge output can silently omit required rubric dimensions.
 - **Task 11** (round 3): FAIL — Structured-output field migration introduced a fallback contract regression: `_parse_head_to_head` still requires `dimension_winners`, so text-mode responses using `accuracy_winner`/`style_fidelity_winner`/`consistency_winner` fail with `ValueError`.
+- **Task 12** (round 1): PASS — Demo workflow now matches actual CLI capabilities: Step 2 uses `run-pipeline`, and Step 3 includes `--config rentl.toml` for benchmark compare.
