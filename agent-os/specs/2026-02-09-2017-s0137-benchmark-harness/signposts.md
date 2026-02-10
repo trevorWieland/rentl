@@ -87,3 +87,19 @@
 - **Resolution:** do-task round 8 (2026-02-09)
 - **Files affected:** `tests/unit/benchmark/test_report_generation.py`, `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/plan.md`
 - **Note:** Tests exposed a bug in `report.py:109-130` where `build_head_to_head_summary` compares `HeadToHeadResult.winner` (which uses "A"/"B"/"tie" per schema) against system names like "mtl"/"rentl", causing all comparisons to be miscounted. This should be fixed in a future task but is outside Task 8 scope.
+
+- **Task:** Task 8
+- **Status:** unresolved
+- **Problem:** Task 8 was marked complete after a unit-test-only change set; required benchmark CLI integration coverage and benchmark quality-tier coverage are still missing.
+- **Evidence:** Task 8 commit `829df22` changed only `tests/unit/benchmark/test_report_generation.py` plus spec artifacts (`git show --name-only 829df22`). Required Task 8 integration bullet is `plan.md:101` (full benchmark CLI flow), but `rg "invoke\\(.*benchmark"` in `tests/integration` returns no benchmark command invocations. Required quality bullet is `plan.md:102`, but `rg --files tests/quality | rg benchmark` returned `NO_QUALITY_BENCHMARK_TESTS_FOUND`.
+- **Impact:** Benchmark test contract is incomplete, so integration/quality regressions in `rentl benchmark` flow can ship undetected.
+- **Solution:** Add BDD integration test(s) for full mocked `rentl benchmark` CLI execution and add BDD quality test(s) under `tests/quality/benchmark/` using real LLM calls on the demo slice.
+- **Files affected:** `tests/integration/...`, `tests/quality/...`, `tests/features/...`
+
+- **Task:** Task 8
+- **Status:** unresolved
+- **Problem:** Head-to-head summary winner aggregation still miscounts wins because report code compares schema values (`"A"`/`"B"`) against system names (`"mtl"`/`"rentl"`), and new Task 8 tests assert the incorrect counts as expected behavior.
+- **Evidence:** `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:53` defines `winner: Literal["A", "B", "tie"]`, but `packages/rentl-core/src/rentl_core/benchmark/report.py:109` and `packages/rentl-core/src/rentl_core/benchmark/report.py:113` compare to `system_a_name`/`system_b_name`. New tests assert this mismatch (`tests/unit/benchmark/test_report_generation.py:221`, `tests/unit/benchmark/test_report_generation.py:222`).
+- **Impact:** Reported head-to-head win totals and per-dimension win rates are inaccurate, weakening benchmark result trustworthiness.
+- **Solution:** Map winner values by slot (`A`/`B`) rather than system-name string equality, then update Task 8 tests to assert correct counts.
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/report.py`, `tests/unit/benchmark/test_report_generation.py`
