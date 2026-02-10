@@ -4,22 +4,15 @@ import asyncio
 import json
 import random
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai import AgentRunResult
 from pytest_bdd import given, parsers, scenario, then, when
 
-from rentl_core.benchmark.judge import RubricJudge
-from rentl_llm.openai_runtime import OpenAICompatibleRuntime
+from rentl_core.benchmark.judge import JudgeOutput, RubricJudge
 from rentl_schemas.benchmark.rubric import RubricDimension
-from rentl_schemas.config import RetryConfig
 from rentl_schemas.io import TranslatedLine
-from rentl_schemas.llm import (
-    LlmEndpointTarget,
-    LlmModelSettings,
-    LlmPromptResponse,
-    LlmRuntimeSettings,
-)
-from rentl_schemas.primitives import ReasoningEffort
 
 FEATURES_DIR = Path(__file__).parent.parent.parent / "features" / "benchmark"
 
@@ -64,72 +57,53 @@ def ctx() -> JudgeContext:
 
 @given("a rubric judge with mocked LLM")
 def given_judge_with_mock(ctx: JudgeContext, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Set up judge with mocked LLM runtime."""
+    """Set up judge with mocked pydantic-ai Agent."""
 
-    def mock_run_prompt_sync(
-        self: object, request: object, *, api_key: str
-    ) -> LlmPromptResponse:
-        """Mock LLM runtime that returns canned responses.
+    async def mock_agent_run(
+        self: object, prompt: str, **kwargs: object
+    ) -> AgentRunResult[JudgeOutput]:
+        """Mock pydantic-ai Agent.run that returns canned responses.
 
         Args:
-            self: OpenAIRuntime instance (unused).
-            request: LlmPromptRequest instance (unused).
-            api_key: API key (unused).
+            self: Agent instance (unused).
+            prompt: User prompt (unused).
+            **kwargs: Additional arguments (unused).
 
         Returns:
-            LlmPromptResponse with mock response text.
+            AgentRunResult with mock JudgeOutput.
 
         Raises:
             RuntimeError: If no mock responses are available.
         """
+        await asyncio.sleep(0)  # Make it truly async
+
         # Pop next mock response from queue
         if not ctx.mock_responses:
             raise RuntimeError("No mock responses available")
 
         response_text = ctx.mock_responses.pop(0)
-        return LlmPromptResponse(model_id="gpt-4o-mini", output_text=response_text)
+        response_data = json.loads(response_text)
 
-    # Wrap sync mock in async function
-    async def mock_run_prompt_async(
-        self: object, request: object, *, api_key: str
-    ) -> LlmPromptResponse:
-        """Async wrapper for mock LLM runtime.
+        # Create JudgeOutput from mocked JSON
+        judge_output = JudgeOutput(
+            overall_winner=response_data["overall_winner"],
+            reasoning=response_data["reasoning"],
+            accuracy_winner=response_data["accuracy_winner"],
+            style_fidelity_winner=response_data["style_fidelity_winner"],
+            consistency_winner=response_data["consistency_winner"],
+        )
 
-        Returns:
-            LlmPromptResponse: Mock LLM response.
-        """
-        # Use asyncio to ensure proper async execution
-        await asyncio.sleep(0)
-        return mock_run_prompt_sync(self, request, api_key=api_key)
+        # Create mock result
+        result = MagicMock(spec=AgentRunResult)
+        result.output = judge_output
+        return result
 
-    monkeypatch.setattr(OpenAICompatibleRuntime, "run_prompt", mock_run_prompt_async)
-
-    runtime_settings = LlmRuntimeSettings(
-        endpoint=LlmEndpointTarget(
-            provider_name="openai",
-            base_url="https://api.openai.com/v1",
-            api_key_env="OPENAI_API_KEY",
-            timeout_s=30.0,
-        ),
-        model=LlmModelSettings(
-            model_id="gpt-4o-mini",
-            temperature=0.7,
-            max_output_tokens=1000,
-            reasoning_effort=ReasoningEffort.MEDIUM,
-            top_p=1.0,
-            presence_penalty=0.0,
-            frequency_penalty=0.0,
-        ),
-        retry=RetryConfig(
-            max_retries=3,
-            backoff_s=1.0,
-            max_backoff_s=10.0,
-        ),
-    )
+    # Patch Agent.run across all instances
+    monkeypatch.setattr("pydantic_ai.Agent.run", mock_agent_run)
 
     ctx.judge = RubricJudge(
-        runtime=OpenAICompatibleRuntime(),
-        runtime_settings=runtime_settings,
+        model_id="gpt-4o-mini",
+        base_url="https://api.openai.com/v1",
         api_key="test-key",
     )
 

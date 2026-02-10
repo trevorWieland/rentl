@@ -98,7 +98,6 @@ from rentl_schemas.config import (
     LogSinkConfig,
     ModelSettings,
     OpenRouterProviderRoutingConfig,
-    RetryConfig,
     RunConfig,
 )
 from rentl_schemas.events import (
@@ -113,8 +112,6 @@ from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedL
 from rentl_schemas.llm import (
     LlmConnectionReport,
     LlmEndpointTarget,
-    LlmModelSettings,
-    LlmRuntimeSettings,
 )
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import (
@@ -135,7 +132,6 @@ from rentl_schemas.primitives import (
     LogSinkType,
     PhaseName,
     PhaseStatus,
-    ReasoningEffort,
     RunId,
     RunStatus,
     UntranslatedPolicy,
@@ -1458,31 +1454,24 @@ async def _benchmark_compare_async(
             rprint(f"[red]Error:[/red] Set {api_key_env_name} environment variable")
             raise typer.Exit(code=1)
 
-        # Set up judge runtime settings
-        runtime_settings = LlmRuntimeSettings(
-            endpoint=endpoint_target,
-            model=LlmModelSettings(
-                model_id=model_id,
-                temperature=0.7,
-                max_output_tokens=max_output_tokens,
-                reasoning_effort=ReasoningEffort.MEDIUM,
-                top_p=1.0,
-                presence_penalty=0.0,
-                frequency_penalty=0.0,
-            ),
-            retry=RetryConfig(
-                max_retries=3,
-                backoff_s=1.0,
-                max_backoff_s=60.0,
-            ),
+        # Detect if OpenRouter to enable routing constraints
+        capabilities = detect_provider(endpoint_target.base_url)
+        openrouter_require_parameters = bool(
+            capabilities.is_openrouter
+            and config.endpoint
+            and config.endpoint.openrouter_provider
+            and config.endpoint.openrouter_provider.require_parameters
         )
 
-        runtime = OpenAICompatibleRuntime()
+        # Create judge with new pydantic-ai-based constructor
         judge = RubricJudge(
-            runtime=runtime,
-            runtime_settings=runtime_settings,
+            model_id=model_id,
+            base_url=endpoint_target.base_url,
             api_key=api_key,
+            temperature=0.7,
+            max_output_tokens=max_output_tokens,
             concurrency_limit=5,
+            openrouter_require_parameters=openrouter_require_parameters,
         )
 
         # Run all-pairs comparison

@@ -160,18 +160,28 @@
 
 - **Task:** Task 11
 - **Status:** unresolved
-- **Problem:** The benchmark judge response parser fails across multiple model families during real-world use. Models that produce reasoning/thinking tokens before JSON, or that generate verbose output exceeding the hardcoded 2000-token limit, cause parse failures that abort the entire benchmark run.
-- **Evidence:** Demo walkthrough with `qwen/qwen3-30b-a3b` judge: got 17% through 156 comparisons then failed with `Failed to parse judge response as JSON: Unterminated string starting at: line 6 column 27 (char 479)` — truncated JSON from exceeding `max_output_tokens=2000` at `main.py:1342`. Demo with `openai/gpt-oss-120b` judge: immediate failure with `Failed to parse judge response as JSON: Expecting value: line 1 column 1 (char 0)` — empty/non-JSON response from reasoning model. Parser at `judge.py:114-127` only handles ```` ```json ``` ```` fencing, no structured output enforcement, no retry.
-- **Impact:** The benchmark compare command cannot complete a full comparison run with most model families available on OpenRouter. Only models that consistently produce clean JSON within 2000 tokens work, which excludes reasoning models and verbose models.
-- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `services/rentl-cli/src/rentl_cli/main.py`
+- **Problem:** The benchmark judge uses a custom `LlmRuntimeProtocol` + `LlmPromptRequest` abstraction with hand-rolled JSON parsing instead of pydantic-ai `Agent` with `output_type`. This is the root cause of all Task 11 failures — the judge reinvented structured output handling that pydantic-ai already provides and that the normal rentl pipeline already uses successfully.
+- **Evidence (original failures):** Demo walkthrough with `qwen/qwen3-30b-a3b` judge: got 17% through 156 comparisons then failed with `Failed to parse judge response as JSON: Unterminated string starting at: line 6 column 27 (char 479)`. Demo with `openai/gpt-oss-120b` judge: immediate failure with `Expecting value: line 1 column 1 (char 0)`.
+- **Evidence (failed fix attempts, rounds 15-18):** Each round added more defensive code instead of fixing the root cause:
+  - Round 15: Added `result_schema=JudgeOutput` to `LlmPromptRequest` — but the custom runtime's structured output support is not equivalent to pydantic-ai's
+  - Round 16: Added 4-layer JSON extraction fallback (`_extract_json_from_text`) with markdown fences, regex, and raw parse — compensating for prompt not constraining output
+  - Round 17: Switched to explicit dimension fields (`accuracy_winner` etc.) but broke fallback parser which still expected `dimension_winners` dict
+  - Round 18: Added dual-format support (explicit fields + legacy dict) — now the parser handles two formats neither of which is definitively canonical
+  - Result: 419 lines of judge code with 4 JSON extraction strategies, 2 response format parsers, retry-with-randomization loops, and manual field validation — all of which pydantic-ai handles in zero custom code
+- **Evidence (proven alternative exists):** The normal rentl pipeline at `packages/rentl-agents/src/rentl_agents/runtime.py:472-499` uses `Agent[None, OutputT_co](model=model, output_type=self._output_type, output_retries=5)` followed by `result = await agent.run(prompt)` / `return result.output`. This works across all model families (OpenAI, OpenRouter, local) with zero JSON extraction or format fallback code. The `JudgeOutput` Pydantic model is already defined and correct — it just needs to be used as pydantic-ai's `output_type` instead of being manually parsed from text.
+- **Impact:** 5+ failed audit rounds on Task 11. Each fix attempt made the code more complex and fragile. The hand-rolled approach cannot match pydantic-ai's provider-specific structured output negotiation (response_format, tool-based output, etc.).
+- **Root cause pattern:** New LLM integration code was written using a low-level custom abstraction (`LlmRuntimeProtocol`) instead of the project's established high-level pattern (pydantic-ai `Agent`). This led to reimplementing structured output, validation, and retry logic from scratch — badly. The lesson is: when the project has a proven LLM integration pattern, new LLM-calling code must use that same pattern, not invent a parallel one.
+- **Solution:** Rewrite `RubricJudge` to use `Agent[None, JudgeOutput]` with `output_type=JudgeOutput`. Delete all hand-rolled parsing (`_extract_json_from_text`, `_parse_head_to_head`, retry loop). Use pydantic-ai's `output_retries` for retry. Use pydantic-ai model/provider setup for endpoint config. See revised plan.md Task 11 for full details.
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `tests/unit/benchmark/test_judge.py`, `services/rentl-cli/src/rentl_cli/main.py`
 
 - **Task:** Task 11 structured-output dimension completeness
-- **Status:** resolved
+- **Status:** resolved (superseded — entire hand-rolled approach being replaced by pydantic-ai Agent; see Task 11 root-cause signpost)
 - **Problem:** The new structured-output path could return incomplete per-dimension winners. `JudgeOutput.dimension_winners` was typed as `dict[str, Literal["A", "B", "tie"]]`, allowing arbitrary/missing keys instead of enforcing all three required dimensions (accuracy, style_fidelity, consistency).
 - **Evidence:** Original schema at `packages/rentl-core/src/rentl_core/benchmark/judge.py:32` allowed arbitrary dict keys. Structured branch at `packages/rentl-core/src/rentl_core/benchmark/judge.py:279`-`packages/rentl-core/src/rentl_core/benchmark/judge.py:281` copied keys directly without validation.
 - **Impact:** Before fix, Task 11 could emit head-to-head results missing required rubric dimensions, violating the plan/spec contract that per-line output includes winners for accuracy, style fidelity, and consistency.
 - **Solution:** Replaced `dimension_winners` dict with explicit required fields (`accuracy_winner`, `style_fidelity_winner`, `consistency_winner`) in `JudgeOutput` schema. Updated structured-output parsing to map these explicit fields to `RubricDimension` enum keys. Updated judge prompt to match new field names. Added regression test `test_compare_head_to_head_structured_output` verifying all three dimensions are present. Also replaced `Any`-typed `result_schema`/`structured_output` fields in `llm.py` with explicit `type[BaseModel]` and `BaseModel | None` types per strict-typing standard.
 - **Resolution:** do-task round 17 (2026-02-10)
+- **Superseded:** This fix enforced dimension completeness in the hand-rolled structured-output path. With pydantic-ai Agent, dimension completeness is guaranteed by the `JudgeOutput` schema via `output_type` — pydantic-ai won't accept a response missing required fields.
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `packages/rentl-schemas/src/rentl_schemas/llm.py`, `packages/rentl-llm/src/rentl_llm/openai_runtime.py`, `tests/unit/benchmark/test_judge.py`
 
 - **Task:** Task 12
@@ -182,10 +192,11 @@
 - **Files affected:** `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md`
 
 - **Task:** Task 11 structured-output fallback mismatch
-- **Status:** resolved
+- **Status:** resolved (superseded — entire hand-rolled approach being replaced by pydantic-ai Agent; see Task 11 root-cause signpost)
 - **Problem:** The round-17 switch to explicit per-dimension fields (`accuracy_winner`, `style_fidelity_winner`, `consistency_winner`) fixed structured-output completeness but left the text fallback parser on the old `dimension_winners` contract.
 - **Evidence:** Prompt format now requests explicit fields at `packages/rentl-core/src/rentl_core/benchmark/judge.py:110` and `packages/rentl-core/src/rentl_core/benchmark/judge.py:117`, while `_parse_head_to_head` still requires `dimension_winners` at `packages/rentl-core/src/rentl_core/benchmark/judge.py:194`. Repro output: `ValueError Missing 'dimension_winners' in response` when calling `_parse_head_to_head` on JSON containing the new explicit fields.
 - **Impact:** If `structured_output` is unavailable (text-only runtime output or schema parse failure), fallback parsing rejects prompt-conformant responses and benchmark compare can still fail per-line despite Task 11's robustness goal.
 - **Solution:** Modified `_parse_head_to_head` to support both formats: tries new explicit-field format first (accuracy_winner, etc.), falls back to legacy nested dimension_winners dict if explicit fields are absent. Added regression test `test_parse_head_to_head_explicit_dimension_fields` to verify new format works, and linter added `test_parse_head_to_head_legacy_dimension_winners_format` for backward compatibility. All 21 judge unit tests pass.
 - **Resolution:** do-task round 18 (2026-02-10)
+- **Superseded:** This fix patched a symptom. The root cause is using a custom LlmRuntimeProtocol instead of pydantic-ai Agent. Both the fallback parser and the structured-output path it falls back from will be deleted when Task 11 is reimplemented with pydantic-ai.
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `tests/unit/benchmark/test_judge.py`

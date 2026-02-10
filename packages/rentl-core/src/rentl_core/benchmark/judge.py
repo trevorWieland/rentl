@@ -5,21 +5,24 @@ judge model. Evaluates accuracy, style fidelity, and consistency with source tex
 """
 
 import asyncio
-import json
 import random
-import re
 from collections.abc import Awaitable, Callable
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.settings import ModelSettings
 
-from rentl_core.ports.llm import LlmRuntimeProtocol
+from rentl_agents.providers import detect_provider
 from rentl_schemas.benchmark.rubric import (
     HeadToHeadResult,
     RubricDimension,
 )
 from rentl_schemas.io import TranslatedLine
-from rentl_schemas.llm import LlmPromptRequest, LlmRuntimeSettings
 
 
 class JudgeOutput(BaseModel):
@@ -44,33 +47,62 @@ class RubricJudge:
     """LLM-as-judge for rubric-based translation evaluation.
 
     Compares translations pairwise on accuracy, style fidelity, and consistency
-    using structured prompts and output parsing. Supports randomized A/B order
+    using pydantic-ai Agent with structured output. Supports randomized A/B order
     to reduce position bias.
     """
 
     def __init__(
         self,
-        runtime: LlmRuntimeProtocol,
-        runtime_settings: LlmRuntimeSettings,
+        model_id: str,
+        base_url: str,
         api_key: str,
+        temperature: float = 0.7,
+        max_output_tokens: int = 4096,
         concurrency_limit: int = 5,
-        max_retries: int = 3,
+        openrouter_require_parameters: bool = True,
     ) -> None:
         """Initialize rubric judge.
 
         Args:
-            runtime: LLM runtime adapter
-            runtime_settings: Runtime settings (endpoint, model, retry)
+            model_id: Model ID to use for judging
+            base_url: Base URL for LLM endpoint
             api_key: API key for LLM endpoint
+            temperature: Sampling temperature (default 0.7)
+            max_output_tokens: Maximum output tokens per request
             concurrency_limit: Maximum concurrent judging requests
-            max_retries: Maximum retries per comparison on parse failure
+            openrouter_require_parameters: Enable OpenRouter routing constraints
         """
-        self.runtime = runtime
-        self.runtime_settings = runtime_settings
+        self.model_id = model_id
+        self.base_url = base_url
         self.api_key = api_key
+        self.temperature = temperature
+        self.max_output_tokens = max_output_tokens
         self.concurrency_limit = concurrency_limit
-        self.max_retries = max_retries
         self._semaphore = asyncio.Semaphore(concurrency_limit)
+
+        # Detect provider and create model/provider
+        capabilities = detect_provider(base_url)
+        if capabilities.is_openrouter:
+            provider = OpenRouterProvider(api_key=api_key)
+            self.model = OpenRouterModel(model_id, provider=provider)
+            # Build model settings with OpenRouter provider config
+            self.model_settings = cast(
+                ModelSettings,
+                {
+                    "temperature": temperature,
+                    "max_tokens": max_output_tokens,
+                    "openrouter_provider": {
+                        "require_parameters": openrouter_require_parameters
+                    },
+                },
+            )
+        else:
+            provider = OpenAIProvider(base_url=base_url, api_key=api_key)
+            self.model = OpenAIChatModel(model_id, provider=provider)
+            self.model_settings = cast(
+                ModelSettings,
+                {"temperature": temperature, "max_tokens": max_output_tokens},
+            )
 
     def _build_head_to_head_prompt(
         self, source_text: str, translation_a: str, translation_b: str
@@ -105,130 +137,7 @@ Dimensions:
    in the target language?
 3. CONSISTENCY: Which translation uses more consistent terminology and naming?
 
-For ties, use "tie" if both translations are equally good or equally flawed.
-
-Provide your evaluation in this exact JSON format:
-{{
-    "overall_winner": "<A|B|tie>",
-    "reasoning": "<explanation for overall winner>",
-    "accuracy_winner": "<A|B|tie>",
-    "style_fidelity_winner": "<A|B|tie>",
-    "consistency_winner": "<A|B|tie>"
-}}"""
-
-    def _extract_json_from_text(self, text: str) -> str:
-        """Extract JSON content from response text with fallback strategies.
-
-        Args:
-            text: Raw response text possibly containing JSON
-
-        Returns:
-            Extracted JSON string (best-effort extraction, may not be valid JSON)
-        """
-        text = text.strip()
-
-        # Strategy 1: Markdown code blocks with json tag
-        if "```json" in text:
-            start = text.index("```json") + 7
-            end = text.index("```", start)
-            return text[start:end].strip()
-
-        # Strategy 2: Markdown code blocks without json tag
-        if "```" in text:
-            start = text.index("```") + 3
-            end = text.index("```", start)
-            return text[start:end].strip()
-
-        # Strategy 3: Find JSON object via regex (handles reasoning prefix/suffix)
-        json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
-        matches = re.findall(json_pattern, text, re.DOTALL)
-        if matches:
-            # Try parsing each match to find valid JSON
-            for match in matches:
-                try:
-                    json.loads(match)
-                    return match
-                except json.JSONDecodeError:
-                    continue
-
-        # Strategy 4: Return text as-is and let JSON parser fail with clear error
-        return text
-
-    def _parse_head_to_head(
-        self, response_text: str
-    ) -> tuple[
-        Literal["A", "B", "tie"], str, dict[RubricDimension, Literal["A", "B", "tie"]]
-    ]:
-        """Parse head-to-head comparison response.
-
-        Args:
-            response_text: Raw LLM response containing JSON
-
-        Returns:
-            Tuple of (overall_winner, reasoning, dimension_winners)
-
-        Raises:
-            ValueError: If parsing fails or format is invalid
-        """
-        # Extract JSON from response with multiple fallback strategies
-        json_text = self._extract_json_from_text(response_text)
-
-        try:
-            data = json.loads(json_text)
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Failed to parse judge response as JSON: {e}\n"
-                f"Extracted text: {json_text[:200]}..."
-            ) from e
-
-        if "overall_winner" not in data or "reasoning" not in data:
-            raise ValueError("Missing 'overall_winner' or 'reasoning' in response")
-
-        overall_winner_str = data["overall_winner"]
-        if overall_winner_str not in ("A", "B", "tie"):
-            raise ValueError(f"Invalid overall_winner: {overall_winner_str}")
-        overall_winner: Literal["A", "B", "tie"] = overall_winner_str
-
-        reasoning = data["reasoning"]
-
-        # Parse dimension winners - support both new explicit-field format
-        # and legacy nested dimension_winners dict for fallback compatibility
-        dimension_winners: dict[RubricDimension, Literal["A", "B", "tie"]] = {}
-
-        # Try new explicit-field format first (accuracy_winner, etc.)
-        dimension_field_map = {
-            "accuracy_winner": RubricDimension.ACCURACY,
-            "style_fidelity_winner": RubricDimension.STYLE_FIDELITY,
-            "consistency_winner": RubricDimension.CONSISTENCY,
-        }
-
-        has_explicit_fields = all(field in data for field in dimension_field_map)
-
-        if has_explicit_fields:
-            # Parse new explicit-field format
-            for field_name, dimension in dimension_field_map.items():
-                winner_str = data[field_name]
-                if winner_str not in ("A", "B", "tie"):
-                    raise ValueError(f"Invalid {field_name}: {winner_str}")
-                winner_typed: Literal["A", "B", "tie"] = winner_str
-                dimension_winners[dimension] = winner_typed
-        else:
-            # Fall back to legacy nested dimension_winners dict format
-            if "dimension_winners" not in data:
-                raise ValueError("Missing 'dimension_winners' in response")
-
-            for dim in RubricDimension:
-                if dim.value not in data["dimension_winners"]:
-                    raise ValueError(
-                        f"Missing dimension winner for {dim.value} in response"
-                    )
-                winner_str = data["dimension_winners"][dim.value]
-                if winner_str not in ("A", "B", "tie"):
-                    raise ValueError(f"Invalid winner for {dim.value}: {winner_str}")
-                winner_typed_legacy: Literal["A", "B", "tie"] = winner_str
-                dimension_winners[dim] = winner_typed_legacy
-
-        return overall_winner, reasoning, dimension_winners
+For ties, use "tie" if both translations are equally good or equally flawed."""
 
     async def compare_head_to_head(
         self,
@@ -241,7 +150,7 @@ Provide your evaluation in this exact JSON format:
         randomize_order: bool = True,
         progress_callback: Callable[[str], Awaitable[None]] | None = None,
     ) -> HeadToHeadResult:
-        """Compare two translations head-to-head with retry on parse failure.
+        """Compare two translations head-to-head using pydantic-ai Agent.
 
         Args:
             line_id: Unique identifier for this line
@@ -255,115 +164,72 @@ Provide your evaluation in this exact JSON format:
 
         Returns:
             HeadToHeadResult with winner and reasoning
-
-        Raises:
-            ValueError: If parsing fails after all retries
         """
         async with self._semaphore:
-            last_error: Exception | None = None
+            # Randomize assignment to reduce position bias
+            if randomize_order and random.random() < 0.5:
+                a_is_1 = False
+                translation_a = translation_2
+                translation_b = translation_1
+            else:
+                a_is_1 = True
+                translation_a = translation_1
+                translation_b = translation_2
 
-            for attempt in range(self.max_retries):
-                try:
-                    # Randomize assignment to reduce position bias
-                    if randomize_order and random.random() < 0.5:
-                        a_is_1 = False
-                        translation_a = translation_2
-                        translation_b = translation_1
-                    else:
-                        a_is_1 = True
-                        translation_a = translation_1
-                        translation_b = translation_2
+            prompt = self._build_head_to_head_prompt(
+                source_text, translation_a, translation_b
+            )
 
-                    prompt = self._build_head_to_head_prompt(
-                        source_text, translation_a, translation_b
-                    )
+            # Create pydantic-ai agent with JudgeOutput as structured output type
+            agent = Agent(
+                model=self.model,
+                output_type=JudgeOutput,
+                output_retries=5,  # Pydantic-ai handles retries on validation failure
+            )
 
-                    request = LlmPromptRequest(
-                        runtime=self.runtime_settings,
-                        prompt=prompt,
-                        system_prompt=None,
-                        result_schema=JudgeOutput,
-                    )
+            # Run agent with prompt - structured output is guaranteed
+            result = await agent.run(prompt, model_settings=self.model_settings)
+            judge_output = cast(JudgeOutput, result.output)
 
-                    response = await self.runtime.run_prompt(
-                        request, api_key=self.api_key
-                    )
+            # Extract winners from structured output
+            overall_winner = judge_output.overall_winner
+            reasoning = judge_output.reasoning
+            dimension_winners: dict[RubricDimension, Literal["A", "B", "tie"]] = {
+                RubricDimension.ACCURACY: judge_output.accuracy_winner,
+                RubricDimension.STYLE_FIDELITY: judge_output.style_fidelity_winner,
+                RubricDimension.CONSISTENCY: judge_output.consistency_winner,
+            }
 
-                    # Use structured output if available, otherwise fall back to parsing
-                    if response.structured_output is not None:
-                        judge_output = response.structured_output
-                        if not isinstance(judge_output, JudgeOutput):
-                            raise ValueError(
-                                f"Expected JudgeOutput but got {type(judge_output)}"
-                            )
-                        overall_winner = judge_output.overall_winner
-                        reasoning = judge_output.reasoning
-                        # Map explicit dimension fields to enum keys
-                        dimension_winners: dict[
-                            RubricDimension, Literal["A", "B", "tie"]
-                        ] = {
-                            RubricDimension.ACCURACY: judge_output.accuracy_winner,
-                            RubricDimension.STYLE_FIDELITY: (
-                                judge_output.style_fidelity_winner
-                            ),
-                            RubricDimension.CONSISTENCY: (
-                                judge_output.consistency_winner
-                            ),
-                        }
-                    else:
-                        # Fallback to text parsing for backwards compatibility
-                        overall_winner, reasoning, dimension_winners = (
-                            self._parse_head_to_head(response.output_text)
-                        )
+            # Map A/B back to translation_1/translation_2
+            final_overall_winner: Literal["A", "B", "tie"] = overall_winner
+            final_dimension_winners: dict[RubricDimension, Literal["A", "B", "tie"]] = (
+                dimension_winners
+            )
+            if not a_is_1:
+                # A was translation_2, B was translation_1, so swap
+                winner_map: dict[str, Literal["A", "B", "tie"]] = {
+                    "A": "B",
+                    "B": "A",
+                    "tie": "tie",
+                }
+                final_overall_winner = winner_map[overall_winner]
+                final_dimension_winners = {
+                    dim: winner_map[winner] for dim, winner in dimension_winners.items()
+                }
 
-                    # Map A/B back to translation_1/translation_2
-                    final_overall_winner: Literal["A", "B", "tie"] = overall_winner
-                    final_dimension_winners: dict[
-                        RubricDimension, Literal["A", "B", "tie"]
-                    ] = dimension_winners
-                    if not a_is_1:
-                        # A was translation_2, B was translation_1, so swap
-                        winner_map: dict[str, Literal["A", "B", "tie"]] = {
-                            "A": "B",
-                            "B": "A",
-                            "tie": "tie",
-                        }
-                        final_overall_winner = winner_map[overall_winner]
-                        final_dimension_winners = {
-                            dim: winner_map[winner]
-                            for dim, winner in dimension_winners.items()
-                        }
+            if progress_callback:
+                await progress_callback(line_id)
 
-                    if progress_callback:
-                        await progress_callback(line_id)
-
-                    return HeadToHeadResult(
-                        line_id=line_id,
-                        source_text=source_text,
-                        candidate_a_name=candidate_1_name,
-                        candidate_b_name=candidate_2_name,
-                        translation_a=translation_1,
-                        translation_b=translation_2,
-                        winner=final_overall_winner,
-                        reasoning=reasoning,
-                        dimension_winners=final_dimension_winners,
-                    )
-                except ValueError as e:
-                    last_error = e
-                    # On parse failure, retry with a different randomization
-                    # This gives the model another chance to produce valid output
-                    if attempt < self.max_retries - 1:
-                        await asyncio.sleep(0.5 * (attempt + 1))  # Exponential backoff
-                        continue
-                    # Final attempt failed, re-raise
-                    raise ValueError(
-                        f"Failed to parse judge response for line {line_id} "
-                        f"after {self.max_retries} attempts: {last_error}"
-                    ) from last_error
-
-            # Should never reach here due to raise in loop
-            raise ValueError(
-                f"Failed to compare line {line_id} after {self.max_retries} attempts"
+            return HeadToHeadResult(
+                line_id=line_id,
+                source_text=source_text,
+                candidate_a_name=candidate_1_name,
+                candidate_b_name=candidate_2_name,
+                translation_a=translation_1,
+                translation_b=translation_2,
+                winner=final_overall_winner,
+                reasoning=reasoning,
+                dimension_winners=final_dimension_winners,
             )
 
     async def compare_batch_head_to_head(
