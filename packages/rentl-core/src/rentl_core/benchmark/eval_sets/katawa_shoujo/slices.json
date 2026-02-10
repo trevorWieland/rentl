@@ -1,11 +1,11 @@
 {
   "slices": {
     "demo": {
-      "description": "Small demo slice for quick validation (20-30 lines)",
+      "description": "Small demo slice for quick validation (~25-30 lines with dialogue, narration, choices, multiple speakers)",
       "scripts": [
         {
-          "file": "script-a1-sunday.rpy",
-          "line_range": [1, 30]
+          "file": "script-a1-monday.rpy",
+          "line_range": [550, 649]
         }
       ]
     }

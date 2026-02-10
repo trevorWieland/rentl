@@ -1,8 +1,14 @@
 """Unit tests for EvalSetLoader."""
 
+import asyncio
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 import pytest
 
+from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
 from rentl_core.benchmark.eval_sets.loader import EvalSetLoader
+from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
 
 
 class TestEvalSetLoader:
@@ -69,4 +75,73 @@ class TestEvalSetLoader:
         for script in demo_scripts:
             assert script in manifest.scripts, (
                 f"Script '{script}' in demo slice not found in manifest"
+            )
+
+    def test_demo_slice_contains_required_content_types(self) -> None:
+        """Demo slice includes dialogue, narration, choices, and multiple speakers.
+
+        This validates that the configured demo slice meets the Task 3
+        requirement for mixed content types suitable for parser/judge testing.
+        """
+        # Load slice config
+        slices_config = EvalSetLoader.load_slices("katawa_shoujo")
+        demo_slice = slices_config.slices["demo"]
+
+        # Get the script file and line range
+        assert len(demo_slice.scripts) > 0, "Demo slice must have at least one script"
+        script_spec = demo_slice.scripts[0]
+        script_file = script_spec.file
+        line_start, line_end = script_spec.line_range
+
+        # Download the script (with hash validation)
+        manifest = EvalSetLoader.load_manifest("katawa_shoujo")
+
+        with TemporaryDirectory() as tmpdir:
+            downloader = KatawaShoujoDownloader(cache_dir=Path(tmpdir))
+
+            script_paths = asyncio.run(
+                downloader.download_scripts([script_file], manifest.scripts)
+            )
+
+            # Parse the script
+            parser = RenpyDialogueParser()
+            all_lines = parser.parse_script(script_paths[script_file])
+
+            # Filter to the configured line range (by source_line metadata)
+            slice_lines = []
+            for line in all_lines:
+                if line.metadata is None:
+                    continue
+                source_line = line.metadata.get("source_line", 0)
+                if (
+                    isinstance(source_line, int)
+                    and line_start <= source_line <= line_end
+                ):
+                    slice_lines.append(line)
+
+            # Collect content properties
+            has_dialogue = any(
+                line.speaker and line.speaker != "[menu]" for line in slice_lines
+            )
+            has_narration = any(line.speaker is None for line in slice_lines)
+            has_choices = any(
+                line.metadata is not None and line.metadata.get("type") == "choice"
+                for line in slice_lines
+            )
+            named_speakers = {
+                line.speaker
+                for line in slice_lines
+                if line.speaker and line.speaker != "[menu]"
+            }
+
+            # Assert required content mix
+            assert len(slice_lines) >= 20, (
+                f"Demo slice should have at least 20 parseable lines, "
+                f"got {len(slice_lines)}"
+            )
+            assert has_dialogue, "Demo slice must include dialogue with speakers"
+            assert has_narration, "Demo slice must include narration (no speaker)"
+            assert has_choices, "Demo slice must include menu choices"
+            assert len(named_speakers) >= 2, (
+                f"Demo slice must have at least 2 named speakers, got {named_speakers}"
             )
