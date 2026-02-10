@@ -74,3 +74,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 12** (round 2): PASS — Re-audit verified Task 12 remains correct: `demo.md` uses `run-pipeline` for Steps 2-5 and retains `--config rentl.toml` in Step 3, matching current CLI behavior (`uv run rentl --help`, `uv run rentl run --help`).
 - **Demo** (run 11): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (800 unit + 85 integration + 5 quality tests).
 - **Spec Audit** (round 9): FAIL — Rubric `4/4/4/5/3`, non-negotiables PASS, demo latest PASS (run 11), fix-now count 2 (OpenRouter override-mode `config` regression + missing integration coverage for that path).
+- **Demo** (run 12): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (800 unit + 86 integration + 5 quality tests).
