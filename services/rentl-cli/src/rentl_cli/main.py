@@ -1455,12 +1455,11 @@ async def _benchmark_compare_async(
             raise typer.Exit(code=1)
 
         # Detect if OpenRouter to enable routing constraints
-        capabilities = detect_provider(endpoint_target.base_url)
+        # In override mode, endpoint_target.openrouter_provider is already set
+        # In config mode, we can derive from config.endpoint
         openrouter_require_parameters = bool(
-            capabilities.is_openrouter
-            and config.endpoint
-            and config.endpoint.openrouter_provider
-            and config.endpoint.openrouter_provider.require_parameters
+            endpoint_target.openrouter_provider
+            and endpoint_target.openrouter_provider.require_parameters
         )
 
         # Create judge with new pydantic-ai-based constructor

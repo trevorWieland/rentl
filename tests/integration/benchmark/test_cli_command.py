@@ -39,6 +39,7 @@ class BenchmarkCLIContext:
         self.output_file_b: Path | None = None
         self.report_path: Path | None = None
         self.report: BenchmarkReport | None = None
+        self.judge_constructor_args: dict[str, object] | None = None
 
 
 @given("a valid rentl configuration exists", target_fixture="ctx")
@@ -641,3 +642,87 @@ def then_judge_configured_from_overrides(ctx: BenchmarkCLIContext) -> None:
     """
     # The command should succeed without needing a config file
     assert ctx.result.exit_code == 0
+
+
+@when("I run benchmark compare with OpenRouter judge overrides")
+def when_run_benchmark_compare_openrouter_overrides(
+    ctx: BenchmarkCLIContext, cli_runner: CliRunner
+) -> None:
+    """Run benchmark compare with OpenRouter judge overrides.
+
+    Args:
+        ctx: Benchmark CLI context.
+        cli_runner: CLI test runner.
+    """
+
+    # Mock judge to return realistic head-to-head results
+    async def mock_compare_head_to_head(**kwargs: str) -> HeadToHeadResult:
+        """Mock judge comparison.
+
+        Returns:
+            HeadToHeadResult with test data.
+        """
+        await asyncio.sleep(0)
+        return HeadToHeadResult(
+            line_id=kwargs.get("line_id", ""),
+            source_text=kwargs.get("source_text", ""),
+            candidate_a_name=kwargs.get("candidate_1_name", "A"),
+            candidate_b_name=kwargs.get("candidate_2_name", "B"),
+            translation_a=kwargs.get("translation_1", ""),
+            translation_b=kwargs.get("translation_2", ""),
+            winner="A",
+            reasoning="Test reasoning.",
+            dimension_winners={
+                RubricDimension.ACCURACY: "A",
+                RubricDimension.STYLE_FIDELITY: "tie",
+                RubricDimension.CONSISTENCY: "B",
+            },
+        )
+
+    # Capture the judge constructor arguments
+    ctx.judge_constructor_args = None
+
+    def capture_judge_init(*args: object, **kwargs: object) -> MagicMock:
+        """Capture judge constructor arguments.
+
+        Returns:
+            Mock judge instance.
+        """
+        ctx.judge_constructor_args = kwargs
+        mock_judge = MagicMock()
+        mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
+        return mock_judge
+
+    with patch("rentl_cli.main.RubricJudge", side_effect=capture_judge_init):
+        ctx.result = cli_runner.invoke(
+            cli_main.app,
+            [
+                "benchmark",
+                "compare",
+                str(ctx.output_file_a),
+                str(ctx.output_file_b),
+                "--judge-base-url",
+                "https://openrouter.ai/api/v1",
+                "--judge-model",
+                "openai/gpt-4o-mini",
+                "--judge-api-key-env",
+                "RENTL_OPENROUTER_API_KEY",
+            ],
+            env={"RENTL_OPENROUTER_API_KEY": "test-key"},
+        )
+        ctx.stdout = ctx.result.stdout + ctx.result.stderr
+
+
+@then("the judge was configured with OpenRouter routing")
+def then_judge_configured_with_openrouter(ctx: BenchmarkCLIContext) -> None:
+    """Verify the judge was configured with OpenRouter routing constraints.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    # The command should succeed
+    assert ctx.result.exit_code == 0
+
+    # Verify the judge was constructed with openrouter_require_parameters=True
+    assert ctx.judge_constructor_args is not None
+    assert ctx.judge_constructor_args.get("openrouter_require_parameters") is True

@@ -211,3 +211,12 @@
 - **Solution:** Updated mock JSON responses in `given_judge_comparison` and `given_judge_winner_a` to use explicit field format matching the current `JudgeOutput` schema. Changed `"dimension_winners": {"accuracy": "tie", ...}` to `"accuracy_winner": "tie", ...`.
 - **Resolution:** do-task fix round (2026-02-10)
 - **Files affected:** `tests/integration/benchmark/test_judge_flow.py`
+
+- **Task:** Task 10
+- **Status:** resolved
+- **Problem:** Override mode crashed when resolving OpenRouter routing constraints because it referenced `config.endpoint` which doesn't exist in override mode.
+- **Evidence:** Lines 1459-1464 in `services/rentl-cli/src/rentl_cli/main.py` checked `config.endpoint.openrouter_provider` to determine if `openrouter_require_parameters` should be set. In override mode (when `--judge-base-url` is provided), `config` is never defined, so accessing `config.endpoint` crashes with `UnboundLocalError: cannot access local variable 'config' where it is not associated with a value`. Repro: `RENTL_OPENROUTER_API_KEY=dummy uv run rentl benchmark compare a.jsonl b.jsonl --judge-base-url https://openrouter.ai/api/v1 --judge-model test-model --judge-api-key-env RENTL_OPENROUTER_API_KEY`.
+- **Impact:** OpenRouter override mode was completely unusable - any attempt to use `--judge-base-url https://openrouter.ai/api/v1` without a config file crashed before judge setup.
+- **Solution:** Changed OpenRouter routing detection to check `endpoint_target.openrouter_provider` directly instead of `config.endpoint.openrouter_provider`. In override mode, `endpoint_target.openrouter_provider` is already set at lines 1357-1364. In config-based mode, it's set at lines 1423-1426 from `byok_config.openrouter_provider`. This makes the routing detection work in both modes without referencing undefined variables.
+- **Resolution:** do-task round 19 (2026-02-10)
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`

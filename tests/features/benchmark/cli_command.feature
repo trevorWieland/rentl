@@ -46,3 +46,9 @@ Feature: Benchmark CLI Command
     When I run benchmark compare with full judge overrides
     Then the command completes successfully
     And the judge was configured from CLI overrides
+
+  Scenario: Benchmark compare works with OpenRouter override mode
+    Given two translation output files exist
+    When I run benchmark compare with OpenRouter judge overrides
+    Then the command completes successfully
+    And the judge was configured with OpenRouter routing
