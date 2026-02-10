@@ -14,7 +14,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit and push spec artifacts on issue branch
 
-- [ ] Task 2: Benchmark schemas and rubric models
+- [x] Task 2: Benchmark schemas and rubric models
   - Create `rentl-schemas/src/rentl_schemas/benchmark/` module
   - Pydantic models: `BenchmarkConfig`, `EvalSetConfig`, `SliceConfig`
   - Rubric models: `RubricDimension`, `RubricScore` (1-5 scale with reasoning)
