@@ -2430,12 +2430,14 @@ async def _run_benchmark_async(
     )
 
     # Determine and validate scoring mode
-    actual_scoring_mode = scoring_mode or "reference_based"
+    # Normalize hyphenated input to underscore format
+    raw_scoring_mode = scoring_mode or "reference_based"
+    actual_scoring_mode = raw_scoring_mode.replace("-", "_")
     valid_modes = ["reference_based", "reference_free"]
     if actual_scoring_mode not in valid_modes:
         raise ValueError(
-            f"Invalid scoring mode '{actual_scoring_mode}'. "
-            f"Must be one of: {', '.join(valid_modes)}"
+            f"Invalid scoring mode '{raw_scoring_mode}'. "
+            f"Must be one of: reference-based, reference-free"
         )
 
     # TODO: Load reference translations for reference-based mode
