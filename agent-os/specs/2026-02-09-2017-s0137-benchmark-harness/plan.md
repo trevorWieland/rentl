@@ -96,7 +96,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - Error handling: missing API keys, download failures, judge failures
   - Integration tests: mocked end-to-end flow via CLI
 
-- [ ] Task 8: Tests (unit + integration + quality)
+- [x] Task 8: Tests (unit + integration + quality)
   - Unit tests: all schema validation, parser logic, aggregation math, prompt construction
   - Integration tests (mocked LLM): full benchmark CLI flow, eval set download + parse, MTL baseline generation, judge wiring, report output
   - Quality test (real LLMs): run benchmark on demo slice, assert judge returns per-line scores with reasoning for all rubric dimensions, assert report structure is complete (no assertion on rentl beating MTL)
