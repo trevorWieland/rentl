@@ -41,3 +41,5 @@ Future auditors: check this log for regressions and patterns.
 ---
 
 **Architecture revision** (resolve-blockers, 2026-02-10): spec.md, plan.md, demo.md, signposts.md rewritten. Original design embedded pipeline execution inside benchmark command and hardcoded JP→EN 2-system comparison. Revised to: benchmark is a pure comparison tool taking 2+ rentl run output files, head-to-head only (no isolated scoring), N-way all-pairs with Elo, language-agnostic. MTL baseline is just a translate-only rentl run. Tasks 1+3 remain done; Tasks 2/4/5/6/7/8 require rework under new plan. Old Task 4 (MTL baseline generator) replaced with output loader + dead code removal.
+
+- **Task 8** (round 3): FAIL — The quality benchmark fix is incomplete: with documented quality env vars set, `tests/quality/benchmark/test_benchmark_quality.py` still fails before judge calls because CLI requires `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` while the test only passes `RENTL_QUALITY_API_KEY`.

@@ -102,4 +102,9 @@
 - **Resolution:** do-task round 11 (2026-02-10)
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`
 
+- **Task:** Task 8 quality-fix follow-up
+- **Status:** unresolved
+- **Problem:** The quality BDD test now uses schema-valid IDs, but it still cannot execute in the documented quality-test mode because the CLI invocation passes `RENTL_QUALITY_API_KEY` while benchmark compare requires `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`.
+- **Evidence:** Repro command `RENTL_QUALITY_API_KEY=dummy RENTL_QUALITY_BASE_URL=http://localhost:8001/v1 uv run pytest -q tests/quality/benchmark/test_benchmark_quality.py` fails with `Error: Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable` and exit code 1. The test passes only `RENTL_QUALITY_API_KEY` into `CliRunner.invoke(..., env=...)` at `tests/quality/benchmark/test_benchmark_quality.py:161`, while the CLI checks `os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")` at `services/rentl-cli/src/rentl_cli/main.py:1315`.
+- **Impact:** Task marked complete, but the quality benchmark cannot run as documented with quality env vars alone, so Task 8 quality verification remains blocked.
 
