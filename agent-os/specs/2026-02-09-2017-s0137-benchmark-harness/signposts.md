@@ -63,3 +63,10 @@
 - **Solution:** Removed stale `RubricJudge` monkeypatch. Simplified BDD feature file to single stub-focused scenario. Rewrote test file to match stub behavior (exit code 1 with "being rewritten" message). All integration tests now pass.
 - **Resolution:** do-task round 7 (2026-02-10)
 - **Files affected:** `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`
+
+- **Task:** Task 5
+- **Status:** unresolved
+- **Problem:** Task 5 was marked complete without finishing its required unit-test migration to pairwise-only judging.
+- **Evidence:** `tests/unit/benchmark/test_judge.py:63`, `tests/unit/benchmark/test_judge.py:88`, `tests/unit/benchmark/test_judge.py:135`, `tests/unit/benchmark/test_judge.py:163`, `tests/unit/benchmark/test_judge.py:189`, `tests/unit/benchmark/test_judge.py:276`, `tests/unit/benchmark/test_judge.py:314`, and `tests/unit/benchmark/test_judge.py:348` still contain `pytest.mark.skip` tests that target removed isolated-scoring APIs (`_build_reference_based_prompt`, `_build_reference_free_prompt`, `_parse_rubric_scores`, `score_translation`, `score_batch`). Verification run: `pytest -q tests/unit/benchmark/test_judge.py tests/integration/benchmark/test_judge_flow.py` → `13 passed, 8 skipped`.
+- **Impact:** Legacy skip placeholders hide unfinished migration work and allow Task 5 to appear complete without actively enforcing pairwise-only behavior in the full unit suite.
+- **Solution:** Remove stale skipped legacy tests and replace them with active assertions covering only current pairwise judge APIs.
