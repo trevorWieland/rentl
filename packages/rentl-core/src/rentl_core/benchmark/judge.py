@@ -191,20 +191,42 @@ Provide your evaluation in this exact JSON format:
 
         reasoning = data["reasoning"]
 
-        if "dimension_winners" not in data:
-            raise ValueError("Missing 'dimension_winners' in response")
-
+        # Parse dimension winners - support both new explicit-field format
+        # and legacy nested dimension_winners dict for fallback compatibility
         dimension_winners: dict[RubricDimension, Literal["A", "B", "tie"]] = {}
-        for dim in RubricDimension:
-            if dim.value not in data["dimension_winners"]:
-                raise ValueError(
-                    f"Missing dimension winner for {dim.value} in response"
-                )
-            winner_str = data["dimension_winners"][dim.value]
-            if winner_str not in ("A", "B", "tie"):
-                raise ValueError(f"Invalid winner for {dim.value}: {winner_str}")
-            winner_typed: Literal["A", "B", "tie"] = winner_str
-            dimension_winners[dim] = winner_typed
+
+        # Try new explicit-field format first (accuracy_winner, etc.)
+        dimension_field_map = {
+            "accuracy_winner": RubricDimension.ACCURACY,
+            "style_fidelity_winner": RubricDimension.STYLE_FIDELITY,
+            "consistency_winner": RubricDimension.CONSISTENCY,
+        }
+
+        has_explicit_fields = all(field in data for field in dimension_field_map)
+
+        if has_explicit_fields:
+            # Parse new explicit-field format
+            for field_name, dimension in dimension_field_map.items():
+                winner_str = data[field_name]
+                if winner_str not in ("A", "B", "tie"):
+                    raise ValueError(f"Invalid {field_name}: {winner_str}")
+                winner_typed: Literal["A", "B", "tie"] = winner_str
+                dimension_winners[dimension] = winner_typed
+        else:
+            # Fall back to legacy nested dimension_winners dict format
+            if "dimension_winners" not in data:
+                raise ValueError("Missing 'dimension_winners' in response")
+
+            for dim in RubricDimension:
+                if dim.value not in data["dimension_winners"]:
+                    raise ValueError(
+                        f"Missing dimension winner for {dim.value} in response"
+                    )
+                winner_str = data["dimension_winners"][dim.value]
+                if winner_str not in ("A", "B", "tie"):
+                    raise ValueError(f"Invalid winner for {dim.value}: {winner_str}")
+                winner_typed_legacy: Literal["A", "B", "tie"] = winner_str
+                dimension_winners[dim] = winner_typed_legacy
 
         return overall_winner, reasoning, dimension_winners
 

@@ -96,11 +96,9 @@ def test_parse_head_to_head_from_json(
     response = json.dumps({
         "overall_winner": "A",
         "reasoning": "Translation A is more accurate",
-        "dimension_winners": {
-            "accuracy": "A",
-            "style_fidelity": "tie",
-            "consistency": "B",
-        },
+        "accuracy_winner": "A",
+        "style_fidelity_winner": "tie",
+        "consistency_winner": "B",
     })
 
     winner, reasoning, dim_winners = judge._parse_head_to_head(response)
@@ -123,17 +121,72 @@ def test_parse_head_to_head_with_tie(
     response = json.dumps({
         "overall_winner": "tie",
         "reasoning": "Both translations are equally good",
-        "dimension_winners": {
-            "accuracy": "tie",
-            "style_fidelity": "tie",
-            "consistency": "tie",
-        },
+        "accuracy_winner": "tie",
+        "style_fidelity_winner": "tie",
+        "consistency_winner": "tie",
     })
 
     winner, reasoning, _dim_winners = judge._parse_head_to_head(response)
 
     assert winner == "tie"
     assert reasoning == "Both translations are equally good"
+
+
+def test_parse_head_to_head_explicit_dimension_fields(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing with new explicit dimension winner fields (accuracy_winner, etc)."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = json.dumps({
+        "overall_winner": "A",
+        "reasoning": "Translation A is superior across all dimensions",
+        "accuracy_winner": "A",
+        "style_fidelity_winner": "B",
+        "consistency_winner": "tie",
+    })
+
+    winner, reasoning, dim_winners = judge._parse_head_to_head(response)
+
+    assert winner == "A"
+    assert reasoning == "Translation A is superior across all dimensions"
+    assert dim_winners[RubricDimension.ACCURACY] == "A"
+    assert dim_winners[RubricDimension.STYLE_FIDELITY] == "B"
+    assert dim_winners[RubricDimension.CONSISTENCY] == "tie"
+
+
+def test_parse_head_to_head_legacy_dimension_winners_format(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing with legacy dimension_winners nested dict format.
+
+    This tests backward compatibility for models that produce the old format
+    when structured output is unavailable.
+    """
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    # Legacy format with nested dimension_winners dict
+    response = json.dumps({
+        "overall_winner": "B",
+        "reasoning": "Translation B is better",
+        "dimension_winners": {
+            "accuracy": "B",
+            "style_fidelity": "A",
+            "consistency": "tie",
+        },
+    })
+
+    winner, reasoning, dim_winners = judge._parse_head_to_head(response)
+
+    assert winner == "B"
+    assert reasoning == "Translation B is better"
+    assert dim_winners[RubricDimension.ACCURACY] == "B"
+    assert dim_winners[RubricDimension.STYLE_FIDELITY] == "A"
+    assert dim_winners[RubricDimension.CONSISTENCY] == "tie"
 
 
 def test_parse_head_to_head_invalid_winner(
@@ -164,11 +217,9 @@ async def test_compare_head_to_head(
             output_text=json.dumps({
                 "overall_winner": "A",
                 "reasoning": "A is more accurate",
-                "dimension_winners": {
-                    "accuracy": "A",
-                    "style_fidelity": "tie",
-                    "consistency": "A",
-                },
+                "accuracy_winner": "A",
+                "style_fidelity_winner": "tie",
+                "consistency_winner": "A",
             }),
         )
     )
@@ -205,11 +256,9 @@ async def test_compare_batch_head_to_head(
             output_text=json.dumps({
                 "overall_winner": "B",
                 "reasoning": "B is better",
-                "dimension_winners": {
-                    "accuracy": "B",
-                    "style_fidelity": "B",
-                    "consistency": "tie",
-                },
+                "accuracy_winner": "B",
+                "style_fidelity_winner": "B",
+                "consistency_winner": "tie",
             }),
         )
     )
@@ -282,11 +331,9 @@ async def test_compare_head_to_head_with_randomization(
             output_text=json.dumps({
                 "overall_winner": "A",
                 "reasoning": "A is more accurate",
-                "dimension_winners": {
-                    "accuracy": "A",
-                    "style_fidelity": "B",
-                    "consistency": "tie",
-                },
+                "accuracy_winner": "A",
+                "style_fidelity_winner": "B",
+                "consistency_winner": "tie",
             }),
         )
     )
