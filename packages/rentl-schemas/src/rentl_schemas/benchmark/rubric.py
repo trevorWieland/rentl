@@ -14,40 +14,17 @@ class RubricDimension(StrEnum):
     CONSISTENCY = "consistency"
 
 
-class RubricScore(BaseModel):
-    """A single rubric dimension score with reasoning."""
-
-    dimension: RubricDimension = Field(
-        description="Which rubric dimension this score evaluates"
-    )
-    score: int = Field(
-        ge=1,
-        le=5,
-        description="Score from 1 (poor) to 5 (excellent) for this dimension",
-    )
-    reasoning: str = Field(
-        description="Judge's explanation for why this score was assigned"
-    )
-
-
-class LineScore(BaseModel):
-    """Scores for a single line across all rubric dimensions."""
-
-    line_id: str = Field(description="Unique identifier for the evaluated line")
-    source_text: str = Field(description="Original source language text")
-    translation: str = Field(description="The translation being scored")
-    reference: str | None = Field(
-        default=None,
-        description="Reference translation (if available and used for scoring)",
-    )
-    scores: list[RubricScore] = Field(description="Scores for each rubric dimension")
-
-
 class HeadToHeadResult(BaseModel):
     """Result of a head-to-head comparison between two translations."""
 
     line_id: str = Field(description="Unique identifier for the evaluated line")
     source_text: str = Field(description="Original source language text")
+    candidate_a_name: str = Field(
+        description="Name of the first candidate (before randomization)"
+    )
+    candidate_b_name: str = Field(
+        description="Name of the second candidate (before randomization)"
+    )
     translation_a: str = Field(description="First translation (randomized assignment)")
     translation_b: str = Field(description="Second translation (randomized assignment)")
     winner: Literal["A", "B", "tie"] = Field(

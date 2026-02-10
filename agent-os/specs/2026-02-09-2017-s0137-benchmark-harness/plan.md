@@ -25,7 +25,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Commit and push spec artifacts on issue branch
   - Note: spec.md revised via resolve-blockers (2026-02-10) to head-to-head-only N-way architecture
 
-- [ ] Task 2: Revise benchmark schemas for head-to-head N-way comparison
+- [x] Task 2: Revise benchmark schemas for head-to-head N-way comparison
   - **Remove** from `rentl_schemas/benchmark/rubric.py`: `RubricScore`, `LineScore` (isolated scoring models)
   - **Keep** `RubricDimension` enum (accuracy, style_fidelity, consistency)
   - **Keep** `HeadToHeadResult` — already has `winner`, `reasoning`, `dimension_winners`; add `candidate_a_name` and `candidate_b_name` fields to track which candidates were compared

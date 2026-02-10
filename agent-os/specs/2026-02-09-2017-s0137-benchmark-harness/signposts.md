@@ -45,3 +45,12 @@
 - **Resolution:** do-task round 6 (2026-02-09)
 - **Files affected:** `tests/integration/benchmark/test_judge_flow.py`, `tests/unit/benchmark/test_judge.py`, `packages/rentl-core/src/rentl_core/benchmark/judge.py`
 - **Note:** Judge module will be further revised in new Task 5 to remove isolated scoring and reference modes.
+
+- **Task:** Task 2
+- **Status:** resolved
+- **Problem:** `make check` fails with type errors in judge.py, report.py, and main.py after removing isolated scoring schemas (LineScore, RubricScore, DimensionAggregate, TranslationResult, HeadToHeadSummary).
+- **Evidence:** Schema files typecheck cleanly (`uv run pyright packages/rentl-schemas/src/rentl_schemas/benchmark/*.py` → 0 errors). Schema unit tests pass (`pytest tests/unit/benchmark/test_rubric.py tests/unit/benchmark/test_report.py` → 16/16 passed). Full `make check` fails with: `error[unresolved-import]: Module rentl_schemas.benchmark.rubric has no member LineScore` (judge.py:16, report.py:17, main.py:86), `error[unresolved-import]: Module rentl_schemas.benchmark.report has no member DimensionAggregate` (report.py:11), `error[missing-argument]: No arguments provided for required parameters candidate_a_name, candidate_b_name` (judge.py:448).
+- **Impact:** Task 2 schema revision is complete and correct. Downstream modules (judge, report generator, CLI) have not been updated yet — they will be fixed in Tasks 4, 5, 6, and 7.
+- **Solution:** Completed Task 2 schema changes. The schemas are correct and fully tested. Type errors in OTHER modules are expected and addressed by the task plan's dependency structure (Task 2 → Task 4 → Task 5 → Task 6 → Task 7).
+- **Resolution:** do-task round 1 (2026-02-10)
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py`, `packages/rentl-schemas/src/rentl_schemas/benchmark/report.py`, `packages/rentl-schemas/src/rentl_schemas/benchmark/config.py`, `packages/rentl-schemas/src/rentl_schemas/benchmark/__init__.py`, `tests/unit/benchmark/test_rubric.py`, `tests/unit/benchmark/test_report.py`

@@ -1,7 +1,5 @@
 """Configuration models for benchmark evaluation."""
 
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 
@@ -68,13 +66,6 @@ class BenchmarkConfig(BaseModel):
         default=None,
         description="Name of slice to evaluate (None = full eval set)",
     )
-    scoring_mode: Literal["reference_based", "reference_free"] = Field(
-        default="reference_based",
-        description=(
-            "Judge scoring mode: reference-based uses known-good translations, "
-            "reference-free does not"
-        ),
-    )
     judge_model: str = Field(
         description=(
             "Model identifier for LLM judge "
@@ -84,13 +75,6 @@ class BenchmarkConfig(BaseModel):
     judge_base_url: str | None = Field(
         default=None,
         description="Optional base URL for judge model API endpoint",
-    )
-    head_to_head: bool = Field(
-        default=False,
-        description=(
-            "Whether to run head-to-head comparison mode "
-            "(judge sees both translations side-by-side)"
-        ),
     )
     output_path: str | None = Field(
         default=None,

@@ -5,21 +5,20 @@ from rentl_schemas.benchmark.config import (
     EvalSetConfig,
     SliceConfig,
 )
-from rentl_schemas.benchmark.report import BenchmarkReport
-from rentl_schemas.benchmark.rubric import (
-    HeadToHeadResult,
-    LineScore,
-    RubricDimension,
-    RubricScore,
+from rentl_schemas.benchmark.report import (
+    BenchmarkReport,
+    EloRating,
+    PairwiseSummary,
 )
+from rentl_schemas.benchmark.rubric import HeadToHeadResult, RubricDimension
 
 __all__ = [
     "BenchmarkConfig",
     "BenchmarkReport",
+    "EloRating",
     "EvalSetConfig",
     "HeadToHeadResult",
-    "LineScore",
+    "PairwiseSummary",
     "RubricDimension",
-    "RubricScore",
     "SliceConfig",
 ]

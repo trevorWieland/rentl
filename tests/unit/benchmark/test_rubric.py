@@ -3,12 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from rentl_schemas.benchmark.rubric import (
-    HeadToHeadResult,
-    LineScore,
-    RubricDimension,
-    RubricScore,
-)
+from rentl_schemas.benchmark.rubric import HeadToHeadResult, RubricDimension
 
 
 def test_rubric_dimension_enum() -> None:
@@ -18,119 +13,13 @@ def test_rubric_dimension_enum() -> None:
     assert RubricDimension.CONSISTENCY == "consistency"
 
 
-def test_rubric_score_valid() -> None:
-    """Test RubricScore with valid data."""
-    score = RubricScore(
-        dimension=RubricDimension.ACCURACY,
-        score=4,
-        reasoning="The translation accurately captures the source meaning.",
-    )
-    assert score.dimension == RubricDimension.ACCURACY
-    assert score.score == 4
-    assert "accurately" in score.reasoning
-
-
-def test_rubric_score_out_of_range() -> None:
-    """Test RubricScore validates score range (1-5)."""
-    # Valid scores
-    for value in [1, 2, 3, 4, 5]:
-        score = RubricScore(
-            dimension=RubricDimension.ACCURACY,
-            score=value,
-            reasoning="Test",
-        )
-        assert score.score == value
-
-    # Invalid scores
-    for value in [0, 6, -1, 10]:
-        with pytest.raises(ValidationError):
-            RubricScore(
-                dimension=RubricDimension.ACCURACY,
-                score=value,
-                reasoning="Test",
-            )
-
-
-def test_rubric_score_roundtrip() -> None:
-    """Test RubricScore serialization roundtrip."""
-    original = RubricScore(
-        dimension=RubricDimension.STYLE_FIDELITY,
-        score=3,
-        reasoning="Acceptable style but could be more natural.",
-    )
-    json_data = original.model_dump()
-    reconstructed = RubricScore.model_validate(json_data)
-    assert reconstructed == original
-
-
-def test_line_score_valid() -> None:
-    """Test LineScore with valid data."""
-    line_score = LineScore(
-        line_id="scene1_line5",
-        source_text="こんにちは",
-        translation="Hello",
-        reference="Hi there",
-        scores=[
-            RubricScore(
-                dimension=RubricDimension.ACCURACY,
-                score=5,
-                reasoning="Perfect translation",
-            ),
-            RubricScore(
-                dimension=RubricDimension.STYLE_FIDELITY,
-                score=4,
-                reasoning="Natural but slightly informal",
-            ),
-        ],
-    )
-    assert line_score.line_id == "scene1_line5"
-    assert line_score.source_text == "こんにちは"
-    assert line_score.translation == "Hello"
-    assert line_score.reference == "Hi there"
-    assert len(line_score.scores) == 2
-
-
-def test_line_score_no_reference() -> None:
-    """Test LineScore without reference translation."""
-    line_score = LineScore(
-        line_id="test_line",
-        source_text="テスト",
-        translation="Test",
-        scores=[
-            RubricScore(
-                dimension=RubricDimension.ACCURACY,
-                score=5,
-                reasoning="Correct",
-            )
-        ],
-    )
-    assert line_score.reference is None
-
-
-def test_line_score_roundtrip() -> None:
-    """Test LineScore serialization roundtrip."""
-    original = LineScore(
-        line_id="test",
-        source_text="源文",
-        translation="Source text",
-        scores=[
-            RubricScore(
-                dimension=RubricDimension.CONSISTENCY,
-                score=4,
-                reasoning="Good consistency",
-            )
-        ],
-    )
-    json_data = original.model_dump()
-    reconstructed = LineScore.model_validate(json_data)
-    assert reconstructed == original
-
-
 def test_head_to_head_result_valid() -> None:
     """Test HeadToHeadResult with valid data."""
     result = HeadToHeadResult(
         line_id="scene1_line10",
         source_text="ありがとう",
+        candidate_a_name="rentl",
+        candidate_b_name="mtl",
         translation_a="Thank you",
         translation_b="Thanks",
         winner="A",
@@ -142,6 +31,8 @@ def test_head_to_head_result_valid() -> None:
         },
     )
     assert result.line_id == "scene1_line10"
+    assert result.candidate_a_name == "rentl"
+    assert result.candidate_b_name == "mtl"
     assert result.winner == "A"
     assert len(result.dimension_winners) == 3
 
@@ -151,6 +42,8 @@ def test_head_to_head_result_tie() -> None:
     result = HeadToHeadResult(
         line_id="test_line",
         source_text="テスト",
+        candidate_a_name="system1",
+        candidate_b_name="system2",
         translation_a="Test",
         translation_b="Testing",
         winner="tie",
@@ -166,6 +59,8 @@ def test_head_to_head_result_winner_validation() -> None:
         result = HeadToHeadResult(
             line_id="test",
             source_text="源",
+            candidate_a_name="sys1",
+            candidate_b_name="sys2",
             translation_a="Source",
             translation_b="Origin",
             winner=winner,  # type: ignore[arg-type]
@@ -178,6 +73,8 @@ def test_head_to_head_result_winner_validation() -> None:
         HeadToHeadResult(
             line_id="test",
             source_text="源",
+            candidate_a_name="sys1",
+            candidate_b_name="sys2",
             translation_a="Source",
             translation_b="Origin",
             winner="C",  # type: ignore[arg-type]
@@ -190,6 +87,8 @@ def test_head_to_head_result_no_dimension_winners() -> None:
     result = HeadToHeadResult(
         line_id="test",
         source_text="テスト",
+        candidate_a_name="candidate_a",
+        candidate_b_name="candidate_b",
         translation_a="Test",
         translation_b="Testing",
         winner="A",
@@ -203,6 +102,8 @@ def test_head_to_head_result_roundtrip() -> None:
     original = HeadToHeadResult(
         line_id="test",
         source_text="源",
+        candidate_a_name="rentl-full",
+        candidate_b_name="mtl",
         translation_a="Source",
         translation_b="Origin",
         winner="B",
@@ -215,3 +116,19 @@ def test_head_to_head_result_roundtrip() -> None:
     json_data = original.model_dump()
     reconstructed = HeadToHeadResult.model_validate(json_data)
     assert reconstructed == original
+
+
+def test_head_to_head_result_candidate_names() -> None:
+    """Test HeadToHeadResult includes candidate names for N-way tracking."""
+    result = HeadToHeadResult(
+        line_id="line1",
+        source_text="源",
+        candidate_a_name="gpt4-full",
+        candidate_b_name="claude-minimal",
+        translation_a="Translation A",
+        translation_b="Translation B",
+        winner="A",
+        reasoning="A preserves context better",
+    )
+    assert result.candidate_a_name == "gpt4-full"
+    assert result.candidate_b_name == "claude-minimal"
