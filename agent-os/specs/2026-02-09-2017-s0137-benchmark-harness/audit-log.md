@@ -15,3 +15,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 4): PASS — Metadata assertions now enforce exact `mtl_baseline`/`model` values in unit and BDD integration tests, and targeted Task 4 suites pass (8/8).
 - **Task 5** (round 1): FAIL — Judge integration BDD steps are unbound (`StepDefinitionNotFoundError`), and Task 5 test coverage misses randomized head-to-head remapping/per-dimension winner guarantees.
 - **Task 4** (round 5): PASS — Re-audit confirms Task 4 implementation and BDD/unit coverage remain compliant; `pytest -q tests/unit/benchmark/test_mtl_baseline.py tests/integration/benchmark/test_mtl_baseline_flow.py` passes (8/8).
+- **Task 5** (round 2): PASS — Task 5 fix items are implemented (BDD table steps bind, randomized head-to-head remapping is covered, per-dimension winners are enforced), and `pytest -q tests/unit/benchmark/test_judge.py tests/integration/benchmark/test_judge_flow.py` passes (23/23).

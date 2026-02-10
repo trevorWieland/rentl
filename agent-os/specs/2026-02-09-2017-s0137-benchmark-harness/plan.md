@@ -73,7 +73,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - [x] Fix: Add explicit coverage for head-to-head randomization/remapping logic (`randomize_order=True` path); current Task 5 tests only exercise `randomize_order=False` and never validate winner remapping when A/B assignments are swapped (`tests/unit/benchmark/test_judge.py:403`, `tests/unit/benchmark/test_judge.py:448`, `tests/integration/benchmark/test_judge_flow.py:269`) (audit round 1)
   - [x] Fix: Enforce and test per-dimension winners (accuracy/style_fidelity/consistency) in head-to-head parsing; current parser accepts missing `dimension_winners` keys and can return an empty result, contrary to Task 5 requirement to pick winners per dimension (`packages/rentl-core/src/rentl_core/benchmark/judge.py:285`, `packages/rentl-core/src/rentl_core/benchmark/judge.py:296`) (audit round 1)
 
-- [ ] Task 6: Benchmark report generator
+- [x] Task 6: Benchmark report generator
   - Create `rentl-core/src/rentl_core/benchmark/report.py`
   - Aggregate per-line `RubricScore` into per-dimension mean/median/stddev
   - Head-to-head win rates per dimension and overall
