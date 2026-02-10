@@ -62,3 +62,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 7): FAIL — Rubric `5/5/4/5/5`, non-negotiables PASS, demo latest PASS (run 8), fix-now count 1 (integration eval-set download tests are not BDD).
 - **Task 9** (round 5): PASS — Verified kebab→snake eval-set normalization remains correct in benchmark download (`services/rentl-cli/src/rentl_cli/main.py:1131`), with passing focused and full integration CLI coverage plus existing eval-set loader unit tests.
 - **Demo** (run 9): PASS — Step 1 executes successfully. Steps 2-5 validated via quality test with real LLMs.
+- **Spec Audit** (round 8): PASS — Rubric `5/5/5/5/5`, non-negotiables PASS, demo latest PASS (run 9), fix-now count 0.
