@@ -324,3 +324,27 @@ def test_validate_matching_line_ids_order_independent() -> None:
 
     # Should not raise - order doesn't matter
     validate_matching_line_ids(outputs)
+
+
+def test_validate_matching_line_ids_many_extra_truncated() -> None:
+    """Test that error messages are truncated when many extra lines are present."""
+    # Create candidate_a with 50 lines
+    candidate_a = [
+        TranslatedLine(line_id=f"scene_{i}", text=f"Translation A{i}")
+        for i in range(50)
+    ]
+
+    # Create candidate_b with 100 lines (50 extra)
+    candidate_b = [
+        TranslatedLine(line_id=f"scene_{i}", text=f"Translation B{i}")
+        for i in range(100)
+    ]
+
+    outputs = {"candidate_a": candidate_a, "candidate_b": candidate_b}
+
+    with pytest.raises(OutputLoadError, match="Line ID mismatch") as exc_info:
+        validate_matching_line_ids(outputs)
+
+    error_msg = str(exc_info.value)
+    # Should truncate the extra list
+    assert "and 45 more" in error_msg or "... and 45 more" in error_msg

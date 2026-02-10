@@ -322,3 +322,24 @@ def test_redactor_dict_with_nested_list_of_dicts() -> None:
     assert items[1]["another"] == "[REDACTED]"
     assert items[2] == "plain string [REDACTED]"
     assert result["count"] == 3
+
+
+def test_redactor_list_with_nested_lists() -> None:
+    """Ensure _redact_list handles nested lists correctly."""
+    redactor = Redactor(patterns=[], literal_values=["secret123"])
+
+    data = {
+        "nested_lists": [
+            ["normal", "secret123"],
+            ["also normal", ["deeply nested", "secret123"]],
+            42,
+        ]
+    }
+    result = redactor.redact_dict(data)
+
+    nested_lists = result["nested_lists"]
+    assert isinstance(nested_lists, list)
+    assert nested_lists[0] == ["normal", "[REDACTED]"]
+    assert nested_lists[1][0] == "also normal"
+    assert nested_lists[1][1] == ["deeply nested", "[REDACTED]"]
+    assert nested_lists[2] == 42

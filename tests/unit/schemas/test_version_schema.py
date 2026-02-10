@@ -107,6 +107,22 @@ def test_version_info_comparison_with_non_version() -> None:
     with pytest.raises(TypeError):
         _ = version > (1, 2, 3)
 
+    with pytest.raises(TypeError):
+        _ = version >= [1, 2, 3]
+
+
+def test_version_info_equality_with_non_version_notimplemented() -> None:
+    """Test that __eq__ with non-VersionInfo returns NotImplemented."""
+    version = VersionInfo(major=1, minor=2, patch=3)
+
+    # Calling __eq__ directly should return NotImplemented for non-VersionInfo
+    # This allows Python to try the reverse comparison
+    result = version.__eq__("1.2.3")  # noqa: PLC2801
+    assert result == NotImplemented
+
+    result = version.__eq__(123)  # noqa: PLC2801
+    assert result == NotImplemented
+
 
 def test_current_schema_version_constant() -> None:
     """Ensure CURRENT_SCHEMA_VERSION is defined as a tuple."""

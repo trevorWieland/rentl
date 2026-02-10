@@ -381,3 +381,91 @@ def test_parse_head_to_head_invalid_dimension_winner(
 
     with pytest.raises(ValueError, match="Invalid winner for accuracy"):
         judge._parse_head_to_head(response)
+
+
+def test_parse_head_to_head_with_markdown_json_block(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing handles JSON wrapped in markdown code blocks."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = """```json
+{
+    "overall_winner": "A",
+    "reasoning": "A is better",
+    "dimension_winners": {
+        "accuracy": "A",
+        "style_fidelity": "B",
+        "consistency": "tie"
+    }
+}
+```"""
+
+    winner, reasoning, dim_winners = judge._parse_head_to_head(response)
+
+    assert winner == "A"
+    assert reasoning == "A is better"
+    assert dim_winners[RubricDimension.ACCURACY] == "A"
+
+
+def test_parse_head_to_head_with_plain_markdown_block(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing handles JSON wrapped in plain markdown code blocks."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = """```
+{
+    "overall_winner": "B",
+    "reasoning": "B is better",
+    "dimension_winners": {
+        "accuracy": "B",
+        "style_fidelity": "B",
+        "consistency": "A"
+    }
+}
+```"""
+
+    winner, reasoning, _dim_winners = judge._parse_head_to_head(response)
+
+    assert winner == "B"
+    assert reasoning == "B is better"
+
+
+def test_parse_head_to_head_invalid_json(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing fails with invalid JSON."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = "This is not valid JSON at all"
+
+    with pytest.raises(ValueError, match="Failed to parse judge response as JSON"):
+        judge._parse_head_to_head(response)
+
+
+def test_parse_head_to_head_missing_overall_winner(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing fails when overall_winner is missing."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = json.dumps({
+        "reasoning": "A is better",
+        "dimension_winners": {
+            "accuracy": "A",
+            "style_fidelity": "B",
+            "consistency": "tie",
+        },
+    })
+
+    with pytest.raises(ValueError, match="Missing 'overall_winner' or 'reasoning'"):
+        judge._parse_head_to_head(response)

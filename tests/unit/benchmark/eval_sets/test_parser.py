@@ -163,6 +163,14 @@ class TestRenpyDialogueParser:
         normalized = RenpyDialogueParser.normalize_scene_id("script_1")
         assert normalized == "script_1"
 
+    def test_normalize_scene_id_no_letters(self) -> None:
+        """Parser handles edge case of filename with only numbers."""
+        # Edge case: filename like "123-456" with no letters
+        normalized = RenpyDialogueParser.normalize_scene_id("123-456")
+        # Should default to "scene" prefix when no letters found
+        assert normalized == "scene_123_456"
+        assert re.match(HUMAN_ID_PATTERN, normalized)
+
     def test_parse_ksre_filename_auto_normalization(
         self, parser: RenpyDialogueParser
     ) -> None:
