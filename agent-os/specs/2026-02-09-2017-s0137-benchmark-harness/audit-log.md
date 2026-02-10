@@ -26,6 +26,7 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 4): FAIL — Benchmark CLI still uses placeholder pipeline wiring (`rentl_translations = mtl_translations`), so the task contract to run the real rentl pipeline is not met.
 - **Task 3** (round 3): PASS — Eval-set downloader/parser artifacts and contracts remain valid; resolved hash and slice signposts are verified in code, and Task 3 suites pass (`34/34`).
 - **Task 4** (round 6): FAIL — Output loader work is correct, but Task 4 still leaves regressions: stale CLI integration mocks reference deleted `MTLBaselineGenerator`, dead placeholder benchmark code remains, and judge API removals broke integration BDD scenarios.
+- **Task 4** (round 7): FAIL — `test_cli_command` remains broken after Task 4 fixes (`RubricJudge` monkeypatch targets a deleted symbol, and BDD assertions still expect legacy benchmark behavior instead of the Task 7 rewrite stub output).
 
 ---
 

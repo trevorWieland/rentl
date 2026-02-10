@@ -45,7 +45,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Existing work is valid and tested (downloader, parser, aligner, loader, manifest, slices)
   - No changes needed — `benchmark download` CLI will reuse this directly
 
-- [x] Task 4: Output loader and dead code removal
+- [ ] Task 4: Output loader and dead code removal
   - **Create** `rentl-core/src/rentl_core/benchmark/output_loader.py`:
     - Read rentl run output JSONL files into `TranslatedLine` format
     - Support loading from export output paths (the files `rentl run` produces)
@@ -59,6 +59,8 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Remove stale `MTLBaselineGenerator` monkeypatch/setup from `tests/integration/benchmark/test_cli_command.py:179` and `tests/integration/benchmark/test_cli_command.py:186` (currently `pytest -q tests/integration/benchmark/test_cli_command.py` fails with `AttributeError: module 'rentl_cli.main' has no attribute 'MTLBaselineGenerator'`) (audit round 6)
   - [x] Fix: Eliminate commented placeholder benchmark dead code in `services/rentl-cli/src/rentl_cli/main.py:2338` through `services/rentl-cli/src/rentl_cli/main.py:2377` to satisfy Task 4 dead-code removal scope (audit round 6)
   - [x] Fix: Resolve Task 4 spillover that removed judge scoring APIs without test migration (`packages/rentl-core/src/rentl_core/benchmark/judge.py:154`; `tests/integration/benchmark/test_judge_flow.py:279`; `tests/integration/benchmark/test_judge_flow.py:289`) so Task 4 no longer leaves broken integration coverage (`pytest -q tests/integration/benchmark/test_judge_flow.py`) (audit round 6)
+  - [ ] Fix: Remove stale `RubricJudge` monkeypatch from `tests/integration/benchmark/test_cli_command.py:179` and `tests/integration/benchmark/test_cli_command.py:183` (`pytest -q tests/integration/benchmark/test_cli_command.py` currently fails with `AttributeError: module 'rentl_cli.main' has no attribute 'RubricJudge'`) (audit round 7; see signposts.md Task 4 stale CLI BDD mismatch)
+  - [ ] Fix: Align `tests/features/benchmark/cli_command.feature:6` and `tests/integration/benchmark/test_cli_command.py:329`/`tests/integration/benchmark/test_cli_command.py:489` with current benchmark command stub behavior in `services/rentl-cli/src/rentl_cli/main.py:1113`-`services/rentl-cli/src/rentl_cli/main.py:1115` so stale success/API-key assertions no longer fail the Task 4 benchmark CLI integration suite (audit round 7; see signposts.md Task 4 stale CLI BDD mismatch)
 
 - [ ] Task 5: Revise judge for pairwise-only comparison
   - **Remove** `score_translation` method (isolated scoring)

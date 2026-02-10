@@ -54,3 +54,10 @@
 - **Solution:** Completed Task 2 schema changes. The schemas are correct and fully tested. Type errors in OTHER modules are expected and addressed by the task plan's dependency structure (Task 2 → Task 4 → Task 5 → Task 6 → Task 7).
 - **Resolution:** do-task round 1 (2026-02-10)
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py`, `packages/rentl-schemas/src/rentl_schemas/benchmark/report.py`, `packages/rentl-schemas/src/rentl_schemas/benchmark/config.py`, `packages/rentl-schemas/src/rentl_schemas/benchmark/__init__.py`, `tests/unit/benchmark/test_rubric.py`, `tests/unit/benchmark/test_report.py`
+
+- **Task:** Task 4
+- **Status:** unresolved
+- **Problem:** Task 4 round-6 fixes updated benchmark dead code, but `test_cli_command` still targets removed symbols and pre-revision benchmark behavior.
+- **Evidence:** `pytest -q tests/integration/benchmark/test_cli_command.py` fails 4 tests. Exact errors include `AttributeError: module 'rentl_cli.main' has no attribute 'RubricJudge'` at `tests/integration/benchmark/test_cli_command.py:183`, and assertion failure at `tests/integration/benchmark/test_cli_command.py:489` because stdout is `This command is currently being rewritten.\nUse will be available after Task 7 completion.\n`. The stub behavior is intentional in `services/rentl-cli/src/rentl_cli/main.py:1113` through `services/rentl-cli/src/rentl_cli/main.py:1115`.
+- **Impact:** Task 4 cannot remain checked off because its claimed integration-coverage cleanup still leaves a red benchmark CLI integration suite.
+- **Solution:** Remove stale `RubricJudge` monkeypatching and align or retire stale benchmark CLI BDD scenarios that still assert legacy monolithic-command success/API-key flows. Keep coverage focused on behavior valid before Task 7 rewrite completion.
