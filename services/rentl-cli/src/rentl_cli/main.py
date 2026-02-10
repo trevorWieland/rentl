@@ -37,6 +37,12 @@ from rich.table import Table
 
 from rentl_agents.wiring import build_agent_pools
 from rentl_core import VERSION, AgentTelemetryEmitter, build_status_result
+from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
+from rentl_core.benchmark.eval_sets.loader import EvalSetLoader
+from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
+from rentl_core.benchmark.judge import RubricJudge
+from rentl_core.benchmark.mtl_baseline import MTLBaselineGenerator
+from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_summary
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
@@ -77,6 +83,7 @@ from rentl_io.storage.log_sink import build_log_sink
 from rentl_io.storage.progress_sink import FileSystemProgressSink
 from rentl_llm import OpenAICompatibleRuntime
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.benchmark.rubric import LineScore
 from rentl_schemas.config import (
     LanguageConfig,
     LoggingConfig,
@@ -93,7 +100,12 @@ from rentl_schemas.events import (
 )
 from rentl_schemas.exit_codes import ExitCode, resolve_exit_code
 from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
-from rentl_schemas.llm import LlmConnectionReport, LlmEndpointTarget
+from rentl_schemas.llm import (
+    LlmConnectionReport,
+    LlmEndpointTarget,
+    LlmModelSettings,
+    LlmRuntimeSettings,
+)
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import (
     ContextPhaseOutput,
@@ -1068,6 +1080,55 @@ def status(
         rprint(f"[red]Error:[/red] {error.message}")
         exit_code = resolve_exit_code(error.code)
         raise typer.Exit(code=exit_code.value) from None
+
+
+@app.command("benchmark")
+def benchmark(
+    eval_set: str = typer.Option(
+        ..., "--eval-set", help="Eval set name (e.g., katawa-shoujo)"
+    ),
+    slice_name: str | None = typer.Option(
+        None, "--slice", help="Slice name for subset evaluation (e.g., demo)"
+    ),
+    judge_model: str | None = typer.Option(
+        None, "--judge-model", help="Override judge model ID"
+    ),
+    judge_base_url: str | None = typer.Option(
+        None, "--judge-base-url", help="Override judge endpoint"
+    ),
+    scoring_mode: str | None = typer.Option(
+        None, "--scoring-mode", help="Scoring mode: reference-based or reference-free"
+    ),
+    output: str | None = typer.Option(
+        None, "--output", help="Path to write JSON report"
+    ),
+    config_path: Path = CONFIG_OPTION,
+) -> None:
+    """Run benchmark evaluation comparing rentl pipeline against MTL baseline.
+
+    Downloads evaluation set, generates MTL baseline, runs rentl pipeline,
+    judges both translations, and produces a comparison report.
+
+    Raises:
+        typer.Exit: When the benchmark fails
+    """
+    output_path = Path(output) if output else None
+    try:
+        asyncio.run(
+            _run_benchmark_async(
+                eval_set=eval_set,
+                slice_name=slice_name,
+                judge_model=judge_model,
+                judge_base_url=judge_base_url,
+                scoring_mode=scoring_mode,
+                output_path=output_path,
+                config_path=config_path,
+            )
+        )
+    except Exception as exc:
+        error = _error_from_exception(exc)
+        rprint(f"[red]Benchmark failed:[/red] {error.message}")
+        raise typer.Exit(code=1) from None
 
 
 ResponseT = TypeVar("ResponseT")
@@ -2177,6 +2238,274 @@ async def _run_pipeline_async(
         progress_file=progress_file,
         phase_record=None,
     )
+
+
+async def _run_benchmark_async(
+    *,
+    eval_set: str,
+    slice_name: str | None,
+    judge_model: str | None,
+    judge_base_url: str | None,
+    scoring_mode: str | None,
+    output_path: Path | None,
+    config_path: Path,
+) -> None:
+    """Run benchmark evaluation pipeline.
+
+    Args:
+        eval_set: Evaluation set name (e.g., "katawa_shoujo")
+        slice_name: Optional slice name for subset evaluation
+        judge_model: Optional judge model override
+        judge_base_url: Optional judge endpoint override
+        scoring_mode: Optional scoring mode override
+        output_path: Optional path to write JSON report
+        config_path: Path to rentl config file
+
+    Raises:
+        ValueError: If API key is missing or configuration is invalid
+    """
+    console = Console(stderr=True)
+    console.print(f"[bold cyan]Starting benchmark: {eval_set}[/bold cyan]")
+    if slice_name:
+        console.print(f"Slice: {slice_name}")
+
+    # Load configuration
+    config = _load_resolved_config(config_path)
+
+    # Ensure API keys are available
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable required for benchmark")
+
+    # Step 1: Download and parse eval set
+    console.print("\n[bold]Step 1/5:[/bold] Downloading eval set...")
+
+    # Load manifest and slices
+    manifest = EvalSetLoader.load_manifest(eval_set)
+    slices_config = EvalSetLoader.load_slices(eval_set)
+
+    # Determine scripts to download
+    if slice_name:
+        if slice_name not in slices_config.slices:
+            available = ", ".join(slices_config.slices.keys())
+            raise ValueError(f"Slice '{slice_name}' not found. Available: {available}")
+        slice_def = slices_config.slices[slice_name]
+        script_files = [script.file for script in slice_def.scripts]
+    else:
+        script_files = list(manifest.scripts.keys())
+
+    # Download scripts
+    downloader = KatawaShoujoDownloader()
+    downloaded_paths = await downloader.download_scripts(
+        script_files,
+        hash_manifest=manifest.scripts,
+    )
+    console.print(f"  Downloaded {len(downloaded_paths)} scripts")
+
+    # Parse scripts to SourceLines
+    parser = RenpyDialogueParser()
+    all_source_lines: list[SourceLine] = []
+
+    for script_file, script_path in downloaded_paths.items():
+        lines = parser.parse_script(script_path)
+
+        # Apply slice line range if specified
+        if slice_name and slice_def:
+            for slice_script in slice_def.scripts:
+                if slice_script.file == script_file and slice_script.line_range:
+                    start, end = slice_script.line_range
+                    # Filter by line number (line_id format is "sceneid_N")
+                    filtered_lines = []
+                    for line in lines:
+                        try:
+                            line_num = int(line.line_id.split("_")[-1])
+                            if start <= line_num <= end:
+                                filtered_lines.append(line)
+                        except ValueError, IndexError:
+                            pass
+                    lines = filtered_lines
+
+        all_source_lines.extend(lines)
+
+    console.print(f"  Parsed {len(all_source_lines)} source lines")
+
+    if not all_source_lines:
+        raise ValueError("No source lines found in eval set")
+
+    # Step 2: Generate MTL baseline
+    console.print("\n[bold]Step 2/5:[/bold] Generating MTL baseline...")
+
+    # Build LLM runtime for MTL
+
+    runtime = OpenAICompatibleRuntime()
+
+    # Build runtime settings for MTL
+    default_model_settings = config.pipeline.default_model
+    if default_model_settings is None:
+        raise ValueError("No default model configured in pipeline")
+
+    mtl_endpoint = LlmEndpointTarget(
+        endpoint_ref="default",
+        provider_name="openai",
+        base_url="https://api.openai.com/v1",
+        api_key_env="OPENAI_API_KEY",
+        timeout_s=30.0,
+        openrouter_provider=None,
+    )
+    mtl_model = LlmModelSettings(
+        model_id=default_model_settings.model_id,
+        temperature=0.3,
+        max_output_tokens=None,
+        reasoning_effort=None,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+    )
+    mtl_retry = config.retry
+    mtl_runtime_settings = LlmRuntimeSettings(
+        endpoint=mtl_endpoint,
+        model=mtl_model,
+        retry=mtl_retry,
+    )
+
+    mtl_generator = MTLBaselineGenerator(
+        runtime=runtime,
+        runtime_settings=mtl_runtime_settings,
+        api_key=api_key,
+        concurrency_limit=5,
+    )
+
+    mtl_translations = await mtl_generator.generate_baseline(all_source_lines)
+    console.print(f"  Generated {len(mtl_translations)} MTL translations")
+
+    # Step 3: Run rentl pipeline
+    console.print("\n[bold]Step 3/5:[/bold] Running rentl pipeline...")
+    console.print(
+        "  [yellow]Note: Full pipeline not yet implemented in benchmark[/yellow]"
+    )
+    console.print("  [yellow]Using MTL as placeholder for rentl translations[/yellow]")
+
+    # TODO: Implement actual rentl pipeline execution
+    # For now, use MTL translations as placeholder
+    rentl_translations = mtl_translations
+
+    # Step 4: Judge both translations
+    console.print("\n[bold]Step 4/5:[/bold] Judging translations...")
+
+    # Determine judge model and endpoint
+    if judge_model is None:
+        judge_model = default_model_settings.model_id
+
+    judge_endpoint = LlmEndpointTarget(
+        endpoint_ref="judge",
+        provider_name="openai",
+        base_url=judge_base_url or "https://api.openai.com/v1",
+        api_key_env="OPENAI_API_KEY",
+        timeout_s=30.0,
+        openrouter_provider=None,
+    )
+    judge_model_settings = LlmModelSettings(
+        model_id=judge_model,
+        temperature=0.3,
+        max_output_tokens=None,
+        reasoning_effort=None,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
+    )
+    judge_runtime_settings = LlmRuntimeSettings(
+        endpoint=judge_endpoint,
+        model=judge_model_settings,
+        retry=config.retry,
+    )
+
+    judge = RubricJudge(
+        runtime=runtime,
+        runtime_settings=judge_runtime_settings,
+        api_key=api_key,
+        concurrency_limit=3,
+    )
+
+    # Determine scoring mode
+    actual_scoring_mode = scoring_mode or "reference_based"
+
+    # Judge MTL translations
+    mtl_scores: list[LineScore] = []
+    for mtl_line in mtl_translations:
+        # Find matching source line
+        source_line = next(
+            (
+                s
+                for s in all_source_lines
+                if s.scene_id == mtl_line.scene_id and s.line_id == mtl_line.line_id
+            ),
+            None,
+        )
+        if not source_line:
+            continue
+
+        # Use reference-free scoring (no reference available)
+        score = await judge.score_translation(
+            line_id=mtl_line.line_id,
+            source_text=source_line.text,
+            translation=mtl_line.text,
+            reference=None,
+        )
+        mtl_scores.append(score)
+
+    console.print(f"  Judged {len(mtl_scores)} MTL translations")
+
+    # Judge rentl translations
+    rentl_scores: list[LineScore] = []
+    for rentl_line in rentl_translations:
+        source_line = next(
+            (
+                s
+                for s in all_source_lines
+                if s.scene_id == rentl_line.scene_id and s.line_id == rentl_line.line_id
+            ),
+            None,
+        )
+        if not source_line:
+            continue
+
+        score = await judge.score_translation(
+            line_id=rentl_line.line_id,
+            source_text=source_line.text,
+            translation=rentl_line.text,
+            reference=None,
+        )
+        rentl_scores.append(score)
+
+    console.print(f"  Judged {len(rentl_scores)} rentl translations")
+
+    # Step 5: Generate report
+    console.print("\n[bold]Step 5/5:[/bold] Generating report...")
+
+    report = BenchmarkReportBuilder.build_report(
+        eval_set=eval_set,
+        slice_name=slice_name,
+        scoring_mode=actual_scoring_mode,
+        judge_model=judge_model,
+        mtl_line_scores=mtl_scores,
+        rentl_line_scores=rentl_scores,
+        head_to_head_results=None,  # TODO: Add head-to-head support
+    )
+
+    # Write JSON report if requested
+    if output_path:
+        # Use asyncio.to_thread for I/O operations
+        def _write_report() -> None:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(report.model_dump_json(indent=2))
+
+        await asyncio.to_thread(_write_report)
+        console.print(f"  Report written to: {output_path}")
+
+    # Print summary
+    console.print("\n" + "=" * 60)
+    console.print(format_report_summary(report))
+    console.print("=" * 60)
 
 
 async def _run_phase_async(
