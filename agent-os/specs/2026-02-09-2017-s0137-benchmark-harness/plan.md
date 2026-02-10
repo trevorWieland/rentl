@@ -82,7 +82,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - Human-readable summary formatter for CLI output (table or structured text)
   - Unit tests: aggregation math, report construction, formatting
 
-- [x] Task 7: `rentl benchmark` CLI command
+- [ ] Task 7: `rentl benchmark` CLI command
   - Add `benchmark` command to CLI router in `rentl-cli`
   - Wire together: download eval set → generate MTL baseline → run rentl pipeline → judge both → generate report
   - CLI flags:
@@ -101,6 +101,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - [x] Fix: Correct head-to-head winner aggregation to use schema winner slots (`A|B|tie`) rather than system-name strings; current report builder miscounts wins and rates (`packages/rentl-core/src/rentl_core/benchmark/report.py:110`, `packages/rentl-core/src/rentl_core/benchmark/report.py:127`, see signposts.md: Task 8 winner label mismatch) (audit round 1)
   - [x] Fix: Normalize CLI scoring-mode inputs from `reference-based|reference-free` to schema values (`reference_based|reference_free`) before validation, so documented flag values are accepted (`services/rentl-cli/src/rentl_cli/main.py:1100`, `services/rentl-cli/src/rentl_cli/main.py:2433`, `services/rentl-cli/src/rentl_cli/main.py:2434`) (audit round 2)
   - [x] Fix: Implement true reference-based judging (load and pass reference lines) or force `actual_scoring_mode="reference_free"` on fallback so report metadata does not claim reference-based scoring while `reference_lines` is empty (`services/rentl-cli/src/rentl_cli/main.py:2441`, `services/rentl-cli/src/rentl_cli/main.py:2444`, `services/rentl-cli/src/rentl_cli/main.py:2450`, `services/rentl-cli/src/rentl_cli/main.py:2511`) (audit round 2; see signposts.md: Task 7 reference mode CLI contract mismatch)
+  - [ ] Fix: Replace the current placeholder benchmark pipeline step with real rentl pipeline execution; `_run_benchmark_async` still logs placeholder warnings and aliases outputs via `rentl_translations = mtl_translations`, so Task 7 does not run MTL vs rentl (`services/rentl-cli/src/rentl_cli/main.py:2386`, `services/rentl-cli/src/rentl_cli/main.py:2393`) (audit round 4; see signposts.md: Task 7 placeholder pipeline)
 
 - [ ] Task 8: Tests (unit + integration + quality)
   - Unit tests: all schema validation, parser logic, aggregation math, prompt construction
