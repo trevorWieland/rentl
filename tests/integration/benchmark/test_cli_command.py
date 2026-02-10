@@ -56,43 +56,34 @@ def when_run_benchmark_basic(ctx: BenchmarkCLIContext, cli_runner: CliRunner) ->
         ctx: Benchmark CLI context.
         cli_runner: CLI test runner.
     """
-    assert ctx.config_dir is not None
-    config_path = ctx.config_dir / "rentl.toml"
-
     ctx.result = cli_runner.invoke(
         cli_main.app,
         [
             "benchmark",
-            "--eval-set",
-            "katawa-shoujo",
-            "--slice",
-            "demo",
-            "--config",
-            str(config_path),
         ],
     )
-    ctx.stdout = ctx.result.stdout
+    ctx.stdout = ctx.result.stdout + ctx.result.stderr
 
 
-@then("the command exits with status 1")
-def then_command_exits_with_error(ctx: BenchmarkCLIContext) -> None:
-    """Verify command exited with status 1.
+@then("the command exits with status 2")
+def then_command_exits_with_usage_error(ctx: BenchmarkCLIContext) -> None:
+    """Verify command exited with status 2 (usage error).
 
     Args:
         ctx: Benchmark CLI context.
     """
     assert ctx.result is not None
-    assert ctx.result.exit_code == 1, (
-        f"Expected exit code 1, got {ctx.result.exit_code}"
+    assert ctx.result.exit_code == 2, (
+        f"Expected exit code 2, got {ctx.result.exit_code}"
     )
 
 
-@then("the output indicates command is being rewritten")
-def then_output_indicates_rewrite(ctx: BenchmarkCLIContext) -> None:
-    """Verify output indicates the command is being rewritten.
+@then("the output indicates a subcommand is required")
+def then_output_indicates_subcommand_required(ctx: BenchmarkCLIContext) -> None:
+    """Verify output indicates a subcommand is required.
 
     Args:
         ctx: Benchmark CLI context.
     """
-    assert "being rewritten" in ctx.stdout
-    assert "Task 7" in ctx.stdout
+    # Typer shows usage info mentioning COMMAND when no subcommand is provided
+    assert "COMMAND" in ctx.stdout

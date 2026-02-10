@@ -1,13 +1,12 @@
-Feature: Benchmark CLI Command (Stub - Task 7 Pending)
+Feature: Benchmark CLI Command
   As a rentl user
   I want to run benchmark evaluations via CLI
-  So that I can compare rentl translations against MTL baseline
+  So that I can compare rentl translations against baselines
 
-  Note: The benchmark command is currently stubbed out during Task 4-6 refactor.
-  Task 7 will implement the full `rentl benchmark download` and `rentl benchmark compare` subcommands.
+  Note: Task 7 is complete. The benchmark command now has working download and compare subcommands.
 
-  Scenario: Benchmark command displays rewrite notice
+  Scenario: Benchmark command requires a subcommand
     Given a valid rentl configuration exists
     When I run benchmark command
-    Then the command exits with status 1
-    And the output indicates command is being rewritten
+    Then the command exits with status 2
+    And the output indicates a subcommand is required
