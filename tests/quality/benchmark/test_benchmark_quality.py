@@ -1,9 +1,10 @@
 """BDD quality tests for benchmark harness with real LLM calls.
 
-These tests verify that the benchmark mechanics work correctly with real LLMs:
-- Judge scoring returns proper per-line scores with reasoning
-- All rubric dimensions are evaluated
-- Report structure is complete
+These tests verify that the benchmark comparison mechanics work correctly
+with real LLMs:
+- Judge head-to-head comparison returns per-line results with reasoning
+- All rubric dimensions have winners
+- Report structure includes pairwise summaries and Elo ratings
 
 IMPORTANT: These tests require a real LLM endpoint to be running.
 Set RENTL_QUALITY_API_KEY and RENTL_QUALITY_BASE_URL environment variables
@@ -14,7 +15,6 @@ from __future__ import annotations
 
 import json
 import os
-import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,6 +24,7 @@ from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
 from rentl_schemas.benchmark.report import BenchmarkReport
+from rentl_schemas.io import TranslatedLine
 
 if TYPE_CHECKING:
     from click.testing import Result
@@ -45,8 +46,9 @@ class BenchmarkContext:
     def __init__(self, tmp_path: Path) -> None:
         """Initialize test context."""
         self.tmp_path = tmp_path
-        self.config_path: Path | None = None
-        self.output_path: Path | None = None
+        self.output_a_path: Path | None = None
+        self.output_b_path: Path | None = None
+        self.report_path: Path | None = None
         self.result: Result | None = None
         self.report: BenchmarkReport | None = None
 
@@ -61,62 +63,65 @@ def ctx(tmp_path: Path) -> BenchmarkContext:
     return BenchmarkContext(tmp_path)
 
 
-@given("a valid rentl configuration exists")
-def create_rentl_config(ctx: BenchmarkContext) -> None:
-    """Create a minimal rentl configuration for benchmark testing."""
-    base_url = os.getenv("RENTL_QUALITY_BASE_URL", "http://localhost:8001/v1")
-    workspace_dir = ctx.tmp_path / "workspace"
-    workspace_dir.mkdir()
+@given("sample translation output files exist")
+def create_sample_outputs(ctx: BenchmarkContext) -> None:
+    """Create sample translation output JSONL files for comparison."""
+    # Create two sample translation outputs with small differences
+    # These represent outputs from different translation systems on the same source
 
-    config_path = ctx.tmp_path / "rentl.toml"
-    content = textwrap.dedent(
-        f"""\
-        [project]
-        schema_version = {{ major = 0, minor = 1, patch = 0 }}
-        project_name = "benchmark-quality-test"
+    sample_lines_a = [
+        TranslatedLine(
+            line_id="act1_1",
+            scene_id="act1",
+            source_text="こんにちは、世界。",
+            text="Hello, world.",
+        ),
+        TranslatedLine(
+            line_id="act1_2",
+            scene_id="act1",
+            source_text="今日はいい天気ですね。",
+            text="It's nice weather today.",
+        ),
+        TranslatedLine(
+            line_id="act1_3",
+            scene_id="act1",
+            source_text="ありがとうございます。",
+            text="Thank you very much.",
+        ),
+    ]
 
-        [project.paths]
-        workspace_dir = "{workspace_dir}"
-        input_path = "input.jsonl"
-        output_dir = "out"
-        logs_dir = "logs"
+    sample_lines_b = [
+        TranslatedLine(
+            line_id="act1_1",
+            scene_id="act1",
+            source_text="こんにちは、世界。",
+            text="Hello, World.",  # Different capitalization
+        ),
+        TranslatedLine(
+            line_id="act1_2",
+            scene_id="act1",
+            source_text="今日はいい天気ですね。",
+            text="The weather is nice today.",  # Different structure
+        ),
+        TranslatedLine(
+            line_id="act1_3",
+            scene_id="act1",
+            source_text="ありがとうございます。",
+            text="Thanks.",  # More casual
+        ),
+    ]
 
-        [project.formats]
-        input_format = "jsonl"
-        output_format = "jsonl"
+    # Write output A
+    ctx.output_a_path = ctx.tmp_path / "output_a.jsonl"
+    with ctx.output_a_path.open("w") as f:
+        for line in sample_lines_a:
+            f.write(line.model_dump_json() + "\n")
 
-        [project.languages]
-        source_language = "ja"
-        target_languages = ["en"]
-
-        [logging]
-        [[logging.sinks]]
-        type = "file"
-
-        [endpoints]
-        default = "primary"
-
-        [[endpoints.endpoints]]
-        provider_name = "primary"
-        base_url = "{base_url}"
-        api_key_env = "RENTL_QUALITY_API_KEY"
-
-        [pipeline.default_model]
-        model_id = "gpt-4o-mini"
-        endpoint_ref = "primary"
-        """
-    )
-    config_path.write_text(content)
-    ctx.config_path = config_path
-
-
-@given("the demo slice is configured")
-def verify_demo_slice_configured(ctx: BenchmarkContext) -> None:
-    """Verify that the demo slice is configured in the eval set."""
-    # The demo slice is committed in the repo at:
-    # packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json
-    # This step just documents that we're relying on it existing
-    pass
+    # Write output B
+    ctx.output_b_path = ctx.tmp_path / "output_b.jsonl"
+    with ctx.output_b_path.open("w") as f:
+        for line in sample_lines_b:
+            f.write(line.model_dump_json() + "\n")
 
 
 @given("real LLM endpoints are configured")
@@ -126,38 +131,42 @@ def verify_llm_endpoints(ctx: BenchmarkContext) -> None:
     assert os.getenv("RENTL_QUALITY_BASE_URL"), "RENTL_QUALITY_BASE_URL must be set"
 
 
-@when("I run benchmark on the demo slice")
-def run_benchmark_demo_slice(ctx: BenchmarkContext) -> None:
-    """Run the benchmark command on the demo slice with JSON output."""
-    ctx.output_path = ctx.tmp_path / "benchmark_report.json"
+@when("I run benchmark compare on the output files")
+def run_benchmark_compare(ctx: BenchmarkContext) -> None:
+    """Run benchmark compare command with real LLM judge."""
+    ctx.report_path = ctx.tmp_path / "benchmark_report.json"
+
+    base_url = os.getenv("RENTL_QUALITY_BASE_URL", "http://localhost:8001/v1")
+    api_key = os.getenv("RENTL_QUALITY_API_KEY", "")
 
     runner = CliRunner()
     result = runner.invoke(
         cli_main.app,
         [
-            "--config",
-            str(ctx.config_path),
             "benchmark",
-            "--eval-set",
-            "katawa_shoujo",
-            "--slice",
-            "demo",
+            "compare",
+            str(ctx.output_a_path),
+            str(ctx.output_b_path),
             "--judge-model",
             "gpt-4o-mini",
+            "--judge-base-url",
+            base_url,
             "--output",
-            str(ctx.output_path),
+            str(ctx.report_path),
+            "--candidate-names",
+            "candidate-a",
+            "candidate-b",
         ],
         env={
-            "RENTL_QUALITY_API_KEY": os.getenv("RENTL_QUALITY_API_KEY", ""),
-            "RENTL_QUALITY_BASE_URL": os.getenv("RENTL_QUALITY_BASE_URL", ""),
+            "RENTL_QUALITY_API_KEY": api_key,
         },
         catch_exceptions=False,
     )
     ctx.result = result
 
     # Parse the JSON report if it was created
-    if ctx.output_path and ctx.output_path.exists():
-        report_data = json.loads(ctx.output_path.read_text())
+    if ctx.report_path and ctx.report_path.exists():
+        report_data = json.loads(ctx.report_path.read_text())
         ctx.report = BenchmarkReport.model_validate(report_data)
 
 
@@ -168,62 +177,85 @@ def check_benchmark_success(ctx: BenchmarkContext) -> None:
     assert ctx.result.exit_code == 0, f"Command failed: {ctx.result.output}"
 
 
-@then("per-line scores are present for all evaluated lines")
-def check_per_line_scores(ctx: BenchmarkContext) -> None:
-    """Verify that all evaluated lines have scores."""
+@then("per-line head-to-head results are present")
+def check_per_line_results(ctx: BenchmarkContext) -> None:
+    """Verify that all evaluated lines have head-to-head results."""
     assert ctx.report is not None, "No report was generated"
-    # TODO: Update for new head-to-head schema (Task 8)
     assert len(ctx.report.head_to_head_results) > 0, "No head-to-head results found"
+    # Should have 3 lines compared (from sample outputs)
+    assert len(ctx.report.head_to_head_results) == 3, (
+        f"Expected 3 head-to-head results, got {len(ctx.report.head_to_head_results)}"
+    )
 
 
-@then("each score includes judge reasoning")
+@then("each result includes judge reasoning")
 def check_judge_reasoning(ctx: BenchmarkContext) -> None:
-    """Verify that each line score includes judge reasoning for all dimensions."""
+    """Verify that each head-to-head result includes judge reasoning."""
     assert ctx.report is not None
-    # TODO: Update for new head-to-head schema (Task 8)
     for result in ctx.report.head_to_head_results:
         assert result.reasoning, f"Missing reasoning for line {result.line_id}"
+        # Reasoning should be non-empty and substantive
+        assert len(result.reasoning) > 10, (
+            f"Reasoning for line {result.line_id} is too short: {result.reasoning}"
+        )
 
 
-@then("all rubric dimensions have scores")
+@then("all rubric dimensions have winners")
 def check_rubric_dimensions(ctx: BenchmarkContext) -> None:
-    """Verify that all rubric dimensions are scored."""
+    """Verify that all rubric dimensions have winner selections."""
     assert ctx.report is not None
-    # TODO: Update for new head-to-head schema (Task 8)
     for result in ctx.report.head_to_head_results:
+        # Should have 3 dimensions: accuracy, style_fidelity, consistency
         assert len(result.dimension_winners) == 3, (
-            f"Line {result.line_id} should have 3 dimension winners"
+            f"Line {result.line_id} should have 3 dimension winners, "
+            f"got {len(result.dimension_winners)}"
         )
+        # Each dimension winner should be valid (candidate name or "tie")
+        for dim, winner in result.dimension_winners.items():
+            assert winner in ["candidate-a", "candidate-b", "tie"], (
+                f"Invalid winner '{winner}' for dimension {dim} "
+                f"on line {result.line_id}"
+            )
 
 
-@then("dimension aggregates are computed")
-def check_dimension_aggregates(ctx: BenchmarkContext) -> None:
-    """Verify that dimension aggregates are present in the report."""
+@then("pairwise summaries include win rates")
+def check_pairwise_summaries(ctx: BenchmarkContext) -> None:
+    """Verify that pairwise summaries include win rates."""
     assert ctx.report is not None
-    # TODO: Update for new head-to-head schema (Task 8)
-    # Check pairwise summaries have dimension win rates
-    assert len(ctx.report.pairwise_summaries) > 0, "No pairwise summaries found"
-    for summary in ctx.report.pairwise_summaries:
-        assert len(summary.dimension_win_rates) == 3, (
-            "Each pairwise summary should have 3 dimension win rates"
-        )
+    # Should have 1 pairwise summary (A vs B)
+    assert len(ctx.report.pairwise_summaries) == 1, (
+        f"Expected 1 pairwise summary, got {len(ctx.report.pairwise_summaries)}"
+    )
+
+    summary = ctx.report.pairwise_summaries[0]
+    # Check that winners are tallied
+    total_wins = summary.candidate_a_wins + summary.candidate_b_wins + summary.ties
+    assert total_wins == summary.total_comparisons, (
+        "Winner counts don't sum to total comparisons"
+    )
+
+    # Check dimension win rates are present (3 dimensions)
+    assert len(summary.dimension_win_rates) == 3, (
+        "Should have win rates for all 3 dimensions"
+    )
 
 
-@then("head-to-head results include winner selections")
-def check_head_to_head_results(ctx: BenchmarkContext) -> None:
-    """Verify that head-to-head comparison results include winner selections."""
+@then("Elo ratings are computed")
+def check_elo_ratings(ctx: BenchmarkContext) -> None:
+    """Verify that Elo ratings are computed for all candidates."""
     assert ctx.report is not None
-    # TODO: Update for new head-to-head schema (Task 8)
-    assert len(ctx.report.pairwise_summaries) > 0, "No pairwise summaries found"
+    # Should have 2 Elo ratings (one per candidate)
+    assert len(ctx.report.elo_ratings) == 2, (
+        f"Expected 2 Elo ratings, got {len(ctx.report.elo_ratings)}"
+    )
 
-    for summary in ctx.report.pairwise_summaries:
-        # Check that winners are tallied
-        total_wins = summary.candidate_a_wins + summary.candidate_b_wins + summary.ties
-        assert total_wins == summary.total_comparisons, (
-            "Winner counts don't sum to total comparisons"
-        )
-
-        # Check dimension win rates are present
-        assert len(summary.dimension_win_rates) == 3, (
-            "Should have win rates for all 3 dimensions"
-        )
+    # Check that overall ranking is derived from Elo
+    assert len(ctx.report.overall_ranking) == 2, (
+        f"Expected 2 candidates in ranking, got {len(ctx.report.overall_ranking)}"
+    )
+    assert ctx.report.overall_ranking[0] in ["candidate-a", "candidate-b"], (
+        f"Invalid top-ranked candidate: {ctx.report.overall_ranking[0]}"
+    )
+    assert ctx.report.overall_ranking[1] in ["candidate-a", "candidate-b"], (
+        f"Invalid second-ranked candidate: {ctx.report.overall_ranking[1]}"
+    )

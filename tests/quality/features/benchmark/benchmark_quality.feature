@@ -1,16 +1,15 @@
 Feature: Benchmark Quality Validation
   As a rentl developer
-  I want to validate benchmark mechanics with real LLMs
-  So that I can ensure judge scoring returns proper per-line scores with reasoning
+  I want to validate benchmark comparison mechanics with real LLMs
+  So that I can ensure judge head-to-head comparison returns per-line results with reasoning
 
-  Scenario: Run benchmark on demo slice with real LLMs
-    Given a valid rentl configuration exists
-    And the demo slice is configured
+  Scenario: Compare translation outputs with real LLM judge
+    Given sample translation output files exist
     And real LLM endpoints are configured
-    When I run benchmark on the demo slice
+    When I run benchmark compare on the output files
     Then the benchmark completes successfully
-    And per-line scores are present for all evaluated lines
-    And each score includes judge reasoning
-    And all rubric dimensions have scores
-    And dimension aggregates are computed
-    And head-to-head results include winner selections
+    And per-line head-to-head results are present
+    And each result includes judge reasoning
+    And all rubric dimensions have winners
+    And pairwise summaries include win rates
+    And Elo ratings are computed

@@ -107,10 +107,11 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Error handling: missing API keys, mismatched line IDs, file not found
   - Integration tests: mocked end-to-end flow via CLI subcommands
 
-- [ ] Task 8: Tests (unit + integration + quality)
+- [x] Task 8: Tests (unit + integration + quality)
   - Unit tests: all schema validation, output loading, pairwise aggregation, Elo math, prompt construction
   - Integration tests (mocked LLM): full `rentl benchmark compare` CLI flow, `rentl benchmark download` flow
   - Quality test (real LLMs): run comparison on demo slice outputs, assert judge returns per-line results with reasoning for all rubric dimensions, assert report structure is complete
   - BDD feature files for integration and quality tiers
   - All tests within tier timing limits (unit <250ms, integration <5s, quality <30s)
   - Clean up stale test files from old architecture (old CLI command tests, MTL baseline features)
+  - Note: Quality test updated to head-to-head N-way architecture in do-task round 10
