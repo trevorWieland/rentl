@@ -13,3 +13,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 2): FAIL — BDD conversion is present but broken: async `When` step is never awaited, so integration scenarios do not execute and required prompt/result assertions fail.
 - **Task 4** (round 3): FAIL — Metadata assertions in Task 4 unit/integration tests are partially no-op because expected-value checks were accidentally placed inside comments after `# type: ignore`.
 - **Task 4** (round 4): PASS — Metadata assertions now enforce exact `mtl_baseline`/`model` values in unit and BDD integration tests, and targeted Task 4 suites pass (8/8).
+- **Task 5** (round 1): FAIL — Judge integration BDD steps are unbound (`StepDefinitionNotFoundError`), and Task 5 test coverage misses randomized head-to-head remapping/per-dimension winner guarantees.

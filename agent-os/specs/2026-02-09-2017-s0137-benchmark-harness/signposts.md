@@ -43,3 +43,19 @@
 - **Solution:** Moved `# type: ignore[index]` to the end of each assertion after the equality check. Changed assertions from `result.metadata["mtl_baseline"]  # type: ignore[index] is True` to `result.metadata["mtl_baseline"] is True  # type: ignore[index]` (and similar for model). This ensures the equality check is evaluated while maintaining type-checker compatibility.
 - **Resolution:** do-task round 5 (2026-02-09)
 - **Files affected:** `tests/unit/benchmark/test_mtl_baseline.py`, `tests/integration/benchmark/test_mtl_baseline_flow.py`
+
+- **Task:** Task 5
+- **Status:** unresolved
+- **Problem:** New Task 5 BDD integration scenarios do not bind table-based Given steps, so none of the judge flow scenarios execute.
+- **Evidence:** Running `pytest -q tests/unit/benchmark/test_judge.py tests/integration/benchmark/test_judge_flow.py` fails with `StepDefinitionNotFoundError: Given "translation lines:"` and `StepDefinitionNotFoundError: Given "MTL translations:"` from `tests/features/benchmark/judge_evaluation.feature:8` and `tests/features/benchmark/judge_evaluation.feature:46`. Step definitions currently use `parsers.parse("translation lines:\n{lines_table}")` and `parsers.parse("MTL translations:\n{mtl_table}")` in `tests/integration/benchmark/test_judge_flow.py:147` and `tests/integration/benchmark/test_judge_flow.py:178`.
+- **Impact:** Required Task 5 integration coverage is currently non-functional, so mocked-LLM judge wiring is not being validated in CI.
+- **Solution:** Update step definitions to pytest-bdd-8-compatible table handling for those Given steps, then re-run Task 5 unit+integration suites.
+- **Files affected:** `tests/integration/benchmark/test_judge_flow.py`, `tests/features/benchmark/judge_evaluation.feature`
+
+- **Task:** Task 5
+- **Status:** unresolved
+- **Problem:** Head-to-head judging behavior is under-validated: tests do not cover randomized A/B remapping, and parser accepts missing per-dimension winners.
+- **Evidence:** Task 5 tests only invoke `randomize_order=False` (`tests/unit/benchmark/test_judge.py:403`, `tests/unit/benchmark/test_judge.py:448`, `tests/integration/benchmark/test_judge_flow.py:269`), so remap logic at `packages/rentl-core/src/rentl_core/benchmark/judge.py:430` is never exercised. `_parse_head_to_head` also treats `dimension_winners` as optional and can return an empty dict (`packages/rentl-core/src/rentl_core/benchmark/judge.py:285`, `packages/rentl-core/src/rentl_core/benchmark/judge.py:296`) despite Task 5 requiring per-dimension winners.
+- **Impact:** Position-bias mitigation and per-dimension winner guarantees can regress undetected, weakening benchmark apples-to-apples confidence.
+- **Solution:** Add deterministic tests for randomized assignment remapping and enforce/validate all rubric dimensions in head-to-head responses.
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `tests/unit/benchmark/test_judge.py`, `tests/integration/benchmark/test_judge_flow.py`
