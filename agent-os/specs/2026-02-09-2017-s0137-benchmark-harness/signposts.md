@@ -202,3 +202,12 @@
 - **Resolution:** do-task round 18 (2026-02-10)
 - **Superseded:** This fix patched a symptom. The root cause is using a custom LlmRuntimeProtocol instead of pydantic-ai Agent. Both the fallback parser and the structured-output path it falls back from will be deleted when Task 11 is reimplemented with pydantic-ai.
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `tests/unit/benchmark/test_judge.py`
+
+- **Task:** Post-Task 12 (all tasks complete)
+- **Status:** resolved
+- **Problem:** The integration test mocks were using the old `dimension_winners` dict format when creating `JudgeOutput`, but the schema now uses explicit per-dimension fields (`accuracy_winner`, `style_fidelity_winner`, `consistency_winner`).
+- **Evidence:** `make all` integration tests failed with `KeyError: 'accuracy_winner'` at `tests/integration/benchmark/test_judge_flow.py:91`. The mock JSON at lines 154-162 and 171-179 used `"dimension_winners": {"accuracy": "tie", ...}` format while the test code at lines 88-94 tried to access `response_data["accuracy_winner"]`.
+- **Impact:** Full verification gate failed after all tasks were marked complete because integration tests for judge evaluation were broken.
+- **Solution:** Updated mock JSON responses in `given_judge_comparison` and `given_judge_winner_a` to use explicit field format matching the current `JudgeOutput` schema. Changed `"dimension_winners": {"accuracy": "tie", ...}` to `"accuracy_winner": "tie", ...`.
+- **Resolution:** do-task fix round (2026-02-10)
+- **Files affected:** `tests/integration/benchmark/test_judge_flow.py`

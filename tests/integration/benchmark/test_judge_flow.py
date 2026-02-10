@@ -154,11 +154,9 @@ def given_judge_comparison(ctx: JudgeContext, docstring: str) -> None:
         mock_response = json.dumps({
             "overall_winner": "B",
             "reasoning": "Translation B is more natural",
-            "dimension_winners": {
-                "accuracy": "tie",
-                "style_fidelity": "B",
-                "consistency": "B",
-            },
+            "accuracy_winner": "tie",
+            "style_fidelity_winner": "B",
+            "consistency_winner": "B",
         })
         ctx.mock_responses.append(mock_response)
 
@@ -171,11 +169,9 @@ def given_judge_winner_a(ctx: JudgeContext, docstring: str) -> None:
         mock_response = json.dumps({
             "overall_winner": "A",
             "reasoning": "Translation A is more accurate",
-            "dimension_winners": {
-                "accuracy": "A",
-                "style_fidelity": "B",
-                "consistency": "B",
-            },
+            "accuracy_winner": "A",
+            "style_fidelity_winner": "B",
+            "consistency_winner": "B",
         })
         ctx.mock_responses.append(mock_response)
 
