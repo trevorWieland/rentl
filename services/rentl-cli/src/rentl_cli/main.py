@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 import tomllib
-from collections.abc import Sequence
+from collections.abc import Awaitable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from enum import Enum
@@ -1379,21 +1379,21 @@ async def _benchmark_compare_async(
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         )
 
-        with progress:
-            task = progress.add_task("[cyan]Comparing...", total=total_comparisons)
+        # Build all comparison tasks
+        comparison_tasks = []
+        for candidate_1, candidate_2 in pairs:
+            lines_1 = outputs[candidate_1]
+            lines_2 = outputs[candidate_2]
 
-            for candidate_1, candidate_2 in pairs:
-                lines_1 = outputs[candidate_1]
-                lines_2 = outputs[candidate_2]
+            # Build line lookup for candidate_2
+            lines_2_map = {line.line_id: line for line in lines_2}
 
-                # Build line lookup for candidate_2
-                lines_2_map = {line.line_id: line for line in lines_2}
+            # Create comparison tasks for each line pair
+            for line_1 in lines_1:
+                line_2 = lines_2_map[line_1.line_id]
 
-                # Compare each line
-                for line_1 in lines_1:
-                    line_2 = lines_2_map[line_1.line_id]
-
-                    result = await judge.compare_head_to_head(
+                comparison_tasks.append(
+                    judge.compare_head_to_head(
                         line_id=line_1.line_id,
                         source_text=line_1.source_text or "",
                         translation_1=line_1.text,
@@ -1402,9 +1402,25 @@ async def _benchmark_compare_async(
                         candidate_2_name=candidate_2,
                         randomize_order=True,
                     )
-                    all_results.append(result)
-                    comparison_count += 1
-                    progress.update(task, completed=comparison_count)
+                )
+
+        # Execute all comparisons in parallel with progress tracking
+        with progress:
+            task = progress.add_task("[cyan]Comparing...", total=total_comparisons)
+
+            # Use gather to run comparisons concurrently
+            # Judge's concurrency_limit throttles concurrent API calls
+            async def run_with_progress(
+                coro: Awaitable[HeadToHeadResult], index: int
+            ) -> HeadToHeadResult:
+                result = await coro
+                progress.update(task, completed=index + 1)
+                return result
+
+            all_results = await asyncio.gather(*[
+                run_with_progress(coro, i) for i, coro in enumerate(comparison_tasks)
+            ])
+            comparison_count = len(all_results)
 
         rprint(f"[green]✓[/green] Completed {comparison_count} comparisons")
 
