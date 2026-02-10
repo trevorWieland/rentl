@@ -129,3 +129,11 @@
 - **Impact:** Reported head-to-head win totals and per-dimension win rates are inaccurate, weakening benchmark result trustworthiness.
 - **Solution:** Map winner values by slot (`A`/`B`) rather than system-name string equality, then update Task 8 tests to assert correct counts.
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/report.py`, `tests/unit/benchmark/test_report_generation.py`
+
+- **Task:** Task 7
+- **Status:** unresolved
+- **Problem:** CLI scoring-mode contract uses documented hyphen values, but runtime validation only accepts underscore values; fallback messaging also says "reference-free" without updating the recorded report mode.
+- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:1100` documents `reference-based or reference-free`, but `services/rentl-cli/src/rentl_cli/main.py:2434` validates only `["reference_based", "reference_free"]`. When reference mode is requested, code prints fallback warnings (`services/rentl-cli/src/rentl_cli/main.py:2446`, `services/rentl-cli/src/rentl_cli/main.py:2450`) yet still writes `actual_scoring_mode` unchanged into the report (`services/rentl-cli/src/rentl_cli/main.py:2511`).
+- **Impact:** Users can pass documented values and get an invalid-mode error; successful fallback runs can claim `reference_based` in report metadata even when no references were used.
+- **Solution:** Normalize CLI input (`reference-based`/`reference-free` -> `reference_based`/`reference_free`) before validation, then either implement reference loading or set `actual_scoring_mode="reference_free"` whenever fallback is applied.
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
