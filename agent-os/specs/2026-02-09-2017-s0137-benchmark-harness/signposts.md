@@ -25,3 +25,10 @@
 - **Solution:** Analyzed KSRE scripts to find suitable content. script-a1-monday.rpy lines 550-649 contains 26 parseable lines with dialogue, narration, 2 menu choices, and multiple speakers (hi, mu). Updated slices.json to use this range. Added comprehensive test `test_demo_slice_contains_required_content_types` that downloads the slice, parses it, and asserts presence of dialogue, narration, choices, and ≥2 named speakers.
 - **Resolution:** do-task round 3 (2026-02-09)
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json`, `tests/unit/benchmark/eval_sets/test_loader.py`
+
+- **Task:** Task 4
+- **Status:** unresolved
+- **Problem:** The BDD integration test conversion introduced an async step that pytest-bdd does not execute, so the scenario body never runs.
+- **Evidence:** `tests/integration/benchmark/test_mtl_baseline_flow.py:172` defines `@when("I generate MTL baseline translations")` as `async def`, and test execution reports `RuntimeWarning: coroutine 'when_generate_baseline' was never awaited`; assertions then fail because `ctx.captured_prompts` is empty (`tests/integration/benchmark/test_mtl_baseline_flow.py:202`) and `ctx.results` is `None` (`tests/integration/benchmark/test_mtl_baseline_flow.py:274`).
+- **Impact:** Task 4 integration coverage is currently broken, so the required mocked-LLM baseline flow is not validated.
+- **Files affected:** `tests/integration/benchmark/test_mtl_baseline_flow.py`

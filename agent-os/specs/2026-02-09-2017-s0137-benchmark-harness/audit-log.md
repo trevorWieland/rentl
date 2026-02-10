@@ -10,3 +10,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 3** (round 2): FAIL — Parser ID normalization fix is verified, but manifest hashes are invalid placeholders and the configured demo slice does not meet required mixed-content coverage.
 - **Task 2** (round 2): PASS — Task 2 schema contract remains satisfied in current tree; strict typed Pydantic models and benchmark schema tests still pass (32/32).
 - **Task 4** (round 1): FAIL — Integration test uses direct pytest assertions instead of required BDD Given/When/Then structure for integration tier scenarios.
+- **Task 4** (round 2): FAIL — BDD conversion is present but broken: async `When` step is never awaited, so integration scenarios do not execute and required prompt/result assertions fail.
