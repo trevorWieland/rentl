@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
@@ -25,6 +26,7 @@ class BenchmarkCLIContext:
     result: Result | None = None
     stdout: str = ""
     config_dir: Path | None = None
+    mock_loader: MagicMock | None = None
 
 
 @given("a valid rentl configuration exists", target_fixture="ctx")
@@ -87,3 +89,81 @@ def then_output_indicates_subcommand_required(ctx: BenchmarkCLIContext) -> None:
     """
     # Typer shows usage info mentioning COMMAND when no subcommand is provided
     assert "COMMAND" in ctx.stdout
+
+
+@when("I run benchmark download with kebab-case eval-set name")
+def when_run_benchmark_download_kebab_case(
+    ctx: BenchmarkCLIContext, cli_runner: CliRunner, monkeypatch: MagicMock
+) -> None:
+    """Run benchmark download with kebab-case eval-set name.
+
+    Args:
+        ctx: Benchmark CLI context.
+        cli_runner: CLI test runner.
+        monkeypatch: Pytest monkeypatch fixture.
+    """
+    # Mock the EvalSetLoader to verify it receives snake_case
+    mock_manifest = MagicMock()
+    mock_manifest.scripts = {"script-a1-monday.rpy": "abc123"}
+    mock_slices = MagicMock()
+    mock_slices.slices = {"demo": MagicMock(scripts=[])}
+
+    with patch("rentl_cli.main.EvalSetLoader") as mock_loader:
+        mock_loader.load_manifest = MagicMock(return_value=mock_manifest)
+        mock_loader.load_slices = MagicMock(return_value=mock_slices)
+        mock_loader.get_slice_scripts = MagicMock(return_value=["script-a1-monday.rpy"])
+
+        # Mock the downloader
+        with patch("rentl_cli.main.KatawaShoujoDownloader") as mock_downloader_class:
+            mock_downloader = MagicMock()
+            mock_downloader.download_scripts = AsyncMock(
+                return_value={"script-a1-monday.rpy": Path("/tmp/script-a1-monday.rpy")}
+            )
+            mock_downloader_class.return_value = mock_downloader
+
+            # Mock the parser
+            with patch("rentl_cli.main.RenpyDialogueParser") as mock_parser_class:
+                mock_parser = MagicMock()
+                mock_parser.parse_script = MagicMock(return_value=[])
+                mock_parser_class.return_value = mock_parser
+
+                ctx.result = cli_runner.invoke(
+                    cli_main.app,
+                    [
+                        "benchmark",
+                        "download",
+                        "--eval-set",
+                        "katawa-shoujo",
+                        "--slice",
+                        "demo",
+                    ],
+                )
+                ctx.stdout = ctx.result.stdout + ctx.result.stderr
+
+                # Store the mock for assertion
+                ctx.mock_loader = mock_loader
+
+
+@then("the command normalizes to snake_case internally")
+def then_command_normalizes_to_snake_case(ctx: BenchmarkCLIContext) -> None:
+    """Verify the command normalized kebab-case to snake_case.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    # Verify load_manifest was called with snake_case
+    ctx.mock_loader.load_manifest.assert_called_once_with("katawa_shoujo")
+    ctx.mock_loader.load_slices.assert_called_once_with("katawa_shoujo")
+
+
+@then("the download succeeds")
+def then_download_succeeds(ctx: BenchmarkCLIContext) -> None:
+    """Verify the download command succeeded.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert ctx.result is not None
+    assert ctx.result.exit_code == 0, (
+        f"Expected exit code 0, got {ctx.result.exit_code}\nOutput: {ctx.stdout}"
+    )

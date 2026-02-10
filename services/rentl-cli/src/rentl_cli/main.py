@@ -1127,17 +1127,22 @@ async def _benchmark_download_async(
         typer.Exit: When download or parsing fails
     """
     try:
+        # Normalize eval-set name from kebab-case to snake_case
+        normalized_eval_set = eval_set.replace("-", "_")
+
         # Load manifest and slices config
         rprint(f"[cyan]Loading eval set:[/cyan] {eval_set}")
-        manifest = EvalSetLoader.load_manifest(eval_set)
-        slices_config = EvalSetLoader.load_slices(eval_set)
+        manifest = EvalSetLoader.load_manifest(normalized_eval_set)
+        slices_config = EvalSetLoader.load_slices(normalized_eval_set)
 
         # Determine which scripts to download
         if slice_name:
             if slice_name not in slices_config.slices:
                 rprint(f"[red]Error:[/red] Slice '{slice_name}' not found")
                 raise typer.Exit(code=1)
-            script_files = EvalSetLoader.get_slice_scripts(eval_set, slice_name)
+            script_files = EvalSetLoader.get_slice_scripts(
+                normalized_eval_set, slice_name
+            )
             rprint(f"[cyan]Using slice:[/cyan] {slice_name}")
         else:
             script_files = list(manifest.scripts.keys())

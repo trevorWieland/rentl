@@ -92,12 +92,14 @@
 - **Resolution:** do-task round 10 (2026-02-10)
 - **Files affected:** All benchmark test files (`tests/unit/benchmark/*.py`), schema tests (`tests/unit/schemas/test_primitives.py`, `test_version_schema.py`, `test_redaction.py`), quality test (`tests/quality/benchmark/test_benchmark_quality.py`, `tests/quality/features/benchmark/benchmark_quality.feature`)
 
-- **Task:** Demo Step 1
-- **Status:** unresolved
+- **Task:** Task 9
+- **Status:** resolved
 - **Problem:** Demo Step 1 documents an invalid command that fails at runtime. The demo says to run `rentl benchmark download --eval-set katawa-shoujo --slice demo` (with hyphen), but the implementation expects `katawa_shoujo` (with underscore).
 - **Evidence:** Running `uv run rentl benchmark download --eval-set katawa-shoujo --slice demo` produces error: `Manifest not found for eval set 'katawa-shoujo' at /home/trevor/github/rentl/packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa-shoujo/manifest.json`. The directory is actually named `katawa_shoujo`. Running with `--eval-set katawa_shoujo` succeeds: `✓ Downloaded 1 scripts`, `✓ Parsed 26 total lines`. Unit tests confirm underscore format: `tests/unit/benchmark/eval_sets/test_loader.py:19` uses `EvalSetLoader.load_manifest("katawa_shoujo")`.
 - **Impact:** The demo cannot be run as documented. Users following demo.md will encounter immediate failure on Step 1.
 - **Root cause:** The CLI accepts the eval-set string verbatim and passes it to `EvalSetLoader.load_manifest(eval_set)` (`services/rentl-cli/src/rentl_cli/main.py:1132`). There is no normalization from kebab-case to snake_case. The filesystem directory is `katawa_shoujo` and the loader expects exactly that format (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/loader.py:58`).
-- **Files affected:** `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md`, `services/rentl-cli/src/rentl_cli/main.py`
+- **Solution:** Added kebab-case to snake_case normalization in `_benchmark_download_async` at line 1131: `normalized_eval_set = eval_set.replace("-", "_")`. The normalized value is passed to all loader methods while the original kebab-case format is preserved for user-facing output filenames. Added integration test scenario "Benchmark download accepts kebab-case eval-set names" with mocked loader/downloader to verify correct normalization.
+- **Resolution:** do-task round 11 (2026-02-10)
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`
 
 

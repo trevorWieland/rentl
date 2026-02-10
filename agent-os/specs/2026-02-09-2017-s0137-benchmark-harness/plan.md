@@ -116,7 +116,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Clean up stale test files from old architecture (old CLI command tests, MTL baseline features)
   - Note: Quality test updated to head-to-head N-way architecture in do-task round 10
 
-- [ ] Task 9: Fix eval-set name normalization
+- [x] Task 9: Fix eval-set name normalization
   - Add kebab-case to snake_case normalization in `_benchmark_download_async` so CLI accepts `--eval-set katawa-shoujo` (user-facing format)
   - Normalize before passing to `EvalSetLoader.load_manifest()` and `EvalSetLoader.load_slices()`
   - Update demo.md to use correct `--eval-set katawa-shoujo` format (kebab-case)

@@ -10,3 +10,9 @@ Feature: Benchmark CLI Command
     When I run benchmark command
     Then the command exits with status 2
     And the output indicates a subcommand is required
+
+  Scenario: Benchmark download accepts kebab-case eval-set names
+    Given a valid rentl configuration exists
+    When I run benchmark download with kebab-case eval-set name
+    Then the command normalizes to snake_case internally
+    And the download succeeds
