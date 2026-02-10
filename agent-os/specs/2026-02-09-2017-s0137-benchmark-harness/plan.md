@@ -24,7 +24,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - All models use `Field(description=...)` with strict typing, no `Any`
   - Unit tests for schema validation, serialization round-trips
 
-- [ ] Task 3: Eval set downloader and parser
+- [x] Task 3: Eval set downloader and parser
   - Create `rentl-core/src/rentl_core/benchmark/eval_sets/` module
   - `KatawaShoujoDownloader`: fetch `.rpy` script files from KSRE GitHub repo via raw URLs or git archive
   - `RenpyDialogueParser`: parse Ren'Py `.rpy` files into `SourceLine` format (extract speaker, dialogue text, scene_id, line_id)
