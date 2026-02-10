@@ -2280,9 +2280,12 @@ async def _run_benchmark_async(
     # Step 1: Download and parse eval set
     console.print("\n[bold]Step 1/5:[/bold] Downloading eval set...")
 
+    # Normalize eval_set name from kebab-case to snake_case for loader compatibility
+    normalized_eval_set = eval_set.replace("-", "_")
+
     # Load manifest and slices
-    manifest = EvalSetLoader.load_manifest(eval_set)
-    slices_config = EvalSetLoader.load_slices(eval_set)
+    manifest = EvalSetLoader.load_manifest(normalized_eval_set)
+    slices_config = EvalSetLoader.load_slices(normalized_eval_set)
 
     # Determine scripts to download
     if slice_name:
@@ -2426,8 +2429,25 @@ async def _run_benchmark_async(
         concurrency_limit=3,
     )
 
-    # Determine scoring mode
+    # Determine and validate scoring mode
     actual_scoring_mode = scoring_mode or "reference_based"
+    valid_modes = ["reference_based", "reference_free"]
+    if actual_scoring_mode not in valid_modes:
+        raise ValueError(
+            f"Invalid scoring mode '{actual_scoring_mode}'. "
+            f"Must be one of: {', '.join(valid_modes)}"
+        )
+
+    # TODO: Load reference translations for reference-based mode
+    # Currently reference loading is not implemented, so we use reference-free mode
+    # regardless of the selected mode
+    reference_lines: dict[str, str] = {}  # Map line_id -> reference_text
+    if actual_scoring_mode == "reference_based":
+        console.print(
+            "  [yellow]Warning: Reference-based mode requested but reference "
+            "loading not yet implemented[/yellow]"
+        )
+        console.print("  [yellow]Falling back to reference-free mode[/yellow]")
 
     # Judge MTL translations
     mtl_scores: list[LineScore] = []
@@ -2444,12 +2464,13 @@ async def _run_benchmark_async(
         if not source_line:
             continue
 
-        # Use reference-free scoring (no reference available)
+        # Use reference if available for reference-based mode
+        reference_text = reference_lines.get(mtl_line.line_id)
         score = await judge.score_translation(
             line_id=mtl_line.line_id,
             source_text=source_line.text,
             translation=mtl_line.text,
-            reference=None,
+            reference=reference_text,
         )
         mtl_scores.append(score)
 
@@ -2469,11 +2490,13 @@ async def _run_benchmark_async(
         if not source_line:
             continue
 
+        # Use reference if available for reference-based mode
+        reference_text = reference_lines.get(rentl_line.line_id)
         score = await judge.score_translation(
             line_id=rentl_line.line_id,
             source_text=source_line.text,
             translation=rentl_line.text,
-            reference=None,
+            reference=reference_text,
         )
         rentl_scores.append(score)
 

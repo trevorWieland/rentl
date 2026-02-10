@@ -215,27 +215,27 @@ def test_build_head_to_head_summary() -> None:
     )
 
     assert summary.total_comparisons == 3
-    # Note: The report builder compares winner strings against system names,
-    # but HeadToHeadResult uses "A"/"B"/"tie", so these won't match
-    # This exposes a bug in the report builder
-    assert summary.system_a_wins == 0  # "A" != "mtl"
-    assert summary.system_b_wins == 0  # "B" != "rentl"
-    assert summary.ties == 1  # Only the explicitly "tie" winner matches
+    # Winner aggregation now correctly uses schema slot values ("A"/"B"/"tie")
+    assert summary.system_a_wins == 1  # Line 1 winner="A"
+    assert summary.system_b_wins == 1  # Line 2 winner="B"
+    assert summary.ties == 1  # Line 3 winner="tie"
 
-    # Check dimension win rates - same issue applies
+    # Check dimension win rates with correct slot-based aggregation
     accuracy_rates = summary.dimension_win_rates[RubricDimension.ACCURACY]
-    assert accuracy_rates["A"] == 0.0  # "A" != "mtl"
-    assert accuracy_rates["B"] == 0.0  # "B" != "rentl"
-    assert accuracy_rates["tie"] == pytest.approx(1 / 3)  # Only explicit tie
+    assert accuracy_rates["A"] == pytest.approx(1 / 3)  # Line 1
+    assert accuracy_rates["B"] == pytest.approx(1 / 3)  # Line 2
+    assert accuracy_rates["tie"] == pytest.approx(1 / 3)  # Line 3
 
     style_rates = summary.dimension_win_rates[RubricDimension.STYLE_FIDELITY]
-    assert style_rates["A"] == 0.0
-    assert style_rates["B"] == 0.0
-    assert style_rates["tie"] == pytest.approx(1 / 3)
+    assert style_rates["A"] == 0.0  # No "A" winners in style dimension
+    assert style_rates["B"] == pytest.approx(2 / 3)  # Lines 1 and 2
+    assert style_rates["tie"] == pytest.approx(1 / 3)  # Line 3
 
     # Consistency has 2 "tie" dimension winners out of 3 comparisons
     consistency_rates = summary.dimension_win_rates[RubricDimension.CONSISTENCY]
-    assert consistency_rates["tie"] == pytest.approx(2 / 3)
+    assert consistency_rates["A"] == 0.0
+    assert consistency_rates["B"] == pytest.approx(1 / 3)  # Line 2
+    assert consistency_rates["tie"] == pytest.approx(2 / 3)  # Lines 1 and 3
 
 
 def test_build_head_to_head_summary_empty() -> None:
@@ -365,8 +365,10 @@ def test_build_report_with_head_to_head() -> None:
     assert report.head_to_head == head_to_head
     assert report.head_to_head_summary is not None
     assert report.head_to_head_summary.total_comparisons == 1
-    # Bug in report builder: compares "B" against "rentl", won't match
-    assert report.head_to_head_summary.system_b_wins == 0
+    # Winner aggregation now correctly uses schema slot value "B"
+    assert report.head_to_head_summary.system_a_wins == 0
+    assert report.head_to_head_summary.system_b_wins == 1  # winner="B"
+    assert report.head_to_head_summary.ties == 0
 
 
 def test_format_report_summary_basic() -> None:

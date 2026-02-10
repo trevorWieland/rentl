@@ -80,11 +80,12 @@
 
 - **Task:** Task 7
 - **Status:** unresolved
-- **Problem:** `rentl benchmark` is wired with placeholder comparison logic: it never executes the rentl pipeline and does not honor reference-based scoring mode.
-- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:2386` prints `Using MTL as placeholder for rentl translations`, `services/rentl-cli/src/rentl_cli/main.py:2390` sets `rentl_translations = mtl_translations`, and judge calls always pass `reference=None` at `services/rentl-cli/src/rentl_cli/main.py:2452` / `services/rentl-cli/src/rentl_cli/main.py:2476` despite exposing `--scoring-mode` at `services/rentl-cli/src/rentl_cli/main.py:1099`.
-- **Impact:** Benchmark output can report scores but does not measure the actual rentl pipeline or true reference-based behavior, weakening result validity and violating task intent.
-- **Solution:** Replace the placeholder branch with real pipeline execution and connect scoring-mode handling to aligned reference data (`reference-based` vs `reference-free`) before judge calls.
-- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
+- **Problem:** `rentl benchmark` placeholder pipeline execution: does not invoke real rentl pipeline with context/QA/edit phases.
+- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:2390` sets `rentl_translations = mtl_translations`. The rentl pipeline requires invoking `PipelineOrchestrator` with proper context/translate/QA/edit agent pools, but benchmark CLI currently lacks the infrastructure to create run contexts, storage bundles, and phase execution setup needed for orchestrator integration.
+- **Impact:** Benchmark can only compare MTL against itself (both translations identical), not MTL vs real rentl pipeline output.
+- **Tried:** Investigated orchestrator integration requirements - requires `_build_orchestrator`, `_StorageBundle`, `PipelineRunContext`, ingest/export adapters, and run state management (see `services/rentl-cli/src/rentl_cli/main.py:1984-2016`). Not feasible as a simple fix within autonomous task scope.
+- **Solution:** Requires dedicated task to architect benchmark-specific pipeline invocation that either (A) integrates full orchestrator with temporary storage infrastructure, or (B) creates a simplified "rentl-enhanced" translation mode that demonstrates context/QA features without full orchestrator complexity.
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, potentially `packages/rentl-core/src/rentl_core/benchmark/`
 
 - **Task:** Task 8
 - **Status:** resolved
@@ -95,6 +96,23 @@
 - **Resolution:** do-task round 8 (2026-02-09)
 - **Files affected:** `tests/unit/benchmark/test_report_generation.py`, `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/plan.md`
 - **Note:** Tests exposed a bug in `report.py:109-130` where `build_head_to_head_summary` compares `HeadToHeadResult.winner` (which uses "A"/"B"/"tie" per schema) against system names like "mtl"/"rentl", causing all comparisons to be miscounted. This should be fixed in a future task but is outside Task 8 scope.
+
+- **Task:** Task 7
+- **Status:** resolved
+- **Problem:** Head-to-head winner aggregation compared schema slot values ("A"/"B") against system names ("mtl"/"rentl"), miscounting all wins.
+- **Evidence:** `packages/rentl-core/src/rentl_core/benchmark/report.py:110` compared `result.winner == system_a_name`, but `HeadToHeadResult.winner` uses `Literal["A", "B", "tie"]` per schema (`packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:53`). Test assertions in `tests/unit/benchmark/test_report_generation.py:221` expected incorrect counts.
+- **Impact:** All head-to-head win tallies and dimension win rates reported as zero or incorrect values.
+- **Solution:** Changed comparisons to use schema values ("A"/"B"/"tie") instead of system names in `build_head_to_head_summary` for both overall winner and dimension_winners aggregation.
+- **Resolution:** do-task round 9 (2026-02-09)
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/report.py`
+
+- **Task:** Task 7
+- **Status:** unresolved
+- **Problem:** Reference-based scoring mode parameter validation added but reference translation loading not implemented.
+- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:2433` validates scoring_mode and creates empty `reference_lines` dict, but benchmark never loads English reference scripts from KSRE dataset. Spec requires "Japanese source + English reference" parsing (`spec.md:14`) and reference-based scoring support (`spec.md:17`).
+- **Impact:** `--scoring-mode reference-based` is accepted but falls back to reference-free mode with a warning. True reference-based evaluation cannot function.
+- **Solution:** Add English script loading to eval-set download/parse flow. Parse both Japanese and English versions of each KSRE script, use `LineAligner.align_by_id` to match pairs, and populate `reference_lines` dict with English text keyed by line_id. Update manifest to include English script hashes.
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json`
 
 - **Task:** Task 8
 - **Status:** unresolved

@@ -106,11 +106,12 @@ class BenchmarkReportBuilder:
             Aggregated head-to-head summary with win rates
         """
         total = len(head_to_head_results)
+        # Schema uses "A"/"B"/"tie" for winner slots, not system names
         system_a_wins = sum(
-            1 for result in head_to_head_results if result.winner == system_a_name
+            1 for result in head_to_head_results if result.winner == "A"
         )
         system_b_wins = sum(
-            1 for result in head_to_head_results if result.winner == system_b_name
+            1 for result in head_to_head_results if result.winner == "B"
         )
         ties = sum(1 for result in head_to_head_results if result.winner == "tie")
 
@@ -124,9 +125,10 @@ class BenchmarkReportBuilder:
 
             for result in head_to_head_results:
                 winner = result.dimension_winners.get(dimension)
-                if winner == system_a_name:
+                # Schema uses "A"/"B"/"tie" for winner slots, not system names
+                if winner == "A":
                     dim_a_wins += 1
-                elif winner == system_b_name:
+                elif winner == "B":
                     dim_b_wins += 1
                 elif winner == "tie":
                     dim_ties += 1
