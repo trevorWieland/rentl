@@ -165,6 +165,16 @@
 - **Impact:** The benchmark compare command cannot complete a full comparison run with most model families available on OpenRouter. Only models that consistently produce clean JSON within 2000 tokens work, which excludes reasoning models and verbose models.
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `services/rentl-cli/src/rentl_cli/main.py`
 
+- **Task:** Task 11 structured-output dimension completeness
+- **Status:** unresolved
+- **Problem:** The new structured-output path can return incomplete per-dimension winners. `JudgeOutput.dimension_winners` is typed as `dict[str, Literal["A", "B", "tie"]]`, and `compare_head_to_head` accepts whatever keys are present instead of enforcing `accuracy`, `style_fidelity`, and `consistency`.
+- **Evidence:** Schema allows arbitrary/missing keys at `packages/rentl-core/src/rentl_core/benchmark/judge.py:32`. Structured branch copies keys directly at `packages/rentl-core/src/rentl_core/benchmark/judge.py:279`-`packages/rentl-core/src/rentl_core/benchmark/judge.py:281`. Repro command output:
+  `uv run python - <<'PY' ... structured_output=JudgeOutput(..., dimension_winners={'accuracy': 'A'}) ... print(sorted(d.value for d in result.dimension_winners.keys())) ... PY`
+  prints `dimension keys: ['accuracy']`.
+- **Impact:** Task 11 can emit head-to-head results missing required rubric dimensions, violating the plan/spec contract that per-line output includes winners for accuracy, style fidelity, and consistency.
+- **Solution:** Make the structured schema require all three dimensions (explicit fields or validator), and in `compare_head_to_head` treat missing dimensions as parse failure so retry logic applies. Add a unit regression test for missing-dimension structured output.
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `tests/unit/benchmark/test_judge.py`
+
 - **Task:** Task 12
 - **Status:** unresolved
 - **Problem:** demo.md Steps 2-5 reference `rentl run` which does not exist as a CLI command — the actual command is `rentl run-pipeline`.
