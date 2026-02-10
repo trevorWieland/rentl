@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import Field
 
@@ -67,6 +68,11 @@ class LlmPromptRequest(BaseSchema):
     runtime: LlmRuntimeSettings = Field(..., description="Runtime settings")
     prompt: str = Field(..., min_length=1, description="Prompt text")
     system_prompt: str | None = Field(None, description="Optional system prompt")
+    result_schema: Any = Field(
+        None,
+        description="Optional Pydantic schema type for structured output",
+        exclude=True,  # Don't serialize this in JSON
+    )
 
 
 class LlmPromptResponse(BaseSchema):
@@ -74,6 +80,9 @@ class LlmPromptResponse(BaseSchema):
 
     model_id: str = Field(..., min_length=1, description="Model identifier")
     output_text: str = Field(..., min_length=1, description="Model output")
+    structured_output: Any = Field(
+        None, description="Structured output when result_schema was provided"
+    )
 
 
 class LlmConnectionResult(BaseSchema):

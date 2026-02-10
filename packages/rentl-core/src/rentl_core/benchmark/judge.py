@@ -256,14 +256,34 @@ Provide your evaluation in this exact JSON format:
                         runtime=self.runtime_settings,
                         prompt=prompt,
                         system_prompt=None,
+                        result_schema=JudgeOutput,
                     )
 
                     response = await self.runtime.run_prompt(
                         request, api_key=self.api_key
                     )
-                    overall_winner, reasoning, dimension_winners = (
-                        self._parse_head_to_head(response.output_text)
-                    )
+
+                    # Use structured output if available, otherwise fall back to parsing
+                    if response.structured_output is not None:
+                        judge_output = response.structured_output
+                        if not isinstance(judge_output, JudgeOutput):
+                            raise ValueError(
+                                f"Expected JudgeOutput but got {type(judge_output)}"
+                            )
+                        overall_winner = judge_output.overall_winner
+                        reasoning = judge_output.reasoning
+                        # Convert string keys to RubricDimension enum
+                        dimension_winners: dict[
+                            RubricDimension, Literal["A", "B", "tie"]
+                        ] = {}
+                        for dim_str, winner in judge_output.dimension_winners.items():
+                            dim = RubricDimension(dim_str)
+                            dimension_winners[dim] = winner
+                    else:
+                        # Fallback to text parsing for backwards compatibility
+                        overall_winner, reasoning, dimension_winners = (
+                            self._parse_head_to_head(response.output_text)
+                        )
 
                     # Map A/B back to translation_1/translation_2
                     final_overall_winner: Literal["A", "B", "tie"] = overall_winner

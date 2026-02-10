@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import Field
 
 from rentl_llm.openai_runtime import OpenAICompatibleRuntime
+from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import OpenRouterProviderRoutingConfig, RetryConfig
 from rentl_schemas.llm import (
     LlmEndpointTarget,
@@ -19,6 +21,13 @@ from rentl_schemas.primitives import ReasoningEffort
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+
+class TestOutput(BaseSchema):
+    """Test output schema for structured output tests."""
+
+    winner: str = Field(..., description="Winner")
+    score: int = Field(..., description="Score")
 
 
 @pytest.fixture
@@ -255,3 +264,45 @@ async def test_run_prompt_openrouter_with_reasoning(
         )
         response = await runtime.run_prompt(request, api_key="test-key")
         assert response.model_id == "gpt-4"
+
+
+@pytest.mark.asyncio
+async def test_run_prompt_with_structured_output(
+    runtime: OpenAICompatibleRuntime,
+) -> None:
+    """Test structured output with result_schema.
+
+    Args:
+        runtime: Runtime instance.
+    """
+    mock_structured_result = MagicMock()
+    mock_structured_result.output = TestOutput(winner="A", score=10)
+
+    with (
+        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
+        patch("rentl_llm.openai_runtime.OpenAIProvider"),
+        patch("rentl_llm.openai_runtime.OpenAIChatModel"),
+        patch("rentl_llm.openai_runtime.Agent") as mock_agent_cls,
+    ):
+        mock_detect.return_value = MagicMock(is_openrouter=False)
+        agent_instance = MagicMock()
+        agent_instance.run = AsyncMock(return_value=mock_structured_result)
+        mock_agent_cls.return_value = agent_instance
+
+        request = _build_request()
+        request.result_schema = TestOutput
+
+        response = await runtime.run_prompt(request, api_key="test-key")
+
+        # Verify structured output is returned
+        assert response.model_id == "gpt-4"
+        assert response.structured_output is not None
+        assert isinstance(response.structured_output, TestOutput)
+        assert response.structured_output.winner == "A"
+        assert response.structured_output.score == 10
+
+        # Verify Agent was called with output_type parameter
+        mock_agent_cls.assert_called_once()
+        call_kwargs = mock_agent_cls.call_args[1]
+        assert "output_type" in call_kwargs
+        assert call_kwargs["output_type"] == TestOutput
