@@ -469,3 +469,143 @@ def test_parse_head_to_head_missing_overall_winner(
 
     with pytest.raises(ValueError, match="Missing 'overall_winner' or 'reasoning'"):
         judge._parse_head_to_head(response)
+
+
+def test_extract_json_from_text_with_reasoning_prefix(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test JSON extraction handles reasoning text before JSON object."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = """Let me think about this comparison carefully...
+
+After analyzing both translations, here's my evaluation:
+
+{
+    "overall_winner": "A",
+    "reasoning": "A is more accurate",
+    "dimension_winners": {
+        "accuracy": "A",
+        "style_fidelity": "B",
+        "consistency": "tie"
+    }
+}
+
+This is my final verdict."""
+
+    json_text = judge._extract_json_from_text(response)
+    data = json.loads(json_text)
+
+    assert data["overall_winner"] == "A"
+    assert data["reasoning"] == "A is more accurate"
+
+
+def test_extract_json_from_text_with_nested_objects(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test JSON extraction handles nested objects correctly."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = """Here is my analysis:
+
+{
+    "overall_winner": "B",
+    "reasoning": "B has better style",
+    "dimension_winners": {
+        "accuracy": "A",
+        "style_fidelity": "B",
+        "consistency": "tie"
+    }
+}"""
+
+    json_text = judge._extract_json_from_text(response)
+    data = json.loads(json_text)
+
+    assert data["overall_winner"] == "B"
+    assert "dimension_winners" in data
+
+
+@pytest.mark.asyncio
+async def test_compare_head_to_head_retry_on_parse_failure(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test retry logic on parse failure with eventual success."""
+    # First call returns invalid JSON, second call succeeds
+    mock_runtime.run_prompt = AsyncMock(
+        side_effect=[
+            LlmPromptResponse(
+                model_id="gpt-4o-mini",
+                output_text="Invalid response",
+            ),
+            LlmPromptResponse(
+                model_id="gpt-4o-mini",
+                output_text=json.dumps({
+                    "overall_winner": "A",
+                    "reasoning": "A is better",
+                    "dimension_winners": {
+                        "accuracy": "A",
+                        "style_fidelity": "A",
+                        "consistency": "tie",
+                    },
+                }),
+            ),
+        ]
+    )
+
+    judge = RubricJudge(
+        runtime=mock_runtime,
+        runtime_settings=runtime_settings,
+        api_key="test-key",
+        max_retries=3,
+    )
+
+    result = await judge.compare_head_to_head(
+        line_id="line_1",
+        source_text="こんにちは",
+        translation_1="Hello",
+        translation_2="Hi",
+        candidate_1_name="c1",
+        candidate_2_name="c2",
+        randomize_order=False,
+    )
+
+    assert result.winner == "A"
+    assert mock_runtime.run_prompt.call_count == 2  # Retried once
+
+
+@pytest.mark.asyncio
+async def test_compare_head_to_head_retry_exhaustion(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test retry logic fails after max retries exhausted."""
+    # All calls return invalid JSON
+    mock_runtime.run_prompt = AsyncMock(
+        return_value=LlmPromptResponse(
+            model_id="gpt-4o-mini",
+            output_text="Invalid response every time",
+        )
+    )
+
+    judge = RubricJudge(
+        runtime=mock_runtime,
+        runtime_settings=runtime_settings,
+        api_key="test-key",
+        max_retries=2,
+    )
+
+    with pytest.raises(ValueError, match="after 2 attempts"):
+        await judge.compare_head_to_head(
+            line_id="line_1",
+            source_text="こんにちは",
+            translation_1="Hello",
+            translation_2="Hi",
+            candidate_1_name="c1",
+            candidate_2_name="c2",
+            randomize_order=False,
+        )
+
+    assert mock_runtime.run_prompt.call_count == 2
