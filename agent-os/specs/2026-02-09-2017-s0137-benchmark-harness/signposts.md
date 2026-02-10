@@ -180,3 +180,10 @@
 - **Evidence:** `uv run rentl run --help` → `No such command 'run'`. `uv run rentl --help` shows `run-pipeline` as the correct command.
 - **Impact:** Demo steps 2-5 cannot be followed as written.
 - **Files affected:** `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md`
+
+- **Task:** Task 11 structured-output fallback mismatch
+- **Status:** unresolved
+- **Problem:** The round-17 switch to explicit per-dimension fields (`accuracy_winner`, `style_fidelity_winner`, `consistency_winner`) fixed structured-output completeness but left the text fallback parser on the old `dimension_winners` contract.
+- **Evidence:** Prompt format now requests explicit fields at `packages/rentl-core/src/rentl_core/benchmark/judge.py:110` and `packages/rentl-core/src/rentl_core/benchmark/judge.py:117`, while `_parse_head_to_head` still requires `dimension_winners` at `packages/rentl-core/src/rentl_core/benchmark/judge.py:194`. Repro output: `ValueError Missing 'dimension_winners' in response` when calling `_parse_head_to_head` on JSON containing the new explicit fields.
+- **Impact:** If `structured_output` is unavailable (text-only runtime output or schema parse failure), fallback parsing rejects prompt-conformant responses and benchmark compare can still fail per-line despite Task 11's robustness goal.
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `tests/unit/benchmark/test_judge.py`
