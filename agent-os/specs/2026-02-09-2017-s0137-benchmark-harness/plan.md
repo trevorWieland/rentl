@@ -133,7 +133,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Add integration test: `rentl benchmark download --eval-set katawa-shoujo --slice demo` succeeds
   - Verify existing unit tests still pass (they use snake_case directly in Python, which is fine)
 
-- [ ] Task 10: Use project endpoint config for benchmark compare judge
+- [x] Task 10: Use project endpoint config for benchmark compare judge
   - **Critical**: `_benchmark_compare_async` hardcodes `os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")` at `services/rentl-cli/src/rentl_cli/main.py:1320` — must use the codebase's endpoint config system instead
   - **Remove** hardcoded API key checks (`main.py:1319-1326`)
   - **Remove** hardcoded `provider_name="openai"` and `api_key_env="OPENAI_API_KEY"` (`main.py:1334`, `main.py:1336`)

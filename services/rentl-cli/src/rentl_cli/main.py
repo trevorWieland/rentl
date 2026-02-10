@@ -37,6 +37,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
+from rentl_agents.providers import detect_provider
 from rentl_agents.wiring import build_agent_pools
 from rentl_core import VERSION, AgentTelemetryEmitter, build_status_result
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
@@ -96,6 +97,7 @@ from rentl_schemas.config import (
     LoggingConfig,
     LogSinkConfig,
     ModelSettings,
+    OpenRouterProviderRoutingConfig,
     RetryConfig,
     RunConfig,
 )
@@ -1237,11 +1239,17 @@ def benchmark_compare(
         "--candidate-names",
         help="Comma-separated names for candidates (defaults to filenames)",
     ),
+    config_path: Path = CONFIG_OPTION,
     judge_model: str | None = typer.Option(
         None, "--judge-model", help="Override judge model ID"
     ),
     judge_base_url: str | None = typer.Option(
         None, "--judge-base-url", help="Override judge endpoint"
+    ),
+    judge_api_key_env: str | None = typer.Option(
+        None,
+        "--judge-api-key-env",
+        help="Override judge API key environment variable name",
     ),
     output: str | None = typer.Option(
         None, "--output", help="Path to write JSON report"
@@ -1252,7 +1260,7 @@ def benchmark_compare(
     Loads 2+ rentl run outputs, runs all-pairs pairwise comparison,
     computes win rates and Elo ratings, and produces a ranking report.
 
-    Requires ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable.
+    Uses judge endpoint from rentl.toml config unless overridden.
     """
     # Parse comma-separated candidate names
     parsed_names = None
@@ -1263,8 +1271,10 @@ def benchmark_compare(
         _benchmark_compare_async(
             output_paths,
             parsed_names,
+            config_path,
             judge_model,
             judge_base_url,
+            judge_api_key_env,
             output,
         )
     )
@@ -1273,8 +1283,10 @@ def benchmark_compare(
 async def _benchmark_compare_async(
     output_paths: list[str],
     candidate_names: list[str] | None,
+    config_path: Path,
     judge_model: str | None,
     judge_base_url: str | None,
+    judge_api_key_env: str | None,
     output_path: str | None,
 ) -> None:
     """Async implementation of benchmark compare command.
@@ -1316,30 +1328,110 @@ async def _benchmark_compare_async(
             rprint(f"[red]Line ID validation failed:[/red]\n{e}")
             raise typer.Exit(code=1) from None
 
-        # Check for API keys
-        api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            rprint(
-                "[red]Error:[/red] Set ANTHROPIC_API_KEY or OPENAI_API_KEY "
-                "environment variable"
+        # Load config for judge endpoint
+        _load_dotenv(config_path)
+        config = _load_resolved_config(config_path)
+
+        # Determine judge endpoint (CLI override or config default)
+        if judge_base_url:
+            # CLI override mode
+            base_url = judge_base_url
+            # Detect provider from URL
+            provider_caps = detect_provider(base_url)
+
+            # Use provided API key env var or infer from provider
+            if judge_api_key_env:
+                api_key_env_name = judge_api_key_env
+            elif provider_caps.is_openrouter:
+                api_key_env_name = "RENTL_OPENROUTER_API_KEY"
+            elif "openai.com" in base_url:
+                api_key_env_name = "OPENAI_API_KEY"
+            else:
+                # Generic fallback
+                api_key_env_name = "OPENAI_API_KEY"
+
+            # Build endpoint target
+            endpoint_target = LlmEndpointTarget(
+                provider_name=provider_caps.name,
+                base_url=base_url,
+                api_key_env=api_key_env_name,
+                timeout_s=60.0,
             )
+
+            # Add OpenRouter routing config if applicable
+            if provider_caps.is_openrouter:
+                endpoint_target = endpoint_target.model_copy(
+                    update={
+                        "openrouter_provider": OpenRouterProviderRoutingConfig(
+                            require_parameters=True
+                        )
+                    }
+                )
+
+            model_id = judge_model or "gpt-4o-mini"
+        else:
+            # Use config endpoint (legacy single endpoint or multi-endpoint default)
+            if config.endpoint is not None:
+                # Legacy single endpoint mode
+                byok_config = config.endpoint
+            elif config.endpoints is not None:
+                # Multi-endpoint mode - use default endpoint
+                default_name = config.endpoints.default
+                byok_config = next(
+                    (
+                        ep
+                        for ep in config.endpoints.endpoints
+                        if ep.provider_name == default_name
+                    ),
+                    None,
+                )
+                if byok_config is None:
+                    rprint(
+                        f"[red]Error:[/red] Default endpoint '{default_name}' "
+                        "not found in config"
+                    )
+                    raise typer.Exit(code=1)
+            else:
+                rprint(
+                    "[red]Error:[/red] No judge endpoint configured. Add [endpoint] "
+                    "or [endpoints] to rentl.toml or use --judge-base-url"
+                )
+                raise typer.Exit(code=1)
+            base_url = byok_config.base_url
+            api_key_env_name = judge_api_key_env or byok_config.api_key_env
+
+            # Detect provider from config base URL
+            provider_caps = detect_provider(base_url)
+
+            # Build endpoint target from config
+            endpoint_target = LlmEndpointTarget(
+                provider_name=byok_config.provider_name,
+                base_url=base_url,
+                api_key_env=api_key_env_name,
+                timeout_s=byok_config.timeout_s,
+            )
+
+            # Include OpenRouter config if present
+            if byok_config.openrouter_provider:
+                endpoint_target = endpoint_target.model_copy(
+                    update={"openrouter_provider": byok_config.openrouter_provider}
+                )
+
+            model_id = judge_model or "gpt-4o-mini"
+
+        # Check that the API key is available
+        api_key = os.getenv(api_key_env_name)
+        if not api_key:
+            rprint(f"[red]Error:[/red] Set {api_key_env_name} environment variable")
             raise typer.Exit(code=1)
 
-        # Set up judge
-        model_id = judge_model or "gpt-4o-mini"
-        base_url = judge_base_url or "https://api.openai.com/v1"
-
+        # Set up judge runtime settings
         runtime_settings = LlmRuntimeSettings(
-            endpoint=LlmEndpointTarget(
-                provider_name="openai",
-                base_url=base_url,
-                api_key_env="OPENAI_API_KEY",
-                timeout_s=60.0,
-            ),
+            endpoint=endpoint_target,
             model=LlmModelSettings(
                 model_id=model_id,
                 temperature=0.7,
-                max_output_tokens=2000,
+                max_output_tokens=4096,  # Increased from 2000 for verbose models
                 reasoning_effort=ReasoningEffort.MEDIUM,
                 top_p=1.0,
                 presence_penalty=0.0,
