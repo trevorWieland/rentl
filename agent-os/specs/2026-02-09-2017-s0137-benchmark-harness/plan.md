@@ -62,7 +62,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Remove stale `RubricJudge` monkeypatch from `tests/integration/benchmark/test_cli_command.py:179` and `tests/integration/benchmark/test_cli_command.py:183` (`pytest -q tests/integration/benchmark/test_cli_command.py` currently fails with `AttributeError: module 'rentl_cli.main' has no attribute 'RubricJudge'`) (audit round 7; see signposts.md Task 4 stale CLI BDD mismatch)
   - [x] Fix: Align `tests/features/benchmark/cli_command.feature:6` and `tests/integration/benchmark/test_cli_command.py:329`/`tests/integration/benchmark/test_cli_command.py:489` with current benchmark command stub behavior in `services/rentl-cli/src/rentl_cli/main.py:1113`-`services/rentl-cli/src/rentl_cli/main.py:1115` so stale success/API-key assertions no longer fail the Task 4 benchmark CLI integration suite (audit round 7; see signposts.md Task 4 stale CLI BDD mismatch)
 
-- [ ] Task 5: Revise judge for pairwise-only comparison
+- [x] Task 5: Revise judge for pairwise-only comparison
   - **Remove** `score_translation` method (isolated scoring)
   - **Remove** reference-based/reference-free mode distinction from judge
   - **Keep and adapt** `compare_head_to_head` for pairwise use:
@@ -73,8 +73,8 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - **Ensure** judge prompt includes source text so judge has context for accuracy evaluation
   - Update unit tests: remove isolated scoring tests, verify pairwise comparison
   - Update integration BDD tests: remove reference-based/reference-free scenarios, keep head-to-head scenarios
-  - [ ] Fix: Remove stale skipped isolated-scoring unit tests and dead calls to removed judge APIs (`_build_reference_based_prompt`, `_build_reference_free_prompt`, `_parse_rubric_scores`, `score_translation`, `score_batch`) from `tests/unit/benchmark/test_judge.py:63`, `tests/unit/benchmark/test_judge.py:88`, `tests/unit/benchmark/test_judge.py:135`, `tests/unit/benchmark/test_judge.py:163`, `tests/unit/benchmark/test_judge.py:189`, `tests/unit/benchmark/test_judge.py:276`, `tests/unit/benchmark/test_judge.py:314`, and `tests/unit/benchmark/test_judge.py:348` (audit round 3)
-  - [ ] Fix: Replace skip-based legacy coverage with active pairwise-only assertions in `tests/unit/benchmark/test_judge.py` so Task 5 test migration is complete and no longer relies on `pytest.mark.skip` placeholders for removed modes (audit round 3; see signposts.md Task 5 skipped legacy judge tests)
+  - [x] Fix: Remove stale skipped isolated-scoring unit tests and dead calls to removed judge APIs (`_build_reference_based_prompt`, `_build_reference_free_prompt`, `_parse_rubric_scores`, `score_translation`, `score_batch`) from `tests/unit/benchmark/test_judge.py:63`, `tests/unit/benchmark/test_judge.py:88`, `tests/unit/benchmark/test_judge.py:135`, `tests/unit/benchmark/test_judge.py:163`, `tests/unit/benchmark/test_judge.py:189`, `tests/unit/benchmark/test_judge.py:276`, `tests/unit/benchmark/test_judge.py:314`, and `tests/unit/benchmark/test_judge.py:348` (audit round 3)
+  - [x] Fix: Replace skip-based legacy coverage with active pairwise-only assertions in `tests/unit/benchmark/test_judge.py` so Task 5 test migration is complete and no longer relies on `pytest.mark.skip` placeholders for removed modes (audit round 3; see signposts.md Task 5 skipped legacy judge tests)
 
 - [ ] Task 6: Report generator — pairwise win rates and Elo
   - **Rewrite** `rentl-core/src/rentl_core/benchmark/report.py`:
