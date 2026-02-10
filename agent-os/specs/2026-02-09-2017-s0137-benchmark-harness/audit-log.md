@@ -27,6 +27,7 @@ Future auditors: check this log for regressions and patterns.
 - **Task 3** (round 3): PASS — Eval-set downloader/parser artifacts and contracts remain valid; resolved hash and slice signposts are verified in code, and Task 3 suites pass (`34/34`).
 - **Task 4** (round 6): FAIL — Output loader work is correct, but Task 4 still leaves regressions: stale CLI integration mocks reference deleted `MTLBaselineGenerator`, dead placeholder benchmark code remains, and judge API removals broke integration BDD scenarios.
 - **Task 4** (round 7): FAIL — `test_cli_command` remains broken after Task 4 fixes (`RubricJudge` monkeypatch targets a deleted symbol, and BDD assertions still expect legacy benchmark behavior instead of the Task 7 rewrite stub output).
+- **Task 4** (round 8): PASS — Task 4 implementation is now aligned with current benchmark stub behavior and remains compliant with output-loader/dead-code-removal scope; targeted Task 4 suites pass (`pytest -q tests/unit/benchmark/test_output_loader.py tests/integration/benchmark/test_cli_command.py tests/integration/benchmark/test_judge_flow.py` → `21 passed`).
 
 ---
 
