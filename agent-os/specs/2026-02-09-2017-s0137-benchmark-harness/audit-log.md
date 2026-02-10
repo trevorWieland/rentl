@@ -36,6 +36,7 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 1): FAIL — Step 1 command syntax mismatch: demo.md documents `--eval-set katawa-shoujo` (kebab-case) but CLI expects `katawa_shoujo` (snake_case). No normalization in CLI. Task 9 added to fix.
 - **Task 9** (round 1): PASS — Verified eval-set kebab→snake normalization in benchmark download CLI (`services/rentl-cli/src/rentl_cli/main.py:1131`), with integration BDD coverage and passing target suite (`pytest -q tests/integration/benchmark/test_cli_command.py` → `2 passed`).
 - **Demo** (run 2): PASS — Step 1 download executes successfully. Steps 2-5 (running rentl with different models/configs and comparing outputs) cannot be executed without API keys and would require significant runtime. Comparison mechanics validated via quality test instead. Not a failure per run-demo protocol.
+- **Spec Audit** (round 1): FAIL — Rubric `3/4/2/5/3`, non-negotiables PASS, demo latest PASS (partial), fix-now count 4.
 
 ---
 
