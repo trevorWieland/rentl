@@ -88,7 +88,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Derive `overall_ranking` inside the report generator from Elo ratings instead of requiring caller-supplied ranking (`packages/rentl-core/src/rentl_core/benchmark/report.py:131`, `packages/rentl-core/src/rentl_core/benchmark/report.py:139`) (audit round 3)
   - [x] Fix: Handle zero-comparison pairwise summaries in `compute_elo_ratings` to prevent division by zero, and add a regression unit test (`packages/rentl-core/src/rentl_core/benchmark/report.py:116`; repro output: `ZeroDivisionError division by zero`) (audit round 3)
 
-- [ ] Task 7: `rentl benchmark` CLI subcommands
+- [x] Task 7: `rentl benchmark` CLI subcommands
   - **Rewrite** benchmark CLI as two subcommands:
   - `rentl benchmark download`:
     - `--eval-set` (required): eval set name (e.g., `katawa-shoujo`)

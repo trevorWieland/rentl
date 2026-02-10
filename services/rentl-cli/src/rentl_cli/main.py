@@ -14,11 +14,13 @@ from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from enum import Enum
+from itertools import combinations
 from pathlib import Path
 from typing import NamedTuple, TypeVar, cast
 from uuid import UUID, uuid7
 
 import typer
+from anyio import Path as AsyncPath
 from dotenv import load_dotenv
 from pydantic import ValidationError
 from rich import print as rprint
@@ -40,6 +42,13 @@ from rentl_core import VERSION, AgentTelemetryEmitter, build_status_result
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
 from rentl_core.benchmark.eval_sets.loader import EvalSetLoader
 from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
+from rentl_core.benchmark.judge import RubricJudge
+from rentl_core.benchmark.output_loader import (
+    OutputLoadError,
+    load_output,
+    validate_matching_line_ids,
+)
+from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_summary
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
@@ -78,13 +87,16 @@ from rentl_io.storage.filesystem import (
 )
 from rentl_io.storage.log_sink import build_log_sink
 from rentl_io.storage.progress_sink import FileSystemProgressSink
-from rentl_llm import OpenAICompatibleRuntime
+from rentl_llm.openai_runtime import OpenAICompatibleRuntime
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.benchmark.report import PairwiseSummary
+from rentl_schemas.benchmark.rubric import HeadToHeadResult
 from rentl_schemas.config import (
     LanguageConfig,
     LoggingConfig,
     LogSinkConfig,
     ModelSettings,
+    RetryConfig,
     RunConfig,
 )
 from rentl_schemas.events import (
@@ -99,6 +111,8 @@ from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedL
 from rentl_schemas.llm import (
     LlmConnectionReport,
     LlmEndpointTarget,
+    LlmModelSettings,
+    LlmRuntimeSettings,
 )
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import (
@@ -119,6 +133,7 @@ from rentl_schemas.primitives import (
     LogSinkType,
     PhaseName,
     PhaseStatus,
+    ReasoningEffort,
     RunId,
     RunStatus,
     UntranslatedPolicy,
@@ -1076,13 +1091,146 @@ def status(
         raise typer.Exit(code=exit_code.value) from None
 
 
-@app.command("benchmark")
-def benchmark(
+# Benchmark subcommands
+benchmark_app = typer.Typer(help="Benchmark evaluation commands")
+app.add_typer(benchmark_app, name="benchmark")
+
+
+@benchmark_app.command("download")
+def benchmark_download(
     eval_set: str = typer.Option(
         ..., "--eval-set", help="Eval set name (e.g., katawa-shoujo)"
     ),
     slice_name: str | None = typer.Option(
-        None, "--slice", help="Slice name for subset evaluation (e.g., demo)"
+        None, "--slice", help="Slice name for subset (e.g., demo)"
+    ),
+    output_dir: str | None = typer.Option(
+        None, "--output-dir", help="Directory to write parsed source files"
+    ),
+) -> None:
+    """Download and parse evaluation set source material.
+
+    Downloads scripts from the evaluation set repository, validates hashes,
+    and parses them into rentl-ingestable SourceLine format.
+    """
+    asyncio.run(_benchmark_download_async(eval_set, slice_name, output_dir))
+
+
+async def _benchmark_download_async(
+    eval_set: str,
+    slice_name: str | None,
+    output_dir: str | None,
+) -> None:
+    """Async implementation of benchmark download command.
+
+    Raises:
+        typer.Exit: When download or parsing fails
+    """
+    try:
+        # Load manifest and slices config
+        rprint(f"[cyan]Loading eval set:[/cyan] {eval_set}")
+        manifest = EvalSetLoader.load_manifest(eval_set)
+        slices_config = EvalSetLoader.load_slices(eval_set)
+
+        # Determine which scripts to download
+        if slice_name:
+            if slice_name not in slices_config.slices:
+                rprint(f"[red]Error:[/red] Slice '{slice_name}' not found")
+                raise typer.Exit(code=1)
+            script_files = EvalSetLoader.get_slice_scripts(eval_set, slice_name)
+            rprint(f"[cyan]Using slice:[/cyan] {slice_name}")
+        else:
+            script_files = list(manifest.scripts.keys())
+            rprint("[cyan]Using all scripts from manifest[/cyan]")
+
+        rprint(f"[cyan]Scripts to download:[/cyan] {len(script_files)}")
+
+        # Download scripts with progress reporting
+        def progress_callback(filename: str, current: int, total: int) -> None:
+            rprint(f"  [{current}/{total}] Downloading {filename}...")
+
+        downloader = KatawaShoujoDownloader(progress_callback=progress_callback)
+        downloaded_paths = await downloader.download_scripts(
+            script_files, hash_manifest=manifest.scripts
+        )
+
+        rprint(f"[green]✓[/green] Downloaded {len(downloaded_paths)} scripts")
+
+        # Parse scripts
+        rprint("[cyan]Parsing scripts...[/cyan]")
+        parser = RenpyDialogueParser()
+        all_lines: list[SourceLine] = []
+
+        for script_file, script_path in downloaded_paths.items():
+            # If slice specified, parse only the slice range
+            if slice_name:
+                slice_def = slices_config.slices[slice_name]
+                # Find script config in slice
+                script_config = next(
+                    (s for s in slice_def.scripts if s.file == script_file), None
+                )
+                if script_config:
+                    # Read and slice the file content
+                    content_lines = script_path.read_text(encoding="utf-8").splitlines()
+                    start_line, end_line = script_config.line_range
+                    sliced_content = "\n".join(content_lines[start_line - 1 : end_line])
+
+                    # Write temporary sliced file for parser
+                    temp_path = script_path.parent / f"_temp_{script_file}"
+                    temp_path.write_text(sliced_content, encoding="utf-8")
+
+                    parsed = parser.parse_script(temp_path)
+                    temp_path.unlink()  # Clean up temp file
+                else:
+                    parsed = parser.parse_script(script_path)
+            else:
+                parsed = parser.parse_script(script_path)
+
+            all_lines.extend(parsed)
+            rprint(f"  {script_file}: {len(parsed)} lines")
+
+        rprint(f"[green]✓[/green] Parsed {len(all_lines)} total lines")
+
+        # Write output if requested
+        if output_dir:
+            output_path = AsyncPath(output_dir)
+            await output_path.mkdir(parents=True, exist_ok=True)
+
+            output_file = output_path / f"{eval_set}"
+            if slice_name:
+                output_file = output_path / f"{eval_set}-{slice_name}.jsonl"
+            else:
+                output_file = output_path / f"{eval_set}.jsonl"
+
+            # Write as JSONL
+            async with await output_file.open("w", encoding="utf-8") as f:
+                for line in all_lines:
+                    await f.write(line.model_dump_json() + "\n")
+
+            rprint(f"[green]✓[/green] Wrote source lines to {output_file}")
+
+    except FileNotFoundError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+    except ValueError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        rprint(f"[red]Unexpected error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+
+
+@benchmark_app.command("compare")
+def benchmark_compare(
+    output_paths: list[str] = typer.Argument(  # noqa: B008
+        ...,
+        help="Paths to 2+ rentl run output JSONL files",
+        metavar="OUTPUT_PATH...",
+    ),
+    candidate_names: list[str] | None = typer.Option(  # noqa: B008
+        None,
+        "--candidate-name",
+        help="Human-readable names for candidates (defaults to filenames)",
     ),
     judge_model: str | None = typer.Option(
         None, "--judge-model", help="Override judge model ID"
@@ -1090,29 +1238,218 @@ def benchmark(
     judge_base_url: str | None = typer.Option(
         None, "--judge-base-url", help="Override judge endpoint"
     ),
-    scoring_mode: str | None = typer.Option(
-        None, "--scoring-mode", help="Scoring mode: reference-based or reference-free"
-    ),
     output: str | None = typer.Option(
         None, "--output", help="Path to write JSON report"
     ),
-    config_path: Path = CONFIG_OPTION,
 ) -> None:
-    """Run benchmark evaluation comparing rentl pipeline against MTL baseline.
+    """Compare translation outputs head-to-head using LLM judge.
 
-    Downloads evaluation set, generates MTL baseline, runs rentl pipeline,
-    judges both translations, and produces a comparison report.
+    Loads 2+ rentl run outputs, runs all-pairs pairwise comparison,
+    computes win rates and Elo ratings, and produces a ranking report.
+
+    Requires ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable.
+    """
+    asyncio.run(
+        _benchmark_compare_async(
+            output_paths,
+            candidate_names,
+            judge_model,
+            judge_base_url,
+            output,
+        )
+    )
+
+
+async def _benchmark_compare_async(
+    output_paths: list[str],
+    candidate_names: list[str] | None,
+    judge_model: str | None,
+    judge_base_url: str | None,
+    output_path: str | None,
+) -> None:
+    """Async implementation of benchmark compare command.
 
     Raises:
-        typer.Exit: When the benchmark fails
+        typer.Exit: When comparison fails
     """
-    # NOTE: This command is being rewritten in Task 7
-    # The old implementation used MTLBaselineGenerator (removed in Task 4)
-    # Task 7 will replace this with `rentl benchmark download` and
-    # `rentl benchmark compare`
-    rprint("[yellow]This command is currently being rewritten.[/yellow]")
-    rprint("[yellow]Use will be available after Task 7 completion.[/yellow]")
-    raise typer.Exit(code=1)
+    try:
+        # Validate we have at least 2 outputs
+        if len(output_paths) < 2:
+            rprint("[red]Error:[/red] At least 2 output files required for comparison")
+            raise typer.Exit(code=1)
+
+        # Load all outputs
+        rprint(f"[cyan]Loading {len(output_paths)} output files...[/cyan]")
+        outputs: dict[str, list[TranslatedLine]] = {}
+
+        for i, path_str in enumerate(output_paths):
+            path = AsyncPath(path_str)
+            try:
+                lines = await load_output(path)
+                # Use provided name or default to filename
+                if candidate_names and i < len(candidate_names):
+                    name = candidate_names[i]
+                else:
+                    name = path.name
+                outputs[name] = lines
+                rprint(f"  {name}: {len(lines)} lines")
+            except OutputLoadError as e:
+                rprint(f"[red]Error loading {path_str}:[/red] {e}")
+                raise typer.Exit(code=1) from None
+
+        # Validate matching line IDs
+        rprint("[cyan]Validating line ID coverage...[/cyan]")
+        try:
+            validate_matching_line_ids(outputs)
+            rprint("[green]✓[/green] All outputs cover the same line IDs")
+        except OutputLoadError as e:
+            rprint(f"[red]Line ID validation failed:[/red]\n{e}")
+            raise typer.Exit(code=1) from None
+
+        # Check for API keys
+        api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            rprint(
+                "[red]Error:[/red] Set ANTHROPIC_API_KEY or OPENAI_API_KEY "
+                "environment variable"
+            )
+            raise typer.Exit(code=1)
+
+        # Set up judge
+        model_id = judge_model or "gpt-4o-mini"
+        base_url = judge_base_url or "https://api.openai.com/v1"
+
+        runtime_settings = LlmRuntimeSettings(
+            endpoint=LlmEndpointTarget(
+                provider_name="openai",
+                base_url=base_url,
+                api_key_env="OPENAI_API_KEY",
+                timeout_s=60.0,
+            ),
+            model=LlmModelSettings(
+                model_id=model_id,
+                temperature=0.7,
+                max_output_tokens=2000,
+                reasoning_effort=ReasoningEffort.MEDIUM,
+                top_p=1.0,
+                presence_penalty=0.0,
+                frequency_penalty=0.0,
+            ),
+            retry=RetryConfig(
+                max_retries=3,
+                backoff_s=1.0,
+                max_backoff_s=60.0,
+            ),
+        )
+
+        runtime = OpenAICompatibleRuntime()
+        judge = RubricJudge(
+            runtime=runtime,
+            runtime_settings=runtime_settings,
+            api_key=api_key,
+            concurrency_limit=5,
+        )
+
+        # Run all-pairs comparison
+        candidate_list = list(outputs.keys())
+        pairs = list(combinations(candidate_list, 2))
+        total_comparisons = len(pairs) * len(next(iter(outputs.values())))
+
+        rprint(f"[cyan]Running {len(pairs)} pairwise comparisons...[/cyan]")
+        rprint(f"[cyan]Total line comparisons:[/cyan] {total_comparisons}")
+
+        all_results: list[HeadToHeadResult] = []
+        comparison_count = 0
+
+        # Progress reporting
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        )
+
+        with progress:
+            task = progress.add_task("[cyan]Comparing...", total=total_comparisons)
+
+            for candidate_1, candidate_2 in pairs:
+                lines_1 = outputs[candidate_1]
+                lines_2 = outputs[candidate_2]
+
+                # Build line lookup for candidate_2
+                lines_2_map = {line.line_id: line for line in lines_2}
+
+                # Compare each line
+                for line_1 in lines_1:
+                    line_2 = lines_2_map[line_1.line_id]
+
+                    result = await judge.compare_head_to_head(
+                        line_id=line_1.line_id,
+                        source_text=line_1.source_text or "",
+                        translation_1=line_1.text,
+                        translation_2=line_2.text,
+                        candidate_1_name=candidate_1,
+                        candidate_2_name=candidate_2,
+                        randomize_order=True,
+                    )
+                    all_results.append(result)
+                    comparison_count += 1
+                    progress.update(task, completed=comparison_count)
+
+        rprint(f"[green]✓[/green] Completed {comparison_count} comparisons")
+
+        # Build report
+        rprint("[cyan]Aggregating results...[/cyan]")
+
+        # Group results by pair
+        pairwise_summaries: list[PairwiseSummary] = []
+        for candidate_1, candidate_2 in pairs:
+            pair_results = [
+                r
+                for r in all_results
+                if r.candidate_a_name == candidate_1
+                and r.candidate_b_name == candidate_2
+            ]
+            summary = BenchmarkReportBuilder.build_pairwise_summary(
+                pair_results, candidate_1, candidate_2
+            )
+            pairwise_summaries.append(summary)
+
+        # Compute Elo ratings
+        elo_ratings = BenchmarkReportBuilder.compute_elo_ratings(
+            candidate_list, pairwise_summaries
+        )
+
+        # Build report
+        report = BenchmarkReportBuilder.build_report(
+            eval_set="unknown",  # Not tracked in output files
+            slice_name=None,
+            judge_model=model_id,
+            candidates=candidate_list,
+            head_to_head_results=all_results,
+            pairwise_summaries=pairwise_summaries,
+            elo_ratings=elo_ratings,
+        )
+
+        # Display summary
+        rprint("\n[bold cyan]Benchmark Results[/bold cyan]")
+        rprint(format_report_summary(report))
+
+        # Write JSON report if requested
+        if output_path:
+            output_file = AsyncPath(output_path)
+            await output_file.parent.mkdir(parents=True, exist_ok=True)
+            await output_file.write_text(
+                report.model_dump_json(indent=2), encoding="utf-8"
+            )
+            rprint(f"\n[green]✓[/green] Wrote report to {output_file}")
+
+    except OutputLoadError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        rprint(f"[red]Unexpected error:[/red] {e}")
+        raise typer.Exit(code=1) from None
 
 
 ResponseT = TypeVar("ResponseT")
