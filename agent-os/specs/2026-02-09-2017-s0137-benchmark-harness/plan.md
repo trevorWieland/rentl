@@ -55,7 +55,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - [x] Fix: Make the BDD `When I generate MTL baseline translations` step execute the async translation flow; current async step is not awaited (`RuntimeWarning: coroutine 'when_generate_baseline' was never awaited`), leaving `ctx.results` unset and prompt capture empty (`tests/integration/benchmark/test_mtl_baseline_flow.py:172`, `tests/integration/benchmark/test_mtl_baseline_flow.py:202`, `tests/integration/benchmark/test_mtl_baseline_flow.py:274`) (audit round 2)
   - [x] Fix: Correct metadata assertions that currently comment out equality checks after `# type: ignore`, so tests fail to validate exact `mtl_baseline` and `model` values (`tests/unit/benchmark/test_mtl_baseline.py:139`, `tests/unit/benchmark/test_mtl_baseline.py:140`, `tests/unit/benchmark/test_mtl_baseline.py:230`, `tests/integration/benchmark/test_mtl_baseline_flow.py:252`, `tests/integration/benchmark/test_mtl_baseline_flow.py:253`) (audit round 3)
 
-- [ ] Task 5: Rubric judge implementation
+- [x] Task 5: Rubric judge implementation
   - Create `rentl-core/src/rentl_core/benchmark/judge.py`
   - `RubricJudge` class with configurable judge model (separate from translation model)
   - Three rubric dimensions scored 1-5:
