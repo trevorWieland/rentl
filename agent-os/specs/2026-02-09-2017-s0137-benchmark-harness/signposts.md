@@ -107,12 +107,13 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/report.py`
 
 - **Task:** Task 7
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Reference-based scoring mode parameter validation added but reference translation loading not implemented.
 - **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:2433` validates scoring_mode and creates empty `reference_lines` dict, but benchmark never loads English reference scripts from KSRE dataset. Spec requires "Japanese source + English reference" parsing (`spec.md:14`) and reference-based scoring support (`spec.md:17`).
 - **Impact:** `--scoring-mode reference-based` is accepted but falls back to reference-free mode with a warning. True reference-based evaluation cannot function.
-- **Solution:** Add English script loading to eval-set download/parse flow. Parse both Japanese and English versions of each KSRE script, use `LineAligner.align_by_id` to match pairs, and populate `reference_lines` dict with English text keyed by line_id. Update manifest to include English script hashes.
-- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json`
+- **Solution:** Set `actual_scoring_mode = "reference_free"` when fallback occurs, so report metadata accurately reflects the scoring method used. This ensures users can trust the report metadata instead of being misled by a claim of reference-based scoring when only reference-free was applied.
+- **Resolution:** do-task round 10 (2026-02-09)
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
 
 - **Task:** Task 8
 - **Status:** unresolved

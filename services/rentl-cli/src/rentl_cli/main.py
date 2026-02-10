@@ -2450,6 +2450,8 @@ async def _run_benchmark_async(
             "loading not yet implemented[/yellow]"
         )
         console.print("  [yellow]Falling back to reference-free mode[/yellow]")
+        # Update mode to reflect actual scoring behavior
+        actual_scoring_mode = "reference_free"
 
     # Judge MTL translations
     mtl_scores: list[LineScore] = []
