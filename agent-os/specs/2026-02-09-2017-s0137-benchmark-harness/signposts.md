@@ -72,3 +72,11 @@
 - **Solution:** Removed all 8 skipped tests targeting isolated-scoring APIs. Remaining 11 tests cover pairwise comparison exclusively. Verification: `pytest -q tests/unit/benchmark/test_judge.py` → `11 passed`, `make check` → ✅ all gates pass.
 - **Resolution:** do-task round 8 (2026-02-10)
 - **Files affected:** `tests/unit/benchmark/test_judge.py`
+
+- **Task:** Task 6
+- **Status:** unresolved
+- **Problem:** Task 6 was checked off, but report generation does not derive `overall_ranking` from Elo ratings and Elo computation crashes when a pair has zero comparisons.
+- **Evidence:** `packages/rentl-core/src/rentl_core/benchmark/report.py:131`-`packages/rentl-core/src/rentl_core/benchmark/report.py:164` requires caller-supplied `overall_ranking` instead of deriving from Elo; `packages/rentl-core/src/rentl_core/benchmark/report.py:116` divides by `summary.total_comparisons` without a zero guard. Repro command output: `ZeroDivisionError division by zero` when calling `BenchmarkReportBuilder.compute_elo_ratings` with `PairwiseSummary(total_comparisons=0, ...)`.
+- **Impact:** Task 6 cannot be considered complete because the ranking derivation contract is unmet and empty/degenerate pairwise inputs can crash benchmark report generation.
+- **Solution:** Add report-builder logic to sort Elo ratings into `overall_ranking`, and handle `total_comparisons == 0` summaries safely (skip, neutral score, or explicit validation) with regression tests.
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/report.py`, `tests/unit/benchmark/test_report.py`

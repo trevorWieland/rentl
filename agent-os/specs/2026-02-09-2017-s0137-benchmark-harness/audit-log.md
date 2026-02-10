@@ -30,6 +30,7 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 8): PASS — Task 4 implementation is now aligned with current benchmark stub behavior and remains compliant with output-loader/dead-code-removal scope; targeted Task 4 suites pass (`pytest -q tests/unit/benchmark/test_output_loader.py tests/integration/benchmark/test_cli_command.py tests/integration/benchmark/test_judge_flow.py` → `21 passed`).
 - **Task 5** (round 3): FAIL — Task was checked off before completing required unit-test migration; `tests/unit/benchmark/test_judge.py` still contains 8 skipped legacy isolated-scoring tests targeting removed APIs.
 - **Task 5** (round 4): PASS — Pairwise-only judge migration is fully active: no skipped legacy isolated-scoring coverage remains, and Task 5 suites pass (`pytest -q tests/unit/benchmark/test_judge.py tests/integration/benchmark/test_judge_flow.py` → `13 passed`).
+- **Task 6** (round 3): FAIL — Task 6 remains incomplete: report generation still requires caller-supplied `overall_ranking` and `compute_elo_ratings` crashes with `ZeroDivisionError` for zero-comparison summaries.
 
 ---
 
