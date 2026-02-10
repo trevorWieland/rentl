@@ -196,19 +196,19 @@ def given_two_translation_output_files(
     lines_a = [
         {
             "line_id": "scene_1",
-            "scene_id": "scene",
+            "scene_id": "scene_0",
             "source_text": "Hello",
             "text": "Translation A line 1",
         },
         {
             "line_id": "scene_2",
-            "scene_id": "scene",
+            "scene_id": "scene_0",
             "source_text": "World",
             "text": "Translation A line 2",
         },
         {
             "line_id": "scene_3",
-            "scene_id": "scene",
+            "scene_id": "scene_0",
             "source_text": "Test",
             "text": "Translation A line 3",
         },
@@ -217,19 +217,19 @@ def given_two_translation_output_files(
     lines_b = [
         {
             "line_id": "scene_1",
-            "scene_id": "scene",
+            "scene_id": "scene_0",
             "source_text": "Hello",
             "text": "Translation B line 1",
         },
         {
             "line_id": "scene_2",
-            "scene_id": "scene",
+            "scene_id": "scene_0",
             "source_text": "World",
             "text": "Translation B line 2",
         },
         {
             "line_id": "scene_3",
-            "scene_id": "scene",
+            "scene_id": "scene_0",
             "source_text": "Test",
             "text": "Translation B line 3",
         },
@@ -258,15 +258,12 @@ def when_run_benchmark_compare_staggered(
         cli_runner: CLI test runner.
         monkeypatch: Pytest monkeypatch fixture.
     """
-    # Track progress updates
-    original_update = None
 
+    # Track progress updates
     def track_progress_update(task: object, **kwargs: int | str) -> None:
         """Track progress update calls."""
         if "completed" in kwargs:
             ctx.progress_updates.append(int(kwargs["completed"]))
-        if original_update:
-            original_update(task, **kwargs)
 
     # Mock judge to simulate staggered completions
     async def mock_compare_head_to_head(**kwargs: str) -> HeadToHeadResult:
@@ -308,12 +305,8 @@ def when_run_benchmark_compare_staggered(
 
     with (
         patch("rentl_cli.main.RubricJudge", return_value=mock_judge),
-        patch(
-            "rentl_cli.main.Progress.update", side_effect=track_progress_update
-        ) as mock_update,
+        patch("rentl_cli.main.Progress.update", side_effect=track_progress_update),
     ):
-        original_update = mock_update
-
         ctx.result = cli_runner.invoke(
             cli_main.app,
             [
