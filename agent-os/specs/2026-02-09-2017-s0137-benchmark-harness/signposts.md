@@ -138,3 +138,11 @@
 - **Impact:** Users can pass documented values and get an invalid-mode error; successful fallback runs can claim `reference_based` in report metadata even when no references were used.
 - **Solution:** Normalize CLI input (`reference-based`/`reference-free` -> `reference_based`/`reference_free`) before validation, then either implement reference loading or set `actual_scoring_mode="reference_free"` whenever fallback is applied.
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
+
+- **Task:** Task 8
+- **Status:** unresolved
+- **Problem:** Benchmark CLI integration BDD test points to a non-existent feature-file path, so integration coverage does not run.
+- **Evidence:** `tests/integration/benchmark/test_cli_command.py:31` uses `scenarios("../features/benchmark/cli_command.feature")`, which resolves to `tests/integration/features/benchmark/cli_command.feature` (missing). Running `pytest -q tests/unit/benchmark/test_report_generation.py tests/integration/benchmark/test_cli_command.py tests/quality/benchmark/test_benchmark_quality.py` fails during collection with `FileNotFoundError: [Errno 2] No such file or directory: '/home/trevor/github/rentl/tests/integration/features/benchmark/cli_command.feature'`. The committed feature exists at `tests/features/benchmark/cli_command.feature:1`.
+- **Impact:** Task 8's required mocked benchmark CLI integration coverage is effectively broken, so regressions in `rentl benchmark` CLI flow can slip through.
+- **Solution:** Update the `scenarios(...)` reference in `tests/integration/benchmark/test_cli_command.py` to the correct relative path for `tests/features/benchmark/cli_command.feature`, then re-run the Task 8 integration suite.
+- **Files affected:** `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`
