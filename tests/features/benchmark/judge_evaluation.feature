@@ -5,15 +5,15 @@ Feature: LLM Judge Evaluation
 
   Scenario: Reference-based rubric evaluation
     Given a rubric judge with mocked LLM
-    And translation lines:
+    And translation lines
       | line_id | source     | translation |
       | line_1  | こんにちは | Hello       |
       | line_2  | さようなら | Goodbye     |
-    And reference translations:
+    And reference translations
       | line_id | reference |
       | line_1  | Hello     |
       | line_2  | Goodbye   |
-    And judge responds with scores:
+    And judge responds with scores
       """
       accuracy: 5, style_fidelity: 4, consistency: 5
       """
@@ -26,11 +26,11 @@ Feature: LLM Judge Evaluation
 
   Scenario: Reference-free rubric evaluation
     Given a rubric judge with mocked LLM
-    And translation lines:
+    And translation lines
       | line_id | source     | translation |
       | line_1  | こんにちは | Hello       |
       | line_2  | さようなら | Goodbye     |
-    And judge responds with scores:
+    And judge responds with scores
       """
       accuracy: 4, style_fidelity: 3, consistency: 4
       """
@@ -43,15 +43,15 @@ Feature: LLM Judge Evaluation
 
   Scenario: Head-to-head comparison
     Given a rubric judge with mocked LLM
-    And MTL translations:
+    And MTL translations
       | line_id | source     | translation     |
       | line_1  | こんにちは | Hello           |
       | line_2  | さようなら | Goodbye         |
-    And rentl translations:
+    And rentl translations
       | line_id | source     | translation     |
       | line_1  | こんにちは | Hello there     |
       | line_2  | さようなら | See you later   |
-    And judge responds with comparison:
+    And judge responds with comparison
       """
       winner: B, reasoning: Translation B is more natural
       """

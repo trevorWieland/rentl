@@ -144,13 +144,13 @@ def given_judge_with_mock(ctx: JudgeContext, monkeypatch: pytest.MonkeyPatch) ->
     )
 
 
-@given(parsers.parse("translation lines:\n{lines_table}"))
-def given_translation_lines(ctx: JudgeContext, lines_table: str) -> None:
+@given("translation lines")
+def given_translation_lines(ctx: JudgeContext, datatable: list) -> None:
     """Set up translation lines for evaluation."""
     lines = []
-    for row in lines_table.strip().split("\n")[1:]:  # Skip header
-        parts = [p.strip() for p in row.split("|")[1:-1]]  # Remove outer pipes
-        line_id, source, translation = parts
+    # datatable is a list of lists: first row is header, rest are data
+    for row in datatable[1:]:  # Skip header row
+        line_id, source, translation = row
 
         lines.append(
             TranslatedLine(
@@ -163,25 +163,25 @@ def given_translation_lines(ctx: JudgeContext, lines_table: str) -> None:
     ctx.translations = lines
 
 
-@given(parsers.parse("reference translations:\n{refs_table}"))
-def given_reference_translations(ctx: JudgeContext, refs_table: str) -> None:
+@given("reference translations")
+def given_reference_translations(ctx: JudgeContext, datatable: list) -> None:
     """Set up reference translations."""
     refs = {}
-    for row in refs_table.strip().split("\n")[1:]:  # Skip header
-        parts = [p.strip() for p in row.split("|")[1:-1]]
-        line_id, reference = parts
+    # datatable is a list of lists: first row is header, rest are data
+    for row in datatable[1:]:  # Skip header row
+        line_id, reference = row
         refs[line_id] = reference
 
     ctx.references = refs
 
 
-@given(parsers.parse("MTL translations:\n{mtl_table}"))
-def given_mtl_translations(ctx: JudgeContext, mtl_table: str) -> None:
+@given("MTL translations")
+def given_mtl_translations(ctx: JudgeContext, datatable: list) -> None:
     """Set up MTL baseline translations."""
     lines = []
-    for row in mtl_table.strip().split("\n")[1:]:  # Skip header
-        parts = [p.strip() for p in row.split("|")[1:-1]]
-        line_id, source, translation = parts
+    # datatable is a list of lists: first row is header, rest are data
+    for row in datatable[1:]:  # Skip header row
+        line_id, source, translation = row
 
         lines.append(
             TranslatedLine(
@@ -194,13 +194,13 @@ def given_mtl_translations(ctx: JudgeContext, mtl_table: str) -> None:
     ctx.translations_mtl = lines
 
 
-@given(parsers.parse("rentl translations:\n{rentl_table}"))
-def given_rentl_translations(ctx: JudgeContext, rentl_table: str) -> None:
+@given("rentl translations")
+def given_rentl_translations(ctx: JudgeContext, datatable: list) -> None:
     """Set up rentl pipeline translations."""
     lines = []
-    for row in rentl_table.strip().split("\n")[1:]:  # Skip header
-        parts = [p.strip() for p in row.split("|")[1:-1]]
-        line_id, source, translation = parts
+    # datatable is a list of lists: first row is header, rest are data
+    for row in datatable[1:]:  # Skip header row
+        line_id, source, translation = row
 
         lines.append(
             TranslatedLine(
@@ -213,10 +213,11 @@ def given_rentl_translations(ctx: JudgeContext, rentl_table: str) -> None:
     ctx.translations_rentl = lines
 
 
-@given(parsers.parse("judge responds with scores:\n{scores}"))
-def given_judge_scores(ctx: JudgeContext, scores: str) -> None:
+@given("judge responds with scores")
+def given_judge_scores(ctx: JudgeContext, docstring: str) -> None:
     """Configure mock judge responses."""
     # Parse the expected score structure and create mock responses
+    # docstring contains the triple-quoted text from the feature file
     for _ in ctx.translations:
         mock_response = json.dumps({
             "accuracy": {"score": 5, "reasoning": "Accurate translation"},
@@ -226,9 +227,10 @@ def given_judge_scores(ctx: JudgeContext, scores: str) -> None:
         ctx.mock_responses.append(mock_response)
 
 
-@given(parsers.parse("judge responds with comparison:\n{comparison}"))
-def given_judge_comparison(ctx: JudgeContext, comparison: str) -> None:
+@given("judge responds with comparison")
+def given_judge_comparison(ctx: JudgeContext, docstring: str) -> None:
     """Configure mock head-to-head responses."""
+    # docstring contains the triple-quoted text from the feature file
     for _ in ctx.translations_mtl:
         mock_response = json.dumps({
             "overall_winner": "B",
