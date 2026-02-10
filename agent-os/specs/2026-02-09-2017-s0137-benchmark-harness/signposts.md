@@ -111,10 +111,11 @@
 - **Resolution:** do-task round 12 (2026-02-10)
 - **Files affected:** `tests/quality/benchmark/test_benchmark_quality.py`
 
-- **Task:** Parallelization fix follow-up
-- **Status:** unresolved
+- **Task:** Task 7 parallelization fix follow-up
+- **Status:** resolved
 - **Problem:** Benchmark compare progress updates use task creation index (`index + 1`) instead of completion count, so out-of-order async completions can move progress backwards and finish below 100%.
-- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:1417` calls `progress.update(task, completed=index + 1)` inside concurrently awaited coroutines. Repro of identical logic with staggered tasks produced `updates [2, 3, 1]` and final completed value `1` for 3 total tasks, proving non-monotonic completion accounting.
+- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:1417` called `progress.update(task, completed=index + 1)` inside concurrently awaited coroutines. Repro of identical logic with staggered tasks produced `updates [2, 3, 1]` and final completed value `1` for 3 total tasks, proving non-monotonic completion accounting.
 - **Impact:** User-facing comparison progress can report incorrect percentages, violating transparent progress reporting expectations for benchmark runs and making long-running judge jobs harder to trust.
-- **Solution:** Replace index-based updates with shared completion counting (or `asyncio.as_completed`) and add regression coverage for out-of-order completion.
-- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
+- **Solution:** Replaced index-based updates with shared completion counting using a `nonlocal completed_count` variable that increments atomically in the wrapper coroutine. Added regression BDD scenario "Benchmark compare handles out-of-order async completion" with staggered mock judge responses (3 lines with 0.01s/0.02s/0.03s delays) to verify monotonic progress updates and 100% final completion.
+- **Resolution:** do-task round 13 (2026-02-10)
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`

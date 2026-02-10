@@ -1408,17 +1408,22 @@ async def _benchmark_compare_async(
         with progress:
             task = progress.add_task("[cyan]Comparing...", total=total_comparisons)
 
+            # Track completed count for correct progress updates
+            completed_count = 0
+
             # Use gather to run comparisons concurrently
             # Judge's concurrency_limit throttles concurrent API calls
             async def run_with_progress(
-                coro: Awaitable[HeadToHeadResult], index: int
+                coro: Awaitable[HeadToHeadResult],
             ) -> HeadToHeadResult:
+                nonlocal completed_count
                 result = await coro
-                progress.update(task, completed=index + 1)
+                completed_count += 1
+                progress.update(task, completed=completed_count)
                 return result
 
             all_results = await asyncio.gather(*[
-                run_with_progress(coro, i) for i, coro in enumerate(comparison_tasks)
+                run_with_progress(coro) for coro in comparison_tasks
             ])
             comparison_count = len(all_results)
 
@@ -2584,116 +2589,6 @@ async def _run_pipeline_async(
         log_reference=log_reference,
         progress_file=progress_file,
         phase_record=None,
-    )
-
-
-async def _run_benchmark_async(
-    *,
-    eval_set: str,
-    slice_name: str | None,
-    judge_model: str | None,
-    judge_base_url: str | None,
-    scoring_mode: str | None,
-    output_path: Path | None,
-    config_path: Path,
-) -> None:
-    """Run benchmark evaluation pipeline.
-
-    Args:
-        eval_set: Evaluation set name (e.g., "katawa_shoujo")
-        slice_name: Optional slice name for subset evaluation
-        judge_model: Optional judge model override
-        judge_base_url: Optional judge endpoint override
-        scoring_mode: Optional scoring mode override
-        output_path: Optional path to write JSON report
-        config_path: Path to rentl config file
-
-    Raises:
-        ValueError: If API key is missing or configuration is invalid
-    """
-    console = Console(stderr=True)
-    console.print(f"[bold cyan]Starting benchmark: {eval_set}[/bold cyan]")
-    if slice_name:
-        console.print(f"Slice: {slice_name}")
-
-    # Load configuration
-    _ = _load_resolved_config(config_path)
-
-    # Ensure API keys are available
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable required for benchmark")
-
-    # Step 1: Download and parse eval set
-    console.print("\n[bold]Step 1/5:[/bold] Downloading eval set...")
-
-    # Normalize eval_set name from kebab-case to snake_case for loader compatibility
-    normalized_eval_set = eval_set.replace("-", "_")
-
-    # Load manifest and slices
-    manifest = EvalSetLoader.load_manifest(normalized_eval_set)
-    slices_config = EvalSetLoader.load_slices(normalized_eval_set)
-
-    # Determine scripts to download
-    if slice_name:
-        if slice_name not in slices_config.slices:
-            available = ", ".join(slices_config.slices.keys())
-            raise ValueError(f"Slice '{slice_name}' not found. Available: {available}")
-        slice_def = slices_config.slices[slice_name]
-        script_files = [script.file for script in slice_def.scripts]
-    else:
-        script_files = list(manifest.scripts.keys())
-
-    # Download scripts
-    downloader = KatawaShoujoDownloader()
-    downloaded_paths = await downloader.download_scripts(
-        script_files,
-        hash_manifest=manifest.scripts,
-    )
-    console.print(f"  Downloaded {len(downloaded_paths)} scripts")
-
-    # Parse scripts to SourceLines
-    parser = RenpyDialogueParser()
-    all_source_lines: list[SourceLine] = []
-
-    for script_file, script_path in downloaded_paths.items():
-        lines = parser.parse_script(script_path)
-
-        # Apply slice line range if specified
-        if slice_name and slice_def:
-            for slice_script in slice_def.scripts:
-                if slice_script.file == script_file and slice_script.line_range:
-                    start, end = slice_script.line_range
-                    # Filter by line number (line_id format is "sceneid_N")
-                    filtered_lines = []
-                    for line in lines:
-                        try:
-                            line_num = int(line.line_id.split("_")[-1])
-                            if start <= line_num <= end:
-                                filtered_lines.append(line)
-                        except ValueError, IndexError:
-                            pass
-                    lines = filtered_lines
-
-        all_source_lines.extend(lines)
-
-    console.print(f"  Parsed {len(all_source_lines)} source lines")
-
-    if not all_source_lines:
-        raise ValueError("No source lines found in eval set")
-
-    # Step 2: Generate MTL baseline
-    console.print("\n[bold]Step 2/5:[/bold] Generating MTL baseline...")
-
-    # Build LLM runtime for MTL
-
-    # TODO: This entire function will be replaced in Task 7 with new
-    # benchmark compare CLI. For now, placeholder to avoid import errors
-    console.print("\n[bold]Benchmark command:[/bold]")
-    console.print("  [yellow]Full benchmark flow not yet implemented[/yellow]")
-    console.print("  [yellow]This function will be replaced in Task 7[/yellow]")
-    raise NotImplementedError(
-        "Benchmark command not yet implemented - will be added in Task 7"
     )
 
 

@@ -16,3 +16,10 @@ Feature: Benchmark CLI Command
     When I run benchmark download with kebab-case eval-set name
     Then the command normalizes to snake_case internally
     And the download succeeds
+
+  Scenario: Benchmark compare handles out-of-order async completion
+    Given a valid rentl configuration exists
+    And two translation output files exist
+    When I run benchmark compare with staggered judge responses
+    Then progress updates are monotonically increasing
+    And final progress reaches 100%

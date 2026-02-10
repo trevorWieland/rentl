@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,6 +14,7 @@ from tests.integration.conftest import write_rentl_config
 from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
+from rentl_schemas.benchmark import HeadToHeadResult
 
 if TYPE_CHECKING:
     pass
@@ -23,10 +26,15 @@ scenarios("../../features/benchmark/cli_command.feature")
 class BenchmarkCLIContext:
     """Context object for benchmark CLI BDD scenarios."""
 
-    result: Result | None = None
-    stdout: str = ""
-    config_dir: Path | None = None
-    mock_loader: MagicMock | None = None
+    def __init__(self) -> None:
+        """Initialize context."""
+        self.result: Result | None = None
+        self.stdout: str = ""
+        self.config_dir: Path | None = None
+        self.mock_loader: MagicMock | None = None
+        self.progress_updates: list[int] = []
+        self.output_file_a: Path | None = None
+        self.output_file_b: Path | None = None
 
 
 @given("a valid rentl configuration exists", target_fixture="ctx")
@@ -152,6 +160,7 @@ def then_command_normalizes_to_snake_case(ctx: BenchmarkCLIContext) -> None:
         ctx: Benchmark CLI context.
     """
     # Verify load_manifest was called with snake_case
+    assert ctx.mock_loader is not None
     ctx.mock_loader.load_manifest.assert_called_once_with("katawa_shoujo")
     ctx.mock_loader.load_slices.assert_called_once_with("katawa_shoujo")
 
@@ -166,4 +175,183 @@ def then_download_succeeds(ctx: BenchmarkCLIContext) -> None:
     assert ctx.result is not None
     assert ctx.result.exit_code == 0, (
         f"Expected exit code 0, got {ctx.result.exit_code}\nOutput: {ctx.stdout}"
+    )
+
+
+@given("two translation output files exist")
+def given_two_translation_output_files(
+    ctx: BenchmarkCLIContext, tmp_path: Path
+) -> None:
+    """Create two mock translation output files.
+
+    Args:
+        ctx: Benchmark CLI context.
+        tmp_path: Temporary directory for test files.
+    """
+    # Create minimal translation output files with 3 lines each
+    lines_a = [
+        {
+            "line_id": "scene_1",
+            "scene_id": "scene",
+            "source_text": "Hello",
+            "text": "Translation A line 1",
+        },
+        {
+            "line_id": "scene_2",
+            "scene_id": "scene",
+            "source_text": "World",
+            "text": "Translation A line 2",
+        },
+        {
+            "line_id": "scene_3",
+            "scene_id": "scene",
+            "source_text": "Test",
+            "text": "Translation A line 3",
+        },
+    ]
+
+    lines_b = [
+        {
+            "line_id": "scene_1",
+            "scene_id": "scene",
+            "source_text": "Hello",
+            "text": "Translation B line 1",
+        },
+        {
+            "line_id": "scene_2",
+            "scene_id": "scene",
+            "source_text": "World",
+            "text": "Translation B line 2",
+        },
+        {
+            "line_id": "scene_3",
+            "scene_id": "scene",
+            "source_text": "Test",
+            "text": "Translation B line 3",
+        },
+    ]
+
+    ctx.output_file_a = tmp_path / "output_a.jsonl"
+    ctx.output_file_b = tmp_path / "output_b.jsonl"
+
+    with ctx.output_file_a.open("w") as f:
+        for line in lines_a:
+            f.write(json.dumps(line) + "\n")
+
+    with ctx.output_file_b.open("w") as f:
+        for line in lines_b:
+            f.write(json.dumps(line) + "\n")
+
+
+@when("I run benchmark compare with staggered judge responses")
+def when_run_benchmark_compare_staggered(
+    ctx: BenchmarkCLIContext, cli_runner: CliRunner, monkeypatch: MagicMock
+) -> None:
+    """Run benchmark compare with mocked judge that completes out-of-order.
+
+    Args:
+        ctx: Benchmark CLI context.
+        cli_runner: CLI test runner.
+        monkeypatch: Pytest monkeypatch fixture.
+    """
+    # Track progress updates
+    original_update = None
+
+    def track_progress_update(task: object, **kwargs: int | str) -> None:
+        """Track progress update calls."""
+        if "completed" in kwargs:
+            ctx.progress_updates.append(int(kwargs["completed"]))
+        if original_update:
+            original_update(task, **kwargs)
+
+    # Mock judge to simulate staggered completions
+    async def mock_compare_head_to_head(**kwargs: str) -> HeadToHeadResult:
+        """Mock judge comparison with staggered delays.
+
+        Returns:
+            HeadToHeadResult with test data.
+        """
+        line_id = kwargs.get("line_id", "")
+        source_text = kwargs.get("source_text", "")
+        translation_1 = kwargs.get("translation_1", "")
+        translation_2 = kwargs.get("translation_2", "")
+        candidate_1_name = kwargs.get("candidate_1_name", "candidate-a")
+        candidate_2_name = kwargs.get("candidate_2_name", "candidate-b")
+
+        # Different delays to create out-of-order completion
+        if line_id == "scene_1":
+            await asyncio.sleep(0.03)  # Slowest
+        elif line_id == "scene_2":
+            await asyncio.sleep(0.02)  # Medium
+        else:
+            await asyncio.sleep(0.01)  # Fastest
+
+        return HeadToHeadResult(
+            line_id=line_id,
+            source_text=source_text,
+            candidate_a_name=candidate_1_name,
+            candidate_b_name=candidate_2_name,
+            translation_a=translation_1,
+            translation_b=translation_2,
+            winner="A",
+            reasoning="Test reasoning",
+            dimension_winners={},
+        )
+
+    # Patch RubricJudge
+    mock_judge = MagicMock()
+    mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
+
+    with (
+        patch("rentl_cli.main.RubricJudge", return_value=mock_judge),
+        patch(
+            "rentl_cli.main.Progress.update", side_effect=track_progress_update
+        ) as mock_update,
+    ):
+        original_update = mock_update
+
+        ctx.result = cli_runner.invoke(
+            cli_main.app,
+            [
+                "benchmark",
+                "compare",
+                str(ctx.output_file_a),
+                str(ctx.output_file_b),
+                "--candidate-names",
+                "candidate-a,candidate-b",
+            ],
+            env={"OPENAI_API_KEY": "test-key"},
+        )
+        ctx.stdout = ctx.result.stdout + ctx.result.stderr
+
+
+@then("progress updates are monotonically increasing")
+def then_progress_updates_monotonic(ctx: BenchmarkCLIContext) -> None:
+    """Verify progress updates never decrease.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert len(ctx.progress_updates) > 0, "No progress updates recorded"
+
+    for i in range(1, len(ctx.progress_updates)):
+        prev = ctx.progress_updates[i - 1]
+        curr = ctx.progress_updates[i]
+        assert curr >= prev, (
+            f"Progress update regressed from {prev} to {curr} at index {i}"
+        )
+
+
+@then("final progress reaches 100%")
+def then_final_progress_100(ctx: BenchmarkCLIContext) -> None:
+    """Verify final progress reaches the total.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    # With 3 lines and 2 candidates, we have 3 comparisons
+    expected_total = 3
+    assert len(ctx.progress_updates) > 0, "No progress updates recorded"
+    assert ctx.progress_updates[-1] == expected_total, (
+        f"Final progress was {ctx.progress_updates[-1]}, expected {expected_total}"
     )
