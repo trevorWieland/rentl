@@ -132,3 +132,34 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Update demo.md to use correct `--eval-set katawa-shoujo` format (kebab-case)
   - Add integration test: `rentl benchmark download --eval-set katawa-shoujo --slice demo` succeeds
   - Verify existing unit tests still pass (they use snake_case directly in Python, which is fine)
+
+- [ ] Task 10: Use project endpoint config for benchmark compare judge
+  - **Critical**: `_benchmark_compare_async` hardcodes `os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")` at `services/rentl-cli/src/rentl_cli/main.py:1320` — must use the codebase's endpoint config system instead
+  - **Remove** hardcoded API key checks (`main.py:1319-1326`)
+  - **Remove** hardcoded `provider_name="openai"` and `api_key_env="OPENAI_API_KEY"` (`main.py:1334`, `main.py:1336`)
+  - **Remove** hardcoded defaults `gpt-4o-mini` and `https://api.openai.com/v1` (`main.py:1329-1330`)
+  - **Remove** hardcoded `max_output_tokens=2000` (`main.py:1342`) — must be configurable or derived from model defaults
+  - **Add** `--config` option to `benchmark compare` to read judge endpoint from `rentl.toml` (same pattern as `run-pipeline`)
+  - **Add** `--judge-api-key-env` option as override for judge API key env var name
+  - **Load** `.env` via `_load_dotenv(config_path)` like `run-pipeline` does
+  - **Resolve** API key from `endpoint.api_key_env` in config, not hardcoded provider names
+  - **Detect** provider type from `--judge-base-url` using `detect_provider()` from `rentl_agents.providers`
+  - **Include** `openrouter_provider` config (with `require_parameters=True`) when the judge endpoint is OpenRouter — currently the hardcoded `LlmEndpointTarget` at `main.py:1332-1337` has no `openrouter_provider`, so OpenRouter routing constraints are not applied to judge requests
+  - Update integration tests to use configurable endpoint
+  - Update quality test to use project endpoint config
+  - Update demo.md Step 3 to include `--config` flag
+
+- [ ] Task 11: Make judge response parsing robust across model families
+  - **Problem**: Judge parser at `packages/rentl-core/src/rentl_core/benchmark/judge.py:114-127` fails when models produce verbose reasoning before JSON, reasoning/thinking tokens that consume the output budget, or slightly malformed JSON
+  - **Evidence**: Demo walkthrough with `qwen/qwen3-30b-a3b` judge returned truncated JSON after 17% progress (`Unterminated string starting at: line 6 column 27 (char 479)`); `openai/gpt-oss-120b` returned empty response (`Expecting value: line 1 column 1 (char 0)`)
+  - **Use structured output**: The judge prompt asks for JSON but relies on the model voluntarily producing it. Should use `response_format={"type": "json_object"}` or pydantic-ai structured output to enforce JSON-only responses, eliminating reasoning prefix/suffix issues
+  - **Increase token budget**: Hardcoded `max_output_tokens=2000` at `main.py:1342` is too low for models that produce verbose reasoning. Should be configurable and default higher (e.g., 4096)
+  - **Add retry on parse failure**: When a single line comparison fails to parse, retry that one comparison (up to N times) before failing the entire batch — currently one bad response kills the whole benchmark run
+  - **Add JSON extraction fallback**: If the response contains text before/after JSON, try harder to extract (regex for `{...}` block, not just markdown fences)
+  - Update unit tests for new parsing/retry behavior
+
+- [ ] Task 12: Reconcile demo.md steps with actual CLI capabilities
+  - Demo Steps 2-5 reference `rentl run` which doesn't exist (the command is `run-pipeline`)
+  - Demo Step 3 doesn't include `--config` flag needed after Task 10
+  - Demo should document the full end-to-end flow with correct commands and working model/endpoint config
+  - Update acceptance criteria if needed

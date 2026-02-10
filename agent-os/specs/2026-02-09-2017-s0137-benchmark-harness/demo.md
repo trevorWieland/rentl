@@ -92,3 +92,14 @@ rentl now includes a benchmark harness that compares translation quality across 
 - Step 4: SKIPPED — Depends on Step 3 comparison report.
 - Step 5: SKIPPED — Depends on Step 4 report.
 - **Overall: PASS** — Step 1 verified working. Steps 2-5 validated via quality test (`tests/quality/benchmark/test_benchmark_quality.py`) with real LLMs.
+
+### Run 10 — Walk-spec interactive demo (2026-02-10)
+- Step 1: PASS — `rentl benchmark download --eval-set katawa-shoujo --slice demo` executes successfully. Downloaded 1 script, parsed 26 lines.
+- Step 2: PARTIAL — Ran `rentl run-pipeline` four times (2 models × 2 methods). Note: demo.md documents `rentl run` but actual CLI command is `run-pipeline`. `qwen/qwen3-vl-30b-a3b-instruct` full + MTL completed successfully. `openai/gpt-oss-20b` failed initially — OpenRouter routed to a provider (novita/fp4) that returned malformed tool_calls despite `require_parameters=true`. Fixed by adding `only = ["deepinfra"]` to provider routing config. All 4 outputs produced (26 lines each).
+- Step 3: FAIL — `rentl benchmark compare` cannot be run as designed. Three critical issues:
+  1. **Hardcoded API keys**: Command checks for `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` env vars (`main.py:1320`) instead of using the project's endpoint config system. Does not load `.env`. Cannot use `RENTL_OPENROUTER_API_KEY` from project config.
+  2. **No OpenRouter provider config**: Hardcoded `LlmEndpointTarget` at `main.py:1332-1337` omits `openrouter_provider`, so `require_parameters=true` is not applied to judge requests.
+  3. **Judge response parsing fragile**: With workaround API key set, `openai/gpt-oss-120b` judge returned empty response (reasoning model); `qwen/qwen3-30b-a3b` judge got 17% through before truncated JSON from hardcoded `max_output_tokens=2000`.
+- Step 4: SKIPPED — Depends on Step 3.
+- Step 5: SKIPPED — Depends on Step 3.
+- **Overall: FAIL** — Step 1 works, Step 2 works with provider workaround, Step 3 blocked by hardcoded endpoint config and fragile judge parsing. Tasks 10, 11, 12 added to plan.

@@ -119,3 +119,24 @@
 - **Solution:** Replaced index-based updates with shared completion counting using a `nonlocal completed_count` variable that increments atomically in the wrapper coroutine. Added regression BDD scenario "Benchmark compare handles out-of-order async completion" with staggered mock judge responses (3 lines with 0.01s/0.02s/0.03s delays) to verify monotonic progress updates and 100% final completion.
 - **Resolution:** do-task round 13 (2026-02-10)
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`
+
+- **Task:** Task 10
+- **Status:** unresolved
+- **Problem:** `benchmark compare` hardcodes API key lookups for `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` and constructs a hardcoded `LlmEndpointTarget` with `provider_name="openai"`, `api_key_env="OPENAI_API_KEY"`, defaults to `gpt-4o-mini` and `https://api.openai.com/v1`. This bypasses the codebase's endpoint configuration system (`rentl.toml` → `ModelEndpointConfig` → provider detection → API key resolution via `api_key_env`). The hardcoded endpoint also omits `openrouter_provider` config, so OpenRouter routing constraints (`require_parameters=True`) are not applied to judge requests.
+- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:1320` does `os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")`. `main.py:1332-1337` constructs `LlmEndpointTarget(provider_name="openai", base_url=base_url, api_key_env="OPENAI_API_KEY", ...)` with no `openrouter_provider`. Compare does not call `_load_dotenv()`. Repro: `uv run rentl benchmark compare a.jsonl b.jsonl --judge-base-url https://openrouter.ai/api/v1` → `Error: Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable` even when `RENTL_OPENROUTER_API_KEY` is configured in `.env`.
+- **Impact:** `rentl benchmark compare` is completely unusable with the project's configured OpenRouter endpoint. Users must manually export provider-specific API keys and cannot use the standard `.env`/`rentl.toml` configuration flow. This violates non-negotiable #4 ("benchmark must be runnable standalone") since it requires ad-hoc environment setup outside the normal project config.
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
+
+- **Task:** Task 11
+- **Status:** unresolved
+- **Problem:** The benchmark judge response parser fails across multiple model families during real-world use. Models that produce reasoning/thinking tokens before JSON, or that generate verbose output exceeding the hardcoded 2000-token limit, cause parse failures that abort the entire benchmark run.
+- **Evidence:** Demo walkthrough with `qwen/qwen3-30b-a3b` judge: got 17% through 156 comparisons then failed with `Failed to parse judge response as JSON: Unterminated string starting at: line 6 column 27 (char 479)` — truncated JSON from exceeding `max_output_tokens=2000` at `main.py:1342`. Demo with `openai/gpt-oss-120b` judge: immediate failure with `Failed to parse judge response as JSON: Expecting value: line 1 column 1 (char 0)` — empty/non-JSON response from reasoning model. Parser at `judge.py:114-127` only handles ```` ```json ``` ```` fencing, no structured output enforcement, no retry.
+- **Impact:** The benchmark compare command cannot complete a full comparison run with most model families available on OpenRouter. Only models that consistently produce clean JSON within 2000 tokens work, which excludes reasoning models and verbose models.
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/judge.py`, `services/rentl-cli/src/rentl_cli/main.py`
+
+- **Task:** Task 12
+- **Status:** unresolved
+- **Problem:** demo.md Steps 2-5 reference `rentl run` which does not exist as a CLI command — the actual command is `rentl run-pipeline`.
+- **Evidence:** `uv run rentl run --help` → `No such command 'run'`. `uv run rentl --help` shows `run-pipeline` as the correct command.
+- **Impact:** Demo steps 2-5 cannot be followed as written.
+- **Files affected:** `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md`
