@@ -15,6 +15,8 @@ from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
 from rentl_schemas.benchmark import HeadToHeadResult
+from rentl_schemas.benchmark.report import BenchmarkReport
+from rentl_schemas.benchmark.rubric import RubricDimension
 
 if TYPE_CHECKING:
     pass
@@ -35,6 +37,8 @@ class BenchmarkCLIContext:
         self.progress_updates: list[int] = []
         self.output_file_a: Path | None = None
         self.output_file_b: Path | None = None
+        self.report_path: Path | None = None
+        self.report: BenchmarkReport | None = None
 
 
 @given("a valid rentl configuration exists", target_fixture="ctx")
@@ -354,4 +358,171 @@ def then_final_progress_100(ctx: BenchmarkCLIContext) -> None:
     assert len(ctx.progress_updates) > 0, "No progress updates recorded"
     assert ctx.progress_updates[-1] == expected_total, (
         f"Final progress was {ctx.progress_updates[-1]}, expected {expected_total}"
+    )
+
+
+@when("I run benchmark compare with full mocked flow")
+def when_run_benchmark_compare_full_flow(
+    ctx: BenchmarkCLIContext, cli_runner: CliRunner, tmp_path: Path
+) -> None:
+    """Run benchmark compare with full mocked judge and report generation.
+
+    Args:
+        ctx: Benchmark CLI context.
+        cli_runner: CLI test runner.
+        tmp_path: Temporary directory for test files.
+    """
+    ctx.report_path = tmp_path / "benchmark_report.json"
+
+    # Mock judge to return realistic head-to-head results
+    async def mock_compare_head_to_head(**kwargs: str) -> HeadToHeadResult:
+        """Mock judge comparison with per-dimension winners.
+
+        Returns:
+            HeadToHeadResult with test data.
+        """
+        # Add minimal async operation to satisfy linter
+        await asyncio.sleep(0)
+
+        line_id = kwargs.get("line_id", "")
+        source_text = kwargs.get("source_text", "")
+        translation_1 = kwargs.get("translation_1", "")
+        translation_2 = kwargs.get("translation_2", "")
+        candidate_1_name = kwargs.get("candidate_1_name", "candidate-a")
+        candidate_2_name = kwargs.get("candidate_2_name", "candidate-b")
+
+        return HeadToHeadResult(
+            line_id=line_id,
+            source_text=source_text,
+            candidate_a_name=candidate_1_name,
+            candidate_b_name=candidate_2_name,
+            translation_a=translation_1,
+            translation_b=translation_2,
+            winner="A",
+            reasoning="Candidate A has better accuracy and style.",
+            dimension_winners={
+                RubricDimension.ACCURACY: "A",
+                RubricDimension.STYLE_FIDELITY: "A",
+                RubricDimension.CONSISTENCY: "tie",
+            },
+        )
+
+    # Patch RubricJudge
+    mock_judge = MagicMock()
+    mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
+
+    with patch("rentl_cli.main.RubricJudge", return_value=mock_judge):
+        ctx.result = cli_runner.invoke(
+            cli_main.app,
+            [
+                "benchmark",
+                "compare",
+                str(ctx.output_file_a),
+                str(ctx.output_file_b),
+                "--candidate-names",
+                "candidate-a,candidate-b",
+                "--output",
+                str(ctx.report_path),
+            ],
+            env={"OPENAI_API_KEY": "test-key"},
+        )
+        ctx.stdout = ctx.result.stdout + ctx.result.stderr
+
+    # Load the report if it was written
+    if ctx.report_path and ctx.report_path.exists():
+        report_data = json.loads(ctx.report_path.read_text())
+        ctx.report = BenchmarkReport.model_validate(report_data)
+
+
+@then("the command completes successfully")
+def then_command_completes_successfully(ctx: BenchmarkCLIContext) -> None:
+    """Verify the command completed successfully.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert ctx.result is not None
+    assert ctx.result.exit_code == 0, (
+        f"Expected exit code 0, got {ctx.result.exit_code}\nOutput: {ctx.stdout}"
+    )
+
+
+@then("the output indicates judging progress")
+def then_output_indicates_judging_progress(ctx: BenchmarkCLIContext) -> None:
+    """Verify the output shows judging progress.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    # The CLI should show comparison progress
+    assert "Comparing" in ctx.stdout or "comparison" in ctx.stdout.lower()
+
+
+@then("the benchmark report is written")
+def then_benchmark_report_is_written(ctx: BenchmarkCLIContext) -> None:
+    """Verify the benchmark report was written to file.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert ctx.report_path is not None
+    assert ctx.report_path.exists(), f"Report file not found at {ctx.report_path}"
+    assert ctx.report is not None, "Report could not be parsed"
+
+
+@then("the report contains per-line head-to-head results")
+def then_report_contains_per_line_results(ctx: BenchmarkCLIContext) -> None:
+    """Verify the report contains per-line head-to-head results.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert ctx.report is not None
+    # Should have 3 lines compared
+    assert len(ctx.report.head_to_head_results) == 3, (
+        f"Expected 3 head-to-head results, got {len(ctx.report.head_to_head_results)}"
+    )
+    # Each result should have reasoning and dimension winners
+    for result in ctx.report.head_to_head_results:
+        assert result.reasoning, f"Missing reasoning for line {result.line_id}"
+        assert len(result.dimension_winners) == 3, (
+            f"Expected 3 dimension winners for line {result.line_id}"
+        )
+
+
+@then("the report contains pairwise summaries")
+def then_report_contains_pairwise_summaries(ctx: BenchmarkCLIContext) -> None:
+    """Verify the report contains pairwise summaries.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert ctx.report is not None
+    # Should have 1 pairwise summary (A vs B)
+    assert len(ctx.report.pairwise_summaries) == 1, (
+        f"Expected 1 pairwise summary, got {len(ctx.report.pairwise_summaries)}"
+    )
+    summary = ctx.report.pairwise_summaries[0]
+    assert summary.candidate_a_name == "candidate-a"
+    assert summary.candidate_b_name == "candidate-b"
+    assert summary.total_comparisons == 3
+    # Should have dimension win rates for all 3 dimensions
+    assert len(summary.dimension_win_rates) == 3
+
+
+@then("the report contains Elo ratings")
+def then_report_contains_elo_ratings(ctx: BenchmarkCLIContext) -> None:
+    """Verify the report contains Elo ratings.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert ctx.report is not None
+    # Should have 2 Elo ratings (one per candidate)
+    assert len(ctx.report.elo_ratings) == 2, (
+        f"Expected 2 Elo ratings, got {len(ctx.report.elo_ratings)}"
+    )
+    # Should have overall ranking derived from Elo
+    assert len(ctx.report.overall_ranking) == 2, (
+        f"Expected 2 candidates in ranking, got {len(ctx.report.overall_ranking)}"
     )

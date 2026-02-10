@@ -209,11 +209,12 @@ def check_rubric_dimensions(ctx: BenchmarkContext) -> None:
             f"Line {result.line_id} should have 3 dimension winners, "
             f"got {len(result.dimension_winners)}"
         )
-        # Each dimension winner should be valid (candidate name or "tie")
+        # Each dimension winner should be valid (A|B|tie per HeadToHeadResult contract)
         for dim, winner in result.dimension_winners.items():
-            assert winner in ["candidate-a", "candidate-b", "tie"], (
+            assert winner in ["A", "B", "tie"], (
                 f"Invalid winner '{winner}' for dimension {dim} "
-                f"on line {result.line_id}"
+                f"on line {result.line_id}. Expected 'A', 'B', or 'tie' "
+                f"(randomized presentation positions, not candidate names)"
             )
 
 

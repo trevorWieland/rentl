@@ -23,3 +23,14 @@ Feature: Benchmark CLI Command
     When I run benchmark compare with staggered judge responses
     Then progress updates are monotonically increasing
     And final progress reaches 100%
+
+  Scenario: Benchmark compare completes full evaluation flow
+    Given a valid rentl configuration exists
+    And two translation output files exist
+    When I run benchmark compare with full mocked flow
+    Then the command completes successfully
+    And the output indicates judging progress
+    And the benchmark report is written
+    And the report contains per-line head-to-head results
+    And the report contains pairwise summaries
+    And the report contains Elo ratings
