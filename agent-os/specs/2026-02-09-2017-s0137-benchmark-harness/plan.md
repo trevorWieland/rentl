@@ -157,7 +157,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Remove remaining hardcoded judge token budget in compare runtime settings; `services/rentl-cli/src/rentl_cli/main.py:1454` still sets `max_output_tokens=4096` instead of deriving from config/default model settings or explicit CLI options per Task 10 contract (see signposts.md: Task 10 endpoint-config migration) (audit round 2)
   - [x] Fix: Add missing BDD step binding for `Then the command exits with status 1` so override-mode scenario runs end-to-end; currently `pytest -q tests/integration/benchmark/test_cli_command.py` fails with `StepDefinitionNotFoundError` at `tests/features/benchmark/cli_command.feature:41` because only status-2 binding exists in `tests/integration/benchmark/test_cli_command.py:82` (audit round 3; see signposts.md: Task 10 BDD step-binding regression)
 
-- [x] Task 11: Make judge response parsing robust across model families
+- [ ] Task 11: Make judge response parsing robust across model families
   - **Problem**: Judge parser at `packages/rentl-core/src/rentl_core/benchmark/judge.py:114-127` fails when models produce verbose reasoning before JSON, reasoning/thinking tokens that consume the output budget, or slightly malformed JSON
   - **Evidence**: Demo walkthrough with `qwen/qwen3-30b-a3b` judge returned truncated JSON after 17% progress (`Unterminated string starting at: line 6 column 27 (char 479)`); `openai/gpt-oss-120b` returned empty response (`Expecting value: line 1 column 1 (char 0)`)
   - **Use structured output**: The judge prompt asks for JSON but relies on the model voluntarily producing it. Should use `response_format={"type": "json_object"}` or pydantic-ai structured output to enforce JSON-only responses, eliminating reasoning prefix/suffix issues
@@ -166,6 +166,8 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - **Add JSON extraction fallback**: If the response contains text before/after JSON, try harder to extract (regex for `{...}` block, not just markdown fences)
   - Update unit tests for new parsing/retry behavior
   - Note: Token budget was already increased to 4096 in Task 10. This task added retry logic (max_retries parameter, default 3) and improved JSON extraction with regex fallback for reasoning prefix/suffix.
+  - [ ] Fix: Enforce structured judge output (e.g., schema-backed/pydantic-ai output) instead of text-only JSON parsing; Task 11 still sends a free-form prompt request path (`packages/rentl-core/src/rentl_core/benchmark/judge.py:255`, `packages/rentl-llm/src/rentl_llm/openai_runtime.py:72`, `packages/rentl-llm/src/rentl_llm/openai_runtime.py:96`) (audit round 1; see signposts.md Task 11)
+  - [ ] Fix: Remove dead `JudgeOutput` or wire it into the structured-output path; it is currently unused (`packages/rentl-core/src/rentl_core/benchmark/judge.py:25`) (audit round 1)
 
 - [ ] Task 12: Reconcile demo.md steps with actual CLI capabilities
   - Demo Steps 2-5 reference `rentl run` which doesn't exist (the command is `run-pipeline`)
