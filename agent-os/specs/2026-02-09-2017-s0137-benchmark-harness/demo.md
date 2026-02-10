@@ -6,7 +6,7 @@ rentl now includes a benchmark harness that compares translation quality across 
 
 1. Run `rentl benchmark download --eval-set katawa-shoujo --slice demo` — expected: downloads eval set from KSRE GitHub, selects a small representative slice, shows line count and hash validation, writes rentl-ingestable source files
 
-2. Run `rentl run` four times on the downloaded source using 2 models × 2 methods:
+2. Run `rentl run-pipeline` four times on the downloaded source using 2 models × 2 methods:
    - `openai/gpt-oss-20b` with full pipeline (context + pretranslate + translate + QA + edit)
    - `openai/gpt-oss-20b` with translate-only (no context, no pretranslate, no QA, no edit)
    - `qwen/qwen3-vl-30b-a3b-instruct` with full pipeline
@@ -31,7 +31,7 @@ rentl now includes a benchmark harness that compares translation quality across 
 
 ### Run 2 — After Task 9 completion (2026-02-10)
 - Step 1: PASS — `rentl benchmark download --eval-set katawa-shoujo --slice demo` succeeds. Downloaded 1 script, parsed 26 lines. Kebab-case normalization now works.
-- Step 2: SKIPPED — Cannot execute in current environment. Running `rentl run` four times with different models/configs requires API keys for `openai/gpt-oss-20b` and `qwen/qwen3-vl-30b-a3b-instruct`, plus significant execution time. The quality test (`tests/quality/benchmark/test_benchmark_quality.py`) validates the comparison mechanics with real LLMs using sample outputs when API keys are configured.
+- Step 2: SKIPPED — Cannot execute in current environment. Running `rentl run-pipeline` four times with different models/configs requires API keys for `openai/gpt-oss-20b` and `qwen/qwen3-vl-30b-a3b-instruct`, plus significant execution time. The quality test (`tests/quality/benchmark/test_benchmark_quality.py`) validates the comparison mechanics with real LLMs using sample outputs when API keys are configured.
 - Step 3: SKIPPED — Depends on Step 2 outputs.
 - Step 4: SKIPPED — Depends on Step 3 comparison report.
 - Step 5: SKIPPED — Depends on Step 4 report.
@@ -95,7 +95,7 @@ rentl now includes a benchmark harness that compares translation quality across 
 
 ### Run 10 — Walk-spec interactive demo (2026-02-10)
 - Step 1: PASS — `rentl benchmark download --eval-set katawa-shoujo --slice demo` executes successfully. Downloaded 1 script, parsed 26 lines.
-- Step 2: PARTIAL — Ran `rentl run-pipeline` four times (2 models × 2 methods). Note: demo.md documents `rentl run` but actual CLI command is `run-pipeline`. `qwen/qwen3-vl-30b-a3b-instruct` full + MTL completed successfully. `openai/gpt-oss-20b` failed initially — OpenRouter routed to a provider (novita/fp4) that returned malformed tool_calls despite `require_parameters=true`. Fixed by adding `only = ["deepinfra"]` to provider routing config. All 4 outputs produced (26 lines each).
+- Step 2: PARTIAL — Ran `rentl run-pipeline` four times (2 models × 2 methods). `qwen/qwen3-vl-30b-a3b-instruct` full + MTL completed successfully. `openai/gpt-oss-20b` failed initially — OpenRouter routed to a provider (novita/fp4) that returned malformed tool_calls despite `require_parameters=true`. Fixed by adding `only = ["deepinfra"]` to provider routing config. All 4 outputs produced (26 lines each).
 - Step 3: FAIL — `rentl benchmark compare` cannot be run as designed. Three critical issues:
   1. **Hardcoded API keys**: Command checks for `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` env vars (`main.py:1320`) instead of using the project's endpoint config system. Does not load `.env`. Cannot use `RENTL_OPENROUTER_API_KEY` from project config.
   2. **No OpenRouter provider config**: Hardcoded `LlmEndpointTarget` at `main.py:1332-1337` omits `openrouter_provider`, so `require_parameters=true` is not applied to judge requests.

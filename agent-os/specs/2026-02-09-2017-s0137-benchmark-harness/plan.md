@@ -173,7 +173,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Align fallback text parsing with the new explicit judge JSON fields so retry/fallback mode remains functional when `structured_output` is unavailable; prompt now emits `accuracy_winner`/`style_fidelity_winner`/`consistency_winner` but parser still requires `dimension_winners`, causing `ValueError: Missing 'dimension_winners' in response` (`packages/rentl-core/src/rentl_core/benchmark/judge.py:110`, `packages/rentl-core/src/rentl_core/benchmark/judge.py:194`; repro: `python - <<'PY' ... judge._parse_head_to_head({...accuracy_winner...}) ... -> ValueError`) (audit round 3; see signposts.md Task 11 structured-output fallback mismatch)
   - [x] Fix: Add regression test coverage for non-structured fallback parsing with explicit dimension winner fields (`tests/unit/benchmark/test_judge.py`) so Task 11 continues to pass if runtime returns text output instead of parsed schema output (audit round 3)
 
-- [ ] Task 12: Reconcile demo.md steps with actual CLI capabilities
+- [x] Task 12: Reconcile demo.md steps with actual CLI capabilities
   - Demo Steps 2-5 reference `rentl run` which doesn't exist (the command is `run-pipeline`)
   - Demo Step 3 doesn't include `--config` flag needed after Task 10
   - Demo should document the full end-to-end flow with correct commands and working model/endpoint config
