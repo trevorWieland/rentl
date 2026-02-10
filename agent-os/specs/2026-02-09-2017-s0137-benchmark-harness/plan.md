@@ -133,7 +133,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Add integration test: `rentl benchmark download --eval-set katawa-shoujo --slice demo` succeeds
   - Verify existing unit tests still pass (they use snake_case directly in Python, which is fine)
 
-- [x] Task 10: Use project endpoint config for benchmark compare judge
+- [ ] Task 10: Use project endpoint config for benchmark compare judge
   - **Critical**: `_benchmark_compare_async` hardcodes `os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")` at `services/rentl-cli/src/rentl_cli/main.py:1320` — must use the codebase's endpoint config system instead
   - **Remove** hardcoded API key checks (`main.py:1319-1326`)
   - **Remove** hardcoded `provider_name="openai"` and `api_key_env="OPENAI_API_KEY"` (`main.py:1334`, `main.py:1336`)
@@ -148,6 +148,11 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Update integration tests to use configurable endpoint
   - Update quality test to use project endpoint config
   - Update demo.md Step 3 to include `--config` flag
+  - [ ] Fix: Make `--judge-base-url`/`--judge-api-key-env` override mode independent of config loading; `_benchmark_compare_async` still unconditionally calls `_load_resolved_config(config_path)` at `services/rentl-cli/src/rentl_cli/main.py:1333` and fails early when config is missing (repro: `Unexpected error: Config not found: /tmp/.../missing.toml`) (audit round 1; see signposts.md Task 10 override-mode config dependency)
+  - [ ] Fix: Remove remaining hardcoded judge defaults by deriving from config/default model settings (or explicit CLI options) instead of fixed `"gpt-4o-mini"`/`4096` at `services/rentl-cli/src/rentl_cli/main.py:1371`, `services/rentl-cli/src/rentl_cli/main.py:1420`, and `services/rentl-cli/src/rentl_cli/main.py:1434` (audit round 1)
+  - [ ] Fix: Update benchmark compare integration tests to validate config-driven endpoint resolution and override-mode behavior; current coverage still only injects `OPENAI_API_KEY` with no `--config` in `tests/integration/benchmark/test_cli_command.py:320` and `tests/integration/benchmark/test_cli_command.py:420` (audit round 1)
+  - [ ] Fix: Update quality benchmark test to use project endpoint config (`--config`) instead of only `--judge-base-url` + direct `OPENAI_API_KEY` injection (`tests/quality/benchmark/test_benchmark_quality.py:152`, `tests/quality/benchmark/test_benchmark_quality.py:160`) (audit round 1)
+  - [ ] Fix: Update demo Step 3 command to include `--config` per Task 10 contract (`agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/demo.md:16`) (audit round 1)
 
 - [ ] Task 11: Make judge response parsing robust across model families
   - **Problem**: Judge parser at `packages/rentl-core/src/rentl_core/benchmark/judge.py:114-127` fails when models produce verbose reasoning before JSON, reasoning/thinking tokens that consume the output budget, or slightly malformed JSON

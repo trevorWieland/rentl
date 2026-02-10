@@ -127,6 +127,15 @@
 - **Impact:** `rentl benchmark compare` is completely unusable with the project's configured OpenRouter endpoint. Users must manually export provider-specific API keys and cannot use the standard `.env`/`rentl.toml` configuration flow. This violates non-negotiable #4 ("benchmark must be runnable standalone") since it requires ad-hoc environment setup outside the normal project config.
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
 
+- **Task:** Task 10 override-mode config dependency
+- **Status:** unresolved
+- **Problem:** Task 10 added config-based endpoint resolution, but `benchmark compare` still requires successful config parsing even when full CLI judge overrides are provided. `_benchmark_compare_async` calls `_load_resolved_config(config_path)` before checking `judge_base_url`, so override mode is not truly independent.
+- **Evidence:** `services/rentl-cli/src/rentl_cli/main.py:1333` loads config unconditionally before branch `if judge_base_url:` at `services/rentl-cli/src/rentl_cli/main.py:1336`. Repro command:
+  `JUDGE_KEY=dummy uv run rentl benchmark compare /tmp/a.jsonl /tmp/b.jsonl --judge-base-url http://localhost:9999/v1 --judge-api-key-env JUDGE_KEY --config /tmp/missing.toml`
+  exits with `Unexpected error: Config not found: /tmp/.../missing.toml` before judge endpoint setup.
+- **Impact:** CLI override mode cannot be used for ad-hoc comparisons or external judge endpoints unless a valid rentl config is also present, which contradicts the intended "override or config" behavior for Task 10.
+- **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`
+
 - **Task:** Task 11
 - **Status:** unresolved
 - **Problem:** The benchmark judge response parser fails across multiple model families during real-world use. Models that produce reasoning/thinking tokens before JSON, or that generate verbose output exceeding the hardcoded 2000-token limit, cause parse failures that abort the entire benchmark run.
