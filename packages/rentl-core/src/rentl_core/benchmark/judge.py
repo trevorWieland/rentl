@@ -281,17 +281,20 @@ Provide your evaluation in this exact JSON format:
 
         reasoning = data["reasoning"]
 
+        if "dimension_winners" not in data:
+            raise ValueError("Missing 'dimension_winners' in response")
+
         dimension_winners: dict[RubricDimension, Literal["A", "B", "tie"]] = {}
-        if "dimension_winners" in data:
-            for dim in RubricDimension:
-                if dim.value in data["dimension_winners"]:
-                    winner_str = data["dimension_winners"][dim.value]
-                    if winner_str not in ("A", "B", "tie"):
-                        raise ValueError(
-                            f"Invalid winner for {dim.value}: {winner_str}"
-                        )
-                    winner_typed: Literal["A", "B", "tie"] = winner_str
-                    dimension_winners[dim] = winner_typed
+        for dim in RubricDimension:
+            if dim.value not in data["dimension_winners"]:
+                raise ValueError(
+                    f"Missing dimension winner for {dim.value} in response"
+                )
+            winner_str = data["dimension_winners"][dim.value]
+            if winner_str not in ("A", "B", "tie"):
+                raise ValueError(f"Invalid winner for {dim.value}: {winner_str}")
+            winner_typed: Literal["A", "B", "tie"] = winner_str
+            dimension_winners[dim] = winner_typed
 
         return overall_winner, reasoning, dimension_winners
 

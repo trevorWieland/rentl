@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import random
 from pathlib import Path
 
 import pytest
@@ -45,6 +46,14 @@ def test_reference_free_evaluation() -> None:
 )
 def test_head_to_head_comparison() -> None:
     """Test head-to-head comparison flow."""
+
+
+@scenario(
+    str(FEATURES_DIR / "judge_evaluation.feature"),
+    "Head-to-head comparison with randomized order",
+)
+def test_head_to_head_with_randomization() -> None:
+    """Test head-to-head comparison with randomized A/B assignment."""
 
 
 class JudgeContext:
@@ -229,7 +238,7 @@ def given_judge_scores(ctx: JudgeContext, docstring: str) -> None:
 
 @given("judge responds with comparison")
 def given_judge_comparison(ctx: JudgeContext, docstring: str) -> None:
-    """Configure mock head-to-head responses."""
+    """Configure mock head-to-head responses for winner B."""
     # docstring contains the triple-quoted text from the feature file
     for _ in ctx.translations_mtl:
         mock_response = json.dumps({
@@ -237,6 +246,23 @@ def given_judge_comparison(ctx: JudgeContext, docstring: str) -> None:
             "reasoning": "Translation B is more natural",
             "dimension_winners": {
                 "accuracy": "tie",
+                "style_fidelity": "B",
+                "consistency": "B",
+            },
+        })
+        ctx.mock_responses.append(mock_response)
+
+
+@given("judge responds with winner A")
+def given_judge_winner_a(ctx: JudgeContext, docstring: str) -> None:
+    """Configure mock head-to-head responses for winner A."""
+    # docstring contains the triple-quoted text from the feature file
+    for _ in ctx.translations_mtl:
+        mock_response = json.dumps({
+            "overall_winner": "A",
+            "reasoning": "Translation A is more accurate",
+            "dimension_winners": {
+                "accuracy": "A",
                 "style_fidelity": "B",
                 "consistency": "B",
             },
@@ -269,6 +295,19 @@ def when_compare_head_to_head(ctx: JudgeContext) -> None:
     ctx.head_to_head_results = asyncio.run(
         ctx.judge.compare_batch_head_to_head(
             ctx.translations_mtl, ctx.translations_rentl, randomize_order=False
+        )
+    )
+
+
+@when("I compare translations head-to-head with randomization")
+def when_compare_head_to_head_randomized(ctx: JudgeContext) -> None:
+    """Execute head-to-head comparison with randomized order."""
+    assert ctx.judge is not None
+    # Seed random to force swap behavior (seed(1) produces <0.5 on first call)
+    random.seed(1)
+    ctx.head_to_head_results = asyncio.run(
+        ctx.judge.compare_batch_head_to_head(
+            ctx.translations_mtl, ctx.translations_rentl, randomize_order=True
         )
     )
 
@@ -353,8 +392,38 @@ def then_comparison_includes_both(ctx: JudgeContext) -> None:
 def then_dimension_winners_tracked(ctx: JudgeContext) -> None:
     """Verify per-dimension winners are tracked."""
     for result in ctx.head_to_head_results:
-        # Check at least one dimension has a winner
-        assert len(result.dimension_winners) > 0
+        # All three dimensions must have winners
+        assert len(result.dimension_winners) == 3
+        # Verify all required dimensions are present
+        assert RubricDimension.ACCURACY in result.dimension_winners
+        assert RubricDimension.STYLE_FIDELITY in result.dimension_winners
+        assert RubricDimension.CONSISTENCY in result.dimension_winners
+        # Verify all winners are valid
         for dim, winner in result.dimension_winners.items():
             assert isinstance(dim, RubricDimension)
             assert winner in ("A", "B", "tie")
+
+
+@then("randomization remaps winners correctly")
+def then_randomization_remaps_correctly(ctx: JudgeContext) -> None:
+    """Verify randomization correctly remaps winners.
+
+    With seed(1), the random swap occurs, so:
+    - Judge sees: A=rentl (translation_2), B=MTL (translation_1)
+    - Judge returns: winner="A"
+    - After remap: winner="B" (because A in judge-space is translation_2, which is "B")
+    """
+    assert len(ctx.head_to_head_results) == 1
+    result = ctx.head_to_head_results[0]
+
+    # The mock judge response says winner="A" (see given_judge_comparison)
+    # With swap: judge's "A" is translation_2 (rentl), which maps to result's "B"
+    # So final winner should be "B"
+    assert result.winner == "B"
+
+    # Verify dimension winners are also remapped
+    # Mock says: accuracy="A", style_fidelity="B", consistency="B"
+    # After remap: accuracy="B", style_fidelity="A", consistency="A"
+    assert result.dimension_winners[RubricDimension.ACCURACY] == "B"
+    assert result.dimension_winners[RubricDimension.STYLE_FIDELITY] == "A"
+    assert result.dimension_winners[RubricDimension.CONSISTENCY] == "A"

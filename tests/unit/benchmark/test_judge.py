@@ -1,6 +1,7 @@
 """Unit tests for LLM judge rubric evaluation."""
 
 import json
+import random
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -473,3 +474,121 @@ async def test_compare_batch_mismatched_line_ids(
 
     with pytest.raises(ValueError, match="not found in second translation set"):
         await judge.compare_batch_head_to_head(trans1, trans2)
+
+
+@pytest.mark.asyncio
+async def test_compare_head_to_head_with_randomization(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test head-to-head comparison correctly remaps winners when order is randomized.
+
+    When randomize_order=True and the coin flip swaps A/B assignments, the judge
+    sees translation_2 as "A" and translation_1 as "B". The returned result must
+    remap winners back to the original translation_1/translation_2 labels.
+    """
+    # Mock response where judge picks "A" (which is translation_2 due to swap)
+    mock_runtime.run_prompt = AsyncMock(
+        return_value=LlmPromptResponse(
+            model_id="gpt-4o-mini",
+            output_text=json.dumps({
+                "overall_winner": "A",
+                "reasoning": "A is more accurate",
+                "dimension_winners": {
+                    "accuracy": "A",
+                    "style_fidelity": "B",
+                    "consistency": "tie",
+                },
+            }),
+        )
+    )
+
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    # Seed random to force swap (values <0.5 cause swap at line 401)
+    random.seed(1)  # seed(1) produces first value ~0.134, which DOES swap
+
+    result = await judge.compare_head_to_head(
+        line_id="line_1",
+        source_text="こんにちは",
+        translation_1="Hello",
+        translation_2="Hi there",
+        randomize_order=True,
+    )
+
+    # With seed(1), random.random() < 0.5, so swap occurs:
+    # Judge sees: A="Hi there" (translation_2), B="Hello" (translation_1)
+    # Judge returns: overall="A", accuracy="A", style_fidelity="B", consistency="tie"
+    # After remap: overall="B", accuracy="B", style_fidelity="A", consistency="tie"
+    # Because original assignment was: translation_1="Hello", translation_2="Hi there"
+    # And A in judge-space maps to translation_2, B in judge-space maps to translation_1
+    # So when judge picks A, that's translation_2, which is "B" in result-space
+    assert result.translation_a == "Hello"
+    assert result.translation_b == "Hi there"
+    assert result.winner == "B"  # Judge said "A", but A was translation_2
+    assert result.dimension_winners[RubricDimension.ACCURACY] == "B"
+    assert result.dimension_winners[RubricDimension.STYLE_FIDELITY] == "A"
+    assert result.dimension_winners[RubricDimension.CONSISTENCY] == "tie"
+
+
+def test_parse_head_to_head_missing_dimension_winners(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing fails when dimension_winners is missing entirely."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = json.dumps({
+        "overall_winner": "A",
+        "reasoning": "A is better",
+        # Missing dimension_winners
+    })
+
+    with pytest.raises(ValueError, match="Missing 'dimension_winners'"):
+        judge._parse_head_to_head(response)
+
+
+def test_parse_head_to_head_missing_dimension(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing fails when a required dimension winner is missing."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = json.dumps({
+        "overall_winner": "A",
+        "reasoning": "A is better",
+        "dimension_winners": {
+            "accuracy": "A",
+            "style_fidelity": "B",
+            # Missing consistency
+        },
+    })
+
+    with pytest.raises(ValueError, match="Missing dimension winner for consistency"):
+        judge._parse_head_to_head(response)
+
+
+def test_parse_head_to_head_invalid_dimension_winner(
+    mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
+) -> None:
+    """Test parsing fails when dimension winner has invalid value."""
+    judge = RubricJudge(
+        runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
+    )
+
+    response = json.dumps({
+        "overall_winner": "A",
+        "reasoning": "A is better",
+        "dimension_winners": {
+            "accuracy": "C",  # Invalid
+            "style_fidelity": "B",
+            "consistency": "tie",
+        },
+    })
+
+    with pytest.raises(ValueError, match="Invalid winner for accuracy"):
+        judge._parse_head_to_head(response)
