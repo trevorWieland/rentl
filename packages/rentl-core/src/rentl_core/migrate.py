@@ -1,0 +1,358 @@
+"""Config migration registry and engine for schema versioning."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+from rentl_schemas.migration import MigrationStep
+from rentl_schemas.version import VersionInfo
+
+# Type alias for valid TOML value types (recursive for nested structures)
+type ConfigValue = (
+    str | int | float | bool | list["ConfigValue"] | dict[str, "ConfigValue"]
+)
+
+# Type alias for config dictionary (unstructured TOML data)
+type ConfigDict = dict[str, ConfigValue]
+
+# Type alias for migration transform functions
+type MigrationTransform = Callable[[ConfigDict], ConfigDict]
+
+
+class MigrationRegistry:
+    """Ordered registry of migration steps.
+
+    Maintains a sorted collection of migration steps from oldest to newest.
+    Used to plan and apply migrations when upgrading config schemas.
+    """
+
+    def __init__(self) -> None:
+        """Initialize an empty migration registry."""
+        self._steps: list[MigrationStep] = []
+        # Key transforms by (source_version, target_version) tuple to avoid
+        # name collisions
+        self._transforms: dict[tuple[VersionInfo, VersionInfo], MigrationTransform] = {}
+
+    def register(
+        self,
+        source_version: VersionInfo,
+        target_version: VersionInfo,
+        description: str,
+        transform_fn: MigrationTransform,
+    ) -> None:
+        """Register a migration step.
+
+        Args:
+            source_version: Version this migration starts from
+            target_version: Version this migration produces
+            description: Human-readable description of changes
+            transform_fn: Pure function dict -> dict that applies the migration
+        """
+        # Get function name, handling both functions and callables
+        transform_fn_name = getattr(transform_fn, "__name__", repr(transform_fn))
+
+        step = MigrationStep(
+            source_version=source_version,
+            target_version=target_version,
+            description=description,
+            transform_fn_name=transform_fn_name,
+        )
+
+        # Insert in sorted order by source_version
+        insert_idx = 0
+        for i, existing in enumerate(self._steps):
+            if existing.source_version > source_version:
+                break
+            insert_idx = i + 1
+
+        self._steps.insert(insert_idx, step)
+        # Key by migration edge to prevent collisions when different migrations
+        # have transform functions with the same __name__
+        migration_key = (source_version, target_version)
+        self._transforms[migration_key] = transform_fn
+
+    def get_all_steps(self) -> list[MigrationStep]:
+        """Return all registered migration steps in order.
+
+        Returns:
+            List of migration steps, sorted by source version
+        """
+        return self._steps.copy()
+
+    def get_transform(self, step: MigrationStep) -> MigrationTransform:
+        """Get the transform function for a migration step.
+
+        Args:
+            step: Migration step to get transform for
+
+        Returns:
+            The transform function
+        """
+        migration_key = (step.source_version, step.target_version)
+        return self._transforms[migration_key]
+
+
+def plan_migrations(
+    current_version: VersionInfo,
+    target_version: VersionInfo,
+    registry: MigrationRegistry,
+) -> list[MigrationStep]:
+    """Plan the chain of migrations needed to upgrade from current to target version.
+
+    Args:
+        current_version: Current schema version
+        target_version: Desired schema version
+        registry: Migration registry to search
+
+    Returns:
+        Ordered list of migration steps to apply, or empty list if already at target
+
+    Raises:
+        ValueError: If no migration path exists from current to target version
+    """
+    if current_version >= target_version:
+        return []
+
+    # Build migration chain by following steps from current to target
+    chain: list[MigrationStep] = []
+    version = current_version
+    all_steps = registry.get_all_steps()
+
+    while version < target_version:
+        # Find next step that starts from current version
+        next_step = None
+        for step in all_steps:
+            if step.source_version == version and step.target_version <= target_version:
+                next_step = step
+                break
+
+        if next_step is None:
+            raise ValueError(
+                f"No migration path from {current_version} to {target_version}. "
+                f"Stuck at {version}."
+            )
+
+        chain.append(next_step)
+        version = next_step.target_version
+
+    return chain
+
+
+def apply_migrations(
+    config_dict: ConfigDict, steps: list[MigrationStep], registry: MigrationRegistry
+) -> ConfigDict:
+    """Apply a chain of migration steps to a config dict.
+
+    Each migration step is applied in sequence, with the output of one step
+    becoming the input to the next. All transforms are pure functions with
+    no side effects.
+
+    Args:
+        config_dict: Configuration dict to migrate
+        steps: Ordered list of migration steps to apply
+        registry: Migration registry containing transform functions
+
+    Returns:
+        Migrated configuration dict
+    """
+    result = config_dict.copy()
+
+    for step in steps:
+        transform = registry.get_transform(step)
+        result = transform(result)
+
+    return result
+
+
+# Global migration registry instance
+_REGISTRY = MigrationRegistry()
+
+
+def get_registry() -> MigrationRegistry:
+    """Get the global migration registry.
+
+    Returns:
+        The global MigrationRegistry instance
+    """
+    return _REGISTRY
+
+
+# Seed migration: 0.0.1 → 0.1.0
+# This is the first real migration demonstrating the system.
+def _migrate_0_0_1_to_0_1_0(config: ConfigDict) -> ConfigDict:
+    """Migrate config from schema version 0.0.1 to 0.1.0.
+
+    Changes:
+    - Updates project.schema_version field from 0.0.1 to 0.1.0
+    - Preserves all existing config fields (no data loss)
+
+    Args:
+        config: Config dict at version 0.0.1
+
+    Returns:
+        Config dict at version 0.1.0
+    """
+    migrated = config.copy()
+
+    # Update schema version in project section
+    if "project" not in migrated:
+        migrated["project"] = {}
+
+    # Deep copy project section if it exists to avoid mutation
+    if isinstance(migrated["project"], dict):
+        migrated["project"] = dict(migrated["project"])
+        migrated["project"]["schema_version"] = {
+            "major": 0,
+            "minor": 1,
+            "patch": 0,
+        }
+
+    return migrated
+
+
+def dict_to_toml(data: ConfigDict) -> str:
+    """Convert a config dictionary to TOML format string.
+
+    Simple TOML serializer that handles the subset of TOML used in rentl configs.
+    Supports nested tables, strings, integers, floats, booleans, and arrays.
+
+    Args:
+        data: Dictionary to serialize to TOML
+
+    Returns:
+        TOML-formatted string
+    """
+    lines: list[str] = []
+
+    def _write_value(value: object) -> str:
+        """Serialize a single value to TOML format.
+
+        Returns:
+            TOML-formatted string representation of the value
+        """
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        elif isinstance(value, int | float):
+            return str(value)
+        elif isinstance(value, str):
+            # Escape quotes and backslashes
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            return f'"{escaped}"'
+        elif isinstance(value, list):
+            items = [_write_value(item) for item in value]
+            return f"[{', '.join(items)}]"
+        elif isinstance(value, dict):
+            # Inline table
+            items = [f"{k} = {_write_value(v)}" for k, v in value.items()]
+            return f"{{ {', '.join(items)} }}"
+        else:
+            return str(value)
+
+    def _write_table(table_data: dict, prefix: str = "") -> None:
+        """Recursively write tables and their contents."""
+        # Separate simple values from nested tables
+        simple_keys = []
+        table_keys = []
+
+        for key, value in table_data.items():
+            if isinstance(value, dict) and not all(
+                isinstance(v, int | float | str | bool) for v in value.values()
+            ):
+                table_keys.append(key)
+            else:
+                simple_keys.append(key)
+
+        # Write simple key-value pairs
+        if simple_keys:
+            if prefix:
+                lines.append(f"[{prefix}]")
+            for key in simple_keys:
+                value = table_data[key]
+                lines.append(f"{key} = {_write_value(value)}")
+            if table_keys:
+                lines.append("")  # Blank line before nested tables
+
+        # Write nested tables
+        for key in table_keys:
+            value = table_data[key]
+            new_prefix = f"{prefix}.{key}" if prefix else key
+            _write_table(value, new_prefix)
+            lines.append("")  # Blank line between tables
+
+    _write_table(data)
+
+    # Remove trailing blank lines
+    while lines and not lines[-1]:
+        lines.pop()
+
+    return "\n".join(lines) + "\n"
+
+
+def auto_migrate_config(
+    config_dict: ConfigDict,
+    target_version: VersionInfo,
+    *,
+    registry: MigrationRegistry | None = None,
+) -> tuple[ConfigDict, bool]:
+    """Auto-migrate a config dict to the target version if needed.
+
+    Detects the current schema version from the config, plans migrations,
+    and applies them. Returns the migrated config and a flag indicating
+    whether migration occurred.
+
+    Args:
+        config_dict: Configuration dict to potentially migrate
+        target_version: Target schema version to migrate to
+        registry: Migration registry to use (defaults to global registry)
+
+    Returns:
+        Tuple of (migrated_config, was_migrated) where was_migrated is True
+        if migration occurred, False if already up to date
+    """
+    if registry is None:
+        registry = get_registry()
+
+    # Extract current schema version from config
+    try:
+        project_data = config_dict.get("project")
+        if not isinstance(project_data, dict):
+            # No project section or invalid format — skip migration
+            return (config_dict, False)
+
+        schema_version_data = project_data.get("schema_version")
+        if not schema_version_data or not isinstance(schema_version_data, dict):
+            # No schema_version field or invalid format — skip migration
+            return (config_dict, False)
+
+        current_version = VersionInfo(
+            major=int(schema_version_data.get("major", 0)),
+            minor=int(schema_version_data.get("minor", 0)),
+            patch=int(schema_version_data.get("patch", 0)),
+        )
+    except TypeError, ValueError:
+        # Invalid schema_version format — skip migration
+        return (config_dict, False)
+
+    # Check if migration is needed
+    if current_version >= target_version:
+        return (config_dict, False)
+
+    # Plan migrations
+    migration_steps = plan_migrations(current_version, target_version, registry)
+
+    if not migration_steps:
+        return (config_dict, False)
+
+    # Apply migrations
+    migrated_config = apply_migrations(config_dict, migration_steps, registry)
+
+    return (migrated_config, True)
+
+
+# Register the seed migration
+_REGISTRY.register(
+    source_version=VersionInfo(major=0, minor=0, patch=1),
+    target_version=VersionInfo(major=0, minor=1, patch=0),
+    description="Initial migration demonstrating the migration system",
+    transform_fn=_migrate_0_0_1_to_0_1_0,
+)

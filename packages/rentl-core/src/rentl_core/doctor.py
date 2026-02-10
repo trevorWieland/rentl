@@ -12,10 +12,12 @@ import sys
 import tomllib
 from enum import StrEnum
 from pathlib import Path
+from typing import cast
 
 from pydantic import Field
 
 from rentl_core.llm.connection import build_connection_plan, validate_connections
+from rentl_core.migrate import ConfigDict, auto_migrate_config, dict_to_toml
 from rentl_core.ports.llm import LlmRuntimeProtocol
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import RunConfig
@@ -25,11 +27,15 @@ from rentl_schemas.llm import (
     LlmConnectionStatus,
     LlmEndpointTarget,
 )
+from rentl_schemas.primitives import JsonValue
 from rentl_schemas.validation import validate_run_config
+from rentl_schemas.version import CURRENT_SCHEMA_VERSION, VersionInfo
 
 
 def _load_config_sync(config_path: Path) -> RunConfig | None:
     """Load and validate config from path (synchronous helper).
+
+    Auto-migrates the config if schema version is outdated before validation.
 
     Args:
         config_path: Path to rentl.toml config file.
@@ -40,7 +46,28 @@ def _load_config_sync(config_path: Path) -> RunConfig | None:
     try:
         with open(config_path, "rb") as handle:
             payload = tomllib.load(handle)
-        return validate_run_config(payload)
+
+        # Auto-migrate if needed
+        target_version = VersionInfo(
+            major=CURRENT_SCHEMA_VERSION[0],
+            minor=CURRENT_SCHEMA_VERSION[1],
+            patch=CURRENT_SCHEMA_VERSION[2],
+        )
+        config_dict = cast(ConfigDict, payload)
+        migrated_config, was_migrated = auto_migrate_config(config_dict, target_version)
+
+        # If migration occurred, back up and write the migrated config
+        if was_migrated:
+            backup_path = config_path.with_suffix(".toml.bak")
+            backup_path.write_bytes(config_path.read_bytes())
+
+            # Write migrated config
+            migrated_toml = dict_to_toml(migrated_config)
+            config_path.write_text(migrated_toml, encoding="utf-8")
+
+        # Cast to JsonValue dict for validation (ConfigValue is compatible)
+        payload_for_validation = cast(dict[str, JsonValue], migrated_config)
+        return validate_run_config(payload_for_validation)
     except Exception:
         return None
 
@@ -145,6 +172,8 @@ def check_config_file(config_path: Path) -> CheckResult:
 def check_config_valid(config_path: Path) -> CheckResult:
     """Check if config file is valid TOML and passes schema validation.
 
+    Auto-migrates the config if schema version is outdated before validation.
+
     Args:
         config_path: Path to rentl.toml config file.
 
@@ -180,7 +209,27 @@ def check_config_valid(config_path: Path) -> CheckResult:
         )
 
     try:
-        validate_run_config(payload)
+        # Auto-migrate if needed
+        target_version = VersionInfo(
+            major=CURRENT_SCHEMA_VERSION[0],
+            minor=CURRENT_SCHEMA_VERSION[1],
+            patch=CURRENT_SCHEMA_VERSION[2],
+        )
+        config_dict = cast(ConfigDict, payload)
+        migrated_config, was_migrated = auto_migrate_config(config_dict, target_version)
+
+        # If migration occurred, back up and write the migrated config
+        if was_migrated:
+            backup_path = config_path.with_suffix(".toml.bak")
+            backup_path.write_bytes(config_path.read_bytes())
+
+            # Write migrated config
+            migrated_toml = dict_to_toml(migrated_config)
+            config_path.write_text(migrated_toml, encoding="utf-8")
+
+        # Cast to JsonValue dict for validation (ConfigValue is compatible)
+        payload_for_validation = cast(dict[str, JsonValue], migrated_config)
+        validate_run_config(payload_for_validation)
     except Exception as exc:
         error_msg = str(exc).split("\n")[0]  # First line of error
         return CheckResult(

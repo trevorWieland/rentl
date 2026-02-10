@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import tomllib
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -278,6 +279,99 @@ project_name = "test"
         assert "does not exist" in result.message
         assert result.fix_suggestion is not None
         assert "Config File" in result.fix_suggestion
+
+    def test_config_auto_migrates_outdated_schema(self, tmp_path: Path) -> None:
+        """Test that outdated config is auto-migrated before validation."""
+        config_path = tmp_path / "rentl.toml"
+        # Create config with old schema version 0.0.1
+        old_config = """
+[project]
+schema_version = { major = 0, minor = 0, patch = 1 }
+project_name = "test"
+
+[project.paths]
+workspace_dir = "."
+input_path = "./input.jsonl"
+output_dir = "./out"
+logs_dir = "./logs"
+
+[project.formats]
+input_format = "jsonl"
+output_format = "jsonl"
+
+[project.languages]
+source_language = "ja"
+target_languages = ["en"]
+
+[logging]
+sinks = [{ type = "console" }]
+
+[endpoint]
+provider_name = "test"
+base_url = "https://api.test.com"
+api_key_env = "TEST_KEY"
+
+[pipeline]
+
+[pipeline.default_model]
+model_id = "test/model"
+
+[[pipeline.phases]]
+phase = "ingest"
+
+[[pipeline.phases]]
+phase = "context"
+agents = ["scene_summarizer"]
+
+[[pipeline.phases]]
+phase = "pretranslation"
+agents = ["idiom_labeler"]
+
+[[pipeline.phases]]
+phase = "translate"
+agents = ["direct_translator"]
+
+[[pipeline.phases]]
+phase = "qa"
+agents = ["style_guide_critic"]
+
+[[pipeline.phases]]
+phase = "edit"
+agents = ["basic_editor"]
+
+[[pipeline.phases]]
+phase = "export"
+
+[concurrency]
+max_parallel_requests = 8
+max_parallel_scenes = 4
+
+[retry]
+max_retries = 3
+backoff_s = 1.0
+max_backoff_s = 30.0
+
+[cache]
+enabled = false
+"""
+        config_path.write_text(old_config)
+
+        # Run check_config_valid which should auto-migrate
+        result = check_config_valid(config_path)
+        assert result.status == CheckStatus.PASS
+        assert result.fix_suggestion is None
+
+        # Verify backup was created
+        backup_path = config_path.with_suffix(".toml.bak")
+        assert backup_path.exists()
+
+        # Verify migrated config has updated schema version
+        with open(config_path, "rb") as f:
+            migrated_data = tomllib.load(f)
+
+        assert migrated_data["project"]["schema_version"]["major"] == 0
+        assert migrated_data["project"]["schema_version"]["minor"] == 1
+        assert migrated_data["project"]["schema_version"]["patch"] == 0
 
 
 class TestCheckWorkspaceDirs:
