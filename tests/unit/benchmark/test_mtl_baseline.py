@@ -136,8 +136,8 @@ class TestMTLBaselineGenerator:
         assert result.text == "Good morning."
         assert result.source_text == source.text
         assert result.speaker == source.speaker
-        assert result.metadata["mtl_baseline"]  # type: ignore[index] is True
-        assert result.metadata["model"]  # type: ignore[index] == "gpt-4o-mini"
+        assert result.metadata["mtl_baseline"] is True  # type: ignore[index]
+        assert result.metadata["model"] == "gpt-4o-mini"  # type: ignore[index]
 
     @pytest.mark.asyncio
     async def test_translate_one_strips_whitespace(
@@ -227,7 +227,9 @@ class TestMTLBaselineGenerator:
         assert results[1].line_id == "line_2"
         assert results[2].line_id == "line_3"
         # Verify all have MTL metadata
-        assert all(r.metadata["mtl_baseline"] for r in results)  # type: ignore[index]
+        for r in results:
+            assert r.metadata["mtl_baseline"] is True  # type: ignore[index]
+            assert r.metadata["model"] == "gpt-4o-mini"  # type: ignore[index]
 
     @pytest.mark.asyncio
     async def test_progress_callback_invoked(

@@ -249,8 +249,8 @@ def then_mtl_marked(ctx: MTLBaselineContext) -> None:
     assert ctx.results is not None
 
     for result in ctx.results:
-        assert result.metadata["mtl_baseline"]  # type: ignore[index] is True
-        assert result.metadata["model"]  # type: ignore[index] == "gpt-4o-mini"
+        assert result.metadata["mtl_baseline"] is True  # type: ignore[index]
+        assert result.metadata["model"] == "gpt-4o-mini"  # type: ignore[index]
 
 
 @then("concurrent calls never exceed the limit")

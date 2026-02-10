@@ -36,9 +36,10 @@
 - **Files affected:** `tests/integration/benchmark/test_mtl_baseline_flow.py`
 
 - **Task:** Task 4
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Several assertions intended to validate metadata values in Task 4 tests are ineffective because equality checks were placed after `# type: ignore`, turning them into comments.
 - **Evidence:** `tests/unit/benchmark/test_mtl_baseline.py:140` contains `assert result.metadata["model"]  # type: ignore[index] == "gpt-4o-mini"` and `tests/integration/benchmark/test_mtl_baseline_flow.py:253` contains `assert result.metadata["model"]  # type: ignore[index] == "gpt-4o-mini"`; both assert only truthiness, not equality. Similar pattern appears at `tests/unit/benchmark/test_mtl_baseline.py:139`, `tests/unit/benchmark/test_mtl_baseline.py:230`, and `tests/integration/benchmark/test_mtl_baseline_flow.py:252`.
 - **Impact:** Task 4 test coverage can pass even if `metadata["model"]` or `metadata["mtl_baseline"]` has incorrect values, weakening confidence in output-schema validation.
-- **Solution:** Rewrite these assertions to enforce explicit equality checks while keeping type-checker compatibility (e.g., cast metadata to a typed mapping or place `# type: ignore` at end of a full equality assertion).
+- **Solution:** Moved `# type: ignore[index]` to the end of each assertion after the equality check. Changed assertions from `result.metadata["mtl_baseline"]  # type: ignore[index] is True` to `result.metadata["mtl_baseline"] is True  # type: ignore[index]` (and similar for model). This ensures the equality check is evaluated while maintaining type-checker compatibility.
+- **Resolution:** do-task round 5 (2026-02-09)
 - **Files affected:** `tests/unit/benchmark/test_mtl_baseline.py`, `tests/integration/benchmark/test_mtl_baseline_flow.py`
