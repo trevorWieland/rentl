@@ -27,8 +27,10 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json`, `tests/unit/benchmark/eval_sets/test_loader.py`
 
 - **Task:** Task 4
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The BDD integration test conversion introduced an async step that pytest-bdd does not execute, so the scenario body never runs.
 - **Evidence:** `tests/integration/benchmark/test_mtl_baseline_flow.py:172` defines `@when("I generate MTL baseline translations")` as `async def`, and test execution reports `RuntimeWarning: coroutine 'when_generate_baseline' was never awaited`; assertions then fail because `ctx.captured_prompts` is empty (`tests/integration/benchmark/test_mtl_baseline_flow.py:202`) and `ctx.results` is `None` (`tests/integration/benchmark/test_mtl_baseline_flow.py:274`).
 - **Impact:** Task 4 integration coverage is currently broken, so the required mocked-LLM baseline flow is not validated.
+- **Solution:** Changed `when_generate_baseline` step from async to synchronous function and used `asyncio.run()` to execute the async `generate_baseline()` call. pytest-bdd does not natively support async step functions, so the step must be synchronous and explicitly run async code in the event loop.
+- **Resolution:** do-task round 4 (2026-02-09)
 - **Files affected:** `tests/integration/benchmark/test_mtl_baseline_flow.py`

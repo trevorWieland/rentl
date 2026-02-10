@@ -3,7 +3,6 @@
 import asyncio
 from unittest.mock import MagicMock
 
-import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from rentl_core.benchmark.mtl_baseline import MTLBaselineGenerator
@@ -170,8 +169,7 @@ def given_concurrency_limit(ctx: MTLBaselineContext) -> None:
 
 
 @when("I generate MTL baseline translations")
-@pytest.mark.asyncio
-async def when_generate_baseline(ctx: MTLBaselineContext) -> None:
+def when_generate_baseline(ctx: MTLBaselineContext) -> None:
     """Generate MTL baseline translations.
 
     Args:
@@ -188,7 +186,8 @@ async def when_generate_baseline(ctx: MTLBaselineContext) -> None:
         concurrency_limit=ctx.concurrency_limit,
     )
 
-    ctx.results = await ctx.generator.generate_baseline(ctx.sources)
+    # Execute async code in the event loop
+    ctx.results = asyncio.run(ctx.generator.generate_baseline(ctx.sources))
 
 
 @then("all prompts use minimal translation structure")
