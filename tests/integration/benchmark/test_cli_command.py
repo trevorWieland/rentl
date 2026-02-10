@@ -17,9 +17,7 @@ from typer.testing import CliRunner
 import rentl_cli.main as cli_main
 from rentl_schemas.benchmark.rubric import (
     HeadToHeadResult,
-    LineScore,
     RubricDimension,
-    RubricScore,
 )
 from rentl_schemas.io import SourceLine, TranslatedLine
 from rentl_schemas.llm import LlmPromptResponse
@@ -137,35 +135,12 @@ def given_llm_mocked(ctx: BenchmarkCLIContext, monkeypatch: pytest.MonkeyPatch) 
 
     # Mock judge
     mock_judge = MagicMock()
-    mock_line_score = LineScore(
-        line_id="test_1_550",
-        source_text="こんにちは",
-        translation="Hello",
-        reference="Hello there",
-        scores=[
-            RubricScore(
-                dimension=RubricDimension.ACCURACY,
-                score=5,
-                reasoning="Perfect match",
-            ),
-            RubricScore(
-                dimension=RubricDimension.STYLE_FIDELITY,
-                score=4,
-                reasoning="Good style",
-            ),
-            RubricScore(
-                dimension=RubricDimension.CONSISTENCY,
-                score=5,
-                reasoning="Consistent terminology",
-            ),
-        ],
-    )
-    mock_score_translation = AsyncMock(return_value=mock_line_score)
-    mock_judge.score_translation = mock_score_translation
 
     mock_h2h_result = HeadToHeadResult(
         line_id="test_1_550",
         source_text="こんにちは",
+        candidate_a_name="candidate_a",
+        candidate_b_name="candidate_b",
         translation_a="Hello",
         translation_b="Hello there",
         winner="B",

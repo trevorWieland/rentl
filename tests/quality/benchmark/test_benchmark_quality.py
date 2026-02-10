@@ -24,7 +24,6 @@ from typer.testing import CliRunner
 
 import rentl_cli.main as cli_main
 from rentl_schemas.benchmark.report import BenchmarkReport
-from rentl_schemas.benchmark.rubric import RubricDimension
 
 if TYPE_CHECKING:
     from click.testing import Result
@@ -173,130 +172,58 @@ def check_benchmark_success(ctx: BenchmarkContext) -> None:
 def check_per_line_scores(ctx: BenchmarkContext) -> None:
     """Verify that all evaluated lines have scores."""
     assert ctx.report is not None, "No report was generated"
-    assert ctx.report.mtl_result is not None, "MTL result missing"
-    assert ctx.report.rentl_result is not None, "rentl result missing"
-
-    # Check MTL result has scores for all lines
-    assert len(ctx.report.mtl_result.line_scores) > 0, "No MTL line scores found"
-
-    # Check rentl result has scores for all lines
-    assert len(ctx.report.rentl_result.line_scores) > 0, "No rentl line scores found"
-
-    # Both should have the same number of lines evaluated
-    assert len(ctx.report.mtl_result.line_scores) == len(
-        ctx.report.rentl_result.line_scores
-    ), "MTL and rentl have different number of evaluated lines"
+    # TODO: Update for new head-to-head schema (Task 8)
+    assert len(ctx.report.head_to_head_results) > 0, "No head-to-head results found"
 
 
 @then("each score includes judge reasoning")
 def check_judge_reasoning(ctx: BenchmarkContext) -> None:
     """Verify that each line score includes judge reasoning for all dimensions."""
     assert ctx.report is not None
-
-    # Check MTL result
-    for line_score in ctx.report.mtl_result.line_scores:
-        for rubric_score in line_score.scores:
-            assert rubric_score.reasoning, (
-                f"Missing {rubric_score.dimension} reasoning "
-                f"for line {line_score.line_id}"
-            )
-
-    # Check rentl result
-    for line_score in ctx.report.rentl_result.line_scores:
-        for rubric_score in line_score.scores:
-            assert rubric_score.reasoning, (
-                f"Missing {rubric_score.dimension} reasoning "
-                f"for line {line_score.line_id}"
-            )
+    # TODO: Update for new head-to-head schema (Task 8)
+    for result in ctx.report.head_to_head_results:
+        assert result.reasoning, f"Missing reasoning for line {result.line_id}"
 
 
 @then("all rubric dimensions have scores")
 def check_rubric_dimensions(ctx: BenchmarkContext) -> None:
     """Verify that all rubric dimensions are scored."""
     assert ctx.report is not None
-
-    # Check MTL result has all three dimensions
-    for line_score in ctx.report.mtl_result.line_scores:
-        assert len(line_score.scores) == 3, (
-            f"Line {line_score.line_id} should have 3 dimension scores"
+    # TODO: Update for new head-to-head schema (Task 8)
+    for result in ctx.report.head_to_head_results:
+        assert len(result.dimension_winners) == 3, (
+            f"Line {result.line_id} should have 3 dimension winners"
         )
-        for rubric_score in line_score.scores:
-            assert 1 <= rubric_score.score <= 5, (
-                f"Invalid {rubric_score.dimension} score for line {line_score.line_id}"
-            )
-
-    # Check rentl result has all three dimensions
-    for line_score in ctx.report.rentl_result.line_scores:
-        assert len(line_score.scores) == 3, (
-            f"Line {line_score.line_id} should have 3 dimension scores"
-        )
-        for rubric_score in line_score.scores:
-            assert 1 <= rubric_score.score <= 5, (
-                f"Invalid {rubric_score.dimension} score for line {line_score.line_id}"
-            )
 
 
 @then("dimension aggregates are computed")
 def check_dimension_aggregates(ctx: BenchmarkContext) -> None:
     """Verify that dimension aggregates are present in the report."""
     assert ctx.report is not None
-    assert ctx.report.mtl_result is not None
-    assert ctx.report.rentl_result is not None
-
-    # Check MTL aggregates
-    assert len(ctx.report.mtl_result.dimension_aggregates) == 3, (
-        "MTL should have 3 dimension aggregates"
-    )
-
-    # Check rentl aggregates
-    assert len(ctx.report.rentl_result.dimension_aggregates) == 3, (
-        "rentl should have 3 dimension aggregates"
-    )
-
-    # Verify MTL aggregates have mean values > 0
-    for agg in ctx.report.mtl_result.dimension_aggregates:
-        assert agg.mean > 0, f"MTL {agg.dimension} mean should be > 0"
-
-    # Verify rentl aggregates have mean values > 0
-    for agg in ctx.report.rentl_result.dimension_aggregates:
-        assert agg.mean > 0, f"rentl {agg.dimension} mean should be > 0"
+    # TODO: Update for new head-to-head schema (Task 8)
+    # Check pairwise summaries have dimension win rates
+    assert len(ctx.report.pairwise_summaries) > 0, "No pairwise summaries found"
+    for summary in ctx.report.pairwise_summaries:
+        assert len(summary.dimension_win_rates) == 3, (
+            "Each pairwise summary should have 3 dimension win rates"
+        )
 
 
 @then("head-to-head results include winner selections")
 def check_head_to_head_results(ctx: BenchmarkContext) -> None:
     """Verify that head-to-head comparison results include winner selections."""
     assert ctx.report is not None
-    assert ctx.report.head_to_head_summary is not None
+    # TODO: Update for new head-to-head schema (Task 8)
+    assert len(ctx.report.pairwise_summaries) > 0, "No pairwise summaries found"
 
-    # Check that we have head-to-head results
-    assert ctx.report.head_to_head_summary.total_comparisons > 0, (
-        "No head-to-head comparisons found"
-    )
+    for summary in ctx.report.pairwise_summaries:
+        # Check that winners are tallied
+        total_wins = summary.candidate_a_wins + summary.candidate_b_wins + summary.ties
+        assert total_wins == summary.total_comparisons, (
+            "Winner counts don't sum to total comparisons"
+        )
 
-    # Check that winners are tallied
-    total_wins = (
-        ctx.report.head_to_head_summary.system_a_wins
-        + ctx.report.head_to_head_summary.system_b_wins
-        + ctx.report.head_to_head_summary.ties
-    )
-    assert total_wins == ctx.report.head_to_head_summary.total_comparisons, (
-        "Winner counts don't sum to total comparisons"
-    )
-
-    # Check dimension win rates are present
-    assert len(ctx.report.head_to_head_summary.dimension_win_rates) == 3, (
-        "Should have win rates for all 3 dimensions"
-    )
-
-    # Verify all three dimensions have win rate entries
-    assert (
-        RubricDimension.ACCURACY in ctx.report.head_to_head_summary.dimension_win_rates
-    )
-    assert (
-        RubricDimension.STYLE_FIDELITY
-        in ctx.report.head_to_head_summary.dimension_win_rates
-    )
-    assert (
-        RubricDimension.CONSISTENCY
-        in ctx.report.head_to_head_summary.dimension_win_rates
-    )
+        # Check dimension win rates are present
+        assert len(summary.dimension_win_rates) == 3, (
+            "Should have win rates for all 3 dimensions"
+        )

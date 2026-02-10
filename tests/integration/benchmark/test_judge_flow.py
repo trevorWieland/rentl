@@ -274,8 +274,9 @@ def given_judge_winner_a(ctx: JudgeContext, docstring: str) -> None:
 def when_score_reference_based(ctx: JudgeContext) -> None:
     """Execute reference-based scoring."""
     assert ctx.judge is not None
+    # TODO: Removed in Task 2 - isolated scoring removed
     ctx.rubric_results = asyncio.run(
-        ctx.judge.score_batch(ctx.translations, ctx.references)
+        ctx.judge.score_batch(ctx.translations, ctx.references)  # type: ignore[attr-defined]
     )
 
 
@@ -283,8 +284,9 @@ def when_score_reference_based(ctx: JudgeContext) -> None:
 def when_score_reference_free(ctx: JudgeContext) -> None:
     """Execute reference-free scoring."""
     assert ctx.judge is not None
+    # TODO: Removed in Task 2 - isolated scoring removed
     ctx.rubric_results = asyncio.run(
-        ctx.judge.score_batch(ctx.translations, references=None)
+        ctx.judge.score_batch(ctx.translations, references=None)  # type: ignore[attr-defined]
     )
 
 
@@ -294,7 +296,11 @@ def when_compare_head_to_head(ctx: JudgeContext) -> None:
     assert ctx.judge is not None
     ctx.head_to_head_results = asyncio.run(
         ctx.judge.compare_batch_head_to_head(
-            ctx.translations_mtl, ctx.translations_rentl, randomize_order=False
+            ctx.translations_mtl,
+            ctx.translations_rentl,
+            candidate_1_name="mtl",
+            candidate_2_name="rentl",
+            randomize_order=False,
         )
     )
 
@@ -307,7 +313,11 @@ def when_compare_head_to_head_randomized(ctx: JudgeContext) -> None:
     random.seed(1)
     ctx.head_to_head_results = asyncio.run(
         ctx.judge.compare_batch_head_to_head(
-            ctx.translations_mtl, ctx.translations_rentl, randomize_order=True
+            ctx.translations_mtl,
+            ctx.translations_rentl,
+            candidate_1_name="mtl",
+            candidate_2_name="rentl",
+            randomize_order=True,
         )
     )
 

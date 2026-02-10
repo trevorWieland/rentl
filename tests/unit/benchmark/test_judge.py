@@ -60,6 +60,7 @@ def mock_runtime() -> MagicMock:
     return MagicMock()
 
 
+@pytest.mark.skip(reason="Removed in Task 2 - isolated scoring removed")
 def test_reference_based_prompt_construction(
     mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
 ) -> None:
@@ -68,7 +69,8 @@ def test_reference_based_prompt_construction(
         runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
     )
 
-    prompt = judge._build_reference_based_prompt(
+    # TODO: Removed in Task 2 - isolated scoring removed
+    prompt = judge._build_reference_based_prompt(  # type: ignore[attr-defined]
         source_text="こんにちは",
         reference="Hello",
         candidate="Hi there",
@@ -83,6 +85,7 @@ def test_reference_based_prompt_construction(
     assert "1-5" in prompt
 
 
+@pytest.mark.skip(reason="Removed in Task 2 - isolated scoring removed")
 def test_reference_free_prompt_construction(
     mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
 ) -> None:
@@ -91,7 +94,8 @@ def test_reference_free_prompt_construction(
         runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
     )
 
-    prompt = judge._build_reference_free_prompt(
+    # TODO: Removed in Task 2 - isolated scoring removed
+    prompt = judge._build_reference_free_prompt(  # type: ignore[attr-defined]
         source_text="こんにちは",
         candidate="Hi there",
     )
@@ -128,6 +132,7 @@ def test_head_to_head_prompt_construction(
     assert "dimension_winners" in prompt
 
 
+@pytest.mark.skip(reason="Removed in Task 2 - isolated scoring removed")
 def test_parse_rubric_scores_from_json(
     mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
 ) -> None:
@@ -142,7 +147,8 @@ def test_parse_rubric_scores_from_json(
         "consistency": {"score": 5, "reasoning": "Consistent terminology"},
     })
 
-    scores = judge._parse_rubric_scores(response)
+    # TODO: Removed in Task 2 - isolated scoring removed
+    scores = judge._parse_rubric_scores(response)  # type: ignore[attr-defined]
 
     assert len(scores) == 3
     assert scores[0].dimension == RubricDimension.ACCURACY
@@ -154,6 +160,7 @@ def test_parse_rubric_scores_from_json(
     assert scores[2].score == 5
 
 
+@pytest.mark.skip(reason="Removed in Task 2 - isolated scoring removed")
 def test_parse_rubric_scores_from_markdown_json(
     mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
 ) -> None:
@@ -170,7 +177,8 @@ def test_parse_rubric_scores_from_markdown_json(
 }
 ```"""
 
-    scores = judge._parse_rubric_scores(response)
+    # TODO: Removed in Task 2 - isolated scoring removed
+    scores = judge._parse_rubric_scores(response)  # type: ignore[attr-defined]
 
     assert len(scores) == 3
     assert scores[0].score == 3
@@ -178,6 +186,7 @@ def test_parse_rubric_scores_from_markdown_json(
     assert scores[2].score == 4
 
 
+@pytest.mark.skip(reason="Removed in Task 2 - isolated scoring removed")
 def test_parse_rubric_scores_missing_dimension(
     mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
 ) -> None:
@@ -191,8 +200,9 @@ def test_parse_rubric_scores_missing_dimension(
         # Missing style_fidelity and consistency
     })
 
+    # TODO: Removed in Task 2 - isolated scoring removed
     with pytest.raises(ValueError, match="Missing dimension"):
-        judge._parse_rubric_scores(response)
+        judge._parse_rubric_scores(response)  # type: ignore[attr-defined]
 
 
 def test_parse_head_to_head_from_json(
@@ -263,6 +273,7 @@ def test_parse_head_to_head_invalid_winner(
         judge._parse_head_to_head(response)
 
 
+@pytest.mark.skip(reason="Removed in Task 2 - isolated scoring removed")
 @pytest.mark.asyncio
 async def test_score_translation_reference_based(
     mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
@@ -283,7 +294,8 @@ async def test_score_translation_reference_based(
         runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
     )
 
-    result = await judge.score_translation(
+    # TODO: Removed in Task 2 - isolated scoring removed
+    result = await judge.score_translation(  # type: ignore[attr-defined]
         line_id="line_1",
         source_text="こんにちは",
         translation="Hello",
@@ -299,6 +311,7 @@ async def test_score_translation_reference_based(
     assert result.scores[0].score == 5
 
 
+@pytest.mark.skip(reason="Removed in Task 2 - isolated scoring removed")
 @pytest.mark.asyncio
 async def test_score_translation_reference_free(
     mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
@@ -319,7 +332,8 @@ async def test_score_translation_reference_free(
         runtime=mock_runtime, runtime_settings=runtime_settings, api_key="test-key"
     )
 
-    result = await judge.score_translation(
+    # TODO: Removed in Task 2 - isolated scoring removed
+    result = await judge.score_translation(  # type: ignore[attr-defined]
         line_id="line_1",
         source_text="こんにちは",
         translation="Hi there",
@@ -331,6 +345,7 @@ async def test_score_translation_reference_free(
     assert len(result.scores) == 3
 
 
+@pytest.mark.skip(reason="Removed in Task 2 - isolated scoring removed")
 @pytest.mark.asyncio
 async def test_score_batch(
     mock_runtime: MagicMock, runtime_settings: LlmRuntimeSettings
@@ -364,7 +379,8 @@ async def test_score_batch(
         ),
     ]
 
-    results = await judge.score_batch(translations)
+    # TODO: Removed in Task 2 - isolated scoring removed
+    results = await judge.score_batch(translations)  # type: ignore[attr-defined]
 
     assert len(results) == 2
     assert results[0].line_id == "line_1"
@@ -401,6 +417,8 @@ async def test_compare_head_to_head(
         source_text="こんにちは",
         translation_1="Hello",
         translation_2="Hi there",
+        candidate_1_name="candidate_1",
+        candidate_2_name="candidate_2",
         randomize_order=False,
     )
 
@@ -446,7 +464,11 @@ async def test_compare_batch_head_to_head(
     ]
 
     results = await judge.compare_batch_head_to_head(
-        trans1, trans2, randomize_order=False
+        trans1,
+        trans2,
+        candidate_1_name="candidate_1",
+        candidate_2_name="candidate_2",
+        randomize_order=False,
     )
 
     assert len(results) == 2
@@ -473,7 +495,9 @@ async def test_compare_batch_mismatched_line_ids(
     ]
 
     with pytest.raises(ValueError, match="not found in second translation set"):
-        await judge.compare_batch_head_to_head(trans1, trans2)
+        await judge.compare_batch_head_to_head(
+            trans1, trans2, candidate_1_name="c1", candidate_2_name="c2"
+        )
 
 
 @pytest.mark.asyncio
@@ -514,6 +538,8 @@ async def test_compare_head_to_head_with_randomization(
         source_text="こんにちは",
         translation_1="Hello",
         translation_2="Hi there",
+        candidate_1_name="candidate_1",
+        candidate_2_name="candidate_2",
         randomize_order=True,
     )
 

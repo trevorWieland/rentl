@@ -1,116 +1,44 @@
 """Benchmark report generation with aggregation and formatting.
 
-Assembles per-line scores into aggregated reports with statistics and
-human-readable output for CLI display.
+Assembles pairwise head-to-head results into aggregated reports with
+win rates, Elo ratings, and human-readable output for CLI display.
 """
-
-import statistics
 
 from rentl_schemas.benchmark.report import (
     BenchmarkReport,
-    DimensionAggregate,
-    HeadToHeadSummary,
-    TranslationResult,
+    EloRating,
+    PairwiseSummary,
 )
 from rentl_schemas.benchmark.rubric import (
     HeadToHeadResult,
-    LineScore,
     RubricDimension,
 )
 
 
 class BenchmarkReportBuilder:
-    """Build aggregated benchmark reports from per-line scores."""
+    """Build aggregated benchmark reports from head-to-head results."""
 
     @staticmethod
-    def build_dimension_aggregate(
-        dimension: RubricDimension,
-        line_scores: list[LineScore],
-    ) -> DimensionAggregate:
-        """Aggregate scores for a single rubric dimension.
-
-        Args:
-            dimension: Which rubric dimension to aggregate
-            line_scores: All line scores to aggregate
-
-        Returns:
-            Aggregated statistics for the dimension
-        """
-        scores = []
-        for line_score in line_scores:
-            # Find the score for this dimension
-            for rubric_score in line_score.scores:
-                if rubric_score.dimension == dimension:
-                    scores.append(rubric_score.score)
-                    break
-
-        if not scores:
-            # No scores found for this dimension
-            return DimensionAggregate(
-                dimension=dimension,
-                mean=0.0,
-                median=0.0,
-                stddev=0.0,
-                min_score=1,
-                max_score=1,
-            )
-
-        return DimensionAggregate(
-            dimension=dimension,
-            mean=statistics.mean(scores),
-            median=statistics.median(scores),
-            stddev=statistics.stdev(scores) if len(scores) > 1 else 0.0,
-            min_score=min(scores),
-            max_score=max(scores),
-        )
-
-    @staticmethod
-    def build_translation_result(
-        system_name: str,
-        line_scores: list[LineScore],
-    ) -> TranslationResult:
-        """Build translation result with aggregates for one system.
-
-        Args:
-            system_name: Name of the translation system (e.g., "mtl", "rentl")
-            line_scores: Per-line scores for this system
-
-        Returns:
-            Complete translation result with aggregates
-        """
-        dimension_aggregates = [
-            BenchmarkReportBuilder.build_dimension_aggregate(dim, line_scores)
-            for dim in RubricDimension
-        ]
-
-        return TranslationResult(
-            system_name=system_name,
-            line_scores=line_scores,
-            dimension_aggregates=dimension_aggregates,
-        )
-
-    @staticmethod
-    def build_head_to_head_summary(
+    def build_pairwise_summary(
         head_to_head_results: list[HeadToHeadResult],
-        system_a_name: str,
-        system_b_name: str,
-    ) -> HeadToHeadSummary:
-        """Build head-to-head comparison summary.
+        candidate_a_name: str,
+        candidate_b_name: str,
+    ) -> PairwiseSummary:
+        """Build pairwise summary from head-to-head results for one candidate pair.
 
         Args:
-            head_to_head_results: Per-line head-to-head results
-            system_a_name: Name of system A
-            system_b_name: Name of system B
+            head_to_head_results: Per-line head-to-head results for this pair
+            candidate_a_name: Name of first candidate
+            candidate_b_name: Name of second candidate
 
         Returns:
-            Aggregated head-to-head summary with win rates
+            Aggregated pairwise summary with win rates
         """
         total = len(head_to_head_results)
-        # Schema uses "A"/"B"/"tie" for winner slots, not system names
-        system_a_wins = sum(
+        candidate_a_wins = sum(
             1 for result in head_to_head_results if result.winner == "A"
         )
-        system_b_wins = sum(
+        candidate_b_wins = sum(
             1 for result in head_to_head_results if result.winner == "B"
         )
         ties = sum(1 for result in head_to_head_results if result.winner == "tie")
@@ -125,7 +53,6 @@ class BenchmarkReportBuilder:
 
             for result in head_to_head_results:
                 winner = result.dimension_winners.get(dimension)
-                # Schema uses "A"/"B"/"tie" for winner slots, not system names
                 if winner == "A":
                     dim_a_wins += 1
                 elif winner == "B":
@@ -139,60 +66,102 @@ class BenchmarkReportBuilder:
                 "tie": dim_ties / total if total > 0 else 0.0,
             }
 
-        return HeadToHeadSummary(
+        return PairwiseSummary(
+            candidate_a_name=candidate_a_name,
+            candidate_b_name=candidate_b_name,
             total_comparisons=total,
-            system_a_wins=system_a_wins,
-            system_b_wins=system_b_wins,
+            candidate_a_wins=candidate_a_wins,
+            candidate_b_wins=candidate_b_wins,
             ties=ties,
             dimension_win_rates=dimension_win_rates,
         )
 
     @staticmethod
+    def compute_elo_ratings(
+        candidates: list[str],
+        pairwise_summaries: list[PairwiseSummary],
+        k_factor: float = 32.0,
+        initial_rating: float = 1500.0,
+    ) -> list[EloRating]:
+        """Compute Elo ratings from pairwise comparison results.
+
+        Args:
+            candidates: List of candidate names
+            pairwise_summaries: All pairwise comparison summaries
+            k_factor: Elo K-factor (sensitivity to individual games)
+            initial_rating: Starting Elo rating for all candidates
+
+        Returns:
+            List of Elo ratings for all candidates
+        """
+        # Initialize ratings
+        ratings: dict[str, float] = dict.fromkeys(candidates, initial_rating)
+
+        # Process each pairwise summary
+        for summary in pairwise_summaries:
+            # Expected score for A vs B
+            expected_a = 1 / (
+                1
+                + 10
+                ** (
+                    (
+                        ratings[summary.candidate_b_name]
+                        - ratings[summary.candidate_a_name]
+                    )
+                    / 400
+                )
+            )
+
+            # Actual score (wins + 0.5 * ties) / total
+            actual_a = (
+                summary.candidate_a_wins + 0.5 * summary.ties
+            ) / summary.total_comparisons
+
+            # Update ratings
+            ratings[summary.candidate_a_name] += k_factor * (actual_a - expected_a)
+            ratings[summary.candidate_b_name] += k_factor * (
+                (1 - actual_a) - (1 - expected_a)
+            )
+
+        return [
+            EloRating(candidate_name=name, rating=ratings[name]) for name in candidates
+        ]
+
+    @staticmethod
     def build_report(
         eval_set: str,
         slice_name: str | None,
-        scoring_mode: str,
         judge_model: str,
-        mtl_line_scores: list[LineScore],
-        rentl_line_scores: list[LineScore],
-        head_to_head_results: list[HeadToHeadResult] | None = None,
+        candidates: list[str],
+        head_to_head_results: list[HeadToHeadResult],
+        pairwise_summaries: list[PairwiseSummary],
+        elo_ratings: list[EloRating],
+        overall_ranking: list[str],
     ) -> BenchmarkReport:
         """Build complete benchmark report.
 
         Args:
             eval_set: Evaluation set name
             slice_name: Slice name (None if full set)
-            scoring_mode: Scoring mode used
             judge_model: Judge model identifier
-            mtl_line_scores: Per-line scores for MTL baseline
-            rentl_line_scores: Per-line scores for rentl pipeline
-            head_to_head_results: Optional head-to-head results
+            candidates: List of candidate names
+            head_to_head_results: All pairwise head-to-head results
+            pairwise_summaries: Per-pair win rate summaries
+            elo_ratings: Elo ratings for all candidates
+            overall_ranking: Candidate names ordered by Elo (best to worst)
 
         Returns:
             Complete benchmark report
         """
-        mtl_result = BenchmarkReportBuilder.build_translation_result(
-            "mtl", mtl_line_scores
-        )
-        rentl_result = BenchmarkReportBuilder.build_translation_result(
-            "rentl", rentl_line_scores
-        )
-
-        head_to_head_summary = None
-        if head_to_head_results:
-            head_to_head_summary = BenchmarkReportBuilder.build_head_to_head_summary(
-                head_to_head_results, "mtl", "rentl"
-            )
-
         return BenchmarkReport(
             eval_set=eval_set,
             slice_name=slice_name,
-            scoring_mode=scoring_mode,
             judge_model=judge_model,
-            mtl_result=mtl_result,
-            rentl_result=rentl_result,
-            head_to_head=head_to_head_results,
-            head_to_head_summary=head_to_head_summary,
+            candidates=candidates,
+            head_to_head_results=head_to_head_results,
+            pairwise_summaries=pairwise_summaries,
+            elo_ratings=elo_ratings,
+            overall_ranking=overall_ranking,
         )
 
 
@@ -211,54 +180,47 @@ def format_report_summary(report: BenchmarkReport) -> str:
     if report.slice_name:
         lines.append(f"Slice: {report.slice_name}")
     lines.extend([
-        f"Scoring Mode: {report.scoring_mode}",
         f"Judge Model: {report.judge_model}",
+        f"Candidates: {', '.join(report.candidates)}",
         "",
-        "--- MTL Baseline ---",
+        "--- Overall Ranking (by Elo) ---",
     ])
-    for agg in report.mtl_result.dimension_aggregates:
-        lines.append(
-            f"{agg.dimension.value}: "
-            f"mean={agg.mean:.2f}, "
-            f"median={agg.median:.1f}, "
-            f"stddev={agg.stddev:.2f}"
-        )
-    lines.extend(["", "--- rentl Pipeline ---"])
-    for agg in report.rentl_result.dimension_aggregates:
-        lines.append(
-            f"{agg.dimension.value}: "
-            f"mean={agg.mean:.2f}, "
-            f"median={agg.median:.1f}, "
-            f"stddev={agg.stddev:.2f}"
-        )
-    lines.append("")
 
-    # Head-to-head summary
-    if report.head_to_head_summary:
-        summary = report.head_to_head_summary
+    # Show Elo ratings in ranking order
+    elo_map = {rating.candidate_name: rating.rating for rating in report.elo_ratings}
+    for rank, candidate in enumerate(report.overall_ranking, 1):
+        elo = elo_map.get(candidate, 0.0)
+        lines.append(f"{rank}. {candidate}: Elo {elo:.1f}")
+
+    lines.extend(("", "--- Pairwise Win Rates ---"))
+
+    # Show each pairwise comparison
+    for summary in report.pairwise_summaries:
+        total = summary.total_comparisons
+        a_pct = summary.candidate_a_wins / total * 100 if total > 0 else 0.0
+        b_pct = summary.candidate_b_wins / total * 100 if total > 0 else 0.0
+        tie_pct = summary.ties / total * 100 if total > 0 else 0.0
+
+        a_wins_str = f"  {summary.candidate_a_name}: "
+        a_wins_str += f"{summary.candidate_a_wins} wins ({a_pct:.1f}%)"
+        b_wins_str = f"  {summary.candidate_b_name}: "
+        b_wins_str += f"{summary.candidate_b_wins} wins ({b_pct:.1f}%)"
+
         lines.extend([
-            "--- Head-to-Head Comparison ---",
-            f"Total comparisons: {summary.total_comparisons}",
-            (
-                f"MTL wins: {summary.system_a_wins} "
-                f"({summary.system_a_wins / summary.total_comparisons * 100:.1f}%)"
-            ),
-            (
-                f"rentl wins: {summary.system_b_wins} "
-                f"({summary.system_b_wins / summary.total_comparisons * 100:.1f}%)"
-            ),
-            (
-                f"Ties: {summary.ties} "
-                f"({summary.ties / summary.total_comparisons * 100:.1f}%)"
-            ),
             "",
-            "Per-dimension win rates:",
+            f"{summary.candidate_a_name} vs {summary.candidate_b_name}:",
+            a_wins_str,
+            b_wins_str,
+            f"  Ties: {summary.ties} ({tie_pct:.1f}%)",
         ])
+
+        # Show per-dimension win rates
+        lines.append("  Per-dimension:")
         for dimension, rates in summary.dimension_win_rates.items():
             lines.append(
-                f"  {dimension.value}: "
-                f"MTL={rates['A'] * 100:.1f}%, "
-                f"rentl={rates['B'] * 100:.1f}%, "
+                f"    {dimension.value}: "
+                f"{summary.candidate_a_name}={rates['A'] * 100:.1f}%, "
+                f"{summary.candidate_b_name}={rates['B'] * 100:.1f}%, "
                 f"tie={rates['tie'] * 100:.1f}%"
             )
 

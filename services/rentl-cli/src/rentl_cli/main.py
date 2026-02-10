@@ -41,7 +41,6 @@ from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
 from rentl_core.benchmark.eval_sets.loader import EvalSetLoader
 from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
 from rentl_core.benchmark.judge import RubricJudge
-from rentl_core.benchmark.mtl_baseline import MTLBaselineGenerator
 from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_summary
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
@@ -83,7 +82,6 @@ from rentl_io.storage.log_sink import build_log_sink
 from rentl_io.storage.progress_sink import FileSystemProgressSink
 from rentl_llm import OpenAICompatibleRuntime
 from rentl_schemas.base import BaseSchema
-from rentl_schemas.benchmark.rubric import LineScore
 from rentl_schemas.config import (
     LanguageConfig,
     LoggingConfig,
@@ -1112,23 +1110,13 @@ def benchmark(
     Raises:
         typer.Exit: When the benchmark fails
     """
-    output_path = Path(output) if output else None
-    try:
-        asyncio.run(
-            _run_benchmark_async(
-                eval_set=eval_set,
-                slice_name=slice_name,
-                judge_model=judge_model,
-                judge_base_url=judge_base_url,
-                scoring_mode=scoring_mode,
-                output_path=output_path,
-                config_path=config_path,
-            )
-        )
-    except Exception as exc:
-        error = _error_from_exception(exc)
-        rprint(f"[red]Benchmark failed:[/red] {error.message}")
-        raise typer.Exit(code=1) from None
+    # NOTE: This command is being rewritten in Task 7
+    # The old implementation used MTLBaselineGenerator (removed in Task 4)
+    # Task 7 will replace this with `rentl benchmark download` and
+    # `rentl benchmark compare`
+    rprint("[yellow]This command is currently being rewritten.[/yellow]")
+    rprint("[yellow]Use will be available after Task 7 completion.[/yellow]")
+    raise typer.Exit(code=1)
 
 
 ResponseT = TypeVar("ResponseT")
@@ -2347,39 +2335,35 @@ async def _run_benchmark_async(
     if default_model_settings is None:
         raise ValueError("No default model configured in pipeline")
 
-    mtl_endpoint = LlmEndpointTarget(
-        endpoint_ref="default",
-        provider_name="openai",
-        base_url="https://api.openai.com/v1",
-        api_key_env="OPENAI_API_KEY",
-        timeout_s=30.0,
-        openrouter_provider=None,
-    )
-    mtl_model = LlmModelSettings(
-        model_id=default_model_settings.model_id,
-        temperature=0.3,
-        max_output_tokens=None,
-        reasoning_effort=None,
-        top_p=1.0,
-        presence_penalty=0.0,
-        frequency_penalty=0.0,
-    )
-    mtl_retry = config.retry
-    mtl_runtime_settings = LlmRuntimeSettings(
-        endpoint=mtl_endpoint,
-        model=mtl_model,
-        retry=mtl_retry,
-    )
-
-    mtl_generator = MTLBaselineGenerator(
-        runtime=runtime,
-        runtime_settings=mtl_runtime_settings,
-        api_key=api_key,
-        concurrency_limit=5,
-    )
-
-    mtl_translations = await mtl_generator.generate_baseline(all_source_lines)
-    console.print(f"  Generated {len(mtl_translations)} MTL translations")
+    # NOTE: MTLBaselineGenerator removed in Task 4
+    # All MTL-related setup commented out (will be removed in Task 7):
+    # mtl_endpoint = LlmEndpointTarget(
+    #     endpoint_ref="default",
+    #     provider_name="openai",
+    #     base_url="https://api.openai.com/v1",
+    #     api_key_env="OPENAI_API_KEY",
+    #     timeout_s=30.0,
+    #     openrouter_provider=None,
+    # )
+    # mtl_model = LlmModelSettings(
+    #     model_id=default_model_settings.model_id,
+    #     temperature=0.3,
+    #     max_output_tokens=None,
+    #     reasoning_effort=None,
+    #     top_p=1.0,
+    #     presence_penalty=0.0,
+    #     frequency_penalty=0.0,
+    # )
+    # mtl_retry = config.retry
+    # mtl_runtime_settings = LlmRuntimeSettings(
+    #     endpoint=mtl_endpoint,
+    #     model=mtl_model,
+    #     retry=mtl_retry,
+    # )
+    # This entire function will be removed in Task 7
+    # Placeholder stub to avoid import errors:
+    mtl_translations: list = []
+    console.print("  [yellow]MTL generation disabled (Task 4)[/yellow]")
 
     # Step 3: Run rentl pipeline
     console.print("\n[bold]Step 3/5:[/bold] Running rentl pipeline...")
@@ -2454,7 +2438,8 @@ async def _run_benchmark_async(
         actual_scoring_mode = "reference_free"
 
     # Judge MTL translations
-    mtl_scores: list[LineScore] = []
+    # TODO: Update for new head-to-head schema (Task 7)
+    mtl_scores: list = []
     for mtl_line in mtl_translations:
         # Find matching source line
         source_line = next(
@@ -2470,7 +2455,7 @@ async def _run_benchmark_async(
 
         # Use reference if available for reference-based mode
         reference_text = reference_lines.get(mtl_line.line_id)
-        score = await judge.score_translation(
+        score = await judge.score_translation(  # type: ignore[attr-defined]
             line_id=mtl_line.line_id,
             source_text=source_line.text,
             translation=mtl_line.text,
@@ -2481,7 +2466,8 @@ async def _run_benchmark_async(
     console.print(f"  Judged {len(mtl_scores)} MTL translations")
 
     # Judge rentl translations
-    rentl_scores: list[LineScore] = []
+    # TODO: Update for new head-to-head schema (Task 7)
+    rentl_scores: list = []
     for rentl_line in rentl_translations:
         source_line = next(
             (
@@ -2496,7 +2482,7 @@ async def _run_benchmark_async(
 
         # Use reference if available for reference-based mode
         reference_text = reference_lines.get(rentl_line.line_id)
-        score = await judge.score_translation(
+        score = await judge.score_translation(  # type: ignore[attr-defined]
             line_id=rentl_line.line_id,
             source_text=source_line.text,
             translation=rentl_line.text,
@@ -2509,14 +2495,15 @@ async def _run_benchmark_async(
     # Step 5: Generate report
     console.print("\n[bold]Step 5/5:[/bold] Generating report...")
 
-    report = BenchmarkReportBuilder.build_report(
+    # TODO: Update for new head-to-head schema (Task 7)
+    report = BenchmarkReportBuilder.build_report(  # type: ignore[call-arg]
         eval_set=eval_set,
         slice_name=slice_name,
-        scoring_mode=actual_scoring_mode,
+        scoring_mode=actual_scoring_mode,  # type: ignore[arg-type]
         judge_model=judge_model,
-        mtl_line_scores=mtl_scores,
-        rentl_line_scores=rentl_scores,
-        head_to_head_results=None,  # TODO: Add head-to-head support
+        mtl_line_scores=mtl_scores,  # type: ignore[arg-type]
+        rentl_line_scores=rentl_scores,  # type: ignore[arg-type]
+        head_to_head_results=[],  # type: ignore[arg-type]
     )
 
     # Write JSON report if requested

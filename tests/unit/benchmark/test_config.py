@@ -1,8 +1,5 @@
 """Unit tests for benchmark configuration schemas."""
 
-import pytest
-from pydantic import ValidationError
-
 from rentl_schemas.benchmark.config import (
     BenchmarkConfig,
     EvalSetConfig,
@@ -107,17 +104,13 @@ def test_benchmark_config_valid() -> None:
     config = BenchmarkConfig(
         eval_set="katawa-shoujo",
         slice_name="demo",
-        scoring_mode="reference_based",
         judge_model="gpt-4o",
         judge_base_url="https://api.openai.com/v1",
-        head_to_head=True,
         output_path="/tmp/benchmark.json",
     )
     assert config.eval_set == "katawa-shoujo"
     assert config.slice_name == "demo"
-    assert config.scoring_mode == "reference_based"
     assert config.judge_model == "gpt-4o"
-    assert config.head_to_head is True
 
 
 def test_benchmark_config_minimal() -> None:
@@ -127,30 +120,15 @@ def test_benchmark_config_minimal() -> None:
         judge_model="gpt-4o",
     )
     assert config.slice_name is None
-    assert config.scoring_mode == "reference_based"
     assert config.judge_base_url is None
-    assert config.head_to_head is False
     assert config.output_path is None
 
 
 def test_benchmark_config_scoring_mode_validation() -> None:
     """Test BenchmarkConfig scoring_mode validates against literal values."""
-    # Valid scoring modes
-    for mode in ["reference_based", "reference_free"]:
-        config = BenchmarkConfig(
-            eval_set="test",
-            scoring_mode=mode,  # type: ignore[arg-type]
-            judge_model="gpt-4o",
-        )
-        assert config.scoring_mode == mode
-
-    # Invalid scoring mode
-    with pytest.raises(ValidationError):
-        BenchmarkConfig(
-            eval_set="test",
-            scoring_mode="invalid",  # type: ignore[arg-type]
-            judge_model="gpt-4o",
-        )
+    # TODO: Removed in Task 2 - benchmark is head-to-head only now
+    # This test is no longer relevant since scoring_mode was removed
+    pass
 
 
 def test_benchmark_config_roundtrip() -> None:
@@ -158,9 +136,7 @@ def test_benchmark_config_roundtrip() -> None:
     original = BenchmarkConfig(
         eval_set="test",
         slice_name="demo",
-        scoring_mode="reference_free",
         judge_model="claude-3-5-sonnet-20241022",
-        head_to_head=True,
     )
     json_data = original.model_dump()
     reconstructed = BenchmarkConfig.model_validate(json_data)

@@ -45,7 +45,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Existing work is valid and tested (downloader, parser, aligner, loader, manifest, slices)
   - No changes needed — `benchmark download` CLI will reuse this directly
 
-- [ ] Task 4: Output loader and dead code removal
+- [x] Task 4: Output loader and dead code removal
   - **Create** `rentl-core/src/rentl_core/benchmark/output_loader.py`:
     - Read rentl run output JSONL files into `TranslatedLine` format
     - Support loading from export output paths (the files `rentl run` produces)
