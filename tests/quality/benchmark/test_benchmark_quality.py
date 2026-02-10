@@ -71,20 +71,20 @@ def create_sample_outputs(ctx: BenchmarkContext) -> None:
 
     sample_lines_a = [
         TranslatedLine(
-            line_id="act1_1",
-            scene_id="act1",
+            line_id="scene_1_1",
+            scene_id="scene_1",
             source_text="こんにちは、世界。",
             text="Hello, world.",
         ),
         TranslatedLine(
-            line_id="act1_2",
-            scene_id="act1",
+            line_id="scene_1_2",
+            scene_id="scene_1",
             source_text="今日はいい天気ですね。",
             text="It's nice weather today.",
         ),
         TranslatedLine(
-            line_id="act1_3",
-            scene_id="act1",
+            line_id="scene_1_3",
+            scene_id="scene_1",
             source_text="ありがとうございます。",
             text="Thank you very much.",
         ),
@@ -92,20 +92,20 @@ def create_sample_outputs(ctx: BenchmarkContext) -> None:
 
     sample_lines_b = [
         TranslatedLine(
-            line_id="act1_1",
-            scene_id="act1",
+            line_id="scene_1_1",
+            scene_id="scene_1",
             source_text="こんにちは、世界。",
             text="Hello, World.",  # Different capitalization
         ),
         TranslatedLine(
-            line_id="act1_2",
-            scene_id="act1",
+            line_id="scene_1_2",
+            scene_id="scene_1",
             source_text="今日はいい天気ですね。",
             text="The weather is nice today.",  # Different structure
         ),
         TranslatedLine(
-            line_id="act1_3",
-            scene_id="act1",
+            line_id="scene_1_3",
+            scene_id="scene_1",
             source_text="ありがとうございます。",
             text="Thanks.",  # More casual
         ),
@@ -155,6 +155,7 @@ def run_benchmark_compare(ctx: BenchmarkContext) -> None:
             str(ctx.report_path),
             "--candidate-names",
             "candidate-a",
+            "--candidate-names",
             "candidate-b",
         ],
         env={

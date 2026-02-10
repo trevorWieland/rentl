@@ -1234,7 +1234,7 @@ def benchmark_compare(
     ),
     candidate_names: list[str] | None = typer.Option(  # noqa: B008
         None,
-        "--candidate-name",
+        "--candidate-names",
         help="Human-readable names for candidates (defaults to filenames)",
     ),
     judge_model: str | None = typer.Option(
