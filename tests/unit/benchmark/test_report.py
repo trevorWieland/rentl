@@ -491,6 +491,30 @@ def test_compute_elo_ratings_three_way() -> None:
     assert mid_rating.rating > worst_rating.rating
 
 
+def test_compute_elo_ratings_zero_comparisons() -> None:
+    """Test Elo rating computation handles zero-comparison summaries safely."""
+    pairwise = [
+        PairwiseSummary(
+            candidate_a_name="a",
+            candidate_b_name="b",
+            total_comparisons=0,
+            candidate_a_wins=0,
+            candidate_b_wins=0,
+            ties=0,
+        )
+    ]
+
+    # Should not crash on division by zero
+    ratings = BenchmarkReportBuilder.compute_elo_ratings(["a", "b"], pairwise)
+
+    # Both should remain at initial rating when no comparisons occurred
+    a_rating = next(r for r in ratings if r.candidate_name == "a")
+    b_rating = next(r for r in ratings if r.candidate_name == "b")
+
+    assert a_rating.rating == 1500.0
+    assert b_rating.rating == 1500.0
+
+
 def test_build_report() -> None:
     """Test building complete benchmark report."""
     head_to_head = [
@@ -528,7 +552,6 @@ def test_build_report() -> None:
         head_to_head_results=head_to_head,
         pairwise_summaries=pairwise,
         elo_ratings=elo_ratings,
-        overall_ranking=["a", "b"],
     )
 
     assert report.eval_set == "test-set"
@@ -538,7 +561,53 @@ def test_build_report() -> None:
     assert len(report.head_to_head_results) == 1
     assert len(report.pairwise_summaries) == 1
     assert len(report.elo_ratings) == 2
+    # Verify overall_ranking is derived from Elo ratings (a has higher rating)
     assert report.overall_ranking == ["a", "b"]
+
+
+def test_build_report_derives_ranking_from_elo() -> None:
+    """Test that build_report derives overall_ranking from Elo ratings."""
+    head_to_head = [
+        HeadToHeadResult(
+            line_id="line1",
+            source_text="源",
+            candidate_a_name="worst",
+            candidate_b_name="best",
+            translation_a="Trans A",
+            translation_b="Trans B",
+            winner="B",
+            reasoning="B wins",
+        )
+    ]
+    pairwise = [
+        PairwiseSummary(
+            candidate_a_name="worst",
+            candidate_b_name="best",
+            total_comparisons=10,
+            candidate_a_wins=2,
+            candidate_b_wins=8,
+            ties=0,
+        )
+    ]
+    # Elo ratings provided in arbitrary order
+    elo_ratings = [
+        EloRating(candidate_name="worst", rating=1450.0),
+        EloRating(candidate_name="mid", rating=1500.0),
+        EloRating(candidate_name="best", rating=1550.0),
+    ]
+
+    report = BenchmarkReportBuilder.build_report(
+        eval_set="test-set",
+        slice_name=None,
+        judge_model="gpt-4o",
+        candidates=["worst", "mid", "best"],
+        head_to_head_results=head_to_head,
+        pairwise_summaries=pairwise,
+        elo_ratings=elo_ratings,
+    )
+
+    # Verify overall_ranking is derived from Elo ratings (best to worst)
+    assert report.overall_ranking == ["best", "mid", "worst"]
 
 
 def test_format_report_summary_basic() -> None:

@@ -74,9 +74,10 @@
 - **Files affected:** `tests/unit/benchmark/test_judge.py`
 
 - **Task:** Task 6
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Task 6 was checked off, but report generation does not derive `overall_ranking` from Elo ratings and Elo computation crashes when a pair has zero comparisons.
 - **Evidence:** `packages/rentl-core/src/rentl_core/benchmark/report.py:131`-`packages/rentl-core/src/rentl_core/benchmark/report.py:164` requires caller-supplied `overall_ranking` instead of deriving from Elo; `packages/rentl-core/src/rentl_core/benchmark/report.py:116` divides by `summary.total_comparisons` without a zero guard. Repro command output: `ZeroDivisionError division by zero` when calling `BenchmarkReportBuilder.compute_elo_ratings` with `PairwiseSummary(total_comparisons=0, ...)`.
 - **Impact:** Task 6 cannot be considered complete because the ranking derivation contract is unmet and empty/degenerate pairwise inputs can crash benchmark report generation.
-- **Solution:** Add report-builder logic to sort Elo ratings into `overall_ranking`, and handle `total_comparisons == 0` summaries safely (skip, neutral score, or explicit validation) with regression tests.
+- **Solution:** Added `if summary.total_comparisons == 0: continue` guard in `compute_elo_ratings` to skip zero-comparison pairs. Modified `build_report` to derive `overall_ranking` from Elo ratings via `sorted(elo_ratings, key=lambda r: r.rating, reverse=True)`. Removed `overall_ranking` parameter from `build_report` signature. Added regression tests: `test_compute_elo_ratings_zero_comparisons` and `test_build_report_derives_ranking_from_elo`.
+- **Resolution:** do-task round 9 (2026-02-10)
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/report.py`, `tests/unit/benchmark/test_report.py`

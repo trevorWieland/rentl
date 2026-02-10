@@ -99,6 +99,10 @@ class BenchmarkReportBuilder:
 
         # Process each pairwise summary
         for summary in pairwise_summaries:
+            # Skip pairs with no comparisons
+            if summary.total_comparisons == 0:
+                continue
+
             # Expected score for A vs B
             expected_a = 1 / (
                 1
@@ -136,7 +140,6 @@ class BenchmarkReportBuilder:
         head_to_head_results: list[HeadToHeadResult],
         pairwise_summaries: list[PairwiseSummary],
         elo_ratings: list[EloRating],
-        overall_ranking: list[str],
     ) -> BenchmarkReport:
         """Build complete benchmark report.
 
@@ -148,11 +151,16 @@ class BenchmarkReportBuilder:
             head_to_head_results: All pairwise head-to-head results
             pairwise_summaries: Per-pair win rate summaries
             elo_ratings: Elo ratings for all candidates
-            overall_ranking: Candidate names ordered by Elo (best to worst)
 
         Returns:
-            Complete benchmark report
+            Complete benchmark report with overall_ranking derived from Elo ratings
         """
+        # Derive overall_ranking from Elo ratings (best to worst)
+        overall_ranking = [
+            rating.candidate_name
+            for rating in sorted(elo_ratings, key=lambda r: r.rating, reverse=True)
+        ]
+
         return BenchmarkReport(
             eval_set=eval_set,
             slice_name=slice_name,
