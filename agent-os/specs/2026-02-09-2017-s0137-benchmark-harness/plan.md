@@ -82,7 +82,7 @@ rentl needs to prove its quality claims with data, not anecdotes. The benchmark 
   - Human-readable summary formatter for CLI output (table or structured text)
   - Unit tests: aggregation math, report construction, formatting
 
-- [ ] Task 7: `rentl benchmark` CLI command
+- [x] Task 7: `rentl benchmark` CLI command
   - Add `benchmark` command to CLI router in `rentl-cli`
   - Wire together: download eval set → generate MTL baseline → run rentl pipeline → judge both → generate report
   - CLI flags:
