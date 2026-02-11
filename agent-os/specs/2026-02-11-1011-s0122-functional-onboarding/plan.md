@@ -61,10 +61,12 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - [x] Fix: Replace the broken license URL in `README.md:172` (`https://github.com/trevorWieland/rentl/blob/main/LICENSE` returns HTTP 404) with a valid license reference (either add a root `LICENSE` file and link to it, or link to an existing license artifact) so the License section is accurate (audit round 2; see signposts.md Signpost 6)
   - [x] Fix: Add an actual license link in `README.md` (e.g., add a root `LICENSE` file and link `[LICENSE](./LICENSE)`, or link to an existing repository license artifact). Current license text at `README.md:172` is plain text with no hyperlink, so Task 5's "Links to license" requirement is still unmet (audit round 3; see signposts.md Signpost 6)
 
-- [x] Task 6: End-to-end onboarding integration test
+- [ ] Task 6: End-to-end onboarding integration test
   - BDD integration test in `tests/integration/cli/test_onboarding_e2e.py`
   - Exercises full flow: `init -> doctor -> run-pipeline -> export` with mocked LLM
   - Verifies: generated config is valid, doctor passes, pipeline completes, export produces output files
   - No manual edits between steps
   - Acceptance: test passes in `make all`
   - [x] Fix: Replace invalid `init --target-dir` invocation in `tests/integration/cli/test_onboarding_e2e.py:100` with a supported way to run `init` in `ctx.project_dir` (e.g., chdir or isolated filesystem); current test fails with `No such option: --target-dir` and exits 2 (audit round 1)
+  - [ ] Fix: Replace unsupported export flags in `tests/integration/cli/test_onboarding_e2e.py:295-299` (`--run-id`, `--target-language`) with a valid `rentl export` invocation; current Task 6 test fails with `No such option: --run-id` (`pytest -q tests/integration/cli/test_onboarding_e2e.py`) (audit round 2; see signposts.md Signpost 7)
+  - [ ] Fix: Pass required export arguments `--input`, `--output`, and `--format` in onboarding E2E export step (`services/rentl-cli/src/rentl_cli/main.py:771-780`, `tests/integration/cli/test_onboarding_e2e.py:289-300`) so the scenario truly exercises `run-pipeline -> export` without manual edits (audit round 2; see signposts.md Signpost 7)

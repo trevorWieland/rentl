@@ -19,3 +19,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 3): FAIL — `README.md` License section now has no hyperlink at all, so Task 5's "Links to license" requirement in `plan.md` remains unmet.
 - **Task 5** (round 4): PASS — Verified signpost 6 resolution is implemented: `README.md` now links to a real root `LICENSE` file, and Task 5 requirements remain satisfied.
 - **Task 6** (round 1): FAIL — New onboarding E2E test calls `init --target-dir`, but `init` has no `--target-dir` option, so the test fails immediately with exit code 2.
+- **Task 6** (round 2): FAIL — Onboarding E2E export step calls unsupported `rentl export` flags (`--run-id`, `--target-language`) and omits required export args, so the scenario still fails before export execution.

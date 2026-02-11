@@ -142,3 +142,22 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Files affected:**
 - `LICENSE` (new file) - Added MIT License
 - `README.md` (lines 170-172) - Updated to link to LICENSE file
+
+---
+
+## Signpost 7: Onboarding E2E export step uses unsupported CLI options
+
+**Task:** Task 6 (audit round 2)
+**Status:** unresolved
+**Problem:** The onboarding E2E test calls `rentl export` with `--run-id` and `--target-language`, but the export command does not support those options and requires explicit `--input`, `--output`, and `--format`.
+**Evidence:**
+- Failing test command:
+  - `pytest -q tests/integration/cli/test_onboarding_e2e.py`
+- Exact failure:
+  - `No such option: --run-id`
+  - Stack context points at `tests/integration/cli/test_onboarding_e2e.py:337` with invocation args at `tests/integration/cli/test_onboarding_e2e.py:289-300`.
+- CLI option contract:
+  - `uv run rentl export --help` lists required options `--input`, `--output`, and `--format`, and does not list `--run-id`/`--target-language`.
+  - Export command signature confirms this at `services/rentl-cli/src/rentl_cli/main.py:769-780`.
+**Impact:** Task 6 acceptance is not met because the required `init -> doctor -> run-pipeline -> export` integration scenario fails before export logic runs.
+**Solution:** Update `tests/integration/cli/test_onboarding_e2e.py` export step to call `rentl export` with supported required flags, deriving input/output from artifacts produced by the preceding pipeline run.
