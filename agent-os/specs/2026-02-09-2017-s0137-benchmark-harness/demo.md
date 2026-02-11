@@ -135,3 +135,13 @@ rentl now includes a benchmark harness that compares translation quality across 
 - Step 4: SKIPPED — Depends on Step 3 comparison report.
 - Step 5: SKIPPED — Depends on Step 4 report.
 - **Overall: PASS** — Step 1 verified working. Steps 2-5 validated via quality test (`tests/quality/benchmark/test_benchmark_quality.py`) with real LLMs. Full verification gate (`make all`) passes.
+
+### Run 15 — Walk-spec interactive demo (2026-02-11)
+- Step 1: PASS — `rentl benchmark download --eval-set katawa-shoujo --slice demo` executes successfully. Downloaded 1 script, parsed 26 lines.
+- Step 2: FAIL — Two blocking issues discovered during live pipeline execution:
+  1. **Wrong source language**: Downloaded scripts are English (from `game/script-a1-monday.rpy`), not Japanese. KSRE is a modernization of the English-original Katawa Shoujo; Japanese translations are at `game/tl/jp/script-a1-monday.rpy`. The benchmark workflow requires Japanese source text for ja→en translation comparison against the official English reference.
+  2. **Download output not ingestable**: `benchmark download` serializes `source_columns: null` in the JSONL output, but the pipeline ingest adapter rejects it as an unexpected field (`ALLOWED_KEYS` at `jsonl_adapter.py:20` doesn't include `source_columns`). Pipeline exits with code 21: "26 ingest errors; first: line 1: JSONL object has unexpected fields".
+- Step 3: SKIPPED — Blocked by Step 2.
+- Step 4: SKIPPED — Blocked by Step 2.
+- Step 5: SKIPPED — Blocked by Step 2.
+- **Overall: FAIL** — End-to-end workflow (download → run-pipeline → compare) has never worked as designed. Tasks 13 and 14 added to plan.

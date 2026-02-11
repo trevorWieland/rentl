@@ -243,3 +243,25 @@
 - **Solution:** Removed `--judge-model` override from quality test at line 151-152. The test now uses the config's default model (`qwen/qwen3-vl-30b-a3b-instruct`), which is already provider-qualified and compatible with OpenRouter. This aligns with the "provider-qualified or config-derived" requirement from the audit.
 - **Resolution:** do-task round 20 (2026-02-11)
 - **Files affected:** `tests/quality/benchmark/test_benchmark_quality.py`
+
+- **Task:** Task 3 / Eval set download
+- **Status:** unresolved
+- **Problem:** The benchmark downloader fetches English scripts instead of Japanese translations from the KSRE repository. KSRE (Katawa Shoujo: Re-Engineered) is a modernization of the originally-English visual novel — the main `game/` scripts are in English. The Japanese translations are at `game/tl/jp/`. The intended workflow is Japanese→English translation so results can be compared against the original English text (human reference).
+- **Evidence:** `KSRE_RAW_BASE = "https://raw.githubusercontent.com/fleetingheart/ksre/master/game"` at `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:13` fetches from `game/script-a1-monday.rpy` which contains English: `"Welcome."`, `"We exchange a handshake..."`. The Japanese translations are at `game/tl/jp/script-a1-monday.rpy` which contains `"そよ風が吹き、頭上の葉の落ちた木々が、木製のウインドベルのようにざわつく。"`. Verified via `gh api repos/fleetingheart/ksre/contents/game/tl/jp --jq '.[].name'` (Japanese translation files exist for all scripts). Verified content via raw URL fetch of Japanese file.
+- **Impact:** Entire benchmark evaluation pipeline operates on English source text with ja→en config, producing nonsensical "translations" of already-English text. All 14 demo runs and quality tests validated comparison mechanics but never tested actual Japanese→English translation quality. The pipeline's export phase rejects these runs with `untranslated_text` error because translated text matches source.
+- **Root cause:** Assumed KSRE repo contained Japanese scripts at the top level. KSRE is actually a multi-language modernization project where translations live under `game/tl/{lang}/`.
+- **Solution required:**
+  1. Change `KSRE_RAW_BASE` to `"https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp"`
+  2. Update `RenpyDialogueParser` to handle Ren'Py translation file format (`translate` blocks with old/new string pairs) instead of original script format
+  3. Recompute SHA-256 hashes for Japanese translation files and update `manifest.json`
+  4. Update slice line ranges in `slices.json` for the Japanese translation file structure
+  5. Re-run all tests, demo, and audit
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json`, associated tests
+
+- **Task:** Task 3 / Download output format
+- **Status:** unresolved
+- **Problem:** `benchmark download` produces JSONL that the pipeline's ingest phase rejects as having unexpected fields. The spec says download should write "rentl-ingestable source files", but `SourceLine.model_dump()` serialization includes `source_columns: null` which is not in the ingest adapter's `ALLOWED_KEYS`.
+- **Evidence:** Running `uv run rentl run-pipeline --config <config-pointing-to-benchmark-download-output>` fails with exit code 21: `"26 ingest errors; first: line 1: JSONL object has unexpected fields"` with `field: source_columns`. The ingest JSONL adapter at `packages/rentl-io/src/rentl_io/ingest/jsonl_adapter.py:20` defines `ALLOWED_KEYS = {"line_id", "route_id", "scene_id", "speaker", "text", "metadata"}` — no `source_columns`. The benchmark download writes `SourceLine` via Pydantic serialization which includes `source_columns: null`.
+- **Impact:** Users cannot feed `benchmark download` output directly into `rentl run-pipeline` as the end-to-end workflow requires. The spec's acceptance criterion for download producing "rentl-ingestable format" is not met.
+- **Solution required:** Either (a) exclude `source_columns` from the download JSONL output (e.g., `model_dump(exclude={"source_columns"})`) or (b) add `source_columns` to the ingest adapter's `ALLOWED_KEYS`. Option (a) is simpler and more correct — download output should match what ingest expects, not what the full schema allows.
+- **Files affected:** CLI benchmark download serialization in `services/rentl-cli/src/rentl_cli/main.py` (where SourceLines are written to JSONL)

@@ -1,5 +1,5 @@
-status: pass
-fix_now_count: 0
+status: fail
+fix_now_count: 2
 
 # Audit: s0.1.37 Benchmark Harness v0.1
 

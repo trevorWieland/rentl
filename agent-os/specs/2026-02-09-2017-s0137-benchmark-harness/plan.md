@@ -185,3 +185,22 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Demo Step 3 doesn't include `--config` flag needed after Task 10
   - Demo should document the full end-to-end flow with correct commands and working model/endpoint config
   - Update acceptance criteria if needed
+
+- [ ] Task 13: Fix eval set to download Japanese translations (not English originals)
+  - **Root cause**: KSRE is "Katawa Shoujo: Re-Engineered", a modernization of the originally-English VN. Main `game/` scripts are English. Japanese translations are at `game/tl/jp/`.
+  - **Change `KSRE_RAW_BASE`** in `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:13` from `game` to `game/tl/jp`
+  - **Update `RenpyDialogueParser`** in `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py` to handle Ren'Py translation file format (`translate` blocks mapping English→Japanese) instead of original script dialogue format
+  - **Recompute SHA-256 hashes** for the Japanese translation files and update `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json`
+  - **Update slice line ranges** in `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/slices.json` — the Japanese translation files have different line counts and structure than the English originals
+  - **Update unit tests** for parser (translation file format), downloader (new URL path), loader (new hashes/slices)
+  - **Clear cached files** at `~/.cache/rentl/eval_sets/katawa-shoujo/` (stale English scripts)
+  - Verify: `uv run rentl benchmark download --eval-set katawa-shoujo --slice demo` produces Japanese text
+  - Verify: all existing tests still pass with updated fixtures
+
+- [ ] Task 14: Fix benchmark download to produce pipeline-ingestable JSONL
+  - **Root cause**: `SourceLine.model_dump()` includes `source_columns: null`, but ingest adapter's `ALLOWED_KEYS` at `packages/rentl-io/src/rentl_io/ingest/jsonl_adapter.py:20` only allows `{line_id, route_id, scene_id, speaker, text, metadata}`
+  - **Fix**: When writing download output JSONL, exclude `source_columns` from serialization (e.g., `line.model_dump(exclude={"source_columns"}, exclude_none=True)` or similar)
+  - **Also ensure**: `route_id` is either omitted when None or populated with a valid value, since the ingest adapter may require it
+  - **Add integration test**: `benchmark download` → `run-pipeline` ingest accepts the output without errors (test with mocked pipeline, just verify ingest parsing succeeds)
+  - Verify: `uv run rentl benchmark download --eval-set katawa-shoujo --slice demo --output-dir /tmp/test && head -1 /tmp/test/*.jsonl` produces clean JSONL without `source_columns`
+  - Verify: JSONL can be ingested by the pipeline without "unexpected fields" errors
