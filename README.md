@@ -94,13 +94,17 @@ Executes the full localization pipeline:
 - Runs QA checks on the output
 - Tracks progress and status throughout
 
-### 5. Export translated files
+Once the pipeline completes, you can check its status and export the results:
 
 ```bash
-uv run rentl export --input run-001/edited_lines.jsonl --output translations.csv --format csv
-```
+# View the pipeline run results
+uv run rentl status
 
-Exports translated lines to your specified output file in CSV, JSONL, or TXT format, ready for patching.
+# Export translated lines (use the path from status output)
+# The export command requires a JSONL file of TranslatedLine records as input
+# For a complete export workflow, see the export command help
+uv run rentl export --help
+```
 
 ## Available Commands
 
