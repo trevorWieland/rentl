@@ -339,3 +339,50 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Files affected:**
 - `packages/rentl-core/src/rentl_core/init.py` (lines 176-181, 287-330, 333-383) - Added fallback tracking and warning emission
 - `tests/unit/core/test_init.py` (lines 528-550, 697-728) - Added warning verification tests
+
+---
+
+## Signpost 13: Doctor integration test created directories in wrong location
+
+**Task:** Full verification gate (post-completion)
+**Status:** resolved
+**Problem:** Integration tests for `rentl doctor` failed because workspace directories (out/, logs/) were created in the wrong location relative to config file.
+**Evidence:**
+- `make all` integration test failures:
+  ```
+  tests/integration/cli/test_doctor.py::test_run_doctor_with_valid_config FAILED
+  tests/integration/cli/test_doctor.py::test_doctor_loads_api_keys_from_env_file FAILED
+
+  AssertionError: Expected exit code 0, got 10: Doctor Report
+  ...
+  Workspace Directories: FAIL
+    Missing directories: output (/tmp/pytest-of-trevor/.../out), logs (/tmp/pytest-of-trevor/.../logs)
+  ```
+- Doctor implementation resolves paths relative to config directory:
+  - `packages/rentl-core/src/rentl_core/doctor.py:264-266`:
+    ```python
+    workspace_dir = config_dir / config.project.paths.workspace_dir
+    output_dir = config_dir / config.project.paths.output_dir
+    logs_dir = config_dir / config.project.paths.logs_dir
+    ```
+- Test setup created directories inside `tmp_workspace` instead of `config_dir`:
+  - `tests/integration/cli/test_doctor.py:41-48`:
+    ```python
+    ctx.config_dir = tmp_workspace.parent
+    write_rentl_config(ctx.config_dir, tmp_workspace)
+    # Created inside tmp_workspace (wrong):
+    (tmp_workspace / "out").mkdir(exist_ok=True)
+    (tmp_workspace / "logs").mkdir(exist_ok=True)
+    ```
+- Config file specifies relative paths that resolve from config directory:
+  - `tests/integration/conftest.py:220-221`:
+    ```toml
+    output_dir = "out"
+    logs_dir = "logs"
+    ```
+**Root cause:** Mismatch between test setup directory creation location (tmp_workspace) and doctor's path resolution logic (config_dir).
+**Impact:** Integration tests failed even though implementation was correct, blocking `make all` gate.
+**Solution:** Modified test fixture to create `out/` and `logs/` directories relative to `config_dir` instead of inside `tmp_workspace`, matching doctor's path resolution logic.
+**Resolution:** Post-completion verification fix (2026-02-11)
+**Files affected:**
+- `tests/integration/cli/test_doctor.py` (lines 31-51) - Fixed directory creation to use config_dir

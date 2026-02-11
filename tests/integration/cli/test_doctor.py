@@ -41,12 +41,15 @@ def given_valid_config(
     ctx.config_dir = tmp_workspace.parent
     write_rentl_config(ctx.config_dir, tmp_workspace)
 
-    # Create necessary workspace directories
+    # Create necessary workspace directories inside tmp_workspace
     (tmp_workspace / "input").mkdir(exist_ok=True)
-    (tmp_workspace / "out").mkdir(exist_ok=True)
-    (tmp_workspace / "logs").mkdir(exist_ok=True)
     (tmp_workspace / "prompts").mkdir(exist_ok=True)
     (tmp_workspace / "agents").mkdir(exist_ok=True)
+
+    # Create output/logs directories relative to config directory (not workspace)
+    # These are resolved as config_dir / "out" and config_dir / "logs" in doctor
+    (ctx.config_dir / "out").mkdir(exist_ok=True)
+    (ctx.config_dir / "logs").mkdir(exist_ok=True)
 
     return ctx
 
