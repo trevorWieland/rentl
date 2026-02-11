@@ -29,12 +29,14 @@ def test_head_to_head_result_valid() -> None:
             RubricDimension.STYLE_FIDELITY: "A",
             RubricDimension.CONSISTENCY: "A",
         },
+        presented_as_a="rentl",
     )
     assert result.line_id == "scene1_line10"
     assert result.candidate_a_name == "rentl"
     assert result.candidate_b_name == "mtl"
     assert result.winner == "A"
     assert len(result.dimension_winners) == 3
+    assert result.presented_as_a == "rentl"
 
 
 def test_head_to_head_result_tie() -> None:
@@ -48,6 +50,7 @@ def test_head_to_head_result_tie() -> None:
         translation_b="Testing",
         winner="tie",
         reasoning="Both translations are equally valid.",
+        presented_as_a="system1",
     )
     assert result.winner == "tie"
 
@@ -65,6 +68,7 @@ def test_head_to_head_result_winner_validation() -> None:
             translation_b="Origin",
             winner=winner,  # type: ignore[arg-type]
             reasoning="Test",
+            presented_as_a="sys1",
         )
         assert result.winner == winner
 
@@ -79,6 +83,7 @@ def test_head_to_head_result_winner_validation() -> None:
             translation_b="Origin",
             winner="C",  # type: ignore[arg-type]
             reasoning="Test",
+            presented_as_a="sys1",
         )
 
 
@@ -93,6 +98,7 @@ def test_head_to_head_result_no_dimension_winners() -> None:
         translation_b="Testing",
         winner="A",
         reasoning="A is better",
+        presented_as_a="candidate_a",
     )
     assert result.dimension_winners == {}
 
@@ -112,6 +118,7 @@ def test_head_to_head_result_roundtrip() -> None:
             RubricDimension.ACCURACY: "tie",
             RubricDimension.STYLE_FIDELITY: "B",
         },
+        presented_as_a="rentl-full",
     )
     json_data = original.model_dump()
     reconstructed = HeadToHeadResult.model_validate(json_data)
@@ -129,6 +136,30 @@ def test_head_to_head_result_candidate_names() -> None:
         translation_b="Translation B",
         winner="A",
         reasoning="A preserves context better",
+        presented_as_a="gpt4-full",
     )
     assert result.candidate_a_name == "gpt4-full"
     assert result.candidate_b_name == "claude-minimal"
+    assert result.presented_as_a == "gpt4-full"
+
+
+def test_head_to_head_result_presentation_order() -> None:
+    """Test presented_as_a records which candidate was shown as 'A' to judge."""
+    # Scenario: candidate_b was presented as "Translation A" to the judge
+    result = HeadToHeadResult(
+        line_id="test",
+        source_text="源",
+        candidate_a_name="rentl",
+        candidate_b_name="mtl",
+        translation_a="Source",
+        translation_b="Origin",
+        winner="A",  # Winner is "A" in canonical order
+        # Judge's reasoning uses presentation-order labels
+        reasoning="Translation A was clearly superior in accuracy.",
+        presented_as_a="mtl",  # But "A" in judge's view was actually mtl
+    )
+    # With presented_as_a="mtl", we know that when the judge says "Translation A",
+    # they're referring to the mtl candidate (even though winner="A" means rentl won)
+    assert result.presented_as_a == "mtl"
+    assert result.winner == "A"
+    assert result.candidate_a_name == "rentl"

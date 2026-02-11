@@ -88,6 +88,9 @@ async def test_compare_head_to_head(
         assert result.dimension_winners[RubricDimension.ACCURACY] == "A"
         assert result.dimension_winners[RubricDimension.STYLE_FIDELITY] == "tie"
         assert result.dimension_winners[RubricDimension.CONSISTENCY] == "B"
+        assert (
+            result.presented_as_a == "candidate_1"
+        )  # No randomization, so candidate_1 was presented as A
 
         # Verify Agent was created with correct parameters
         mock_agent_class.assert_called_once()
@@ -214,6 +217,9 @@ async def test_compare_head_to_head_with_randomization() -> None:
         assert result.dimension_winners[RubricDimension.ACCURACY] == "B"
         assert result.dimension_winners[RubricDimension.STYLE_FIDELITY] == "A"
         assert result.dimension_winners[RubricDimension.CONSISTENCY] == "tie"
+        assert (
+            result.presented_as_a == "candidate_2"
+        )  # After swap, candidate_2 was presented as A
 
 
 @pytest.mark.asyncio

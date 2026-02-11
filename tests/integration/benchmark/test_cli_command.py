@@ -314,6 +314,7 @@ def when_run_benchmark_compare_staggered(
             winner="A",
             reasoning="Test reasoning",
             dimension_winners={},
+            presented_as_a=candidate_1_name,
         )
 
     # Patch RubricJudge
@@ -415,6 +416,7 @@ def when_run_benchmark_compare_full_flow(
                 RubricDimension.STYLE_FIDELITY: "A",
                 RubricDimension.CONSISTENCY: "tie",
             },
+            presented_as_a=candidate_1_name,
         )
 
     # Patch RubricJudge
@@ -608,6 +610,7 @@ def when_run_benchmark_compare_full_overrides(
                 RubricDimension.STYLE_FIDELITY: "tie",
                 RubricDimension.CONSISTENCY: "B",
             },
+            presented_as_a=kwargs.get("candidate_1_name", "A"),
         )
 
     mock_judge = MagicMock()
@@ -677,6 +680,7 @@ def when_run_benchmark_compare_openrouter_overrides(
                 RubricDimension.STYLE_FIDELITY: "tie",
                 RubricDimension.CONSISTENCY: "B",
             },
+            presented_as_a=kwargs.get("candidate_1_name", "A"),
         )
 
     # Capture the judge constructor arguments

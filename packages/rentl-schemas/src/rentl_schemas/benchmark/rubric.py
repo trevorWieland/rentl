@@ -35,3 +35,9 @@ class HeadToHeadResult(BaseModel):
         default_factory=dict,
         description="Winner per rubric dimension (optional per-dimension breakdown)",
     )
+    presented_as_a: str = Field(
+        description=(
+            "Name of the candidate presented to the judge as 'Translation A' "
+            "(for interpreting reasoning text)"
+        )
+    )

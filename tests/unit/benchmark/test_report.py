@@ -93,6 +93,7 @@ def test_benchmark_report_valid() -> None:
             translation_b="MTL Trans",
             winner="A",
             reasoning="A is better",
+            presented_as_a="rentl",
         )
     ]
     pairwise = [
@@ -141,6 +142,7 @@ def test_benchmark_report_multiple_candidates() -> None:
             translation_b="Trans B",
             winner="A",
             reasoning="A is better",
+            presented_as_a="rentl",
         ),
         HeadToHeadResult(
             line_id="line1",
@@ -151,6 +153,7 @@ def test_benchmark_report_multiple_candidates() -> None:
             translation_b="Trans C",
             winner="B",
             reasoning="B is better",
+            presented_as_a="rentl",
         ),
         HeadToHeadResult(
             line_id="line1",
@@ -161,6 +164,7 @@ def test_benchmark_report_multiple_candidates() -> None:
             translation_b="Trans C",
             winner="B",
             reasoning="B is better",
+            presented_as_a="mtl",
         ),
     ]
     pairwise = [
@@ -223,6 +227,7 @@ def test_benchmark_report_roundtrip() -> None:
             translation_b="Trans B",
             winner="A",
             reasoning="A wins",
+            presented_as_a="a",
         )
     ]
     pairwise = [
@@ -266,6 +271,7 @@ def test_benchmark_report_no_slice() -> None:
             translation_b="Trans 2",
             winner="tie",
             reasoning="Equal quality",
+            presented_as_a="sys1",
         )
     ]
     pairwise = [
@@ -315,6 +321,7 @@ def test_build_pairwise_summary_basic() -> None:
                 RubricDimension.STYLE_FIDELITY: "B",
                 RubricDimension.CONSISTENCY: "tie",
             },
+            presented_as_a="rentl",
         ),
         HeadToHeadResult(
             line_id="line2",
@@ -330,6 +337,7 @@ def test_build_pairwise_summary_basic() -> None:
                 RubricDimension.STYLE_FIDELITY: "A",
                 RubricDimension.CONSISTENCY: "A",
             },
+            presented_as_a="rentl",
         ),
     ]
 
@@ -366,6 +374,7 @@ def test_build_pairwise_summary_with_ties() -> None:
             translation_b="Trans B",
             winner="tie",
             reasoning="Equal",
+            presented_as_a="a",
         ),
         HeadToHeadResult(
             line_id="line2",
@@ -376,6 +385,7 @@ def test_build_pairwise_summary_with_ties() -> None:
             translation_b="Trans B",
             winner="tie",
             reasoning="Equal",
+            presented_as_a="a",
         ),
     ]
 
@@ -527,6 +537,7 @@ def test_build_report() -> None:
             translation_b="Trans B",
             winner="A",
             reasoning="A wins",
+            presented_as_a="a",
         )
     ]
     pairwise = [
@@ -577,6 +588,7 @@ def test_build_report_derives_ranking_from_elo() -> None:
             translation_b="Trans B",
             winner="B",
             reasoning="B wins",
+            presented_as_a="worst",
         )
     ]
     pairwise = [
@@ -622,6 +634,7 @@ def test_format_report_summary_basic() -> None:
             translation_b="Trans B",
             winner="A",
             reasoning="A wins",
+            presented_as_a="rentl",
         )
     ]
     pairwise = [
@@ -682,6 +695,7 @@ def test_format_report_summary_no_slice() -> None:
             translation_b="Trans B",
             winner="tie",
             reasoning="Equal",
+            presented_as_a="a",
         )
     ]
     pairwise = [

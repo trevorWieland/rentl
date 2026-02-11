@@ -220,6 +220,9 @@ For ties, use "tie" if both translations are equally good or equally flawed."""
             if progress_callback:
                 await progress_callback(line_id)
 
+            # Record which candidate was presented as "A" for reasoning interpretation
+            presented_as_a = candidate_1_name if a_is_1 else candidate_2_name
+
             return HeadToHeadResult(
                 line_id=line_id,
                 source_text=source_text,
@@ -230,6 +233,7 @@ For ties, use "tie" if both translations are equally good or equally flawed."""
                 winner=final_overall_winner,
                 reasoning=reasoning,
                 dimension_winners=final_dimension_winners,
+                presented_as_a=presented_as_a,
             )
 
     async def compare_batch_head_to_head(
