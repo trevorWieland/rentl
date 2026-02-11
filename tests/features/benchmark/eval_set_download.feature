@@ -44,9 +44,11 @@ Feature: Benchmark Eval Set Download
     And I align the parsed lines
     Then the aligned output contains paired source and reference lines
 
-  Scenario: Downloaded JSONL is pipeline-ingestable
-    Given a mock HTTP server with a valid script
-    When I download the script with correct hash
-    And I parse the script with RenpyDialogueParser
-    And I serialize the parsed lines to JSONL
-    Then the JSONL can be loaded by the ingest adapter
+  Scenario: Benchmark download CLI produces pipeline-ingestable JSONL
+    Given the katawa-shoujo eval set is configured
+    And a temporary output directory
+    When I run benchmark download via CLI
+    Then the CLI exits successfully
+    And the output JSONL can be loaded by the ingest adapter
+    And the output records omit source_columns
+    And the output records omit route_id when null

@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
 import pytest
 import respx
+from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
+from typer.testing import CliRunner
 
+import rentl_cli.main as cli_main
 from rentl_core.benchmark.eval_sets.aligner import LineAligner
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
 from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
@@ -47,6 +51,10 @@ class DownloadFlowContext:
         self.parsed_lines: list[SourceLine] = []
         self.jsonl_path: Path | None = None
         self.ingested_lines: list[SourceLine] = []
+        # CLI-specific fields for new scenario
+        self.output_dir: Path | None = None
+        self.cli_result: Result | None = None
+        self.output_records: list[dict[str, object]] = []
 
 
 @pytest.fixture
@@ -560,3 +568,131 @@ def then_jsonl_ingestable(ctx: DownloadFlowContext) -> None:
     assert len(ctx.ingested_lines) > 0
     assert ctx.ingested_lines[0].line_id == ctx.parsed_lines[0].line_id
     assert ctx.ingested_lines[0].text == ctx.parsed_lines[0].text
+
+
+# --- CLI-based ingestability scenario steps ---
+
+
+@given("the katawa-shoujo eval set is configured", target_fixture="ctx")
+def given_katawa_shoujo_configured(tmp_path: Path) -> DownloadFlowContext:
+    """Create context with katawa-shoujo eval set configured.
+
+    Args:
+        tmp_path: Pytest temporary directory.
+
+    Returns:
+        DownloadFlowContext ready for CLI test.
+    """
+    ctx = DownloadFlowContext()
+    ctx.temp_cache = tmp_path
+    return ctx
+
+
+@given("a temporary output directory")
+def given_temp_output_dir(ctx: DownloadFlowContext) -> None:
+    """Create a temporary output directory for download results.
+
+    Args:
+        ctx: Download flow context.
+    """
+    assert ctx.temp_cache is not None
+    ctx.output_dir = ctx.temp_cache / "download_output"
+    ctx.output_dir.mkdir(parents=True, exist_ok=True)
+
+
+@when("I run benchmark download via CLI")
+def when_run_benchmark_download_cli(
+    ctx: DownloadFlowContext, cli_runner: CliRunner
+) -> None:
+    """Run benchmark download command via CLI.
+
+    Args:
+        ctx: Download flow context.
+        cli_runner: CLI test runner.
+    """
+    assert ctx.output_dir is not None
+
+    ctx.cli_result = cli_runner.invoke(
+        cli_main.app,
+        [
+            "benchmark",
+            "download",
+            "--eval-set",
+            "katawa-shoujo",
+            "--slice",
+            "demo",
+            "--output-dir",
+            str(ctx.output_dir),
+        ],
+    )
+
+
+@then("the CLI exits successfully")
+def then_cli_exits_successfully(ctx: DownloadFlowContext) -> None:
+    """Verify CLI exits with status 0.
+
+    Args:
+        ctx: Download flow context.
+    """
+    assert ctx.cli_result is not None
+    if ctx.cli_result.exit_code != 0:
+        print(f"CLI output:\n{ctx.cli_result.stdout}\n{ctx.cli_result.stderr}")
+    assert ctx.cli_result.exit_code == 0
+
+
+@then("the output JSONL can be loaded by the ingest adapter")
+def then_cli_output_ingestable(ctx: DownloadFlowContext) -> None:
+    """Verify CLI-produced JSONL can be loaded by the ingest adapter.
+
+    Args:
+        ctx: Download flow context.
+    """
+    assert ctx.output_dir is not None
+
+    # Find the output JSONL file (should be katawa-shoujo-demo.jsonl)
+    jsonl_files = list(ctx.output_dir.glob("*.jsonl"))
+    assert len(jsonl_files) > 0, "No JSONL output file found"
+    ctx.jsonl_path = jsonl_files[0]
+
+    # Load raw records for field validation
+    with ctx.jsonl_path.open(encoding="utf-8") as f:
+        ctx.output_records = [json.loads(line) for line in f if line.strip()]
+
+    # Load via JsonlIngestAdapter (validates against ALLOWED_KEYS)
+    source = IngestSource(
+        input_path=str(ctx.jsonl_path),
+        format=FileFormat.JSONL,
+    )
+    adapter = JsonlIngestAdapter()
+    ctx.ingested_lines = asyncio.run(adapter.load_source(source))
+
+    # Verify lines were loaded successfully
+    assert len(ctx.ingested_lines) > 0
+
+
+@then("the output records omit source_columns")
+def then_output_omits_source_columns(ctx: DownloadFlowContext) -> None:
+    """Verify output records do not contain source_columns field.
+
+    Args:
+        ctx: Download flow context.
+    """
+    assert len(ctx.output_records) > 0
+    for record in ctx.output_records:
+        assert "source_columns" not in record, (
+            f"Record contains source_columns: {record}"
+        )
+
+
+@then("the output records omit route_id when null")
+def then_output_omits_null_route_id(ctx: DownloadFlowContext) -> None:
+    """Verify output records omit route_id field when it would be null.
+
+    Args:
+        ctx: Download flow context.
+    """
+    assert len(ctx.output_records) > 0
+    for record in ctx.output_records:
+        # If route_id is present, it must not be null
+        if "route_id" in record:
+            assert record["route_id"] is not None, f"Record has null route_id: {record}"
