@@ -9,3 +9,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 2** (round 2): FAIL — Task still marked complete without dotenv-loading doctor-context unit coverage in `tests/unit/core/test_doctor.py`; coverage was added in `tests/unit/cli/test_main.py` instead.
 - **Task 2** (round 3): FAIL — New core doctor dotenv tests contain incorrect `.env.local` precedence guidance and do not assert actual `.env`/`.env.local` load behavior.
 - **Task 1** (round 1): PASS — Spec scaffold commit `e2dad4e` added all required docs (`spec.md`, `plan.md`, `demo.md`, `standards.md`, `references.md`) with no task-scope violations.
+- **Task 3** (round 1): FAIL — `rentl init` accepts out-of-range numeric provider menu input as Custom, and CLI provider-selection branches lack direct test coverage.

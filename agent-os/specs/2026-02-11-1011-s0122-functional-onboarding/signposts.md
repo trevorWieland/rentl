@@ -55,3 +55,21 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Resolution:** do-task round 4 (2026-02-11)
 **Files affected:**
 - `tests/unit/core/test_doctor.py` (lines 787-837) - test_dotenv_local_values_visible_to_checks
+
+---
+
+## Signpost 3: Provider menu accepts out-of-range numeric input as Custom
+
+**Task:** Task 3 (audit round 1)
+**Status:** unresolved
+**Problem:** The `init` provider selection menu only advertises `1..N` presets plus one `Custom` option, but any numeric value outside preset range is treated as `Custom` instead of being rejected.
+**Evidence:**
+- Branch logic in `services/rentl-cli/src/rentl_cli/main.py:587-596` routes every non-preset numeric index to the `else` branch (custom prompts).
+- Reproduction command and output:
+  - Command:
+    - `python - <<'PY' ... runner.invoke(cli_main.app, ["init"], input="...\\n999\\nmycustom\\nhttps://example.com/v1\\nMY_KEY\\nmy-model\\n...") ... PY`
+  - Output:
+    - `exit_code=0`
+    - `used_custom_prompt= True`
+    - `provider_name= mycustom`
+**Impact:** Typing an invalid menu number silently switches the flow to manual custom configuration, which hides input mistakes and weakens the guided onboarding path.
