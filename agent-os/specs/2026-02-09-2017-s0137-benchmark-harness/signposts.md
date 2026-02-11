@@ -276,8 +276,9 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py`, `tests/unit/benchmark/eval_sets/test_parser.py`
 
 - **Task:** Task 14
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The new ingestability test does not validate `benchmark download` output; it writes JSONL directly in test code, so the CLI output path is still unverified.
-- **Evidence:** The task requires `benchmark download` → ingest coverage (`plan.md:206`), but the added scenario uses `I serialize the parsed lines to JSONL` (`tests/features/benchmark/eval_set_download.feature:51`) and step code writes records directly with `line.model_dump_json(...)` (`tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:520`, `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:534`) instead of invoking `rentl benchmark download`. The actual CLI writer lives at `services/rentl-cli/src/rentl_cli/main.py:1208`.
-- **Impact:** A regression in CLI JSONL serialization could reintroduce non-ingestable output without failing this test, because the test bypasses the command under audit.
-- **Files affected:** `tests/features/benchmark/eval_set_download.feature`, `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py`, `services/rentl-cli/src/rentl_cli/main.py`
+- **Evidence:** Fixed in `tests/features/benchmark/eval_set_download.feature:47` through `tests/features/benchmark/eval_set_download.feature:54` by replacing the synthetic serialization scenario with `Benchmark download CLI produces pipeline-ingestable JSONL`. Step bindings now invoke CLI directly at `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:603` through `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:627`, load generated output through `JsonlIngestAdapter` at `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:661` through `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:667`, and assert omitted fields at `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:673` through `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:698`. Writer contract remains in `services/rentl-cli/src/rentl_cli/main.py:1208` through `services/rentl-cli/src/rentl_cli/main.py:1216`.
+- **Impact:** CLI serialization regressions now fail integration coverage instead of being masked by hand-rolled test serialization.
+- **Resolution:** do-task round 2 for Task 14 (commit `9ae94ab`, 2026-02-11)
+- **Files affected:** `tests/features/benchmark/eval_set_download.feature`, `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py`, `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/plan.md`
