@@ -21,3 +21,11 @@
 - **Resolution:** do-task round 2, 2026-02-11
 - **Files affected:** `docs/troubleshooting.md:23-30`
 - **Impact:** Users following troubleshooting guidance may set the wrong key, causing repeated auth failures and violating the spec non-negotiable on stale references.
+
+## Task 5 - Quick Start export format note is stale vs CLI options
+
+- **Task:** 5
+- **Status:** unresolved
+- **Problem:** README Quick Start still references `--format json`, but the CLI export command does not support `json`.
+- **Evidence:** `README.md:109` says `# Export to CSV (or use --format jsonl/json)` while `uv run rentl export --help` shows `--format [csv|jsonl|txt]`.
+- **Impact:** Users following Quick Start may choose an invalid format, causing avoidable command failures and violating the no-stale-references non-negotiable in `spec.md:40`.
