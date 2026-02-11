@@ -27,3 +27,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 8** (round 1): PASS — Added API-marked integration coverage for OpenRouter preset live validation (`init -> doctor`) with graceful key-based skip and verified structural preset checks.
 - **Demo** (run 2): FAIL — Init seed data language mismatch: seed data generated in English but config set source language to ja, causing pipeline to fail with "translated text matches source text" validation error (4 run, 2 verified)
 - **Task 9** (round 1): FAIL — Unsupported source-language fallback is silent: code falls back to English seed text but emits no required seed-header or init-output warning.
+- **Task 8** (round 2): PASS — Re-audit confirms preset validation coverage is implemented and stable (`tests/quality/cli/test_preset_validation.py`), with live API flow key-gated and currently `1 passed, 1 skipped`.

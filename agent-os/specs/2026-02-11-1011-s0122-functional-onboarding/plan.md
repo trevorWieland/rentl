@@ -86,7 +86,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - Test can be marked as requiring network/API key (skip if key not available)
   - Acceptance: test catches invalid preset model IDs before they reach production
 
-- [ ] Task 9: Fix seed data language mismatch
+- [x] Task 9: Fix seed data language mismatch
   - Update seed data generation in `packages/rentl-core/src/rentl_core/init.py` to generate text in the configured source language
   - For non-English source languages, generate placeholder text that matches the language (e.g., for "ja": "サンプル台詞 1", "サンプル台詞 2", etc.)
   - Support at minimum: ja (Japanese), zh (Chinese), ko (Korean), es (Spanish), fr (French), de (German)
