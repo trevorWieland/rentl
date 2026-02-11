@@ -433,6 +433,43 @@ class TestCheckApiKeys:
         assert result.fix_suggestion is not None
         assert ".env" in result.fix_suggestion
 
+    def test_api_key_from_dotenv_simulation(
+        self, mock_config: RunConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that API keys loaded from .env are visible to doctor checks.
+
+        This simulates the scenario where the CLI layer has already loaded
+        .env files via _load_dotenv() before calling run_doctor().
+        The actual dotenv loading happens in the CLI layer, but this test
+        verifies that once loaded, the keys are visible to the checks.
+        """
+        # Clear env first
+        monkeypatch.delenv("TEST_API_KEY", raising=False)
+
+        # Simulate what happens after _load_dotenv() loads .env
+        monkeypatch.setenv("TEST_API_KEY", "key_from_dotenv")
+
+        # Verify the check can see the key
+        result = check_api_keys(mock_config)
+        assert result.status == CheckStatus.PASS
+        assert result.fix_suggestion is None
+
+    def test_api_key_dotenv_local_override_simulation(
+        self, mock_config: RunConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that .env.local values are visible to doctor checks.
+
+        This simulates the scenario where both .env and .env.local exist.
+        The actual dotenv loading happens in the CLI layer, but this test
+        documents that the checks see whichever value was loaded last.
+        """
+        # Simulate .env.local having been loaded
+        monkeypatch.setenv("TEST_API_KEY", "key_from_env_local")
+
+        result = check_api_keys(mock_config)
+        assert result.status == CheckStatus.PASS
+        assert "1" in result.message
+
     def test_multi_endpoint_config(
         self, mock_config: RunConfig, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -708,6 +745,78 @@ class TestRunDoctor:
         assert llm_check.status == CheckStatus.WARN
         assert "skipped" in llm_check.message
         assert "no runtime provided" in llm_check.message
+
+    @pytest.mark.asyncio
+    async def test_dotenv_loaded_keys_visible_to_checks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that API keys loaded from .env are visible to doctor checks.
+
+        This test simulates the doctor workflow where the CLI layer loads
+        .env files from the config directory before calling run_doctor().
+        The actual dotenv loading happens in the CLI (_load_dotenv), but
+        this verifies that once loaded, the keys are visible to all checks.
+
+        This documents the expected integration between CLI dotenv loading
+        and core doctor checks for the config directory .env path.
+        """
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text(VALID_TEST_CONFIG_TOML)
+
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+
+        # Clear environment
+        monkeypatch.delenv("TEST_KEY", raising=False)
+
+        # Simulate CLI layer having loaded .env file from config directory
+        # (In real usage, _load_dotenv(config_path) would do this)
+        monkeypatch.setenv("TEST_KEY", "value_from_dotenv")
+
+        # Run doctor - it should see the environment variable
+        report = await run_doctor(config_path, runtime=None)
+
+        # API key check should pass
+        api_check = next(c for c in report.checks if c.name == "API Keys")
+        assert api_check.status == CheckStatus.PASS
+        assert "1" in api_check.message
+
+    @pytest.mark.asyncio
+    async def test_dotenv_local_values_visible_to_checks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that .env.local values are visible to doctor checks.
+
+        This test simulates the scenario where both .env and .env.local
+        files exist in the config directory. The CLI layer loads both
+        (via _load_dotenv), and this verifies the checks see the values.
+
+        This documents the expected integration for .env.local handling
+        in the doctor context.
+        """
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text(VALID_TEST_CONFIG_TOML)
+
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+
+        # Clear environment
+        monkeypatch.delenv("TEST_KEY", raising=False)
+
+        # Simulate CLI layer having loaded .env.local
+        # (which takes precedence over .env in the current implementation)
+        monkeypatch.setenv("TEST_KEY", "value_from_env_local")
+
+        # Run doctor
+        report = await run_doctor(config_path, runtime=None)
+
+        # API key check should pass with the .env.local value
+        api_check = next(c for c in report.checks if c.name == "API Keys")
+        assert api_check.status == CheckStatus.PASS
 
     @pytest.mark.asyncio
     async def test_api_key_failure_takes_precedence_over_connectivity_failure(
