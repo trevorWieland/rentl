@@ -148,8 +148,6 @@ def run_benchmark_compare(ctx: BenchmarkContext) -> None:
             str(ctx.output_b_path),
             "--config",
             str(config_path),
-            "--judge-model",
-            "gpt-4o-mini",
             "--output",
             str(ctx.report_path),
             "--candidate-names",

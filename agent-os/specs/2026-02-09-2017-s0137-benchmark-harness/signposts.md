@@ -234,3 +234,12 @@
 - **Solution:** Changed OpenRouter routing detection to check `endpoint_target.openrouter_provider` directly instead of `config.endpoint.openrouter_provider`. In override mode, `endpoint_target.openrouter_provider` is already set at lines 1357-1364. In config-based mode, it's set at lines 1423-1426 from `byok_config.openrouter_provider`. This makes the routing detection work in both modes without referencing undefined variables.
 - **Resolution:** do-task round 19 (2026-02-10)
 - **Files affected:** `services/rentl-cli/src/rentl_cli/main.py`, `tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`
+
+- **Task:** Task 8 quality-fix follow-up
+- **Status:** resolved
+- **Problem:** Quality benchmark test failed with OpenRouter config because it overrode the judge model with an unqualified model ID (`gpt-4o-mini`) while using OpenRouter endpoint, causing `ValueError: not enough values to unpack (expected 2, got 1)` when OpenRouter provider tried to parse the model name.
+- **Evidence:** `tests/quality/benchmark/test_benchmark_quality.py:152` passed `--judge-model gpt-4o-mini` with `--config rentl.toml`. The config at `rentl.toml:30-40` uses OpenRouter endpoint with provider-qualified model ID `qwen/qwen3-vl-30b-a3b-instruct`. OpenRouter's `model_profile` function at line 126 of `pydantic_ai/providers/openrouter.py` expects `provider/model-name` format: `provider, model_name = model_name.split('/', 1)`. When passed unqualified `gpt-4o-mini`, split returns only 1 value, causing unpack error. Repro: `set -a; source .env; set +a; uv run pytest -q tests/quality/benchmark/test_benchmark_quality.py` → `Unexpected error: not enough values to unpack (expected 2, got 1)`.
+- **Impact:** Quality benchmark test was red when run with project's actual OpenRouter config. The test would only pass with non-OpenRouter endpoints or when using provider-qualified model overrides (e.g., `openai/gpt-4o-mini`).
+- **Solution:** Removed `--judge-model` override from quality test at line 151-152. The test now uses the config's default model (`qwen/qwen3-vl-30b-a3b-instruct`), which is already provider-qualified and compatible with OpenRouter. This aligns with the "provider-qualified or config-derived" requirement from the audit.
+- **Resolution:** do-task round 20 (2026-02-11)
+- **Files affected:** `tests/quality/benchmark/test_benchmark_quality.py`
