@@ -309,3 +309,27 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 - `packages/rentl-core/src/rentl_core/init.py` (lines 278-368) — Added `_get_sample_text()` and updated `_generate_seed_data()`
 - `tests/unit/core/test_init.py` (lines 172-230, 519-683) — Updated existing tests and added language-specific tests
 - `tests/integration/cli/test_init.py` (lines 172-214) — Added seed data content verification
+
+---
+
+## Signpost 12: Unsupported source-language fallback is silent
+
+**Task:** Task 9 (audit round 1)
+**Status:** unresolved
+**Problem:** Unsupported source languages fall back to English seed data without the required user-facing note/warning.
+**Evidence:**
+- Task requirement in `agent-os/specs/2026-02-11-1011-s0122-functional-onboarding/plan.md:93` requires: unsupported languages must use English placeholders **and** add a note in seed header or init output warning.
+- Fallback behavior in `packages/rentl-core/src/rentl_core/init.py:327`:
+  ```python
+  return samples.get(language.lower(), samples["en"])
+  ```
+- `generate_project()` only emits API key / input placement / run-pipeline next steps with no fallback warning (`packages/rentl-core/src/rentl_core/init.py:168-177`).
+- Current fallback test only checks English content, not warning behavior (`tests/unit/core/test_init.py:696-716`).
+**Impact:**
+- Leaves users unaware that seed content no longer matches their configured source language when language code is unsupported.
+- Violates Task 9 acceptance detail and `ux/trust-through-transparency` (silent behavior at a first-run boundary).
+**Recommended resolution:**
+- Add explicit warning text for unsupported language fallback either:
+  - in generated seed data header/comments (format-dependent), or
+  - in `InitResult.next_steps` / init CLI output.
+- Add unit coverage asserting warning emission for unsupported languages.

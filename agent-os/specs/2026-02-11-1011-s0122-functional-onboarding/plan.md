@@ -86,7 +86,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - Test can be marked as requiring network/API key (skip if key not available)
   - Acceptance: test catches invalid preset model IDs before they reach production
 
-- [x] Task 9: Fix seed data language mismatch
+- [ ] Task 9: Fix seed data language mismatch
   - Update seed data generation in `packages/rentl-core/src/rentl_core/init.py` to generate text in the configured source language
   - For non-English source languages, generate placeholder text that matches the language (e.g., for "ja": "サンプル台詞 1", "サンプル台詞 2", etc.)
   - Support at minimum: ja (Japanese), zh (Chinese), ko (Korean), es (Spanish), fr (French), de (German)
@@ -94,3 +94,5 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - Add unit tests in `tests/unit/core/test_init.py` to verify seed data language matches source_language
   - Update integration test in `tests/integration/cli/test_init.py` to verify seed data content
   - Acceptance: `rentl init` with ja source language generates Japanese seed data that completes `rentl run-pipeline` without validation errors
+  - [ ] Fix: Add an explicit unsupported-language fallback notice (seed-file header note or init output warning) when `_get_sample_text()` falls back to English; current behavior silently returns English via `samples.get(language.lower(), samples["en"])` in `packages/rentl-core/src/rentl_core/init.py:327`, and `generate_project()` emits no warning in `next_steps` (`packages/rentl-core/src/rentl_core/init.py:168`) (audit round 1; see signposts.md Signpost 12)
+  - [ ] Fix: Add test coverage asserting the unsupported-language fallback note/warning is emitted (not just English fallback content). Current test `test_seed_data_unsupported_language_falls_back_to_english` only checks text content in `tests/unit/core/test_init.py:696` (audit round 1; see signposts.md Signpost 12)
