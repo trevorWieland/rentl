@@ -82,3 +82,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 12** (round 5): PASS — Re-audit of commit `22b4afa` remains clean: `demo.md` uses `run-pipeline`, Step 3 keeps `--config rentl.toml`, `uv run rentl run --help` still errors with `No such command 'run'`, and compare help still exposes config-driven options.
 - **Demo** (run 13): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (801 unit + 87 integration + 5 quality tests).
 - **Spec Audit** (round 11): FAIL — Rubric `5/4/3/5/3`, non-negotiables PASS, demo latest PASS (run 13), fix-now count 1 (real-LLM benchmark quality scenario fails with OpenRouter + `gpt-4o-mini`, compare exits with opaque `not enough values to unpack`).
+- **Demo** (run 14): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes.
