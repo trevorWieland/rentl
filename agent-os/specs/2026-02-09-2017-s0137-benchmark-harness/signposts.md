@@ -274,3 +274,10 @@
 - **Impact:** Task 13's "Japanese translations (not English originals)" contract is still incomplete; benchmark source extraction can include English lines and miss expected `new` translations from string-translation blocks.
 - **Solution required:** Teach `_parse_translation_file` to detect `translate ... strings:` sections, consume `old/new` pairs, and emit only `new` translated text. Add regression tests that fail if any parsed line has `speaker == "old"` for string blocks.
 - **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py`, `tests/unit/benchmark/eval_sets/test_parser.py`
+
+- **Task:** Task 14
+- **Status:** unresolved
+- **Problem:** The new ingestability test does not validate `benchmark download` output; it writes JSONL directly in test code, so the CLI output path is still unverified.
+- **Evidence:** The task requires `benchmark download` → ingest coverage (`plan.md:206`), but the added scenario uses `I serialize the parsed lines to JSONL` (`tests/features/benchmark/eval_set_download.feature:51`) and step code writes records directly with `line.model_dump_json(...)` (`tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:520`, `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:534`) instead of invoking `rentl benchmark download`. The actual CLI writer lives at `services/rentl-cli/src/rentl_cli/main.py:1208`.
+- **Impact:** A regression in CLI JSONL serialization could reintroduce non-ingestable output without failing this test, because the test bypasses the command under audit.
+- **Files affected:** `tests/features/benchmark/eval_set_download.feature`, `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py`, `services/rentl-cli/src/rentl_cli/main.py`
