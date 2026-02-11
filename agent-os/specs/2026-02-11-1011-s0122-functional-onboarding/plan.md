@@ -48,7 +48,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - [x] Fix: In `_render_run_execution_summary`, derive export-complete output file rows from actual run outputs (e.g., `RunState.artifacts` export paths and/or completed export records), not `config.project.languages.target_languages`; current logic can list files that were never exported when `run-pipeline --target-language` overrides configured targets (`services/rentl-cli/src/rentl_cli/main.py:901-902`, `services/rentl-cli/src/rentl_cli/main.py:2807-2820`, `services/rentl-cli/src/rentl_cli/main.py:2542-2551`) (audit round 2; see signposts.md Signpost 5)
   - [x] Fix: Strengthen `test_render_run_execution_summary_next_steps_export_complete` to assert concrete output-file rows tied to the export section (run id + language/format) and add an override scenario proving non-exported configured languages are not shown; current assertion `tmp_path.parts[0]` can pass from unrelated absolute-path rows like `Progress file` (`tests/unit/cli/test_main.py:1234-1237`, `services/rentl-cli/src/rentl_cli/main.py:2509`) per `testing/mandatory-coverage` (audit round 2; see signposts.md Signpost 5)
 
-- [x] Task 5: Add project README.md
+- [ ] Task 5: Add project README.md
   - Write root-level `README.md` with:
     - What rentl is (brief pitch from mission.md)
     - Installation instructions (uv/uvx)
@@ -58,6 +58,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - Keep it concise — exhaustive docs are s0.1.30
   - Acceptance: README exists, covers all listed sections, is accurate
   - [x] Fix: Add a concrete license link in `README.md`; current License section has no link target and only states no license file (`README.md:170-173`), leaving Task 5 "Links to license" unmet (audit round 1)
+  - [ ] Fix: Replace the broken license URL in `README.md:172` (`https://github.com/trevorWieland/rentl/blob/main/LICENSE` returns HTTP 404) with a valid license reference (either add a root `LICENSE` file and link to it, or link to an existing license artifact) so the License section is accurate (audit round 2; see signposts.md Signpost 6)
 
 - [ ] Task 6: End-to-end onboarding integration test
   - BDD integration test in `tests/integration/cli/test_onboarding_e2e.py`

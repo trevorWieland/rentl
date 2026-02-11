@@ -118,3 +118,20 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Files affected:**
 - `services/rentl-cli/src/rentl_cli/main.py` (lines 2528-2549) - Changed to iterate phase_history export records
 - `tests/unit/cli/test_main.py` (lines 1147-1349) - Updated test with target_language field and added override scenario test
+
+---
+
+## Signpost 6: Task 5 license link targets a nonexistent file
+
+**Task:** Task 5 fix item (audit round 2)
+**Status:** unresolved
+**Problem:** README's License section links to a GitHub `LICENSE` path that does not exist, so the required license link is present but inaccurate.
+**Evidence:**
+- `README.md:172` links to `https://github.com/trevorWieland/rentl/blob/main/LICENSE`
+- Link validation:
+  - `curl -s -o /dev/null -w "%{http_code}\n" https://github.com/trevorWieland/rentl/blob/main/LICENSE`
+  - Output: `404`
+- Repository tree check shows no root license file at current HEAD:
+  - `git ls-tree --name-only HEAD | rg -n "(?i)^license(\\.|$)"`
+  - Output: *(no matches)*
+**Impact:** Task 5 acceptance requires README accuracy and a license link; a dead link fails both discoverability and correctness for onboarding users.
