@@ -996,7 +996,7 @@ def run_pipeline(
             )
         response = _error_response(error)
     if progress is not None:
-        _render_run_execution_summary(response.data, console=console)
+        _render_run_execution_summary(response.data, console=console, config=config)
         if response.error is not None:
             _render_run_error(response.error, console=console)
             raise typer.Exit(code=response.error.exit_code)
@@ -1091,7 +1091,7 @@ def run_phase(
             )
         response = _error_response(error)
     if _should_render_progress():
-        _render_run_execution_summary(response.data, console=None)
+        _render_run_execution_summary(response.data, console=None, config=config)
         if response.error is not None:
             _render_run_error(response.error, console=None)
             raise typer.Exit(code=response.error.exit_code)
@@ -2465,6 +2465,7 @@ def _render_run_execution_summary(
     result: RunExecutionResult | None,
     *,
     console: Console | None,
+    config: RunConfig | None = None,
 ) -> None:
     if result is None:
         return
@@ -2521,6 +2522,34 @@ def _render_run_execution_summary(
             "Tokens",
             f"{input_tokens} in / {output_tokens} out (total {total_tokens})",
         )
+
+    # Add next steps if run completed successfully
+    if result.status == RunStatus.COMPLETED and config is not None:
+        export_phase_completed = False
+        if result.run_state and result.run_state.phase_history:
+            for record in result.run_state.phase_history:
+                if (
+                    record.phase == PhaseName.EXPORT
+                    and record.status == PhaseStatus.COMPLETED
+                ):
+                    export_phase_completed = True
+                    break
+
+        if export_phase_completed:
+            # Export was included - show output file paths
+            output_dir = config.project.paths.output_dir
+            table.add_row("", "")
+            table.add_row("Next Steps", "[bold green]Export complete![/bold green]")
+            table.add_row("", f"Output files: [cyan]{output_dir}[/cyan]")
+        else:
+            # Export was not included - show export command
+            output_dir = config.project.paths.output_dir
+            table.add_row("", "")
+            table.add_row(
+                "Next Steps", "[bold]Run export to generate output files:[/bold]"
+            )
+            table.add_row("", "[cyan]rentl export[/cyan]")
+            table.add_row("", f"Output directory: [cyan]{output_dir}[/cyan]")
 
     panel = Panel(table, title="rentl run", expand=False)
     if console is not None:

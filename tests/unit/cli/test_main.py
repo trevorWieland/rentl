@@ -1055,6 +1055,184 @@ def test_render_run_execution_summary_does_not_crash(tmp_path: Path) -> None:
     cli_main._render_run_execution_summary(result, console=None)
 
 
+def test_render_run_execution_summary_next_steps_export_needed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Run summary shows export command when export phase not run."""
+    run_id = uuid7()
+    progress_path = tmp_path / "progress.jsonl"
+    progress_path.write_text("", encoding="utf-8")
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+    config = cli_main._load_resolved_config(config_path)
+
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.COMPLETED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[
+                PhaseProgress(
+                    phase=PhaseName.TRANSLATE,
+                    status=PhaseStatus.COMPLETED,
+                    summary=ProgressSummary(
+                        percent_complete=None,
+                        percent_mode=ProgressPercentMode.UNAVAILABLE,
+                        eta_seconds=None,
+                        notes=None,
+                    ),
+                    metrics=None,
+                    started_at=None,
+                    completed_at=None,
+                )
+            ],
+            summary=ProgressSummary(
+                percent_complete=None,
+                percent_mode=ProgressPercentMode.UNAVAILABLE,
+                eta_seconds=None,
+                notes=None,
+            ),
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=[
+            PhaseRunRecord(
+                phase_run_id=uuid7(),
+                phase=PhaseName.TRANSLATE,
+                revision=1,
+                status=PhaseStatus.COMPLETED,
+                target_language="es",
+                dependencies=None,
+                artifact_ids=None,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:10Z",
+                stale=False,
+                error=None,
+                summary=None,
+                message=None,
+            )
+        ],
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+    result = RunExecutionResult(
+        run_id=run_id,
+        status=RunStatus.COMPLETED,
+        progress=run_state.progress.summary,
+        run_state=run_state,
+        log_file=None,
+        progress_file=StorageReference(
+            backend=StorageBackend.FILESYSTEM,
+            path=str(progress_path),
+        ),
+        phase_record=None,
+    )
+
+    cli_main._render_run_execution_summary(result, console=None, config=config)
+
+    captured = capsys.readouterr()
+    assert "Next Steps" in captured.out
+    assert "rentl export" in captured.out
+    assert "out" in captured.out
+
+
+def test_render_run_execution_summary_next_steps_export_complete(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Run summary shows output directory when export phase completed."""
+    run_id = uuid7()
+    progress_path = tmp_path / "progress.jsonl"
+    progress_path.write_text("", encoding="utf-8")
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    config_path = _write_config(tmp_path, workspace_dir)
+    config = cli_main._load_resolved_config(config_path)
+
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.COMPLETED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[
+                PhaseProgress(
+                    phase=PhaseName.EXPORT,
+                    status=PhaseStatus.COMPLETED,
+                    summary=ProgressSummary(
+                        percent_complete=None,
+                        percent_mode=ProgressPercentMode.UNAVAILABLE,
+                        eta_seconds=None,
+                        notes=None,
+                    ),
+                    metrics=None,
+                    started_at=None,
+                    completed_at=None,
+                )
+            ],
+            summary=ProgressSummary(
+                percent_complete=None,
+                percent_mode=ProgressPercentMode.UNAVAILABLE,
+                eta_seconds=None,
+                notes=None,
+            ),
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=[
+            PhaseRunRecord(
+                phase_run_id=uuid7(),
+                phase=PhaseName.EXPORT,
+                revision=1,
+                status=PhaseStatus.COMPLETED,
+                target_language=None,
+                dependencies=None,
+                artifact_ids=None,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:10Z",
+                stale=False,
+                error=None,
+                summary=None,
+                message=None,
+            )
+        ],
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+    result = RunExecutionResult(
+        run_id=run_id,
+        status=RunStatus.COMPLETED,
+        progress=run_state.progress.summary,
+        run_state=run_state,
+        log_file=None,
+        progress_file=StorageReference(
+            backend=StorageBackend.FILESYSTEM,
+            path=str(progress_path),
+        ),
+        phase_record=None,
+    )
+
+    cli_main._render_run_execution_summary(result, console=None, config=config)
+
+    captured = capsys.readouterr()
+    assert "Next Steps" in captured.out
+    assert "Export complete!" in captured.out
+    assert "Output files:" in captured.out
+
+
 def _write_config(tmp_path: Path, workspace_dir: Path) -> Path:
     config_path = tmp_path / "rentl.toml"
     content = textwrap.dedent(
