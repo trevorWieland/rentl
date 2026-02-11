@@ -32,3 +32,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 1
 - **Task 9** (round 2): PASS — Verified Signpost 12 resolution is implemented: unsupported-language fallback now emits an init next-step warning, language coverage remains correct, and Task 9 unit/integration tests pass.
 - **Demo** (run 4): PASS — Final verification of complete onboarding flow: init with Japanese seed data, doctor all-pass with .env API key, run-pipeline ja→en translation success, export to CSV, E2E test pass, README verified (6 run, 0 verified)
+- **Spec Audit** (round 2): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0
