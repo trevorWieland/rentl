@@ -17,3 +17,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 1): FAIL — `README.md` does not include the required license link; the License section only states that no license file exists.
 - **Task 5** (round 2): FAIL — `README.md` now has a license URL, but it points to `https://github.com/trevorWieland/rentl/blob/main/LICENSE` which returns HTTP 404, so Task 5's license-link accuracy requirement is still unmet.
 - **Task 5** (round 3): FAIL — `README.md` License section now has no hyperlink at all, so Task 5's "Links to license" requirement in `plan.md` remains unmet.
+- **Task 5** (round 4): PASS — Verified signpost 6 resolution is implemented: `README.md` now links to a real root `LICENSE` file, and Task 5 requirements remain satisfied.
