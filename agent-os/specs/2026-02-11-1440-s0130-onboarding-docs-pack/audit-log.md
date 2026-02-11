@@ -13,3 +13,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 1): FAIL — `docs/troubleshooting.md` uses stale `RENTL_API_KEY` guidance instead of current `api_key_env`/`.env.example` variables.
 - **Task 4** (round 2): PASS — Troubleshooting guidance now uses `api_key_env`-driven env var setup with current `RENTL_LOCAL_API_KEY` example and preserves required symptom/cause/fix coverage.
 - **Task 5** (round 1): FAIL — Cross-reference pass missed a stale Quick Start export format note (`json`) that does not match `rentl export --help` valid formats.
+- **Demo** (run 1): PASS — All onboarding verification steps passed: CLI/README command match, complete quickstart, config/env cross-references, troubleshooting coverage, make check (7 run, 0 verified)

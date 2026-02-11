@@ -26,4 +26,12 @@ The rentl onboarding experience should guide any user from discovery to first pi
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Full onboarding verification (2026-02-11 18:45)
+- Step 1 [RUN]: PASS — All 13 commands match between CLI and README with identical descriptions
+- Step 2 [RUN]: PASS — All commands have meaningful help text, no Raises: sections, all options documented
+- Step 3 [RUN]: PASS — README quickstart contains all four steps (init, doctor, run-pipeline, export) with copy-pasteable examples and explanations
+- Step 4 [RUN]: PASS — All config sections and keys from rentl.toml.example are documented in README Configuration section
+- Step 5 [RUN]: PASS — All 6 environment variables from .env.example are documented in README Environment Variables section
+- Step 6 [RUN]: PASS — docs/troubleshooting.md exists and covers all 4 required failure modes (Missing API Key, Invalid Config, Connection Failure, Schema Mismatch) with symptom/cause/fix patterns and rentl doctor reference
+- Step 7 [RUN]: PASS — make check passed (format, lint, type, 837 unit tests)
+- **Overall: PASS**
