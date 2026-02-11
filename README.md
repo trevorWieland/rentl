@@ -54,7 +54,22 @@ This interactive command will:
 - Pre-fill configuration with sensible defaults
 - Generate a valid `rentl.toml` configuration file
 
-### 2. Verify your setup
+### 2. Add your API key
+
+Create a `.env` file in your project directory with your API key:
+
+```bash
+# For OpenRouter
+echo "OPENROUTER_API_KEY=your_key_here" > .env
+
+# For OpenAI
+echo "OPENAI_API_KEY=your_key_here" > .env
+
+# For local endpoints (Ollama, LM Studio)
+echo "RENTL_LOCAL_API_KEY=placeholder" > .env
+```
+
+### 3. Verify your setup
 
 ```bash
 uv run rentl doctor
@@ -66,7 +81,7 @@ Doctor runs diagnostic checks on your configuration and environment, including:
 - Model endpoint connectivity
 - Required directory structure
 
-### 3. Run the pipeline
+### 4. Run the pipeline
 
 ```bash
 uv run rentl run-pipeline
@@ -79,37 +94,235 @@ Executes the full localization pipeline:
 - Runs QA checks on the output
 - Tracks progress and status throughout
 
-### 4. Export translated files
+Once the pipeline completes, export the translated lines to your preferred format. First, capture the pipeline output to extract the edit phase artifact:
 
 ```bash
-uv run rentl export --input run-001/edited_lines.jsonl --output translations.csv --format csv
+# Get the run status with JSON output
+RUN_STATUS=$(uv run rentl status --json)
+
+# Extract the edit phase artifact path for target language (e.g., "en")
+EDIT_ARTIFACT=$(echo "$RUN_STATUS" | jq -r '.data.run_state.artifacts[] | select(.phase == "edit") | .artifacts[0].path')
+
+# Extract the edited_lines array from the EditPhaseOutput and write as JSONL
+jq -c '.edited_lines[]' "$EDIT_ARTIFACT" > translated_lines.jsonl
+
+# Export to CSV (or use --format jsonl/txt)
+uv run rentl export \
+  --input translated_lines.jsonl \
+  --output translations.csv \
+  --format csv
 ```
 
-Exports translated lines to your specified output file in CSV, JSONL, or TXT format, ready for patching.
+The export command supports multiple formats (csv, jsonl, txt) and writes to the specified output path.
 
 ## Available Commands
 
 | Command | Description |
 |---------|-------------|
-| `rentl init` | Initialize a new rentl project interactively |
-| `rentl doctor` | Run diagnostic checks on configuration and environment |
-| `rentl run-pipeline` | Run the full localization pipeline |
-| `rentl run-phase` | Run a single phase (with required prerequisites) |
-| `rentl export` | Export translated lines to CSV/JSONL/TXT |
-| `rentl status` | Show run status and progress |
-| `rentl explain` | Explain pipeline phases |
-| `rentl validate-connection` | Validate connectivity for configured model endpoints |
-| `rentl check-secrets` | Scan configuration files for hardcoded secrets |
-| `rentl migrate` | Migrate rentl.toml config to the current schema version |
-| `rentl benchmark` | Benchmark evaluation commands |
-| `rentl version` | Display version information |
-| `rentl help` | Display help for commands |
+| `rentl version` | Display version information. |
+| `rentl help` | Display help for commands. |
+| `rentl doctor` | Run diagnostic checks on rentl configuration and environment. |
+| `rentl explain` | Explain pipeline phases. |
+| `rentl init` | Initialize a new rentl project interactively. |
+| `rentl validate-connection` | Validate connectivity for configured model endpoints. |
+| `rentl export` | Export translated lines to CSV/JSONL/TXT. |
+| `rentl run-pipeline` | Run the full pipeline plan. |
+| `rentl run-phase` | Run a single phase (with required prerequisites). |
+| `rentl status` | Show run status and progress. |
+| `rentl check-secrets` | Scan configuration files for hardcoded secrets. |
+| `rentl migrate` | Migrate rentl.toml config file to the current schema version. |
+| `rentl benchmark` | Download and compare benchmark evaluation datasets. |
 
 For detailed help on any command, run:
 
 ```bash
 uv run rentl <command> --help
 ```
+
+## Configuration
+
+After running `rentl init`, your configuration lives in `rentl.toml`. This file controls all aspects of your localization pipeline.
+
+### Configuration File Structure
+
+#### `[project]` — Project metadata and paths
+
+```toml
+[project]
+schema_version = { major = 0, minor = 1, patch = 0 }
+project_name = "my-translation-project"
+
+[project.paths]
+workspace_dir = "."
+input_path = "input.txt"
+output_dir = "out"
+logs_dir = "logs"
+
+[project.formats]
+input_format = "txt"
+output_format = "txt"
+
+[project.languages]
+source_language = "en"
+target_languages = ["ja"]
+```
+
+- **schema_version** — Config file schema version (managed automatically by `rentl migrate`)
+- **project_name** — Name for this translation project
+- **paths.workspace_dir** — Root directory for all rentl operations
+- **paths.input_path** — Path to your source text file
+- **paths.output_dir** — Where to write pipeline outputs
+- **paths.logs_dir** — Where to write log files
+- **formats.input_format** — Input file format (`txt`, `csv`, or `jsonl`)
+- **formats.output_format** — Export file format (`txt`, `csv`, or `jsonl`)
+- **languages.source_language** — Source language code (e.g., `en`)
+- **languages.target_languages** — List of target language codes (e.g., `["ja", "es"]`)
+
+#### `[endpoint]` — Model provider configuration
+
+```toml
+[endpoint]
+provider_name = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+```
+
+- **provider_name** — Provider identifier (for display and logging)
+- **base_url** — OpenAI-compatible API endpoint URL
+- **api_key_env** — Name of the environment variable containing your API key
+
+#### `[pipeline]` — Pipeline model and phase configuration
+
+```toml
+[pipeline.default_model]
+model_id = "anthropic/claude-3.5-sonnet"
+
+[[pipeline.phases]]
+phase = "ingest"
+
+[[pipeline.phases]]
+phase = "context"
+agents = ["scene_summarizer"]
+
+[[pipeline.phases]]
+phase = "pretranslation"
+agents = ["idiom_labeler"]
+
+[[pipeline.phases]]
+phase = "translate"
+agents = ["direct_translator"]
+
+[[pipeline.phases]]
+phase = "qa"
+agents = ["style_guide_critic"]
+
+[[pipeline.phases]]
+phase = "edit"
+agents = ["basic_editor"]
+
+[[pipeline.phases]]
+phase = "export"
+```
+
+- **default_model.model_id** — Model identifier to use for all phases (unless overridden)
+- **phases** — Ordered list of pipeline phases to execute
+- **phases[].phase** — Phase name (`ingest`, `context`, `pretranslation`, `translate`, `qa`, `edit`, `export`)
+- **phases[].agents** — Which agents to run during this phase
+
+#### `[agents]` — Agent configuration paths
+
+```toml
+[agents]
+prompts_dir = "packages/rentl-agents/prompts"
+agents_dir = "packages/rentl-agents/agents"
+```
+
+- **prompts_dir** — Directory containing agent prompt templates
+- **agents_dir** — Directory containing agent configuration files
+
+#### `[logging]` — Logging configuration
+
+```toml
+[logging]
+[[logging.sinks]]
+type = "file"
+
+[[logging.sinks]]
+type = "console"
+```
+
+- **sinks** — Where to write logs (`file` writes to logs_dir, `console` writes to stdout)
+
+#### `[concurrency]` — Parallel execution settings
+
+```toml
+[concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+```
+
+- **max_parallel_requests** — Maximum concurrent API requests per scene
+- **max_parallel_scenes** — Maximum scenes to process in parallel
+
+#### `[retry]` — Retry and backoff configuration
+
+```toml
+[retry]
+max_retries = 3
+backoff_s = 1.0
+max_backoff_s = 60.0
+```
+
+- **max_retries** — Maximum number of retry attempts on API failures
+- **backoff_s** — Initial backoff delay in seconds
+- **max_backoff_s** — Maximum backoff delay in seconds
+
+#### `[cache]` — Response caching
+
+```toml
+[cache]
+enabled = false
+```
+
+- **enabled** — Whether to cache API responses (useful for development/testing)
+
+### Environment Variables
+
+Store API keys and sensitive configuration in `.env` or `.env.local` files in your project directory. **Never commit these files to version control.**
+
+#### Pipeline API keys
+
+```bash
+# OpenRouter
+OPENROUTER_API_KEY=your_key_here
+
+# OpenAI
+OPENAI_API_KEY=your_key_here
+
+# Local endpoints (Ollama, LM Studio)
+RENTL_LOCAL_API_KEY=placeholder
+```
+
+#### Quality evaluation API keys (optional)
+
+```bash
+# Quality evals: API key for the model provider
+RENTL_QUALITY_API_KEY=your_key_here
+
+# Quality evals: base URL for the model provider
+RENTL_QUALITY_BASE_URL=https://api.openai.com/v1
+
+# Quality evals: model ID used for agent evaluation runs
+RENTL_QUALITY_MODEL=gpt-4
+
+# Quality evals: judge model ID used for LLM-as-judge evaluations
+RENTL_QUALITY_JUDGE_MODEL=gpt-4
+
+# Quality evals: base URL for the judge model provider
+RENTL_QUALITY_JUDGE_BASE_URL=https://api.openai.com/v1
+```
+
+These environment variables are loaded automatically from `.env` files in your workspace directory.
 
 ## Project Structure
 
@@ -126,22 +339,6 @@ rentl/
 │   ├── rentl-cli/     # CLI application
 │   └── rentl-api/     # API service (future)
 └── tests/             # Test suite
-```
-
-## Configuration
-
-After running `rentl init`, your configuration lives in `rentl.toml`. Key settings include:
-
-- **Model configuration** — Base URL, API key reference, and model ID per phase
-- **Input/output paths** — Source data location and export directory
-- **Target languages** — Which languages to translate to
-- **Pipeline phases** — Which phases to run and in what order
-
-Store your API keys in `.env` or `.env.local` files in your config directory (never commit these files):
-
-```bash
-# .env
-OPENROUTER_API_KEY=your_key_here
 ```
 
 ## Development
@@ -168,13 +365,15 @@ Format code:
 make format
 ```
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
-
 ## Contributing
 
 This project is in active development. Contributions, issues, and feature requests are welcome.
+
+See our [contribution guidelines](./CONTRIBUTING.md) for details on how to contribute.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
 ## Links
 

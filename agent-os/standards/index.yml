@@ -39,6 +39,8 @@ global:
 python:
   async-first-design:
     description: Design all APIs around async/await for parallel agent execution and efficient LLM network IO
+  cli-help-docstring-gating:
+    description: Use form-feed to hide internal docstring sections from Typer help output
   llm-output-tolerance:
     description: LLM-output schemas use extra=ignore to tolerate extra fields; config schemas may be strict
   modern-python-314:
@@ -69,11 +71,15 @@ testing:
     description: Generated artifacts must validate against consuming component schemas, not just syntax
 
 ux:
+  copy-pasteable-examples:
+    description: All command examples in docs must be executable without modification
   frictionless-by-default:
     description: Guided setup and safe defaults for effortless first runs
   progress-is-product:
     description: Status, phase completion, and QA visibility must be immediate and unambiguous
   speed-with-guardrails:
     description: Fast iterations without sacrificing determinism or quality; speed and quality aren't tradeoffs
+  stale-reference-prevention:
+    description: Cross-reference audits must verify against actual CLI output and config files
   trust-through-transparency:
     description: No silent stalls; every phase, error, and status must be visible and explainable

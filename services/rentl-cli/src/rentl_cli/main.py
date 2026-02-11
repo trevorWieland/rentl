@@ -217,7 +217,7 @@ TARGET_LANGUAGE_OPTION = typer.Option(
     None, "--target-language", "-t", help="Target language code (repeatable)"
 )
 TARGET_LANGUAGE_SINGLE_OPTION = typer.Option(
-    None, "--target-language", "-t", help="Target language code"
+    None, "--target-language", "-t", help="Target language code (single language)"
 )
 INPUT_PATH_OPTION = typer.Option(
     None, "--input-path", help="Override input path for ingest"
@@ -247,11 +247,11 @@ def version() -> None:
 def help(command: str | None = typer.Argument(None, help="Command name")) -> None:
     """Display help for commands.
 
-    Shows a summary of all commands or detailed help for a specific command.
+    Shows a summary of all commands or detailed help for a specific command.\f
 
     Raises:
         typer.Exit: When an invalid command name is provided.
-    """
+    """  # noqa: D301
     console = Console()
 
     # Detect if output is being piped (not a TTY)
@@ -341,11 +341,11 @@ def doctor(config_path: Path = CONFIG_OPTION) -> None:
     """Run diagnostic checks on rentl configuration and environment.
 
     Checks Python version, config file, workspace structure, API keys,
-    and LLM connectivity.
+    and LLM connectivity.\f
 
     Raises:
         typer.Exit: When any check fails with appropriate exit code.
-    """
+    """  # noqa: D301
     console = Console()
     is_tty = sys.stdout.isatty()
 
@@ -434,11 +434,11 @@ def explain(
 ) -> None:
     """Explain pipeline phases.
 
-    Shows what each phase does, its inputs/outputs, prerequisites, and config options.
+    Shows what each phase does, its inputs/outputs, prerequisites, and config options.\f
 
     Raises:
         typer.Exit: When an invalid phase name is provided.
-    """
+    """  # noqa: D301
     console = Console()
     is_tty = sys.stdout.isatty()
 
@@ -527,11 +527,11 @@ def explain(
 def init() -> None:
     """Initialize a new rentl project interactively.
 
-    Creates rentl.toml, .env, workspace directories, and optional seed data.
+    Creates rentl.toml, .env, workspace directories, and optional seed data.\f
 
     Raises:
         typer.Exit: When initialization fails with non-zero exit code.
-    """
+    """  # noqa: D301
     try:
         # Check for existing rentl.toml
         config_path = Path.cwd() / "rentl.toml"
@@ -708,11 +708,11 @@ def init() -> None:
 def validate_connection(
     config_path: Path = CONFIG_OPTION,
 ) -> None:
-    """Validate connectivity for configured model endpoints.
+    """Validate connectivity for configured model endpoints.\f
 
     Raises:
         typer.Exit: When validation fails with non-zero exit code.
-    """
+    """  # noqa: D301, D415
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
     try:
@@ -778,11 +778,11 @@ def export(
     column_order: list[str] | None = COLUMN_ORDER_OPTION,
     expected_line_count: int | None = EXPECTED_LINE_COUNT_OPTION,
 ) -> None:
-    """Export translated lines to CSV/JSONL/TXT.
+    """Export translated lines to CSV/JSONL/TXT.\f
 
     Raises:
         typer.Exit: When export fails with non-zero exit code.
-    """
+    """  # noqa: D301, D415
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
     try:
@@ -900,11 +900,11 @@ def run_pipeline(
     run_id: str | None = RUN_ID_OPTION,
     target_languages: list[str] | None = TARGET_LANGUAGE_OPTION,
 ) -> None:
-    """Run the full pipeline plan.
+    """Run the full pipeline plan.\f
 
     Raises:
         typer.Exit: When the run fails in interactive mode.
-    """
+    """  # noqa: D301, D415
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
     progress: Progress | None = None
@@ -1016,11 +1016,11 @@ def run_phase(
     input_path: Path | None = INPUT_PATH_OPTION,
     output_path: Path | None = OUTPUT_PATH_OPTION,
 ) -> None:
-    """Run a single phase (with required prerequisites).
+    """Run a single phase (with required prerequisites).\f
 
     Raises:
         typer.Exit: When the run fails in interactive mode.
-    """
+    """  # noqa: D301, D415
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
     try:
@@ -1105,16 +1105,18 @@ def run_phase(
 @app.command("status")
 def status(
     config_path: Path = CONFIG_OPTION,
-    run_id: str | None = RUN_ID_OPTION,
+    run_id: str | None = typer.Option(
+        None, "--run-id", help="Show status for this run"
+    ),
     watch: bool = typer.Option(False, "--watch", "-w", help="Watch progress"),
     json_output: bool = typer.Option(False, "--json", help="Output status as JSON"),
 ) -> None:
-    """Show run status and progress.
+    """Show run status and progress.\f
 
     Raises:
         ValueError: If arguments are incompatible or no runs are found.
         typer.Exit: If rendering fails in non-JSON mode.
-    """
+    """  # noqa: D301, D415
     try:
         if watch and json_output:
             raise ValueError("--json is not supported with --watch")
@@ -1162,7 +1164,7 @@ def status(
 
 
 # Benchmark subcommands
-benchmark_app = typer.Typer(help="Benchmark evaluation commands")
+benchmark_app = typer.Typer(help="Download and compare benchmark evaluation datasets.")
 app.add_typer(benchmark_app, name="benchmark")
 
 
@@ -1191,11 +1193,11 @@ async def _benchmark_download_async(
     slice_name: str | None,
     output_dir: str | None,
 ) -> None:
-    """Async implementation of benchmark download command.
+    """Async implementation of benchmark download command.\f
 
     Raises:
         typer.Exit: When download or parsing fails
-    """
+    """  # noqa: D301, D415
     try:
         # Normalize eval-set name from kebab-case to snake_case
         normalized_eval_set = eval_set.replace("-", "_")
@@ -1363,11 +1365,11 @@ async def _benchmark_compare_async(
     judge_api_key_env: str | None,
     output_path: str | None,
 ) -> None:
-    """Async implementation of benchmark compare command.
+    """Async implementation of benchmark compare command.\f
 
     Raises:
         typer.Exit: When comparison fails
-    """
+    """  # noqa: D301, D415
     try:
         # Validate we have at least 2 outputs
         if len(output_paths) < 2:
@@ -3531,11 +3533,11 @@ def check_secrets(
     """Scan configuration files for hardcoded secrets.
 
     Checks rentl.toml for api_key_env values that look like actual secrets
-    (not env var names), and warns if .env files exist and are not in .gitignore.
+    (not env var names), and warns if .env files exist and are not in .gitignore.\f
 
     Raises:
         typer.Exit: Exit code 1 if findings are detected, 0 if clean.
-    """
+    """  # noqa: D301
     console = Console()
     is_tty = sys.stdout.isatty()
 
@@ -3703,11 +3705,11 @@ def migrate(
     migration steps to reach the current version, and applies them. The original
     file is backed up to rentl.toml.bak before any changes are written.
 
-    With --dry-run, shows what migrations would be applied without modifying files.
+    With --dry-run, shows what migrations would be applied without modifying files.\f
 
     Raises:
         typer.Exit: With appropriate exit code if migration fails or config invalid.
-    """
+    """  # noqa: D301
     console = Console()
     is_tty = sys.stdout.isatty()
 

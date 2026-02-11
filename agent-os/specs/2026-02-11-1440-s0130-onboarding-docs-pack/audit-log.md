@@ -1,0 +1,17 @@
+# Audit Log
+
+Running record of all task audits, demo runs, and spec audits.
+Future auditors: check this log for regressions and patterns.
+
+---
+
+- **Task 2** (round 1): PASS — CLI help text cleanup meets task requirements with verified `--help` output.
+- **Task 3** (round 1): FAIL — README Quick Start export command uses nonexistent input `run-001/edited_lines.jsonl`, so the zero-to-pipeline path is not copy-pasteable.
+- **Task 3** (round 2): FAIL — Quick Start replaces the invalid export command with `uv run rentl export --help`, which does not execute export and leaves no copy-pasteable export step.
+- **Task 3** (round 3): FAIL — Quick Start now lists manual export preparation steps and a placeholder input path, but still does not provide an executable copy-pasteable export workflow.
+- **Task 2** (round 2): PASS — Re-verified Task 2 commit (`900e514`): all listed command help screens omit `Raises:`, `status --run-id` text is corrected, benchmark description is a full sentence, and `--target-language` help now distinguishes repeatable vs single-language usage.
+- **Task 4** (round 1): FAIL — `docs/troubleshooting.md` uses stale `RENTL_API_KEY` guidance instead of current `api_key_env`/`.env.example` variables.
+- **Task 4** (round 2): PASS — Troubleshooting guidance now uses `api_key_env`-driven env var setup with current `RENTL_LOCAL_API_KEY` example and preserves required symptom/cause/fix coverage.
+- **Task 5** (round 1): FAIL — Cross-reference pass missed a stale Quick Start export format note (`json`) that does not match `rentl export --help` valid formats.
+- **Demo** (run 1): PASS — All onboarding verification steps passed: CLI/README command match, complete quickstart, config/env cross-references, troubleshooting coverage, make check (7 run, 0 verified)
+- **Spec Audit** (round 1): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0
