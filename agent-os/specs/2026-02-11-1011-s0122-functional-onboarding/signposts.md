@@ -98,3 +98,19 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Files affected:**
 - `services/rentl-cli/src/rentl_cli/main.py` (lines 2538-2554) - Modified export-completed branch to construct and display individual file paths
 - `tests/unit/cli/test_main.py` (lines 1228-1235) - Strengthened test to verify path components appear in output
+
+---
+
+## Signpost 5: Export-complete summary can list files that were not produced
+
+**Task:** Task 4 (audit round 2)
+**Status:** unresolved
+**Problem:** Export-complete next steps enumerate files from configured target languages instead of actual run outputs, so the summary can claim nonexistent exports when `run-pipeline` is narrowed with `--target-language`.
+**Evidence:**
+- `run-pipeline` accepts `--target-language` overrides (`services/rentl-cli/src/rentl_cli/main.py:901-902`) and executes the pipeline with resolved override languages (`services/rentl-cli/src/rentl_cli/main.py:2807-2820`).
+- Summary rendering ignores executed languages/artifacts and always iterates `config.project.languages.target_languages` (`services/rentl-cli/src/rentl_cli/main.py:2542-2551`).
+- Reproduction (local script): config targets `["ja", "es"]`, run state has completed export record only for `ja`, output still contains both:
+  - `contains ja? True`
+  - `contains es? True`
+**Impact:** Violates `ux/trust-through-transparency` by showing misleading file outputs, and weakens Task 4's goal of actionable next steps.
+**Suggested resolution:** Build the output-file list from run artifacts/records for this run (prefer artifact paths), and add a unit test where configured targets differ from executed targets to ensure only produced files are shown.
