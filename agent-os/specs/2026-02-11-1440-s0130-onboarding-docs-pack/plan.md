@@ -27,7 +27,7 @@ Users discovering rentl on GitHub need a complete, consistent onboarding experie
   - [x] Fix: Replace the invalid Quick Start export input path `run-001/edited_lines.jsonl` with a real, generated path/workflow so the step is copy-pasteable (README.md:100; `uv run rentl export --input run-001/edited_lines.jsonl --output /tmp/translations.csv --format csv` fails with `No such file or directory`) (audit round 1)
   - [x] Fix: Quick Start still lacks a copy-pasteable export execution step; `uv run rentl export --help` is documentation lookup, not export workflow. Add an explicit `rentl export --input <translated-lines-jsonl-from-status> --output <path> --format <format>` command sequence using the status-provided path (README.md:103, README.md:106) (audit round 2)
   - [x] Fix: Quick Start export remains non-copy-pasteable because it only describes manual preprocessing and uses placeholder input (`<translated-lines.jsonl>`) instead of executable steps. Add a concrete command sequence that produces a real TranslatedLine JSONL from the run output and then executes `rentl export` with that generated path (README.md:103, README.md:109-115) (audit round 3)
-- [x] Task 4: Create troubleshooting doc
+- [ ] Task 4: Create troubleshooting doc
   - Create `docs/troubleshooting.md` covering common failure modes:
     - Missing API key (symptom: connection error; cause: env var not set; fix: add to .env)
     - Invalid or missing config (symptom: config parse error; cause: bad TOML or missing file; fix: run rentl init or check syntax)
@@ -37,6 +37,7 @@ Users discovering rentl on GitHub need a complete, consistent onboarding experie
   - Reference `rentl doctor` as the diagnostic starting point
   - Files: `docs/troubleshooting.md`
   - Test: file exists and covers all four failure modes
+  - [ ] Fix: `docs/troubleshooting.md` hardcodes `RENTL_API_KEY` (docs/troubleshooting.md:27), but current examples are config-driven via `endpoint.api_key_env` (rentl.toml.example:33) and `.env.example` uses `RENTL_LOCAL_API_KEY` (.env.example:2). Update the Missing API Key fix to instruct users to set the env var named by `api_key_env` (with an accurate example) so docs do not contain stale env var references. (audit round 1)
 - [ ] Task 5: Cross-reference audit and final consistency pass
   - Verify README command table matches `rentl --help` exactly (command names + descriptions)
   - Verify `rentl.toml.example` config keys are documented in README configuration section
