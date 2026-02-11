@@ -79,7 +79,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - Update unit tests in `tests/unit/core/test_init.py` if they assert the old model ID
   - Acceptance: OpenRouter preset uses a model ID that exists on OpenRouter and passes connectivity checks
 
-- [ ] Task 8: Add preset validation test
+- [x] Task 8: Add preset validation test
   - Add integration test that validates at least one provider preset's model ID against its live API
   - Test should verify that `rentl init` with default preset → `rentl doctor` completes with all checks passing (given valid API key)
   - Use real API call (not mocked) to catch preset configuration drift
