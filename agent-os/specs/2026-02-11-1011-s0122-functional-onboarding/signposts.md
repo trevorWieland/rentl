@@ -124,7 +124,7 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 ## Signpost 6: Task 5 license link targets a nonexistent file
 
 **Task:** Task 5 fix item (audit round 2)
-**Status:** unresolved
+**Status:** resolved
 **Problem:** The broken GitHub `LICENSE` URL was removed, but the README now has no license link at all, so Task 5's required "Links to license" item is still unmet.
 **Evidence:**
 - Task requirement explicitly includes "Links to license" at `agent-os/specs/2026-02-11-1011-s0122-functional-onboarding/plan.md:57`.
@@ -137,6 +137,8 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
   - `git ls-tree --name-only HEAD | rg -n "(?i)^license(\\.|$)"`
   - Output: *(no matches)*
 **Impact:** Task 5 remains incomplete despite being checked off; users still do not have any linkable license reference from the README.
-**Solution:** Add a valid, reachable license reference and link to it from the README. Preferred: add a root `LICENSE` file and link `[LICENSE](./LICENSE)` from `README.md`.
+**Solution:** Created root `LICENSE` file with MIT License (appropriate for open-source project per mission.md) and updated `README.md:170-172` to link to it with `[LICENSE](./LICENSE)`.
+**Resolution:** do-task round 6 (2026-02-11)
 **Files affected:**
-- `README.md` (lines 170-172) - License section currently has no hyperlink
+- `LICENSE` (new file) - Added MIT License
+- `README.md` (lines 170-172) - Updated to link to LICENSE file
