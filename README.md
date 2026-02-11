@@ -94,28 +94,26 @@ Executes the full localization pipeline:
 - Runs QA checks on the output
 - Tracks progress and status throughout
 
-Once the pipeline completes, check its status:
+Once the pipeline completes, export the translated lines to your preferred format. First, capture the pipeline output to extract the edit phase artifact:
 
 ```bash
-uv run rentl status
-```
+# Get the run status with JSON output
+RUN_STATUS=$(uv run rentl status --json)
 
-To export the translated lines, you need to:
-1. Find the edit phase artifact path from the status output
-2. Extract the `edited_lines` array from that artifact (it's a JSONL file containing an EditPhaseOutput object)
-3. Create a new JSONL file where each line is a TranslatedLine record
-4. Run the export command with that JSONL file
+# Extract the edit phase artifact path for target language (e.g., "en")
+EDIT_ARTIFACT=$(echo "$RUN_STATUS" | jq -r '.data.run_state.artifacts[] | select(.phase == "edit") | .artifacts[0].path')
 
-Example export command (replace `<translated-lines.jsonl>` with your prepared file):
+# Extract the edited_lines array from the EditPhaseOutput and write as JSONL
+jq -c '.edited_lines[]' "$EDIT_ARTIFACT" > translated_lines.jsonl
 
-```bash
+# Export to CSV (or use --format jsonl/json)
 uv run rentl export \
-  --input <translated-lines.jsonl> \
+  --input translated_lines.jsonl \
   --output translations.csv \
   --format csv
 ```
 
-For a complete step-by-step export workflow, see the [integration test example](tests/integration/cli/test_onboarding_e2e.py) which demonstrates extracting and exporting pipeline outputs.
+The export command supports multiple formats (csv, jsonl, json) and writes to the specified output path.
 
 ## Available Commands
 
