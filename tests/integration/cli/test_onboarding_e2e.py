@@ -259,43 +259,68 @@ def when_run_export(
     """
     assert ctx.config_path is not None
     assert ctx.project_dir is not None
+    assert ctx.pipeline_response is not None, "Pipeline response not available"
 
-    # Find the latest run directory
-    output_dir = ctx.project_dir / "out"
-    if not output_dir.exists():
-        # If output directory doesn't exist, export will fail
-        # Run export anyway to capture the failure
-        ctx.export_result = cli_runner.invoke(
-            cli_main.app,
-            ["export", "--config", str(ctx.config_path)],
-        )
-        return
+    # Extract run_id from pipeline response
+    run_id = ctx.pipeline_response.get("data", {}).get("run_id")
+    assert run_id is not None, "Pipeline response missing run_id"
 
-    # Find run directories
-    run_dirs = sorted(output_dir.glob("run-*"))
-    if not run_dirs:
-        # If no run directories, export will fail
-        ctx.export_result = cli_runner.invoke(
-            cli_main.app,
-            ["export", "--config", str(ctx.config_path)],
-        )
-        return
+    # Extract artifacts from pipeline response to find the translated lines
+    run_state = ctx.pipeline_response.get("data", {}).get("run_state", {})
+    artifacts = run_state.get("artifacts", [])
 
-    # Get the latest run directory
-    latest_run_dir = run_dirs[-1]
-    run_id = latest_run_dir.name.replace("run-", "")
+    # Find the edit phase artifact for target language "en"
+    # The edit phase artifact contains EditPhaseOutput,
+    # which has edited_lines (list of TranslatedLine). We need to extract
+    # those lines and write them as JSONL for the export command.
+    edit_artifact_path: Path | None = None
+    for phase_artifacts in artifacts:
+        if phase_artifacts.get("phase") == "edit":
+            phase_artifact_list = phase_artifacts.get("artifacts", [])
+            for artifact in phase_artifact_list:
+                artifact_path_str = artifact.get("path")
+                # Edit artifacts are stored as JSONL (each artifact is one line)
+                if artifact_path_str:
+                    edit_artifact_path = Path(artifact_path_str)
+                    break
+            if edit_artifact_path:
+                break
 
-    # Run export for the latest run
+    # If no edit artifact found, fail the test
+    assert edit_artifact_path is not None, (
+        f"No edit phase artifact found in pipeline response. "
+        f"Available phases: {[p.get('phase') for p in artifacts]}"
+    )
+
+    # Read the edit phase artifact (JSONL file with EditPhaseOutput)
+    # The artifact is a JSONL file with one line containing the EditPhaseOutput
+    edit_artifact_content = edit_artifact_path.read_text(encoding="utf-8").strip()
+    edit_output = json.loads(edit_artifact_content)
+
+    # Extract the edited_lines array
+    edited_lines = edit_output.get("edited_lines", [])
+    assert len(edited_lines) > 0, "No edited lines found in edit phase output"
+
+    # Create a temporary JSONL file with the translated lines
+    translated_jsonl = ctx.project_dir / "translated_lines.jsonl"
+    with translated_jsonl.open("w", encoding="utf-8") as f:
+        for line in edited_lines:
+            f.write(json.dumps(line) + "\n")
+
+    # Construct output path for the export
+    output_file = ctx.project_dir / "out" / f"run-{run_id}" / "export-test.jsonl"
+
+    # Run export with the extracted translated lines as input
     ctx.export_result = cli_runner.invoke(
         cli_main.app,
         [
             "export",
-            "--config",
-            str(ctx.config_path),
-            "--run-id",
-            run_id,
-            "--target-language",
-            "en",
+            "--input",
+            str(translated_jsonl),
+            "--output",
+            str(output_file),
+            "--format",
+            "jsonl",
         ],
     )
 
@@ -350,6 +375,7 @@ def then_export_produces_output_files(ctx: OnboardingContext) -> None:
     """
     assert ctx.project_dir is not None
     assert ctx.pipeline_response is not None, "Pipeline response not available"
+    assert ctx.export_result is not None, "Export result not available"
 
     # Get the run ID from the pipeline response
     run_id = ctx.pipeline_response.get("data", {}).get("run_id")
@@ -359,8 +385,8 @@ def then_export_produces_output_files(ctx: OnboardingContext) -> None:
     output_dir = ctx.project_dir / "out" / f"run-{run_id}"
     assert output_dir.exists(), f"Output directory not found: {output_dir}"
 
-    # Check for exported file (target language: en, format: jsonl)
-    export_file = output_dir / "en.jsonl"
+    # Check for exported file (the file created by our export command)
+    export_file = output_dir / "export-test.jsonl"
     assert export_file.exists(), (
         f"Export file not found: {export_file}\n"
         f"Output directory contents: {list(output_dir.glob('*'))}"

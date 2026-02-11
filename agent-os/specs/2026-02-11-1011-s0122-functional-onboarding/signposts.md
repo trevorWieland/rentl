@@ -148,7 +148,7 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 ## Signpost 7: Onboarding E2E export step uses unsupported CLI options
 
 **Task:** Task 6 (audit round 2)
-**Status:** unresolved
+**Status:** resolved
 **Problem:** The onboarding E2E test calls `rentl export` with `--run-id` and `--target-language`, but the export command does not support those options and requires explicit `--input`, `--output`, and `--format`.
 **Evidence:**
 - Failing test command:
@@ -160,4 +160,13 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
   - `uv run rentl export --help` lists required options `--input`, `--output`, and `--format`, and does not list `--run-id`/`--target-language`.
   - Export command signature confirms this at `services/rentl-cli/src/rentl_cli/main.py:769-780`.
 **Impact:** Task 6 acceptance is not met because the required `init -> doctor -> run-pipeline -> export` integration scenario fails before export logic runs.
-**Solution:** Update `tests/integration/cli/test_onboarding_e2e.py` export step to call `rentl export` with supported required flags, deriving input/output from artifacts produced by the preceding pipeline run.
+**Tried:** Initially attempted to pass edit phase artifact directly to export, but it's stored as JSONL with EditPhaseOutput schema, not TranslatedLine. Export command requires JSONL of TranslatedLine records.
+**Solution:** Updated `tests/integration/cli/test_onboarding_e2e.py` export step to:
+1. Extract edit phase artifact path from pipeline response
+2. Read the EditPhaseOutput from the JSONL artifact
+3. Extract the `edited_lines` array (which contains TranslatedLine records)
+4. Write those lines to a temporary JSONL file
+5. Call `rentl export` with `--input`, `--output`, and `--format` flags, using the temporary JSONL as input
+**Resolution:** do-task round 7 (2026-02-11)
+**Files affected:**
+- `tests/integration/cli/test_onboarding_e2e.py` (lines 251-322) - Updated export step to extract TranslatedLine records from edit artifact
