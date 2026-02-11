@@ -87,12 +87,13 @@ If the demo was not run, flag it as a **Fix Now** action item.
 
 #### 3e: Signpost Cross-Reference
 
-Before flagging any issue as a Fix Now item, cross-reference signposts.md:
+Before flagging any issue as a Fix Now item, cross-reference signposts.md **and** existing open fix items in plan.md:
 
 1. **Resolved signposts** (`Status: resolved`): Verify the resolution is implemented in code. If it is — do NOT re-open the issue as a Fix Now item. If you believe the resolution is insufficient, you must provide **new evidence** (not the original problem) showing why it fails. Asking do-task to undo a documented resolution without counter-evidence wastes cycles.
 2. **Architectural constraints**: If a signpost documents that approach X is infeasible (with evidence of why), do NOT add a Fix Now item that requires approach X. Either propose an alternative approach or defer it.
 3. **Deferred signposts** (`Status: deferred`): These were explicitly deferred — do not promote them to Fix Now unless new evidence shows they're blocking.
 4. **Unresolved signposts**: These are fair game — they may warrant Fix Now items if they affect spec compliance.
+5. **Existing open fix items**: Scan plan.md for unchecked `[ ] Fix:` entries. If one already covers the same issue (same file, same problem), do NOT add a duplicate — the existing item will be addressed in the next do-task cycle.
 
 #### 3f: Regression Check
 
@@ -119,9 +120,34 @@ High/Medium severity → Fix Now
 Low severity → Defer
 ```
 
-**Fix Now items:**
-- Append as new `[ ]` entries at the bottom of plan.md's Tasks section
-- Each item must include file:line citations and clear fix description
+**Fix Now items — grouping rules:**
+
+Fix items must be grouped under task headings so the orchestrator can assign
+them one group at a time. Never append bare fix items to the bottom of the
+file — they become orphaned and the task loop cannot track them.
+
+1. **Deduplicate first.** Scan existing unchecked `[ ] Fix:` items in plan.md.
+   If an open fix item already describes the same issue (same file, same
+   problem), do NOT add a duplicate. Move on.
+
+2. **Route to the relevant task.** For each new fix item, identify which
+   existing task is responsible for the code/test it targets:
+   - Uncheck the task: `[x]` → `[ ]`
+   - Append the fix item as an indented `[ ] Fix:` entry under that task
+   - Include file:line citations, the audit round, and a clear fix description
+   ```
+   - [ ] Task 7: `rentl benchmark` CLI subcommands
+     - [x] (existing sub-items stay as-is)
+     - [ ] Fix: Remove dead `_run_benchmark_async` placeholder path (`main.py:2590`) (audit round 3)
+   ```
+
+3. **Create a new task group** only if a fix item genuinely doesn't belong to
+   any existing task. Use the next sequential task number and full formatting:
+   ```
+   - [ ] Task 10: <short imperative description>
+     - [ ] Fix: <specific item with file:line> (audit round N)
+     - [ ] Fix: <another item if needed> (audit round N)
+   ```
 
 **Deferred items:**
 1. Determine the next available `spec_id` from GitHub issues for the target version.

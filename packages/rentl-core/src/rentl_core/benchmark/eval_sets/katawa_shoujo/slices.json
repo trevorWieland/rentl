@@ -1,0 +1,13 @@
+{
+  "slices": {
+    "demo": {
+      "description": "Small demo slice for quick validation (~30 lines with dialogue, narration, and multiple speakers from Japanese translation)",
+      "scripts": [
+        {
+          "file": "script-a1-monday.rpy",
+          "line_range": [1, 180]
+        }
+      ]
+    }
+  }
+}

@@ -410,8 +410,12 @@ run_gate() {
 }
 
 count_unchecked() {
+    # Count only Task lines — fix items are sub-items of their parent task,
+    # not independently workable. Must match the same pattern as next_task_label
+    # to avoid mismatch bugs (e.g. orphaned fix items keeping the loop alive
+    # when no actionable task exists).
     local count
-    count=$(grep -cP '^\s*- \[ \]' "$SPEC_FOLDER/plan.md" 2>/dev/null) || count=0
+    count=$(grep -cP '^\s*- \[ \] Task \d+' "$SPEC_FOLDER/plan.md" 2>/dev/null) || count=0
     echo "$count"
 }
 
@@ -484,11 +488,19 @@ while true; do
 
         task_label=$(next_task_label)
 
+        # Guard: if no Task line found but count_unchecked > 0, something
+        # is out of sync (shouldn't happen now that both use the same
+        # pattern, but defense-in-depth).
+        if [[ -z "$task_label" ]]; then
+            tput "  ${YELLOW}⚠ No actionable task found — advancing to verification${NC}\n"
+            break
+        fi
+
         # Inner-loop retry limit: detect when the same task is being
         # retried repeatedly (e.g., do-task ↔ audit-task ping-pong)
         if [[ "$task_label" == "$prev_task" ]]; then
             task_attempts=$((task_attempts + 1))
-            if [[ $task_attempts -ge $MAX_TASK_RETRIES ]]; then
+            if [[ $task_attempts -gt $MAX_TASK_RETRIES ]]; then
                 fail "Task stuck after $MAX_TASK_RETRIES attempts: $task_label"
                 fail "See signposts.md and audit-log.md for details."
                 exit 1
@@ -652,7 +664,23 @@ $LAST_GATE_OUTPUT
 
     case "$signal" in
         pass)
-            end_phase "ok" "all steps passed"
+            # Warn if the agent skipped steps — a PASS with skipped steps
+            # may mean the agent didn't actually exercise the demo.
+            skip_count=0
+            if [[ -f "$SPEC_FOLDER/demo.md" ]]; then
+                # Count SKIP/SKIPPED lines in the last "### Run" block
+                skip_count=$(awk '
+                    /^### Run [0-9]+/ { block=""; next }
+                    { block = block "\n" $0 }
+                    END { print block }
+                ' "$SPEC_FOLDER/demo.md" | grep -ciP 'SKIP' 2>/dev/null) || skip_count=0
+            fi
+            if [[ "$skip_count" -gt 0 ]]; then
+                end_phase "ok" "passed ($skip_count steps skipped)"
+                tput "  ${YELLOW}⚠ Demo PASS but %d step(s) were skipped — verify manually if needed${NC}\n" "$skip_count"
+            else
+                end_phase "ok" "all steps passed"
+            fi
             ;;
         fail)
             end_phase "ok" "failed — fix tasks added"

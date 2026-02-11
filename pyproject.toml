@@ -109,4 +109,5 @@ dev = [
     "pytest-bdd>=8",
     "python-dotenv>=1.0.1",
     "pydantic-evals>=0.1.0",
+    "respx>=0.22.0",
 ]

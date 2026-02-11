@@ -10,15 +10,17 @@ import subprocess
 import sys
 import time
 import tomllib
-from collections.abc import Sequence
+from collections.abc import Awaitable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from enum import Enum
+from itertools import combinations
 from pathlib import Path
 from typing import NamedTuple, TypeVar, cast
 from uuid import UUID, uuid7
 
 import typer
+from anyio import Path as AsyncPath
 from dotenv import load_dotenv
 from pydantic import ValidationError
 from rich import print as rprint
@@ -35,8 +37,19 @@ from rich.progress import (
 )
 from rich.table import Table
 
+from rentl_agents.providers import detect_provider
 from rentl_agents.wiring import build_agent_pools
 from rentl_core import VERSION, AgentTelemetryEmitter, build_status_result
+from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
+from rentl_core.benchmark.eval_sets.loader import EvalSetLoader
+from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
+from rentl_core.benchmark.judge import RubricJudge
+from rentl_core.benchmark.output_loader import (
+    OutputLoadError,
+    load_output,
+    validate_matching_line_ids,
+)
+from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_summary
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
@@ -75,13 +88,16 @@ from rentl_io.storage.filesystem import (
 )
 from rentl_io.storage.log_sink import build_log_sink
 from rentl_io.storage.progress_sink import FileSystemProgressSink
-from rentl_llm import OpenAICompatibleRuntime
+from rentl_llm.openai_runtime import OpenAICompatibleRuntime
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.benchmark.report import PairwiseSummary
+from rentl_schemas.benchmark.rubric import HeadToHeadResult
 from rentl_schemas.config import (
     LanguageConfig,
     LoggingConfig,
     LogSinkConfig,
     ModelSettings,
+    OpenRouterProviderRoutingConfig,
     RunConfig,
 )
 from rentl_schemas.events import (
@@ -93,7 +109,10 @@ from rentl_schemas.events import (
 )
 from rentl_schemas.exit_codes import ExitCode, resolve_exit_code
 from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
-from rentl_schemas.llm import LlmConnectionReport, LlmEndpointTarget
+from rentl_schemas.llm import (
+    LlmConnectionReport,
+    LlmEndpointTarget,
+)
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import (
     ContextPhaseOutput,
@@ -1068,6 +1087,527 @@ def status(
         rprint(f"[red]Error:[/red] {error.message}")
         exit_code = resolve_exit_code(error.code)
         raise typer.Exit(code=exit_code.value) from None
+
+
+# Benchmark subcommands
+benchmark_app = typer.Typer(help="Benchmark evaluation commands")
+app.add_typer(benchmark_app, name="benchmark")
+
+
+@benchmark_app.command("download")
+def benchmark_download(
+    eval_set: str = typer.Option(
+        ..., "--eval-set", help="Eval set name (e.g., katawa-shoujo)"
+    ),
+    slice_name: str | None = typer.Option(
+        None, "--slice", help="Slice name for subset (e.g., demo)"
+    ),
+    output_dir: str | None = typer.Option(
+        None, "--output-dir", help="Directory to write parsed source files"
+    ),
+) -> None:
+    """Download and parse evaluation set source material.
+
+    Downloads scripts from the evaluation set repository, validates hashes,
+    and parses them into rentl-ingestable SourceLine format.
+    """
+    asyncio.run(_benchmark_download_async(eval_set, slice_name, output_dir))
+
+
+async def _benchmark_download_async(
+    eval_set: str,
+    slice_name: str | None,
+    output_dir: str | None,
+) -> None:
+    """Async implementation of benchmark download command.
+
+    Raises:
+        typer.Exit: When download or parsing fails
+    """
+    try:
+        # Normalize eval-set name from kebab-case to snake_case
+        normalized_eval_set = eval_set.replace("-", "_")
+
+        # Load manifest and slices config
+        rprint(f"[cyan]Loading eval set:[/cyan] {eval_set}")
+        manifest = EvalSetLoader.load_manifest(normalized_eval_set)
+        slices_config = EvalSetLoader.load_slices(normalized_eval_set)
+
+        # Determine which scripts to download
+        if slice_name:
+            if slice_name not in slices_config.slices:
+                rprint(f"[red]Error:[/red] Slice '{slice_name}' not found")
+                raise typer.Exit(code=1)
+            script_files = EvalSetLoader.get_slice_scripts(
+                normalized_eval_set, slice_name
+            )
+            rprint(f"[cyan]Using slice:[/cyan] {slice_name}")
+        else:
+            script_files = list(manifest.scripts.keys())
+            rprint("[cyan]Using all scripts from manifest[/cyan]")
+
+        rprint(f"[cyan]Scripts to download:[/cyan] {len(script_files)}")
+
+        # Download scripts with progress reporting
+        def progress_callback(filename: str, current: int, total: int) -> None:
+            rprint(f"  [{current}/{total}] Downloading {filename}...")
+
+        downloader = KatawaShoujoDownloader(progress_callback=progress_callback)
+        downloaded_paths = await downloader.download_scripts(
+            script_files, hash_manifest=manifest.scripts
+        )
+
+        rprint(f"[green]✓[/green] Downloaded {len(downloaded_paths)} scripts")
+
+        # Parse scripts
+        rprint("[cyan]Parsing scripts...[/cyan]")
+        parser = RenpyDialogueParser()
+        all_lines: list[SourceLine] = []
+
+        for script_file, script_path in downloaded_paths.items():
+            # If slice specified, parse only the slice range
+            if slice_name:
+                slice_def = slices_config.slices[slice_name]
+                # Find script config in slice
+                script_config = next(
+                    (s for s in slice_def.scripts if s.file == script_file), None
+                )
+                if script_config:
+                    # Read and slice the file content
+                    content_lines = script_path.read_text(encoding="utf-8").splitlines()
+                    start_line, end_line = script_config.line_range
+                    sliced_content = "\n".join(content_lines[start_line - 1 : end_line])
+
+                    # Write temporary sliced file for parser
+                    temp_path = script_path.parent / f"_temp_{script_file}"
+                    temp_path.write_text(sliced_content, encoding="utf-8")
+
+                    parsed = parser.parse_script(temp_path)
+                    temp_path.unlink()  # Clean up temp file
+                else:
+                    parsed = parser.parse_script(script_path)
+            else:
+                parsed = parser.parse_script(script_path)
+
+            all_lines.extend(parsed)
+            rprint(f"  {script_file}: {len(parsed)} lines")
+
+        rprint(f"[green]✓[/green] Parsed {len(all_lines)} total lines")
+
+        # Write output if requested
+        if output_dir:
+            output_path = AsyncPath(output_dir)
+            await output_path.mkdir(parents=True, exist_ok=True)
+
+            output_file = output_path / f"{eval_set}"
+            if slice_name:
+                output_file = output_path / f"{eval_set}-{slice_name}.jsonl"
+            else:
+                output_file = output_path / f"{eval_set}.jsonl"
+
+            # Write as JSONL
+            # (exclude source_columns to match ingest adapter ALLOWED_KEYS)
+            async with await output_file.open("w", encoding="utf-8") as f:
+                for line in all_lines:
+                    await f.write(
+                        line.model_dump_json(
+                            exclude={"source_columns"}, exclude_none=True
+                        )
+                        + "\n"
+                    )
+
+            rprint(f"[green]✓[/green] Wrote source lines to {output_file}")
+
+    except FileNotFoundError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+    except ValueError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        rprint(f"[red]Unexpected error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+
+
+@benchmark_app.command("compare")
+def benchmark_compare(
+    output_paths: list[str] = typer.Argument(  # noqa: B008
+        ...,
+        help="Paths to 2+ rentl run output JSONL files",
+        metavar="OUTPUT_PATH...",
+    ),
+    candidate_names: str | None = typer.Option(
+        None,
+        "--candidate-names",
+        help="Comma-separated names for candidates (defaults to filenames)",
+    ),
+    config_path: Path = CONFIG_OPTION,
+    judge_model: str | None = typer.Option(
+        None, "--judge-model", help="Override judge model ID"
+    ),
+    judge_base_url: str | None = typer.Option(
+        None, "--judge-base-url", help="Override judge endpoint"
+    ),
+    judge_api_key_env: str | None = typer.Option(
+        None,
+        "--judge-api-key-env",
+        help="Override judge API key environment variable name",
+    ),
+    output: str | None = typer.Option(
+        None, "--output", help="Path to write JSON report"
+    ),
+) -> None:
+    """Compare translation outputs head-to-head using LLM judge.
+
+    Loads 2+ rentl run outputs, runs all-pairs pairwise comparison,
+    computes win rates and Elo ratings, and produces a ranking report.
+
+    Uses judge endpoint from rentl.toml config unless overridden.
+    """
+    # Parse comma-separated candidate names
+    parsed_names = None
+    if candidate_names:
+        parsed_names = [name.strip() for name in candidate_names.split(",")]
+
+    asyncio.run(
+        _benchmark_compare_async(
+            output_paths,
+            parsed_names,
+            config_path,
+            judge_model,
+            judge_base_url,
+            judge_api_key_env,
+            output,
+        )
+    )
+
+
+async def _benchmark_compare_async(
+    output_paths: list[str],
+    candidate_names: list[str] | None,
+    config_path: Path,
+    judge_model: str | None,
+    judge_base_url: str | None,
+    judge_api_key_env: str | None,
+    output_path: str | None,
+) -> None:
+    """Async implementation of benchmark compare command.
+
+    Raises:
+        typer.Exit: When comparison fails
+    """
+    try:
+        # Validate we have at least 2 outputs
+        if len(output_paths) < 2:
+            rprint("[red]Error:[/red] At least 2 output files required for comparison")
+            raise typer.Exit(code=1)
+
+        # Load all outputs
+        rprint(f"[cyan]Loading {len(output_paths)} output files...[/cyan]")
+        outputs: dict[str, list[TranslatedLine]] = {}
+
+        for i, path_str in enumerate(output_paths):
+            path = AsyncPath(path_str)
+            try:
+                lines = await load_output(path)
+                # Use provided name or default to filename
+                if candidate_names and i < len(candidate_names):
+                    name = candidate_names[i]
+                else:
+                    name = path.name
+                # Detect duplicate names
+                if name in outputs:
+                    rprint(
+                        f"[red]Error:[/red] Duplicate candidate name '{name}'. "
+                        "Use --candidate-names to provide unique names for all "
+                        "outputs."
+                    )
+                    raise typer.Exit(code=1)
+                outputs[name] = lines
+                rprint(f"  {name}: {len(lines)} lines")
+            except OutputLoadError as e:
+                rprint(f"[red]Error loading {path_str}:[/red] {e}")
+                raise typer.Exit(code=1) from None
+
+        # Validate matching line IDs
+        rprint("[cyan]Validating line ID coverage...[/cyan]")
+        try:
+            validate_matching_line_ids(outputs)
+            rprint("[green]✓[/green] All outputs cover the same line IDs")
+        except OutputLoadError as e:
+            rprint(f"[red]Line ID validation failed:[/red]\n{e}")
+            raise typer.Exit(code=1) from None
+
+        # Determine judge endpoint (CLI override or config default)
+        if judge_base_url:
+            # CLI override mode - config loading is optional
+            with contextlib.suppress(Exception):
+                # Config not available, use explicit env vars only
+                _load_dotenv(config_path)
+            base_url = judge_base_url
+            # Detect provider from URL
+            provider_caps = detect_provider(base_url)
+
+            # Use provided API key env var or infer from provider
+            if judge_api_key_env:
+                api_key_env_name = judge_api_key_env
+            elif provider_caps.is_openrouter:
+                api_key_env_name = "RENTL_OPENROUTER_API_KEY"
+            elif "openai.com" in base_url:
+                api_key_env_name = "OPENAI_API_KEY"
+            else:
+                # Generic fallback
+                api_key_env_name = "OPENAI_API_KEY"
+
+            # Build endpoint target
+            endpoint_target = LlmEndpointTarget(
+                provider_name=provider_caps.name,
+                base_url=base_url,
+                api_key_env=api_key_env_name,
+                timeout_s=60.0,
+            )
+
+            # Add OpenRouter routing config if applicable
+            if provider_caps.is_openrouter:
+                endpoint_target = endpoint_target.model_copy(
+                    update={
+                        "openrouter_provider": OpenRouterProviderRoutingConfig(
+                            require_parameters=True
+                        )
+                    }
+                )
+
+            # In override mode, model must be explicitly provided
+            if not judge_model:
+                rprint(
+                    "[red]Error:[/red] --judge-model is required when using "
+                    "--judge-base-url override mode"
+                )
+                raise typer.Exit(code=1)
+            model_id = judge_model
+            # In override mode, use ModelSettings default for max_output_tokens
+            max_output_tokens = 4096
+        else:
+            # Config-based mode - load config for judge endpoint
+            _load_dotenv(config_path)
+            config = _load_resolved_config(config_path)
+
+            # Use config endpoint (legacy single endpoint or multi-endpoint default)
+            if config.endpoint is not None:
+                # Legacy single endpoint mode
+                byok_config = config.endpoint
+            elif config.endpoints is not None:
+                # Multi-endpoint mode - use default endpoint
+                default_name = config.endpoints.default
+                byok_config = next(
+                    (
+                        ep
+                        for ep in config.endpoints.endpoints
+                        if ep.provider_name == default_name
+                    ),
+                    None,
+                )
+                if byok_config is None:
+                    rprint(
+                        f"[red]Error:[/red] Default endpoint '{default_name}' "
+                        "not found in config"
+                    )
+                    raise typer.Exit(code=1)
+            else:
+                rprint(
+                    "[red]Error:[/red] No judge endpoint configured. Add [endpoint] "
+                    "or [endpoints] to rentl.toml or use --judge-base-url"
+                )
+                raise typer.Exit(code=1)
+            base_url = byok_config.base_url
+            api_key_env_name = judge_api_key_env or byok_config.api_key_env
+
+            # Detect provider from config base URL
+            provider_caps = detect_provider(base_url)
+
+            # Build endpoint target from config
+            endpoint_target = LlmEndpointTarget(
+                provider_name=byok_config.provider_name,
+                base_url=base_url,
+                api_key_env=api_key_env_name,
+                timeout_s=byok_config.timeout_s,
+            )
+
+            # Include OpenRouter config if present
+            if byok_config.openrouter_provider:
+                endpoint_target = endpoint_target.model_copy(
+                    update={"openrouter_provider": byok_config.openrouter_provider}
+                )
+
+            # Use judge_model CLI override or config default_model
+            if judge_model:
+                model_id = judge_model
+            elif config.pipeline and config.pipeline.default_model:
+                model_id = config.pipeline.default_model.model_id
+            else:
+                rprint(
+                    "[red]Error:[/red] No judge model specified. Set default_model "
+                    "in rentl.toml or use --judge-model"
+                )
+                raise typer.Exit(code=1)
+
+            # Derive max_output_tokens from config if available
+            if (
+                config.pipeline
+                and config.pipeline.default_model
+                and config.pipeline.default_model.max_output_tokens is not None
+            ):
+                max_output_tokens = config.pipeline.default_model.max_output_tokens
+            else:
+                # Use ModelSettings default
+                max_output_tokens = 4096
+
+        # Check that the API key is available
+        api_key = os.getenv(api_key_env_name)
+        if not api_key:
+            rprint(f"[red]Error:[/red] Set {api_key_env_name} environment variable")
+            raise typer.Exit(code=1)
+
+        # Detect if OpenRouter to enable routing constraints
+        # In override mode, endpoint_target.openrouter_provider is already set
+        # In config mode, we can derive from config.endpoint
+        openrouter_require_parameters = bool(
+            endpoint_target.openrouter_provider
+            and endpoint_target.openrouter_provider.require_parameters
+        )
+
+        # Create judge with new pydantic-ai-based constructor
+        judge = RubricJudge(
+            model_id=model_id,
+            base_url=endpoint_target.base_url,
+            api_key=api_key,
+            temperature=0.7,
+            max_output_tokens=max_output_tokens,
+            concurrency_limit=5,
+            openrouter_require_parameters=openrouter_require_parameters,
+        )
+
+        # Run all-pairs comparison
+        candidate_list = list(outputs.keys())
+        pairs = list(combinations(candidate_list, 2))
+        total_comparisons = len(pairs) * len(next(iter(outputs.values())))
+
+        rprint(f"[cyan]Running {len(pairs)} pairwise comparisons...[/cyan]")
+        rprint(f"[cyan]Total line comparisons:[/cyan] {total_comparisons}")
+
+        all_results: list[HeadToHeadResult] = []
+        comparison_count = 0
+
+        # Progress reporting
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        )
+
+        # Build all comparison tasks
+        comparison_tasks = []
+        for candidate_1, candidate_2 in pairs:
+            lines_1 = outputs[candidate_1]
+            lines_2 = outputs[candidate_2]
+
+            # Build line lookup for candidate_2
+            lines_2_map = {line.line_id: line for line in lines_2}
+
+            # Create comparison tasks for each line pair
+            for line_1 in lines_1:
+                line_2 = lines_2_map[line_1.line_id]
+
+                comparison_tasks.append(
+                    judge.compare_head_to_head(
+                        line_id=line_1.line_id,
+                        source_text=line_1.source_text or "",
+                        translation_1=line_1.text,
+                        translation_2=line_2.text,
+                        candidate_1_name=candidate_1,
+                        candidate_2_name=candidate_2,
+                        randomize_order=True,
+                    )
+                )
+
+        # Execute all comparisons in parallel with progress tracking
+        with progress:
+            task = progress.add_task("[cyan]Comparing...", total=total_comparisons)
+
+            # Track completed count for correct progress updates
+            completed_count = 0
+
+            # Use gather to run comparisons concurrently
+            # Judge's concurrency_limit throttles concurrent API calls
+            async def run_with_progress(
+                coro: Awaitable[HeadToHeadResult],
+            ) -> HeadToHeadResult:
+                nonlocal completed_count
+                result = await coro
+                completed_count += 1
+                progress.update(task, completed=completed_count)
+                return result
+
+            all_results = await asyncio.gather(*[
+                run_with_progress(coro) for coro in comparison_tasks
+            ])
+            comparison_count = len(all_results)
+
+        rprint(f"[green]✓[/green] Completed {comparison_count} comparisons")
+
+        # Build report
+        rprint("[cyan]Aggregating results...[/cyan]")
+
+        # Group results by pair
+        pairwise_summaries: list[PairwiseSummary] = []
+        for candidate_1, candidate_2 in pairs:
+            pair_results = [
+                r
+                for r in all_results
+                if r.candidate_a_name == candidate_1
+                and r.candidate_b_name == candidate_2
+            ]
+            summary = BenchmarkReportBuilder.build_pairwise_summary(
+                pair_results, candidate_1, candidate_2
+            )
+            pairwise_summaries.append(summary)
+
+        # Compute Elo ratings
+        elo_ratings = BenchmarkReportBuilder.compute_elo_ratings(
+            candidate_list, pairwise_summaries
+        )
+
+        # Build report
+        report = BenchmarkReportBuilder.build_report(
+            eval_set="unknown",  # Not tracked in output files
+            slice_name=None,
+            judge_model=model_id,
+            candidates=candidate_list,
+            head_to_head_results=all_results,
+            pairwise_summaries=pairwise_summaries,
+            elo_ratings=elo_ratings,
+        )
+
+        # Display summary
+        rprint("\n[bold cyan]Benchmark Results[/bold cyan]")
+        rprint(format_report_summary(report))
+
+        # Write JSON report if requested
+        if output_path:
+            output_file = AsyncPath(output_path)
+            await output_file.parent.mkdir(parents=True, exist_ok=True)
+            await output_file.write_text(
+                report.model_dump_json(indent=2), encoding="utf-8"
+            )
+            rprint(f"\n[green]✓[/green] Wrote report to {output_file}")
+
+    except OutputLoadError as e:
+        rprint(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        rprint(f"[red]Unexpected error:[/red] {e}")
+        raise typer.Exit(code=1) from None
 
 
 ResponseT = TypeVar("ResponseT")

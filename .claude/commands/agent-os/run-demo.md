@@ -7,6 +7,8 @@ Execute the demo plan and validate it works. If it fails, investigate and route 
 ## Important Guidelines
 
 - Execute the demo — don't just read it and say it looks good
+- **[RUN] steps MUST be executed.** You do not get to decide a [RUN] step "can't run" — that decision was made during shape-spec. If a [RUN] step fails to execute, that's a FAIL, not a SKIP.
+- **[VERIFY] steps** were pre-approved during shaping as not executable in this environment. Follow the verification method documented in the step.
 - If a step fails, investigate the root cause before adding tasks
 - If tests pass but the demo fails, that's a test gap — identify what's missing
 - Never fix code directly — add tasks to plan.md for do-task to pick up
@@ -36,25 +38,41 @@ Resolution order:
 
 Read these files:
 
-- **demo.md** — the demo steps and expected outcomes
+- **demo.md** — the demo steps, environment info, and expected outcomes
 - **spec.md** — acceptance criteria (for context on what the demo should prove)
 - **signposts.md** (if it exists) — check for known issues that might affect the demo
 
+Pay attention to the `## Environment` section in demo.md — it documents what's available (API keys, services, setup). If setup steps are listed, run them before starting the demo.
+
 ### Step 3: Execute Demo
 
-Run each demo step in order:
+Process each demo step according to its classification:
+
+#### For **[RUN]** steps (the default):
 
 1. Read the step description and expected outcome
-2. Execute the action (run the command, make the config change, call the API, etc.)
+2. **Execute the action** (run the command, make the config change, call the API, etc.)
 3. Observe the result
 4. Compare against the expected outcome
-5. Record the result
+5. Record as PASS or FAIL
+
+A [RUN] step that you cannot execute is a **FAIL**, not a skip. The environment was assessed during shape-spec — if the step is marked [RUN], the environment supports it. If something is genuinely broken (missing dependency, service down), that's a failure to investigate and route back to the task loop.
+
+#### For **[VERIFY]** steps:
+
+1. Read the step description and the documented verification method
+2. Perform the alternative verification described in the step (e.g., check test output, read logs, inspect config)
+3. Record as VERIFIED with what was checked
+
+[VERIFY] steps do not count as PASS — they are reported separately. A demo with all [RUN] steps passing and all [VERIFY] steps verified is a PASS. A demo where only [VERIFY] steps were checked is not sufficient for PASS.
+
+#### For steps with no tag (legacy demo.md without classifications):
+
+Treat all steps as [RUN]. Execute them. If you genuinely cannot execute a step, report it as FAIL with the reason, not as SKIP.
 
 **If a step passes:** Note it and continue to the next step.
 
 **If a step fails:** Stop executing further steps and proceed to Step 4 (Investigation).
-
-**If a step cannot be executed** in the current environment (e.g., requires an external service that's not available, needs a GUI, etc.): Note what was verified instead and why the step couldn't be run. This is not a failure — but it must be clearly documented.
 
 ### Step 4: Investigate Failures
 
@@ -82,11 +100,15 @@ Append results to demo.md under `## Results`:
 
 ```markdown
 ### Run N — [context] (YYYY-MM-DD HH:MM)
-- Step 1: PASS|FAIL — [brief note]
-- Step 2: PASS|FAIL — [brief note]
-- Step 3: SKIPPED — [reason]
+- Step 1 [RUN]: PASS|FAIL — [brief note]
+- Step 2 [RUN]: PASS|FAIL — [brief note]
+- Step 3 [VERIFY]: VERIFIED — [what was checked]
 - **Overall: PASS|FAIL**
 ```
+
+Overall result rules:
+- **PASS** requires: all [RUN] steps PASS, all [VERIFY] steps VERIFIED, at least one [RUN] step exists
+- **FAIL** if: any [RUN] step fails
 
 If this is the first run, add the `## Results` header.
 
@@ -95,7 +117,7 @@ If this is the first run, add the `## Results` header.
 Append a brief entry to audit-log.md:
 
 ```
-- **Demo** (run N): PASS|FAIL — [one-line summary]
+- **Demo** (run N): PASS|FAIL — [one-line summary] ([X run, Y verified])
 ```
 
 If audit-log.md doesn't exist, create it with the standard header.
@@ -115,8 +137,8 @@ Only include files that were actually modified.
 
 Print one of these exit signals (machine-readable):
 
-- `run-demo-status: pass` — all steps passed
-- `run-demo-status: fail` — one or more steps failed, tasks added to plan.md
+- `run-demo-status: pass` — all [RUN] steps passed, all [VERIFY] steps verified
+- `run-demo-status: fail` — one or more [RUN] steps failed, tasks added to plan.md
 - `run-demo-status: error` — prerequisites missing or unrecoverable issue
 
 ## Does NOT
@@ -126,6 +148,7 @@ Print one of these exit signals (machine-readable):
 - Push or touch GitHub
 - Score rubrics (that's audit-spec)
 - Skip investigation — every failure must be diagnosed before adding tasks
+- Reclassify [RUN] steps as skippable — that decision was made during shape-spec
 
 ## Workflow
 

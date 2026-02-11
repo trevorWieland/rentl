@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "rentl-schemas",
     "pydantic-ai>=1.47.0",
+    "httpx>=0.28.1",
 ]
 
 [build-system]

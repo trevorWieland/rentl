@@ -1,0 +1,10 @@
+{
+  "eval_set_id": "katawa-shoujo",
+  "description": "Katawa Shoujo Ren'Py Edition (KSRE) Japanese translation files from GitHub",
+  "source": "https://github.com/fleetingheart/ksre",
+  "scripts": {
+    "script-a1-sunday.rpy": "76242c95be26254fbfcd6331e7055d8b59e8772eb2f1ab077c2c4e322cee265c",
+    "script-a1-monday.rpy": "3deb11d589d15cd5ad1cd634ad65d39baf5da6e05e93527b6cefd1aca958a61a",
+    "script-a2-emi.rpy": "39e7fe2553d9bb62e013e6cb283a3d0e63a3b48906d2d40f3e3b3b8974d7f16f"
+  }
+}

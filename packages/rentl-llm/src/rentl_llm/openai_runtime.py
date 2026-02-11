@@ -69,11 +69,26 @@ class OpenAICompatibleRuntime(LlmRuntimeProtocol):
             if effort_value is not None:
                 model_settings["openrouter_reasoning"] = {"effort": effort_value}
             model_settings["max_tokens"] = max_output_tokens
-            agent = Agent(model, instructions=instructions)
-            result = await agent.run(
-                request.prompt,
-                model_settings=cast(ModelSettings, model_settings),
-            )
+            # Use structured output if result_schema is provided
+            if request.result_schema is not None:
+                agent = Agent(
+                    model, output_type=request.result_schema, instructions=instructions
+                )
+                result = await agent.run(
+                    request.prompt,
+                    model_settings=cast(ModelSettings, model_settings),
+                )
+                return LlmPromptResponse(
+                    model_id=request.runtime.model.model_id,
+                    output_text=str(result.output),
+                    structured_output=result.output,  # type: ignore[arg-type]
+                )
+            else:
+                agent = Agent(model, instructions=instructions)
+                result = await agent.run(
+                    request.prompt,
+                    model_settings=cast(ModelSettings, model_settings),
+                )
         else:
             provider = OpenAIProvider(
                 base_url=base_url,
@@ -93,11 +108,26 @@ class OpenAICompatibleRuntime(LlmRuntimeProtocol):
             if effort_value is not None:
                 model_settings["openai_reasoning_effort"] = effort_value
             model_settings["max_tokens"] = max_output_tokens
-            agent = Agent(model, instructions=instructions)
-            result = await agent.run(
-                request.prompt,
-                model_settings=cast(ModelSettings, model_settings),
-            )
+            # Use structured output if result_schema is provided
+            if request.result_schema is not None:
+                agent = Agent(
+                    model, output_type=request.result_schema, instructions=instructions
+                )
+                result = await agent.run(
+                    request.prompt,
+                    model_settings=cast(ModelSettings, model_settings),
+                )
+                return LlmPromptResponse(
+                    model_id=request.runtime.model.model_id,
+                    output_text=str(result.output),
+                    structured_output=result.output,  # type: ignore[arg-type]
+                )
+            else:
+                agent = Agent(model, instructions=instructions)
+                result = await agent.run(
+                    request.prompt,
+                    model_settings=cast(ModelSettings, model_settings),
+                )
         return LlmPromptResponse(
             model_id=request.runtime.model.model_id,
             output_text=str(result.output),

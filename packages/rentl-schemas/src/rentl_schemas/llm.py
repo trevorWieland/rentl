@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import OpenRouterProviderRoutingConfig, RetryConfig
@@ -67,6 +67,11 @@ class LlmPromptRequest(BaseSchema):
     runtime: LlmRuntimeSettings = Field(..., description="Runtime settings")
     prompt: str = Field(..., min_length=1, description="Prompt text")
     system_prompt: str | None = Field(None, description="Optional system prompt")
+    result_schema: type[BaseModel] | None = Field(
+        None,
+        description="Optional Pydantic schema type for structured output",
+        exclude=True,  # Don't serialize this in JSON
+    )
 
 
 class LlmPromptResponse(BaseSchema):
@@ -74,6 +79,9 @@ class LlmPromptResponse(BaseSchema):
 
     model_id: str = Field(..., min_length=1, description="Model identifier")
     output_text: str = Field(..., min_length=1, description="Model output")
+    structured_output: BaseModel | None = Field(
+        None, description="Structured output when result_schema was provided"
+    )
 
 
 class LlmConnectionResult(BaseSchema):
