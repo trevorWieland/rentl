@@ -205,6 +205,13 @@ def then_seed_data_is_valid_jsonl(ctx: InitContext) -> None:
                 f"Seed data line {i} failed validation: {exc}\nLine: {line}"
             ) from exc
 
+    # Verify seed data content matches configured source language
+    # Default source language is "ja" so expect Japanese text
+    assert "サンプル台詞" in content, (
+        f"Seed data should contain Japanese text for source_language='ja', "
+        f"but got: {content[:100]}"
+    )
+
 
 @then("the pipeline can execute end-to-end and produce export artifacts")
 def then_pipeline_executes_end_to_end(

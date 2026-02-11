@@ -278,8 +278,8 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 
 ## Signpost 11: Init seed data language mismatch
 
-**Task:** Demo Run 2, Step 3
-**Status:** unresolved
+**Task:** Task 9 (Demo Run 2, Step 3)
+**Status:** resolved
 **Problem:** Init-generated seed data is always in English regardless of configured source language, causing pipeline validation failures
 **Evidence:**
 - Demo command sequence:
@@ -296,6 +296,16 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 - Violates spec.md non-negotiable #1: "Init output must be immediately runnable" — the generated seed data + config cannot complete `rentl run-pipeline` without manual editing
 - Breaks the demo flow at Step 3 (pipeline execution)
 - Users who init with non-English source languages will hit this validation error on first run
+**Solution:**
+- Added `_get_sample_text()` helper function that maps language codes to sample text in that language
+- Supported languages: ja (Japanese), zh (Chinese), ko (Korean), es (Spanish), fr (French), de (German), en (English)
+- Unsupported languages fall back to English samples
+- Updated `_generate_seed_data()` to use `_get_sample_text(answers.source_language)` for all formats (JSONL, CSV, TXT)
+- Added comprehensive unit tests for each supported language in `tests/unit/core/test_init.py`
+- Updated existing unit tests that assumed English text to expect Japanese (default test source language)
+- Added seed data content verification to integration test in `tests/integration/cli/test_init.py`
+**Resolution:** Task 9 (2026-02-11)
 **Files affected:**
-- `packages/rentl-core/src/rentl_core/init.py` — seed data generation
-- Test gap: No test validates seed data language matches configured source language
+- `packages/rentl-core/src/rentl_core/init.py` (lines 278-368) — Added `_get_sample_text()` and updated `_generate_seed_data()`
+- `tests/unit/core/test_init.py` (lines 172-230, 519-683) — Updated existing tests and added language-specific tests
+- `tests/integration/cli/test_init.py` (lines 172-214) — Added seed data content verification

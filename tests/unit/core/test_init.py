@@ -199,7 +199,8 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
     # Check data rows
     for line in lines[1:]:
         assert "scene_001" in line
-        assert "Example dialogue line" in line
+        # Verify Japanese seed data (not English)
+        assert "サンプル台詞" in line
 
 
 def test_seed_data_txt_format(tmp_path: Path) -> None:
@@ -226,7 +227,8 @@ def test_seed_data_txt_format(tmp_path: Path) -> None:
     # Check simple text format
     for line in lines:
         assert ":" in line
-        assert "Example dialogue line" in line
+        # Verify Japanese seed data (not English)
+        assert "サンプル台詞" in line
 
 
 def test_generate_project_without_seed_data(tmp_path: Path) -> None:
@@ -516,3 +518,199 @@ def test_base_url_validation_accepts_valid_urls() -> None:
             include_seed_data=True,
         )
         assert answers.base_url == valid_url
+
+
+def test_seed_data_matches_source_language_japanese(tmp_path: Path) -> None:
+    """Test that seed data is generated in Japanese when source_language is ja."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="ja",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify Japanese text is present
+    assert "サンプル台詞" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_chinese(tmp_path: Path) -> None:
+    """Test that seed data is generated in Chinese when source_language is zh."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="zh",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify Chinese text is present
+    assert "示例对话" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_korean(tmp_path: Path) -> None:
+    """Test that seed data is generated in Korean when source_language is ko."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="ko",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify Korean text is present
+    assert "샘플 대사" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_spanish(tmp_path: Path) -> None:
+    """Test that seed data is generated in Spanish when source_language is es."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="es",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify Spanish text is present
+    assert "Línea de diálogo de ejemplo" in content
+    # Verify English text is not present
+    assert "Example dialogue line 1" not in content
+
+
+def test_seed_data_matches_source_language_french(tmp_path: Path) -> None:
+    """Test that seed data is generated in French when source_language is fr."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="fr",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify French text is present
+    assert "Ligne de dialogue exemple" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_german(tmp_path: Path) -> None:
+    """Test that seed data is generated in German when source_language is de."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="de",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify German text is present
+    assert "Beispiel-Dialogzeile" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_english(tmp_path: Path) -> None:
+    """Test that seed data is generated in English when source_language is en."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="en",
+        target_languages=["ja"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify English text is present
+    assert "Example dialogue line" in content
+
+
+def test_seed_data_unsupported_language_falls_back_to_english(tmp_path: Path) -> None:
+    """Test that unsupported source languages fall back to English seed data."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="ru",  # Russian - not in supported list
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify English fallback text is present
+    assert "Example dialogue line" in content

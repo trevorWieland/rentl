@@ -275,43 +275,94 @@ def _generate_env(answers: InitAnswers) -> str:
     return f"# Set your API key for {answers.provider_name}\n{answers.api_key_env}=\n"
 
 
+def _get_sample_text(language: str) -> tuple[str, str, str]:
+    """Get sample dialogue text in the specified language.
+
+    Args:
+        language: ISO language code (e.g., 'ja', 'en', 'es').
+
+    Returns:
+        tuple[str, str, str]: Three sample dialogue lines in the target language.
+    """
+    # Language-specific sample text
+    samples: dict[str, tuple[str, str, str]] = {
+        "ja": (
+            "サンプル台詞 1",
+            "サンプル台詞 2",
+            "サンプル台詞 3",
+        ),
+        "zh": (
+            "示例对话 1",
+            "示例对话 2",
+            "示例对话 3",
+        ),
+        "ko": (
+            "샘플 대사 1",
+            "샘플 대사 2",
+            "샘플 대사 3",
+        ),
+        "es": (
+            "Línea de diálogo de ejemplo 1",
+            "Línea de diálogo de ejemplo 2",
+            "Línea de diálogo de ejemplo 3",
+        ),
+        "fr": (
+            "Ligne de dialogue exemple 1",
+            "Ligne de dialogue exemple 2",
+            "Ligne de dialogue exemple 3",
+        ),
+        "de": (
+            "Beispiel-Dialogzeile 1",
+            "Beispiel-Dialogzeile 2",
+            "Beispiel-Dialogzeile 3",
+        ),
+        "en": (
+            "Example dialogue line 1",
+            "Example dialogue line 2",
+            "Example dialogue line 3",
+        ),
+    }
+
+    # Return language-specific samples or English default
+    return samples.get(language.lower(), samples["en"])
+
+
 def _generate_seed_data(answers: InitAnswers) -> str:
-    """Generate seed sample data in the requested format.
+    """Generate seed sample data in the requested format and source language.
 
     Args:
         answers: User responses from the init interview.
 
     Returns:
-        str: Seed data content.
+        str: Seed data content in the configured source language.
 
     Raises:
         ValueError: If the input format is not supported.
     """
+    # Get sample text in the source language
+    line1, line2, line3 = _get_sample_text(answers.source_language)
+
     if answers.input_format == FileFormat.JSONL:
         # Generate 3 sample JSONL lines representing one scene
         return (
             '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_001", '
-            '"speaker": "Character A", "text": "Example dialogue line 1"}\n'
+            f'"speaker": "Character A", "text": "{line1}"}}\n'
             '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_002", '
-            '"speaker": "Character B", "text": "Example dialogue line 2"}\n'
+            f'"speaker": "Character B", "text": "{line2}"}}\n'
             '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_003", '
-            '"speaker": "Character A", "text": "Example dialogue line 3"}\n'
+            f'"speaker": "Character A", "text": "{line3}"}}\n'
         )
     elif answers.input_format == FileFormat.CSV:
         # CSV format with headers
         return (
             "scene_id,route_id,line_id,speaker,text\n"
-            "scene_001,route_001,line_001,Character A,Example dialogue line 1\n"
-            "scene_001,route_001,line_002,Character B,Example dialogue line 2\n"
-            "scene_001,route_001,line_003,Character A,Example dialogue line 3\n"
+            f"scene_001,route_001,line_001,Character A,{line1}\n"
+            f"scene_001,route_001,line_002,Character B,{line2}\n"
+            f"scene_001,route_001,line_003,Character A,{line3}\n"
         )
     elif answers.input_format == FileFormat.TXT:
         # TXT format with simple line-based structure
-        return (
-            "Character A: Example dialogue line 1\n"
-            "Character B: Example dialogue line 2\n"
-            "Character A: Example dialogue line 3\n"
-        )
+        return f"Character A: {line1}\nCharacter B: {line2}\nCharacter A: {line3}\n"
     else:
         # Exhaustive match - this branch should never execute
         raise ValueError(f"Unsupported file format: {answers.input_format}")
