@@ -176,7 +176,7 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 ## Signpost 8: README command examples drifted from live CLI/Make targets
 
 **Task:** Task 5 (audit round 5)
-**Status:** unresolved
+**Status:** resolved
 **Problem:** README examples include commands that are not currently runnable (`uv run rentl export` without required options, plus nonexistent `make test-int` and `make test-all` targets).
 **Evidence:**
 - `README.md:85` shows `uv run rentl export` with no flags.
@@ -185,3 +185,9 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 - `README.md:153-155` references `make test-int` and `make test-all`.
 - `Makefile:67-103` defines `unit`, `integration`, `quality`, `test`, `check`, and `all`, but no `test-int` or `test-all`.
 **Impact:** Task 5 "README is accurate" acceptance is no longer satisfied; first-time users following Quick Start/Development instructions will hit avoidable command failures.
+**Solution:**
+- Updated Quick Start Step 4 (line 85) to show a complete export command with required flags: `uv run rentl export --input run-001/edited_lines.jsonl --output translations.csv --format csv`
+- Updated Development section (lines 152-156) to use correct Make targets: `make test`, `make unit`, `make integration`, `make quality` (removed nonexistent `make test-int` and `make test-all`)
+**Resolution:** do-task round 8 (2026-02-11)
+**Files affected:**
+- `README.md` (lines 85-88, 149-156) - Updated export example and Make target references

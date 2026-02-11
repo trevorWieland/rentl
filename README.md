@@ -82,10 +82,10 @@ Executes the full localization pipeline:
 ### 4. Export translated files
 
 ```bash
-uv run rentl export
+uv run rentl export --input run-001/edited_lines.jsonl --output translations.csv --format csv
 ```
 
-Exports translated lines to your configured output directory in CSV, JSONL, or TXT format, ready for patching.
+Exports translated lines to your specified output file in CSV, JSONL, or TXT format, ready for patching.
 
 ## Available Commands
 
@@ -149,9 +149,10 @@ OPENROUTER_API_KEY=your_key_here
 Run tests:
 
 ```bash
-make test        # Unit tests only
-make test-int    # Integration tests
-make test-all    # All tests
+make test         # All tests with coverage
+make unit         # Unit tests only
+make integration  # Integration tests
+make quality      # Quality tests
 ```
 
 Run verification gates:
