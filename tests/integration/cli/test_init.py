@@ -74,7 +74,7 @@ def when_generate_project_with_defaults(ctx: InitContext) -> None:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -475,7 +475,7 @@ def test_env_var_scoping_regression(
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )

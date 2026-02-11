@@ -28,7 +28,7 @@ PROVIDER_PRESETS: list[ProviderPreset] = [
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
     ),
     ProviderPreset(
         name="OpenAI",
@@ -76,7 +76,7 @@ class InitAnswers(BaseSchema):
         ),
     )
     model_id: str = Field(
-        ..., min_length=1, description="Model identifier (e.g., 'openai/gpt-4.1')"
+        ..., min_length=1, description="Model identifier (e.g., 'openai/gpt-4-turbo')"
     )
     input_format: FileFormat = Field(
         ...,

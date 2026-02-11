@@ -73,7 +73,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - [x] Fix: Replace unsupported export flags in `tests/integration/cli/test_onboarding_e2e.py:295-299` (`--run-id`, `--target-language`) with a valid `rentl export` invocation; current Task 6 test fails with `No such option: --run-id` (`pytest -q tests/integration/cli/test_onboarding_e2e.py`) (audit round 2; see signposts.md Signpost 7)
   - [x] Fix: Pass required export arguments `--input`, `--output`, and `--format` in onboarding E2E export step (`services/rentl-cli/src/rentl_cli/main.py:771-780`, `tests/integration/cli/test_onboarding_e2e.py:289-300`) so the scenario truly exercises `run-pipeline -> export` without manual edits (audit round 2; see signposts.md Signpost 7)
 
-- [ ] Task 7: Fix OpenRouter preset model ID
+- [x] Task 7: Fix OpenRouter preset model ID
   - Update OpenRouter preset in `packages/rentl-core/src/rentl_core/init.py` (line 31) to use a valid OpenRouter model ID (e.g., "openai/gpt-4-turbo" or "anthropic/claude-3-sonnet-20240229")
   - Verify the model ID is valid by checking OpenRouter documentation or testing against the live API
   - Update unit tests in `tests/unit/core/test_init.py` if they assert the old model ID

@@ -1755,7 +1755,7 @@ def test_init_command_happy_path(
         "",  # provider_name (default: openrouter)
         "",  # base_url (default: https://openrouter.ai/api/v1)
         "",  # api_key_env (default: OPENROUTER_API_KEY)
-        "",  # model_id (default: openai/gpt-4.1)
+        "",  # model_id (default: openai/gpt-4-turbo)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1802,7 +1802,7 @@ def test_init_command_overwrite_confirmation_accept(
         "",  # provider_name (default: openrouter)
         "",  # base_url (default: https://openrouter.ai/api/v1)
         "",  # api_key_env (default: OPENROUTER_API_KEY)
-        "",  # model_id (default: openai/gpt-4.1)
+        "",  # model_id (default: openai/gpt-4-turbo)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1872,7 +1872,7 @@ def test_init_command_target_languages_trailing_comma(
         "",  # provider_name (default: openrouter)
         "",  # base_url (default: https://openrouter.ai/api/v1)
         "",  # api_key_env (default: OPENROUTER_API_KEY)
-        "",  # model_id (default: openai/gpt-4.1)
+        "",  # model_id (default: openai/gpt-4-turbo)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1910,7 +1910,7 @@ def test_init_command_target_languages_multiple_with_spaces(
         "",  # provider_name (default: openrouter)
         "",  # base_url (default: https://openrouter.ai/api/v1)
         "",  # api_key_env (default: OPENROUTER_API_KEY)
-        "",  # model_id (default: openai/gpt-4.1)
+        "",  # model_id (default: openai/gpt-4-turbo)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]

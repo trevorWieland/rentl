@@ -34,7 +34,7 @@ def default_answers() -> InitAnswers:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -179,7 +179,7 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.CSV,
         include_seed_data=True,
     )
@@ -212,7 +212,7 @@ def test_seed_data_txt_format(tmp_path: Path) -> None:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.TXT,
         include_seed_data=True,
     )
@@ -239,7 +239,7 @@ def test_generate_project_without_seed_data(tmp_path: Path) -> None:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=False,
     )
@@ -267,7 +267,7 @@ def test_generate_project_with_multiple_target_languages(tmp_path: Path) -> None
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -352,7 +352,7 @@ def test_unsupported_format_rejected() -> None:
             provider_name="openrouter",
             base_url="https://openrouter.ai/api/v1",
             api_key_env="OPENROUTER_API_KEY",
-            model_id="openai/gpt-4.1",
+            model_id="openai/gpt-4-turbo",
             input_format="tsv",  # type: ignore[arg-type]
             include_seed_data=True,
         )
