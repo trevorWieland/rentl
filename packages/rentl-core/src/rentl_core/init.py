@@ -159,9 +159,10 @@ def generate_project(answers: InitAnswers, target_dir: Path) -> InitResult:
     created_files.append(str(env_path.relative_to(target_dir)))
 
     # Generate seed data if requested
+    used_fallback = False
     if answers.include_seed_data:
         seed_path = input_dir / f"{answers.game_name}.{answers.input_format}"
-        seed_content = _generate_seed_data(answers)
+        seed_content, used_fallback = _generate_seed_data(answers)
         seed_path.write_text(seed_content, encoding="utf-8")
         created_files.append(str(seed_path.relative_to(target_dir)))
 
@@ -172,6 +173,13 @@ def generate_project(answers: InitAnswers, target_dir: Path) -> InitResult:
     ]
     if not answers.include_seed_data:
         next_steps.append(f"Place your input data into {input_file}")
+    elif used_fallback:
+        next_steps.append(
+            f"NOTE: Generated seed data is in English "
+            f"(language '{answers.source_language}' not supported). "
+            f"Replace the content in {input_file} with text in your "
+            f"source language before running the pipeline."
+        )
     next_steps.append("Run your first pipeline: rentl run-pipeline")
 
     return InitResult(created_files=created_files, next_steps=next_steps)
@@ -275,14 +283,16 @@ def _generate_env(answers: InitAnswers) -> str:
     return f"# Set your API key for {answers.provider_name}\n{answers.api_key_env}=\n"
 
 
-def _get_sample_text(language: str) -> tuple[str, str, str]:
+def _get_sample_text(language: str) -> tuple[tuple[str, str, str], bool]:
     """Get sample dialogue text in the specified language.
 
     Args:
         language: ISO language code (e.g., 'ja', 'en', 'es').
 
     Returns:
-        tuple[str, str, str]: Three sample dialogue lines in the target language.
+        tuple[tuple[str, str, str], bool]: Three sample dialogue lines
+            in the target language, and a boolean indicating whether
+            the fallback to English was used.
     """
     # Language-specific sample text
     samples: dict[str, tuple[str, str, str]] = {
@@ -323,28 +333,31 @@ def _get_sample_text(language: str) -> tuple[str, str, str]:
         ),
     }
 
-    # Return language-specific samples or English default
-    return samples.get(language.lower(), samples["en"])
+    # Return language-specific samples or English default, with fallback indicator
+    lang_key = language.lower()
+    used_fallback = lang_key not in samples
+    return samples.get(lang_key, samples["en"]), used_fallback
 
 
-def _generate_seed_data(answers: InitAnswers) -> str:
+def _generate_seed_data(answers: InitAnswers) -> tuple[str, bool]:
     """Generate seed sample data in the requested format and source language.
 
     Args:
         answers: User responses from the init interview.
 
     Returns:
-        str: Seed data content in the configured source language.
+        tuple[str, bool]: Seed data content in the configured source language,
+            and a boolean indicating whether the fallback to English was used.
 
     Raises:
         ValueError: If the input format is not supported.
     """
     # Get sample text in the source language
-    line1, line2, line3 = _get_sample_text(answers.source_language)
+    (line1, line2, line3), used_fallback = _get_sample_text(answers.source_language)
 
     if answers.input_format == FileFormat.JSONL:
         # Generate 3 sample JSONL lines representing one scene
-        return (
+        seed_content = (
             '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_001", '
             f'"speaker": "Character A", "text": "{line1}"}}\n'
             '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_002", '
@@ -352,17 +365,22 @@ def _generate_seed_data(answers: InitAnswers) -> str:
             '{"scene_id": "scene_001", "route_id": "route_001", "line_id": "line_003", '
             f'"speaker": "Character A", "text": "{line3}"}}\n'
         )
+        return seed_content, used_fallback
     elif answers.input_format == FileFormat.CSV:
         # CSV format with headers
-        return (
+        seed_content = (
             "scene_id,route_id,line_id,speaker,text\n"
             f"scene_001,route_001,line_001,Character A,{line1}\n"
             f"scene_001,route_001,line_002,Character B,{line2}\n"
             f"scene_001,route_001,line_003,Character A,{line3}\n"
         )
+        return seed_content, used_fallback
     elif answers.input_format == FileFormat.TXT:
         # TXT format with simple line-based structure
-        return f"Character A: {line1}\nCharacter B: {line2}\nCharacter A: {line3}\n"
+        seed_content = (
+            f"Character A: {line1}\nCharacter B: {line2}\nCharacter A: {line3}\n"
+        )
+        return seed_content, used_fallback
     else:
         # Exhaustive match - this branch should never execute
         raise ValueError(f"Unsupported file format: {answers.input_format}")

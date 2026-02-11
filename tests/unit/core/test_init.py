@@ -535,7 +535,7 @@ def test_seed_data_matches_source_language_japanese(tmp_path: Path) -> None:
         include_seed_data=True,
     )
 
-    generate_project(answers, tmp_path)
+    result = generate_project(answers, tmp_path)
     seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
 
     content = seed_path.read_text(encoding="utf-8")
@@ -543,6 +543,11 @@ def test_seed_data_matches_source_language_japanese(tmp_path: Path) -> None:
     assert "サンプル台詞" in content
     # Verify English text is not present
     assert "Example dialogue line" not in content
+    # Verify no fallback warning is emitted for supported language
+    warning_found = any("not supported" in step for step in result.next_steps)
+    assert not warning_found, (
+        f"Unexpected fallback warning for supported language: {result.next_steps}"
+    )
 
 
 def test_seed_data_matches_source_language_chinese(tmp_path: Path) -> None:
@@ -693,8 +698,10 @@ def test_seed_data_matches_source_language_english(tmp_path: Path) -> None:
     assert "Example dialogue line" in content
 
 
-def test_seed_data_unsupported_language_falls_back_to_english(tmp_path: Path) -> None:
-    """Test that unsupported source languages fall back to English seed data."""
+def test_seed_data_unsupported_language_falls_back_to_english(
+    tmp_path: Path,
+) -> None:
+    """Test that unsupported languages fall back to English with warning."""
     answers = InitAnswers(
         project_name="test_project",
         game_name="test_game",
@@ -708,9 +715,18 @@ def test_seed_data_unsupported_language_falls_back_to_english(tmp_path: Path) ->
         include_seed_data=True,
     )
 
-    generate_project(answers, tmp_path)
+    result = generate_project(answers, tmp_path)
     seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
 
     content = seed_path.read_text(encoding="utf-8")
     # Verify English fallback text is present
     assert "Example dialogue line" in content
+
+    # Verify warning is present in next_steps
+    warning_found = any(
+        "language 'ru' not supported" in step and "Replace the content" in step
+        for step in result.next_steps
+    )
+    assert warning_found, (
+        f"Expected fallback warning in next_steps, got: {result.next_steps}"
+    )

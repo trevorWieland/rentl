@@ -315,7 +315,7 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 ## Signpost 12: Unsupported source-language fallback is silent
 
 **Task:** Task 9 (audit round 1)
-**Status:** unresolved
+**Status:** resolved
 **Problem:** Unsupported source languages fall back to English seed data without the required user-facing note/warning.
 **Evidence:**
 - Task requirement in `agent-os/specs/2026-02-11-1011-s0122-functional-onboarding/plan.md:93` requires: unsupported languages must use English placeholders **and** add a note in seed header or init output warning.
@@ -328,8 +328,14 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Impact:**
 - Leaves users unaware that seed content no longer matches their configured source language when language code is unsupported.
 - Violates Task 9 acceptance detail and `ux/trust-through-transparency` (silent behavior at a first-run boundary).
-**Recommended resolution:**
-- Add explicit warning text for unsupported language fallback either:
-  - in generated seed data header/comments (format-dependent), or
-  - in `InitResult.next_steps` / init CLI output.
-- Add unit coverage asserting warning emission for unsupported languages.
+**Solution:**
+- Modified `_get_sample_text()` to return tuple of (sample_text, used_fallback) where used_fallback indicates whether English fallback was used
+- Updated `_generate_seed_data()` to return tuple of (seed_content, used_fallback)
+- Modified `generate_project()` to check used_fallback and add warning to next_steps when unsupported language falls back to English
+- Warning message: "NOTE: Generated seed data is in English (language 'XX' not supported). Replace the content in [file] with text in your source language before running the pipeline."
+- Updated `test_seed_data_unsupported_language_falls_back_to_english` to verify warning is emitted
+- Updated `test_seed_data_matches_source_language_japanese` to verify no warning is emitted for supported languages
+**Resolution:** Task 9 fix items (2026-02-11)
+**Files affected:**
+- `packages/rentl-core/src/rentl_core/init.py` (lines 176-181, 287-330, 333-383) - Added fallback tracking and warning emission
+- `tests/unit/core/test_init.py` (lines 528-550, 697-728) - Added warning verification tests
