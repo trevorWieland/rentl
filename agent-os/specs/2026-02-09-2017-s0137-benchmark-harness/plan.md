@@ -88,7 +88,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Derive `overall_ranking` inside the report generator from Elo ratings instead of requiring caller-supplied ranking (`packages/rentl-core/src/rentl_core/benchmark/report.py:131`, `packages/rentl-core/src/rentl_core/benchmark/report.py:139`) (audit round 3)
   - [x] Fix: Handle zero-comparison pairwise summaries in `compute_elo_ratings` to prevent division by zero, and add a regression unit test (`packages/rentl-core/src/rentl_core/benchmark/report.py:116`; repro output: `ZeroDivisionError division by zero`) (audit round 3)
 
-- [x] Task 7: `rentl benchmark` CLI subcommands
+- [ ] Task 7: `rentl benchmark` CLI subcommands
   - **Rewrite** benchmark CLI as two subcommands:
   - `rentl benchmark download`:
     - `--eval-set` (required): eval set name (e.g., `katawa-shoujo`)
@@ -158,8 +158,9 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Add missing BDD step binding for `Then the command exits with status 1` so override-mode scenario runs end-to-end; currently `pytest -q tests/integration/benchmark/test_cli_command.py` fails with `StepDefinitionNotFoundError` at `tests/features/benchmark/cli_command.feature:41` because only status-2 binding exists in `tests/integration/benchmark/test_cli_command.py:82` (audit round 3; see signposts.md: Task 10 BDD step-binding regression)
   - [x] Fix: Remove override-mode dependency on undefined `config` when resolving OpenRouter behavior in compare runtime (`services/rentl-cli/src/rentl_cli/main.py:1461`-`services/rentl-cli/src/rentl_cli/main.py:1464` currently dereference `config.endpoint` outside config-based mode and crash with `Unexpected error: cannot access local variable 'config' where it is not associated with a value`; repro: `RENTL_OPENROUTER_API_KEY=dummy uv run rentl benchmark compare <a.jsonl> <b.jsonl> --judge-base-url https://openrouter.ai/api/v1 --judge-model test-model --judge-api-key-env RENTL_OPENROUTER_API_KEY`) (audit round 9)
   - [x] Fix: Add BDD integration regression coverage for OpenRouter override mode so `benchmark compare` validates `--judge-base-url https://openrouter.ai/api/v1` without requiring config-mode variables and preserves `openrouter_provider.require_parameters` behavior (`tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`) (audit round 9)
+  - [ ] Fix: Detect duplicate candidate names before storing outputs in `_benchmark_compare_async`; currently `outputs[name] = lines` at `services/rentl-cli/src/rentl_cli/main.py:1312` silently overwrites earlier entries when multiple paths resolve to the same name (e.g., `dir1/output.jsonl` and `dir2/output.jsonl` without `--candidate-names`), which can drop a candidate and produce incorrect rankings (PR #120 feedback from @chatgpt-codex-connector[bot], feedback round 1)
 
-- [x] Task 11: Rewrite judge to use pydantic-ai Agent (replace hand-rolled LLM protocol)
+- [ ] Task 11: Rewrite judge to use pydantic-ai Agent (replace hand-rolled LLM protocol)
   - **Root cause**: The judge uses a custom `LlmRuntimeProtocol` + `LlmPromptRequest` abstraction with hand-rolled JSON parsing, fallback strategies, and retry logic. This is the wrong approach. The normal rentl pipeline already solved this problem cleanly using pydantic-ai `Agent` with `output_type`, which handles structured output enforcement, validation, and retries automatically across all model families.
   - **What must change**:
     1. Replace `LlmRuntimeProtocol`/`LlmPromptRequest` with pydantic-ai `Agent[None, JudgeOutput]` using `output_type=JudgeOutput` — this is the proven pattern from `rentl_agents/runtime.py:472-499`
@@ -176,6 +177,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Update integration tests: verify end-to-end flow with mocked pydantic-ai agent
   - **Why this works**: pydantic-ai already handles structured output across OpenAI, OpenRouter, and compatible providers. It negotiates `response_format`, validates against the Pydantic schema, and retries on malformed output. This is battle-tested across all translation phases (context, pretranslation, translate, QA, edit).
   - **Previous attempts (all superseded)**: Rounds 15-18 tried to fix the hand-rolled approach by adding structured output to `LlmPromptRequest`, 4-layer JSON extraction, dual format support, explicit dimension fields, and fallback alignment. Each fix introduced new edge cases. The correct solution is to stop using the custom protocol entirely.
+  - [ ] Fix: Add presentation-order metadata to `HeadToHeadResult` (e.g., `presented_as_a: str` field recording which candidate the judge saw as "A") so reasoning text referencing A/B labels can be correctly interpreted during audits; currently `reasoning` at `packages/rentl-core/src/rentl_core/benchmark/judge.py:231` is raw judge text with A/B labels in the judge's presentation frame, but `winner`/`dimension_winners` are remapped to canonical order, creating contradictory per-line records when randomization swaps the order (PR #120 feedback from @chatgpt-codex-connector[bot], feedback round 1)
 
 - [x] Task 12: Reconcile demo.md steps with actual CLI capabilities
   - Demo Steps 2-5 reference `rentl run` which doesn't exist (the command is `run-pipeline`)

@@ -212,6 +212,20 @@
 - **Resolution:** do-task fix round (2026-02-10)
 - **Files affected:** `tests/integration/benchmark/test_judge_flow.py`
 
+- **Task:** Task 7
+- **Status:** unresolved
+- **Problem:** Benchmark compare silently drops candidates when duplicate names are produced. `outputs[name] = lines` at `services/rentl-cli/src/rentl_cli/main.py:1312` overwrites earlier entries when multiple output paths resolve to the same candidate name.
+- **Evidence:** When no `--candidate-names` are provided, names default to `path.name` (the filename). Two files from different directories with the same filename (e.g., `dir1/output.jsonl` and `dir2/output.jsonl`) produce the same key, causing the second to overwrite the first. The "at least 2 outputs" check at `main.py:1295` validates `output_paths` (the input list), not the `outputs` dict, so the code proceeds with fewer candidates than requested.
+- **Impact:** Silent data loss — user requests N-way comparison but gets (N-k)-way comparison without warning. Rankings are computed on fewer candidates than intended.
+- **Source:** PR #120 feedback from @chatgpt-codex-connector[bot]
+
+- **Task:** Task 11
+- **Status:** unresolved
+- **Problem:** After A/B randomization remapping, the `reasoning` field in `HeadToHeadResult` retains the judge's presentation-order A/B labels while `winner` and `dimension_winners` are remapped to canonical order, creating contradictory per-line records.
+- **Evidence:** When `a_is_1=False` (swapped presentation), `judge.py:208-218` correctly remaps `winner` from "A"→"B" and vice versa, but `reasoning` at `judge.py:231` is the raw judge text. A reader sees `candidate_a_name=candidate_1`, `winner="B"` (candidate_2 wins), but reasoning says "Translation A was clearly superior" — where the judge's "A" referred to candidate_2. No metadata records which candidate was shown as A to the judge.
+- **Impact:** Undermines spec non-negotiable #3 (per-line evidence must be auditable). Structured data is correct, but free-text reasoning cannot be correctly interpreted without knowing the presentation order.
+- **Source:** PR #120 feedback from @chatgpt-codex-connector[bot]
+
 - **Task:** Task 10
 - **Status:** resolved
 - **Problem:** Override mode crashed when resolving OpenRouter routing constraints because it referenced `config.endpoint` which doesn't exist in override mode.
