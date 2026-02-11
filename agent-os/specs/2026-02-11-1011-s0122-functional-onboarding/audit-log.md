@@ -22,3 +22,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 2): FAIL — Onboarding E2E export step calls unsupported `rentl export` flags (`--run-id`, `--target-language`) and omits required export args, so the scenario still fails before export execution.
 - **Task 5** (round 5): FAIL — `README.md` contains inaccurate command guidance: Quick Start uses invalid bare `rentl export`, and Development lists nonexistent Make targets (`test-int`, `test-all`).
 - **Task 5** (round 6): PASS — README Quick Start export example now includes required flags, and Development Make targets match the current Makefile.
+- **Demo** (run 1): FAIL — OpenRouter preset uses non-existent model ID "openai/gpt-4.1", blocking connectivity check and full onboarding flow (1 run, 0 verified)

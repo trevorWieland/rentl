@@ -191,3 +191,43 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Resolution:** do-task round 8 (2026-02-11)
 **Files affected:**
 - `README.md` (lines 85-88, 149-156) - Updated export example and Make target references
+
+---
+
+## Signpost 9: OpenRouter preset uses non-existent model ID
+
+**Task:** Demo Run 1
+**Status:** unresolved
+**Problem:** The OpenRouter provider preset in `PROVIDER_PRESETS` uses model ID "openai/gpt-4.1" which does not exist on OpenRouter, causing LLM connectivity checks to fail and blocking the entire onboarding flow.
+**Evidence:**
+- Demo Step 2: Running `rentl doctor` after `rentl init` with OpenRouter preset (choice 1) fails with:
+  ```
+  LLM Connectivity: FAIL
+  1/1 endpoint(s) failed: openrouter
+  ```
+- Detailed error from `rentl validate-connection`:
+  ```
+  status_code: 404, model_name: openai/gpt-4.1,
+  body: {'message': 'No endpoints found that can handle the requested parameters.
+  To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection',
+  'code': 404}
+  ```
+- Preset definition at `packages/rentl-core/src/rentl_core/init.py:26-31`:
+  ```python
+  ProviderPreset(
+      name="OpenRouter",
+      provider_name="openrouter",
+      base_url="https://openrouter.ai/api/v1",
+      api_key_env="OPENROUTER_API_KEY",
+      model_id="openai/gpt-4.1",  # <- Does not exist
+  )
+  ```
+**Root cause:** The model ID "openai/gpt-4.1" is invalid. OpenRouter uses different model naming (e.g., "openai/gpt-4-turbo", "anthropic/claude-3-sonnet", etc.). The preset likely needs a valid OpenRouter model ID.
+**Impact:**
+- Violates spec.md non-negotiable #1: "Init output must be immediately runnable" - the generated config cannot complete `rentl run-pipeline` without manual model ID editing.
+- Violates spec.md non-negotiable #3: "Doctor must catch all first-run blockers" - doctor correctly detects the issue but cannot fix it without a code change to the preset.
+- Demo fails at Step 2, blocking end-to-end validation.
+**Test gap:** The onboarding E2E test (`tests/integration/cli/test_onboarding_e2e.py`) uses mocked LLM responses and does not validate preset model IDs against live provider APIs. A test that validates at least one preset's model ID against its actual provider would catch this issue.
+**Files affected:**
+- `packages/rentl-core/src/rentl_core/init.py` (lines 25-31) - OpenRouter preset definition
+- `tests/integration/cli/test_onboarding_e2e.py` - E2E test that should validate real preset model IDs

@@ -26,4 +26,11 @@ This matters because it's the first impression. If the onboarding is broken, use
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Initial onboarding flow (2026-02-11 11:59)
+- Step 1 [RUN]: **PASS** — `rentl init` successfully created project structure with rentl.toml, .env, seed data, and workspace directories (input/, out/, logs/). Provider menu offered OpenRouter, OpenAI, and Local/Ollama presets as expected.
+- Step 2 [RUN]: **FAIL** — `rentl doctor` connectivity check failed. API key was correctly loaded from .env (5/6 checks passed), but LLM connectivity test failed with: `status_code: 404, model_name: openai/gpt-4.1, body: {'message': 'No endpoints found that can handle the requested parameters...'}`. Root cause: OpenRouter preset uses invalid model ID "openai/gpt-4.1" which does not exist on OpenRouter.
+- Step 3 [RUN]: **SKIPPED** — Cannot proceed without working configuration from Step 2.
+- Step 4 [RUN]: **SKIPPED** — Cannot proceed without working configuration from Step 2.
+- Step 5 [RUN]: **SKIPPED** — Cannot proceed without working configuration from Step 2.
+- Step 6 [RUN]: **SKIPPED** — Cannot proceed without working configuration from Step 2.
+- **Overall: FAIL**
