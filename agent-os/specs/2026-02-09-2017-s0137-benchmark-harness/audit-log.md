@@ -83,3 +83,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 13): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (801 unit + 87 integration + 5 quality tests).
 - **Spec Audit** (round 11): FAIL — Rubric `5/4/3/5/3`, non-negotiables PASS, demo latest PASS (run 13), fix-now count 1 (real-LLM benchmark quality scenario fails with OpenRouter + `gpt-4o-mini`, compare exits with opaque `not enough values to unpack`).
 - **Demo** (run 14): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes.
+- **Spec Audit** (round 12): PASS — Rubric `5/5/5/5/5`, non-negotiables PASS, demo latest PASS (run 14), fix-now count 0.
