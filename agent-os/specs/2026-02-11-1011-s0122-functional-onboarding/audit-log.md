@@ -30,3 +30,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 8** (round 2): PASS — Re-audit confirms preset validation coverage is implemented and stable (`tests/quality/cli/test_preset_validation.py`), with live API flow key-gated and currently `1 passed, 1 skipped`.
 - **Demo** (run 3): PASS — Full onboarding flow succeeded: init created Japanese seed data matching source language, doctor passed all 6 checks with .env-loaded API key, pipeline completed all phases (ja → en translation), export produced output files, E2E test passed, README contains all required sections (6 run, 0 verified)
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 1
+- **Task 9** (round 2): PASS — Verified Signpost 12 resolution is implemented: unsupported-language fallback now emits an init next-step warning, language coverage remains correct, and Task 9 unit/integration tests pass.
