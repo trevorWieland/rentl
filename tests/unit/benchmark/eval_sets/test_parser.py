@@ -281,3 +281,125 @@ translate jp label_3:
             assert lines[2].text == "もっとナレーション"
         finally:
             script_path.unlink()
+
+    def test_parse_translation_strings_block(self, parser: RenpyDialogueParser) -> None:
+        """Parser handles translate strings blocks with old/new pairs correctly."""
+        jp_text_1 = "どうしてですか？"  # noqa: RUF001
+        jp_text_2 = "こんにちは"
+        script_content = f"""# Translation file
+translate jp strings:
+
+    # Options menu
+    old "Why?"
+    new "{jp_text_1}"
+
+    old "Hello"
+    new "{jp_text_2}"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".rpy", delete=False) as f:
+            f.write(script_content)
+            script_path = Path(f.name)
+
+        try:
+            lines = parser.parse_script(script_path, scene_id="test_1")
+            # Should only emit "new" translations, not "old" source strings
+            assert len(lines) == 2
+            assert lines[0].speaker is None
+            assert lines[0].text == jp_text_1
+            assert lines[0].metadata is not None
+            assert lines[0].metadata.get("type") == "string"
+            assert lines[1].speaker is None
+            assert lines[1].text == jp_text_2
+            assert lines[1].metadata is not None
+            assert lines[1].metadata.get("type") == "string"
+
+            # Verify no English source text leaked through
+            for line in lines:
+                assert line.text not in ["Why?", "Hello"]
+                assert line.speaker != "old"
+        finally:
+            script_path.unlink()
+
+    def test_parse_translation_strings_no_old_speaker(
+        self, parser: RenpyDialogueParser
+    ) -> None:
+        """Parser rejects 'old' as a speaker name to prevent source text leakage."""
+        script_content = """# Translation file with strings block
+translate jp strings:
+
+    old "English source text"
+    new "日本語訳"
+
+translate jp dialogue_block:
+
+    # hi "Original dialogue"
+    hi "翻訳された対話"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".rpy", delete=False) as f:
+            f.write(script_content)
+            script_path = Path(f.name)
+
+        try:
+            lines = parser.parse_script(script_path, scene_id="test_1")
+            # Should get 2 lines: one from strings block (new), one from dialogue block
+            assert len(lines) == 2
+
+            # Assert NO line has speaker == "old" (this would indicate English leak)
+            for line in lines:
+                assert line.speaker != "old", f"Found 'old' speaker: {line.text}"
+
+            # Verify we got the expected content
+            assert lines[0].text == "日本語訳"
+            assert lines[0].speaker is None
+            assert lines[1].text == "翻訳された対話"
+            assert lines[1].speaker == "hi"
+        finally:
+            script_path.unlink()
+
+    def test_parse_translation_strings_multiple_blocks(
+        self, parser: RenpyDialogueParser
+    ) -> None:
+        """Parser handles multiple translate strings blocks correctly."""
+        script_content = """# Translation file
+translate jp strings:
+
+    old "Menu option 1"
+    new "メニュー選択肢1"
+
+translate jp dialogue_1:
+
+    # "Some narration"
+    "ナレーション"
+
+translate jp strings:
+
+    old "Menu option 2"
+    new "メニュー選択肢2"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".rpy", delete=False) as f:
+            f.write(script_content)
+            script_path = Path(f.name)
+
+        try:
+            lines = parser.parse_script(script_path, scene_id="test_1")
+            assert len(lines) == 3
+
+            # First strings block
+            assert lines[0].text == "メニュー選択肢1"
+            assert lines[0].metadata is not None
+            assert lines[0].metadata.get("type") == "string"
+
+            # Dialogue block
+            assert lines[1].text == "ナレーション"
+            assert lines[1].speaker is None
+
+            # Second strings block
+            assert lines[2].text == "メニュー選択肢2"
+            assert lines[2].metadata is not None
+            assert lines[2].metadata.get("type") == "string"
+
+            # Ensure no 'old' speaker leaked through
+            for line in lines:
+                assert line.speaker != "old"
+        finally:
+            script_path.unlink()

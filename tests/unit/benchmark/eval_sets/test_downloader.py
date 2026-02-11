@@ -66,3 +66,18 @@ class TestKatawaShoujoDownloader:
         # This should not raise - manifest=None means no validation
         # (Actual download tested in integration tests)
         assert downloader.cache_dir == temp_cache
+
+    def test_ksre_raw_base_points_to_japanese_translations(self) -> None:
+        """Downloader uses Japanese translation path, not English originals."""
+        # Task 13 contract: KSRE is "Katawa Shoujo: Re-Engineered", a modernization
+        # of the originally-English VN. Main game/ scripts are English.
+        # Japanese translations are at game/tl/jp/
+        downloader = KatawaShoujoDownloader()
+
+        # Verify the base URL points to the Japanese translation directory
+        assert downloader.KSRE_RAW_BASE.endswith("game/tl/jp")
+        assert "game/tl/jp" in downloader.KSRE_RAW_BASE
+
+        # Ensure it does NOT point to the English originals at /game/
+        assert not downloader.KSRE_RAW_BASE.endswith("/game")
+        assert downloader.KSRE_RAW_BASE.count("/game") == 1  # Only once (before /tl/jp)

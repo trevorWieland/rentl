@@ -18,7 +18,10 @@ class RenpyDialogueParser:
 
     # Translation file patterns
     TRANSLATE_BLOCK = re.compile(r"^\s*translate\s+\w+\s+(?P<label>\w+):")
+    TRANSLATE_STRINGS_BLOCK = re.compile(r"^\s*translate\s+\w+\s+strings:")
     ORIGINAL_COMMENT = re.compile(r'^\s*#\s+"(?P<text>(?:[^"\\]|\\.)*)"')
+    OLD_STRING = re.compile(r'^\s*old\s+"(?P<text>(?:[^"\\]|\\.)*)"')
+    NEW_STRING = re.compile(r'^\s*new\s+"(?P<text>(?:[^"\\]|\\.)*)"')
     TRANSLATED_SPEAKER = re.compile(
         r'^\s*(?P<speaker>\w+)\s+"(?P<text>(?:[^"\\]|\\.)*)"'
     )
@@ -193,6 +196,10 @@ class RenpyDialogueParser:
             translate jp label_id:
                 # "Original English text"
                 "Translated text (narration)"
+        or:
+            translate jp strings:
+                old "English source"
+                new "Translated text"
 
         Returns:
             List of SourceLine records extracted from the translation file.
@@ -203,7 +210,61 @@ class RenpyDialogueParser:
         while i < len(content_lines):
             line = content_lines[i]
 
-            # Look for translate block start
+            # Check for translate strings block (special handling for old/new pairs)
+            strings_match = self.TRANSLATE_STRINGS_BLOCK.match(line)
+            if strings_match:
+                translate_line_num = i + 1
+                i += 1
+
+                # Parse old/new pairs within this strings block
+                # Continue until we hit a non-indented line (next block)
+                while i < len(content_lines):
+                    current_line = content_lines[i]
+
+                    # If we hit a non-indented line, we've left the strings block
+                    if (
+                        current_line
+                        and not current_line.startswith((" ", "\t"))
+                        and current_line.strip()
+                    ):
+                        break
+
+                    # Skip blank lines
+                    if not current_line.strip():
+                        i += 1
+                        continue
+
+                    # Look for "old" line (skip it, just consume)
+                    old_match = self.OLD_STRING.match(current_line)
+                    if old_match:
+                        i += 1
+                        continue
+
+                    # Look for "new" line (emit this as translated text)
+                    new_match = self.NEW_STRING.match(current_line)
+                    if new_match:
+                        self.line_counter += 1
+                        lines.append(
+                            SourceLine(
+                                line_id=f"{scene_id}_{self.line_counter}",
+                                scene_id=scene_id,
+                                # String translations are UI text, no speaker
+                                speaker=None,
+                                text=self._unescape_string(new_match.group("text")),
+                                metadata={
+                                    "source_line": translate_line_num,
+                                    "type": "string",
+                                },
+                            )
+                        )
+                        i += 1
+                        continue
+
+                    # Skip any other content within the strings block
+                    i += 1
+                continue
+
+            # Look for regular translate block start
             match = self.TRANSLATE_BLOCK.match(line)
             if match:
                 translate_line_num = i + 1
@@ -224,6 +285,14 @@ class RenpyDialogueParser:
                         continue
 
                     # Found translated text - try to parse it
+                    # IMPORTANT: Do not match "old" or "new" as speakers
+                    # Check for old/new patterns first to reject them
+                    if self.OLD_STRING.match(current_line) or self.NEW_STRING.match(
+                        current_line
+                    ):
+                        i += 1
+                        break
+
                     # Try dialogue with speaker first
                     speaker_match = self.TRANSLATED_SPEAKER.match(current_line)
                     if speaker_match:
