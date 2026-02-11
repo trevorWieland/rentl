@@ -194,6 +194,38 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 
 ---
 
+## Signpost 10: API validation test timed out in integration test suite
+
+**Task:** make all verification gate (post-completion)
+**Status:** resolved
+**Problem:** The preset validation test `test_openrouter_preset_validates_against_live_api` timed out during integration test run, causing `make all` to fail.
+**Evidence:**
+- Full gate output shows integration test failure:
+  ```
+  tests/integration/cli/test_preset_validation.py::test_openrouter_preset_validates_against_live_api
+  +++++++++++++++++++++++++++++++++++ Timeout ++++++++++++++++++++++++++++++++++++
+  E   Failed: Timeout (>5.0s) from pytest-timeout.
+  ```
+- Makefile line 74 sets integration test timeout to 5 seconds: `--timeout=5`
+- Makefile line 79 sets quality test timeout to 30 seconds: `--timeout=30`
+- The test is marked with `@pytest.mark.api` which means it makes real API calls to validate preset configuration
+- Pytest marker definitions (pyproject.toml lines 71-76):
+  - `integration: Integration tests (<5s, real services, no LLMs)`
+  - `quality: Quality tests (<30s, real LLMs)`
+  - `api: API validation tests (require live API keys, can be skipped)`
+**Root cause:** The test makes real LLM API calls to validate preset model IDs, which can take longer than the 5-second integration timeout. It was incorrectly placed in `tests/integration/` instead of `tests/quality/`.
+**Impact:** `make all` gate fails even though all tasks are complete and the test logic is correct.
+**Solution:**
+- Moved test file from `tests/integration/cli/test_preset_validation.py` to `tests/quality/cli/test_preset_validation.py`
+- Added `@pytest.mark.quality` marker to the API validation test function
+- Removed `@pytest.mark.api` from the structural validation test (doesn't require API calls)
+- Updated module docstring to reflect quality test classification
+**Resolution:** Post-completion verification fix (2026-02-11)
+**Files affected:**
+- `tests/integration/cli/test_preset_validation.py` → `tests/quality/cli/test_preset_validation.py` (moved)
+
+---
+
 ## Signpost 9: OpenRouter preset uses non-existent model ID
 
 **Task:** Demo Run 1

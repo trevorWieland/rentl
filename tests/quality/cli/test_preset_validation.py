@@ -1,11 +1,12 @@
-"""Integration tests for provider preset validation against live APIs.
+"""Quality tests for provider preset validation against live APIs.
 
 These tests validate that provider preset configurations (base URL, model ID)
 work against real provider APIs. They catch preset drift before it reaches
 production.
 
-Tests are marked with `pytest.mark.api` and require valid API keys to run.
-They can be skipped if API keys are not available in the environment.
+Tests marked with `@pytest.mark.quality` and `@pytest.mark.api` require valid
+API keys to run and have a 30-second timeout. They can be skipped if API keys
+are not available in the environment.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     pass
 
 
+@pytest.mark.quality
 @pytest.mark.api
 def test_openrouter_preset_validates_against_live_api(
     tmp_path: Path,
@@ -130,7 +132,6 @@ def test_openrouter_preset_validates_against_live_api(
     )
 
 
-@pytest.mark.api
 def test_all_presets_have_valid_structure(
     cli_runner: CliRunner,
 ) -> None:
