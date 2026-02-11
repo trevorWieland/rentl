@@ -78,3 +78,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 10): PASS — Rubric `5/5/5/5/5`, non-negotiables PASS, demo latest PASS (run 12), fix-now count 0.
 - **Feedback** (round 1): 2 items — 2 actionable, 0 addressed, 0 invalid, 0 out-of-scope
 - **Task 12** (round 3): PASS — Re-audit of commit `22b4afa` confirms Task 12 remains clean: demo steps use `run-pipeline` and Step 3 retains `--config rentl.toml`; CLI evidence still matches (`uv run rentl --help`, `uv run rentl run --help`).
+- **Task 12** (round 4): PASS — Task 12 commit `22b4afa` still satisfies plan scope: demo Step 2 uses `run-pipeline`, Step 3 includes `--config rentl.toml`, and current CLI help confirms `run-pipeline` plus compare options (`--config`, `--candidate-names`).

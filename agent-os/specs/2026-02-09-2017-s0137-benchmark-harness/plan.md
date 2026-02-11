@@ -160,7 +160,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Add BDD integration regression coverage for OpenRouter override mode so `benchmark compare` validates `--judge-base-url https://openrouter.ai/api/v1` without requiring config-mode variables and preserves `openrouter_provider.require_parameters` behavior (`tests/integration/benchmark/test_cli_command.py`, `tests/features/benchmark/cli_command.feature`) (audit round 9)
   - [x] Fix: Detect duplicate candidate names before storing outputs in `_benchmark_compare_async`; currently `outputs[name] = lines` at `services/rentl-cli/src/rentl_cli/main.py:1312` silently overwrites earlier entries when multiple paths resolve to the same name (e.g., `dir1/output.jsonl` and `dir2/output.jsonl` without `--candidate-names`), which can drop a candidate and produce incorrect rankings (PR #120 feedback from @chatgpt-codex-connector[bot], feedback round 1)
 
-- [ ] Task 11: Rewrite judge to use pydantic-ai Agent (replace hand-rolled LLM protocol)
+- [x] Task 11: Rewrite judge to use pydantic-ai Agent (replace hand-rolled LLM protocol)
   - **Root cause**: The judge uses a custom `LlmRuntimeProtocol` + `LlmPromptRequest` abstraction with hand-rolled JSON parsing, fallback strategies, and retry logic. This is the wrong approach. The normal rentl pipeline already solved this problem cleanly using pydantic-ai `Agent` with `output_type`, which handles structured output enforcement, validation, and retries automatically across all model families.
   - **What must change**:
     1. Replace `LlmRuntimeProtocol`/`LlmPromptRequest` with pydantic-ai `Agent[None, JudgeOutput]` using `output_type=JudgeOutput` — this is the proven pattern from `rentl_agents/runtime.py:472-499`
