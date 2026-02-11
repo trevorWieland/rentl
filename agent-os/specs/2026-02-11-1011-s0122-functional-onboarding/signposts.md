@@ -78,3 +78,19 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Files affected:**
 - `services/rentl-cli/src/rentl_cli/main.py` (lines 587-635) - Added explicit range validation
 - `tests/unit/cli/test_main.py` (lines 1673-1790) - Added four test functions covering preset selection, custom option, out-of-range rejection, and URL validation loop
+
+---
+
+## Signpost 4: Export-completed next steps show directory, not output file paths
+
+**Task:** Task 4 (audit round 1)
+**Status:** unresolved
+**Problem:** The export-completed next-steps branch labels output as `Output files:` but prints only the configured output directory, not concrete exported file paths.
+**Evidence:**
+- Task requirement in `agent-os/specs/2026-02-11-1011-s0122-functional-onboarding/plan.md:43` says: "If export phase was already included in the run, show the output file paths instead".
+- Implementation in `services/rentl-cli/src/rentl_cli/main.py:2538-2543`:
+  - Comment says "show output file paths"
+  - Rendered value is `config.project.paths.output_dir`
+- Unit test `tests/unit/cli/test_main.py:1147-1233` asserts only label-level strings (`"Output files:"`) and does not assert any concrete file path extraction from run artifacts.
+**Impact:** Users who already ran export do not see which files were produced, weakening onboarding guidance and leaving Task 4 incomplete.
+**Solution:** Derive export file paths from run output artifacts (for example via `RunState.artifacts` export entries and/or export artifact payload) and render those paths in the summary; add unit coverage that includes artifact-backed file paths and asserts they appear in output.
