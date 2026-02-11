@@ -11,7 +11,7 @@ Users discovering rentl on GitHub need a complete, consistent onboarding experie
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Clean up CLI help text
+- [x] Task 2: Clean up CLI help text
   - Remove `Raises:` docstring sections from user-facing help for all affected commands (use `\f` form-feed character to stop Typer rendering): help, doctor, explain, init, validate-connection, export, run-pipeline, run-phase, status, check-secrets, migrate
   - Fix `benchmark` group description to be a full descriptive sentence
   - Fix `--run-id` help text in `status` command ("Show status for this run" instead of "resume or continue")
