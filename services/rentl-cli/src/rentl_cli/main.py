@@ -592,7 +592,7 @@ def init() -> None:
             api_key_env = preset.api_key_env
             model_id = preset.model_id
             rprint(f"[green]Selected {preset.name}:[/green] {base_url}")
-        else:
+        elif choice_idx == len(PROVIDER_PRESETS):
             # Custom provider
             provider_name = typer.prompt("Provider name", default="custom")
             # Validate base_url in a loop until valid
@@ -626,6 +626,13 @@ def init() -> None:
                         rprint("[red]Error: Invalid URL format[/red]")
             api_key_env = typer.prompt("API key env var")
             model_id = typer.prompt("Model ID")
+        else:
+            # Invalid choice - out of range
+            rprint(
+                f"[red]Error: Please enter a number between 1 and "
+                f"{len(PROVIDER_PRESETS) + 1}[/red]",
+            )
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
 
         input_format_str = typer.prompt(
             "Input format (jsonl, csv, txt)", default="jsonl"

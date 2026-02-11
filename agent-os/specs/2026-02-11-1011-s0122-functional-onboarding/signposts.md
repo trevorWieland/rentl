@@ -61,7 +61,7 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 ## Signpost 3: Provider menu accepts out-of-range numeric input as Custom
 
 **Task:** Task 3 (audit round 1)
-**Status:** unresolved
+**Status:** resolved
 **Problem:** The `init` provider selection menu only advertises `1..N` presets plus one `Custom` option, but any numeric value outside preset range is treated as `Custom` instead of being rejected.
 **Evidence:**
 - Branch logic in `services/rentl-cli/src/rentl_cli/main.py:587-596` routes every non-preset numeric index to the `else` branch (custom prompts).
@@ -73,3 +73,8 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
     - `used_custom_prompt= True`
     - `provider_name= mycustom`
 **Impact:** Typing an invalid menu number silently switches the flow to manual custom configuration, which hides input mistakes and weakens the guided onboarding path.
+**Solution:** Changed the branch logic from `else:` to `elif choice_idx == len(PROVIDER_PRESETS):` for the custom case, and added a final `else:` clause that displays an error message and exits with `VALIDATION_ERROR` code.
+**Resolution:** do-task round 2 (2026-02-11)
+**Files affected:**
+- `services/rentl-cli/src/rentl_cli/main.py` (lines 587-635) - Added explicit range validation
+- `tests/unit/cli/test_main.py` (lines 1673-1790) - Added four test functions covering preset selection, custom option, out-of-range rejection, and URL validation loop

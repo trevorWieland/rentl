@@ -25,7 +25,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - [x] Fix: Correct the inaccurate precedence claim in `tests/unit/core/test_doctor.py:811` ("`.env.local` takes precedence") to match actual behavior (`.env` currently wins because both loads use `override=False` in `services/rentl-cli/src/rentl_cli/main.py:2129-2132`; verified in `tests/unit/cli/test_main.py:2350`) (audit round 3; see signposts.md Signpost 1)
   - [x] Fix: Strengthen dotenv doctor-context coverage in `tests/unit/core/test_doctor.py:787-819` to assert real `.env`/`.env.local` load behavior rather than only setting environment variables via `monkeypatch.setenv(...)`, per `testing/mandatory-coverage` (audit round 3)
 
-- [ ] Task 3: Add provider presets to `rentl init`
+- [x] Task 3: Add provider presets to `rentl init`
   - Add provider preset data structure with at least 3 presets: OpenRouter, OpenAI, Local/Ollama
   - Each preset pre-fills: base_url, api_key_env, default model_id
   - Replace raw URL prompts with provider selection menu in CLI init command
@@ -34,8 +34,8 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - Update unit tests (`tests/unit/core/test_init.py`)
   - Update integration tests (`tests/integration/cli/test_init.py`)
   - Acceptance: running `rentl init` shows provider choices; selecting one pre-fills URL/key/model; custom entry validates URL format
-  - [ ] Fix: Restrict provider selection to valid menu choices in `services/rentl-cli/src/rentl_cli/main.py:587-596`; currently out-of-range numeric input (e.g., `999`) falls through to the Custom branch instead of returning a validation error (audit round 1; see signposts.md Signpost 3)
-  - [ ] Fix: Add CLI init coverage in `tests/unit/cli/test_main.py` for provider menu behavior introduced at `services/rentl-cli/src/rentl_cli/main.py:570-628` (preset selection, out-of-range rejection, and custom URL validation loop) per `testing/mandatory-coverage` (audit round 1)
+  - [x] Fix: Restrict provider selection to valid menu choices in `services/rentl-cli/src/rentl_cli/main.py:587-596`; currently out-of-range numeric input (e.g., `999`) falls through to the Custom branch instead of returning a validation error (audit round 1; see signposts.md Signpost 3)
+  - [x] Fix: Add CLI init coverage in `tests/unit/cli/test_main.py` for provider menu behavior introduced at `services/rentl-cli/src/rentl_cli/main.py:570-628` (preset selection, out-of-range rejection, and custom URL validation loop) per `testing/mandatory-coverage` (audit round 1)
 
 - [ ] Task 4: Add post-run next steps to pipeline summary
   - After `rentl run-pipeline` completes, append next steps to the summary panel in `services/rentl-cli/src/rentl_cli/main.py` (`_render_run_execution_summary`)

@@ -1670,6 +1670,149 @@ def test_init_command_target_languages_blank_fails(
     assert not (tmp_path / ".env").exists()
 
 
+def test_init_command_provider_preset_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command with provider preset selection (OpenRouter, OpenAI, Ollama)."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Test selecting preset 1 (OpenRouter)
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "1",  # provider choice: OpenRouter
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+    assert "OpenRouter" in result.stdout
+    assert "https://openrouter.ai/api/v1" in result.stdout
+
+    # Verify rentl.toml contains correct provider settings
+    config_path = tmp_path / "rentl.toml"
+    assert config_path.exists()
+    with config_path.open("rb") as f:
+        config = tomllib.load(f)
+    assert config["endpoint"]["base_url"] == "https://openrouter.ai/api/v1"
+    assert config["endpoint"]["api_key_env"] == "OPENROUTER_API_KEY"
+
+
+def test_init_command_provider_custom_option(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command with custom provider option (choice 4)."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Test selecting custom option (preset count is 3, so custom is 4)
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "4",  # provider choice: Custom
+        "mycustom",  # custom provider name
+        "https://api.example.com/v1",  # custom base URL
+        "MY_API_KEY",  # custom API key env var
+        "my-model-v1",  # custom model ID
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit
+    assert result.exit_code == 0
+
+    # Verify rentl.toml contains custom provider settings
+    config_path = tmp_path / "rentl.toml"
+    assert config_path.exists()
+    with config_path.open("rb") as f:
+        config = tomllib.load(f)
+    assert config["endpoint"]["base_url"] == "https://api.example.com/v1"
+    assert config["endpoint"]["api_key_env"] == "MY_API_KEY"
+    assert config["pipeline"]["default_model"]["model_id"] == "my-model-v1"
+
+
+def test_init_command_provider_out_of_range_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command rejects out-of-range provider choice."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Test with out-of-range numeric input (e.g., 999)
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "999",  # provider choice: out of range (should fail)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert validation error exit code
+    assert result.exit_code == ExitCode.VALIDATION_ERROR.value
+
+    # Verify error message indicates valid range
+    assert "between 1 and" in result.stdout.lower()
+
+    # Verify no files were created
+    assert not (tmp_path / "rentl.toml").exists()
+    assert not (tmp_path / ".env").exists()
+
+
+def test_init_command_custom_url_validation_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command validates custom URL format and loops on invalid input."""
+    # Change to temp directory
+    monkeypatch.chdir(tmp_path)
+
+    # Test with invalid URL followed by valid URL
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "4",  # provider choice: Custom
+        "mycustom",  # custom provider name
+        "not-a-url",  # invalid base URL (should fail validation and loop)
+        "https://api.example.com/v1",  # valid base URL (second attempt)
+        "MY_API_KEY",  # custom API key env var
+        "my-model-v1",  # custom model ID
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Assert successful exit (validation loop allows retry)
+    assert result.exit_code == 0
+
+    # Verify error message appeared for invalid URL
+    assert "error" in result.stdout.lower()
+
+    # Verify rentl.toml was created with valid URL
+    config_path = tmp_path / "rentl.toml"
+    assert config_path.exists()
+    with config_path.open("rb") as f:
+        config = tomllib.load(f)
+    assert config["endpoint"]["base_url"] == "https://api.example.com/v1"
+
+
 def test_help_command_no_args() -> None:
     """Test help command without arguments lists all commands."""
     result = runner.invoke(app, ["help"])
