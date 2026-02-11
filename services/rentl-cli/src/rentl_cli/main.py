@@ -344,6 +344,9 @@ def doctor(config_path: Path = CONFIG_OPTION) -> None:
     console = Console()
     is_tty = sys.stdout.isatty()
 
+    # Load .env files before running checks so API keys are available
+    _load_dotenv(config_path)
+
     # Build runtime for connectivity check
     runtime = _build_llm_runtime()
 
@@ -2115,9 +2118,18 @@ def _load_run_config(config_path: Path) -> RunConfig:
 
 
 def _load_dotenv(config_path: Path) -> None:
-    env_path = config_path.parent / ".env"
+    """Load .env and .env.local files from config directory.
+
+    .env.local takes precedence over .env (loaded second with override=False).
+    """
+    config_dir = config_path.parent
+    env_path = config_dir / ".env"
+    env_local_path = config_dir / ".env.local"
+
     if env_path.exists():
         load_dotenv(env_path, override=False)
+    if env_local_path.exists():
+        load_dotenv(env_local_path, override=False)
 
 
 def _resolve_project_paths(config: RunConfig, config_path: Path) -> RunConfig:

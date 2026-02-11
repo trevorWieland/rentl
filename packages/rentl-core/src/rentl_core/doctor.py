@@ -322,14 +322,14 @@ def check_api_keys(config: RunConfig) -> CheckResult:
             missing.append(key_name)
 
     if missing:
-        env_file = Path(config.project.paths.workspace_dir) / ".env"
-        keys_list = ", ".join(f"{k}=your_key_here" for k in missing)
+        # Note: doctor now loads .env and .env.local from config directory
+        keys_list = " ".join(f"{k}=your_key_here" for k in missing)
         return CheckResult(
             name="API Keys",
             status=CheckStatus.FAIL,
             message=f"Missing API keys: {', '.join(missing)}",
             fix_suggestion=(
-                f"Set environment variables or add to {env_file}: {keys_list}"
+                f"Create .env file in config directory with: echo '{keys_list}' >> .env"
             ),
         )
 
@@ -391,9 +391,9 @@ async def check_llm_connectivity(
             status=CheckStatus.FAIL,
             message=f"{count_str} endpoint(s) failed: {endpoint_list}",
             fix_suggestion=(
-                "Verify API keys are correct, check network connectivity, "
-                "and confirm endpoint URLs are reachable (use 'rentl "
-                "validate-connection' for details)"
+                "Verify API keys in .env file (doctor loads .env and .env.local), "
+                "check network connectivity, and confirm endpoint URLs are reachable. "
+                "Use 'rentl validate-connection' for details."
             ),
         )
 

@@ -21,3 +21,10 @@ Feature: Doctor Command
     Then the command fails
     And the output contains config error details
     And the output contains actionable fix suggestions
+
+  Scenario: Doctor loads API keys from .env file
+    Given a valid rentl configuration exists
+    And API keys are set in .env file
+    When I run the doctor command
+    Then the command succeeds
+    And the API key check passes
