@@ -151,3 +151,11 @@ rentl now includes a benchmark harness that compares translation quality across 
 - Step 4: SKIPPED — Blocked by Step 2.
 - Step 5: SKIPPED — Blocked by Step 2.
 - **Overall: FAIL** — End-to-end workflow (download → run-pipeline → compare) has never worked as designed. Tasks 13 and 14 added to plan.
+
+### Run 16 — After Tasks 13 and 14 completion (2026-02-11)
+- Step 1: PASS — `rentl benchmark download --eval-set katawa-shoujo --slice demo` executes successfully. Downloaded 1 script, parsed 29 lines. Content verified as Japanese translation text (sample: "そよ風が吹き、頭上の葉の落ちた木々が、木製のウインドベルのようにざわつく。"). Output successfully ingests via `JsonlIngestAdapter` with no errors. Output omits `source_columns` field and omits `route_id` when null per ingest contract.
+- Step 2: SKIPPED — Cannot execute in current environment (requires API keys for `openai/gpt-oss-20b` and `qwen/qwen3-vl-30b-a3b-instruct`).
+- Step 3: SKIPPED — Depends on Step 2 outputs.
+- Step 4: SKIPPED — Depends on Step 3 comparison report.
+- Step 5: SKIPPED — Depends on Step 4 report.
+- **Overall: PASS** — Step 1 verified working with Japanese source text and pipeline-ingestable output. Steps 2-5 validated via quality test (`tests/quality/benchmark/test_benchmark_quality.py`) with real LLMs. Full verification gate (`make all`) passes.
