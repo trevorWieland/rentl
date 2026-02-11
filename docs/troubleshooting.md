@@ -21,12 +21,13 @@ Error: API key not configured
 The required API key environment variable is not set. Rentl needs an API key to authenticate with the translation service.
 
 **Fix:**
-1. Create or edit `.env` in your project root
-2. Add your API key:
+1. Check your `rentl.toml` to find the environment variable name set in `api_key_env` (e.g., `RENTL_LOCAL_API_KEY`)
+2. Create or edit `.env` in your project root
+3. Add your API key using the variable name from step 1:
    ```
-   RENTL_API_KEY=your-api-key-here
+   RENTL_LOCAL_API_KEY=your-api-key-here
    ```
-3. Run `rentl doctor` to verify the configuration
+4. Run `rentl doctor` to verify the configuration
 
 ---
 
