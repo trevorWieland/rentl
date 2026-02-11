@@ -27,7 +27,7 @@ Users discovering rentl on GitHub need a complete, consistent onboarding experie
   - [x] Fix: Replace the invalid Quick Start export input path `run-001/edited_lines.jsonl` with a real, generated path/workflow so the step is copy-pasteable (README.md:100; `uv run rentl export --input run-001/edited_lines.jsonl --output /tmp/translations.csv --format csv` fails with `No such file or directory`) (audit round 1)
   - [x] Fix: Quick Start still lacks a copy-pasteable export execution step; `uv run rentl export --help` is documentation lookup, not export workflow. Add an explicit `rentl export --input <translated-lines-jsonl-from-status> --output <path> --format <format>` command sequence using the status-provided path (README.md:103, README.md:106) (audit round 2)
   - [x] Fix: Quick Start export remains non-copy-pasteable because it only describes manual preprocessing and uses placeholder input (`<translated-lines.jsonl>`) instead of executable steps. Add a concrete command sequence that produces a real TranslatedLine JSONL from the run output and then executes `rentl export` with that generated path (README.md:103, README.md:109-115) (audit round 3)
-- [ ] Task 4: Create troubleshooting doc
+- [x] Task 4: Create troubleshooting doc
   - Create `docs/troubleshooting.md` covering common failure modes:
     - Missing API key (symptom: connection error; cause: env var not set; fix: add to .env)
     - Invalid or missing config (symptom: config parse error; cause: bad TOML or missing file; fix: run rentl init or check syntax)
