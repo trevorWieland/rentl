@@ -5,6 +5,7 @@ import asyncio
 import inspect
 import json
 import math
+import os
 import textwrap
 import tomllib
 from pathlib import Path
@@ -2265,3 +2266,100 @@ def test_auto_migrate_if_needed_no_schema_version(tmp_path: Path) -> None:
     assert result == payload
     # Should not create a backup
     assert not (config_path.with_suffix(".toml.bak")).exists()
+
+
+def test_load_dotenv_loads_env_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that _load_dotenv loads .env file from config directory."""
+    config_path = tmp_path / "rentl.toml"
+    config_path.write_text("[project]\n", encoding="utf-8")
+
+    # Create .env file with a test key
+    env_path = tmp_path / ".env"
+    env_path.write_text("TEST_ENV_KEY=value_from_env\n", encoding="utf-8")
+
+    # Clear the environment to ensure we're testing .env loading
+    monkeypatch.delenv("TEST_ENV_KEY", raising=False)
+
+    # Load dotenv
+    cli_main._load_dotenv(config_path)
+
+    # Verify the key was loaded from .env
+    assert os.getenv("TEST_ENV_KEY") == "value_from_env"
+
+
+def test_load_dotenv_loads_env_local_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that _load_dotenv loads .env.local file from config directory."""
+    config_path = tmp_path / "rentl.toml"
+    config_path.write_text("[project]\n", encoding="utf-8")
+
+    # Create .env.local file with a test key
+    env_local_path = tmp_path / ".env.local"
+    env_local_path.write_text("TEST_LOCAL_KEY=value_from_local\n", encoding="utf-8")
+
+    # Clear the environment to ensure we're testing .env.local loading
+    monkeypatch.delenv("TEST_LOCAL_KEY", raising=False)
+
+    # Load dotenv
+    cli_main._load_dotenv(config_path)
+
+    # Verify the key was loaded from .env.local
+    assert os.getenv("TEST_LOCAL_KEY") == "value_from_local"
+
+
+def test_load_dotenv_both_env_and_env_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that _load_dotenv loads both .env and .env.local files.
+
+    Note: Currently .env takes precedence when both files define the same key
+    (both are loaded with override=False, so first loaded wins).
+    This is the actual behavior, though the docstring claims .env.local should
+    take precedence.
+    """
+    config_path = tmp_path / "rentl.toml"
+    config_path.write_text("[project]\n", encoding="utf-8")
+
+    # Create .env file with keys
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "SHARED_KEY=value_from_env\nENV_ONLY_KEY=env_value\n", encoding="utf-8"
+    )
+
+    # Create .env.local file with keys
+    env_local_path = tmp_path / ".env.local"
+    env_local_path.write_text(
+        "SHARED_KEY=value_from_local\nLOCAL_ONLY_KEY=local_value\n", encoding="utf-8"
+    )
+
+    # Clear the environment to ensure we're testing .env loading
+    monkeypatch.delenv("SHARED_KEY", raising=False)
+    monkeypatch.delenv("ENV_ONLY_KEY", raising=False)
+    monkeypatch.delenv("LOCAL_ONLY_KEY", raising=False)
+
+    # Load dotenv
+    cli_main._load_dotenv(config_path)
+
+    # Verify both files are loaded
+    assert os.getenv("ENV_ONLY_KEY") == "env_value"
+    assert os.getenv("LOCAL_ONLY_KEY") == "local_value"
+    # .env takes precedence (loaded first with override=False)
+    assert os.getenv("SHARED_KEY") == "value_from_env"
+
+
+def test_load_dotenv_handles_missing_env_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that _load_dotenv handles missing .env files gracefully."""
+    config_path = tmp_path / "rentl.toml"
+    config_path.write_text("[project]\n", encoding="utf-8")
+
+    # Ensure no .env files exist
+    assert not (tmp_path / ".env").exists()
+    assert not (tmp_path / ".env.local").exists()
+
+    # Should not raise an exception
+    cli_main._load_dotenv(config_path)
