@@ -38,7 +38,7 @@ Users discovering rentl on GitHub need a complete, consistent onboarding experie
   - Files: `docs/troubleshooting.md`
   - Test: file exists and covers all four failure modes
   - [x] Fix: `docs/troubleshooting.md` hardcodes `RENTL_API_KEY` (docs/troubleshooting.md:27), but current examples are config-driven via `endpoint.api_key_env` (rentl.toml.example:33) and `.env.example` uses `RENTL_LOCAL_API_KEY` (.env.example:2). Update the Missing API Key fix to instruct users to set the env var named by `api_key_env` (with an accurate example) so docs do not contain stale env var references. (audit round 1)
-- [ ] Task 5: Cross-reference audit and final consistency pass
+- [x] Task 5: Cross-reference audit and final consistency pass
   - Verify README command table matches `rentl --help` exactly (command names + descriptions)
   - Verify `rentl.toml.example` config keys are documented in README configuration section
   - Verify `.env.example` variables are documented in README
