@@ -1309,6 +1309,14 @@ async def _benchmark_compare_async(
                     name = candidate_names[i]
                 else:
                     name = path.name
+                # Detect duplicate names
+                if name in outputs:
+                    rprint(
+                        f"[red]Error:[/red] Duplicate candidate name '{name}'. "
+                        "Use --candidate-names to provide unique names for all "
+                        "outputs."
+                    )
+                    raise typer.Exit(code=1)
                 outputs[name] = lines
                 rprint(f"  {name}: {len(lines)} lines")
             except OutputLoadError as e:

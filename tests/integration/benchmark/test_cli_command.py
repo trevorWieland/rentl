@@ -726,3 +726,103 @@ def then_judge_configured_with_openrouter(ctx: BenchmarkCLIContext) -> None:
     # Verify the judge was constructed with openrouter_require_parameters=True
     assert ctx.judge_constructor_args is not None
     assert ctx.judge_constructor_args.get("openrouter_require_parameters") is True
+
+
+@given(
+    "two translation output files with the same filename exist", target_fixture="ctx"
+)
+def given_two_files_same_name(
+    tmp_path: Path, tmp_workspace: Path
+) -> BenchmarkCLIContext:
+    """Create two output files with the same filename in different directories.
+
+    Args:
+        tmp_path: Temporary directory for test files.
+        tmp_workspace: Temporary workspace directory.
+
+    Returns:
+        BenchmarkCLIContext with output files configured.
+    """
+    ctx = BenchmarkCLIContext()
+    ctx.config_dir = tmp_workspace.parent
+    write_rentl_config(ctx.config_dir, tmp_workspace)
+
+    # Create necessary workspace directories
+    (tmp_workspace / "input").mkdir(exist_ok=True)
+    (tmp_workspace / "out").mkdir(exist_ok=True)
+    (tmp_workspace / "logs").mkdir(exist_ok=True)
+    (tmp_workspace / "prompts").mkdir(exist_ok=True)
+    (tmp_workspace / "agents").mkdir(exist_ok=True)
+
+    # Create two directories
+    dir_a = tmp_path / "dir_a"
+    dir_b = tmp_path / "dir_b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+
+    # Create files with the same name in different directories
+    lines_a = [
+        {
+            "line_id": "scene_1",
+            "scene_id": "scene_0",
+            "source_text": "Hello",
+            "text": "Translation A",
+        },
+    ]
+    lines_b = [
+        {
+            "line_id": "scene_1",
+            "scene_id": "scene_0",
+            "source_text": "Hello",
+            "text": "Translation B",
+        },
+    ]
+
+    # Both files have the same name "output.jsonl"
+    ctx.output_file_a = dir_a / "output.jsonl"
+    ctx.output_file_b = dir_b / "output.jsonl"
+
+    with ctx.output_file_a.open("w") as f:
+        for line in lines_a:
+            f.write(json.dumps(line) + "\n")
+
+    with ctx.output_file_b.open("w") as f:
+        for line in lines_b:
+            f.write(json.dumps(line) + "\n")
+
+    return ctx
+
+
+@when("I run benchmark compare without explicit candidate names")
+def when_run_benchmark_compare_no_names(
+    ctx: BenchmarkCLIContext, cli_runner: CliRunner
+) -> None:
+    """Run benchmark compare without explicit candidate names.
+
+    Args:
+        ctx: Benchmark CLI context.
+        cli_runner: CLI test runner.
+    """
+    ctx.result = cli_runner.invoke(
+        cli_main.app,
+        [
+            "benchmark",
+            "compare",
+            str(ctx.output_file_a),
+            str(ctx.output_file_b),
+        ],
+        env={"OPENAI_API_KEY": "test-key"},
+    )
+    ctx.stdout = ctx.result.stdout + ctx.result.stderr
+
+
+@then("the output indicates duplicate candidate name error")
+def then_output_indicates_duplicate_name_error(ctx: BenchmarkCLIContext) -> None:
+    """Verify output indicates duplicate candidate name error.
+
+    Args:
+        ctx: Benchmark CLI context.
+    """
+    assert "Duplicate candidate name" in ctx.stdout
+    assert "output.jsonl" in ctx.stdout
+    assert "--candidate-names" in ctx.stdout

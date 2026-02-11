@@ -52,3 +52,10 @@ Feature: Benchmark CLI Command
     When I run benchmark compare with OpenRouter judge overrides
     Then the command completes successfully
     And the judge was configured with OpenRouter routing
+
+  Scenario: Benchmark compare rejects duplicate candidate names
+    Given a valid rentl configuration exists
+    And two translation output files with the same filename exist
+    When I run benchmark compare without explicit candidate names
+    Then the command exits with status 1
+    And the output indicates duplicate candidate name error
