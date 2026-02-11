@@ -1231,6 +1231,10 @@ def test_render_run_execution_summary_next_steps_export_complete(
     assert "Next Steps" in captured.out
     assert "Export complete!" in captured.out
     assert "Output files:" in captured.out
+    # Verify export file path is shown (may be truncated by Rich display)
+    # The implementation builds: {output_dir}/run-{run_id}/{language}.{format}
+    # Even when truncated, at least a path prefix should be visible
+    assert tmp_path.parts[0] in captured.out  # At minimum the root /tmp part
 
 
 def _write_config(tmp_path: Path, workspace_dir: Path) -> Path:

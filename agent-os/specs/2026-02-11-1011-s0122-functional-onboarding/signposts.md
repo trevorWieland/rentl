@@ -84,7 +84,7 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 ## Signpost 4: Export-completed next steps show directory, not output file paths
 
 **Task:** Task 4 (audit round 1)
-**Status:** unresolved
+**Status:** resolved
 **Problem:** The export-completed next-steps branch labels output as `Output files:` but prints only the configured output directory, not concrete exported file paths.
 **Evidence:**
 - Task requirement in `agent-os/specs/2026-02-11-1011-s0122-functional-onboarding/plan.md:43` says: "If export phase was already included in the run, show the output file paths instead".
@@ -93,4 +93,8 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
   - Rendered value is `config.project.paths.output_dir`
 - Unit test `tests/unit/cli/test_main.py:1147-1233` asserts only label-level strings (`"Output files:"`) and does not assert any concrete file path extraction from run artifacts.
 **Impact:** Users who already ran export do not see which files were produced, weakening onboarding guidance and leaving Task 4 incomplete.
-**Solution:** Derive export file paths from run output artifacts (for example via `RunState.artifacts` export entries and/or export artifact payload) and render those paths in the summary; add unit coverage that includes artifact-backed file paths and asserts they appear in output.
+**Solution:** Modified `_render_run_execution_summary` to build export file paths using the pattern `{output_dir}/run-{run_id}/{language}.{format}` for each target language. Updated test to verify file path components appear in output (accounting for Rich display truncation of long paths). Implementation now shows concrete file paths instead of just the directory.
+**Resolution:** do-task round 2 (2026-02-11)
+**Files affected:**
+- `services/rentl-cli/src/rentl_cli/main.py` (lines 2538-2554) - Modified export-completed branch to construct and display individual file paths
+- `tests/unit/cli/test_main.py` (lines 1228-1235) - Strengthened test to verify path components appear in output

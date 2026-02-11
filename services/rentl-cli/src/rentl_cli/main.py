@@ -2537,10 +2537,21 @@ def _render_run_execution_summary(
 
         if export_phase_completed:
             # Export was included - show output file paths
-            output_dir = config.project.paths.output_dir
+            output_format = config.project.formats.output_format
+            run_dir = Path(config.project.paths.output_dir) / f"run-{result.run_id}"
+            target_languages = config.project.languages.target_languages
+
             table.add_row("", "")
             table.add_row("Next Steps", "[bold green]Export complete![/bold green]")
-            table.add_row("", f"Output files: [cyan]{output_dir}[/cyan]")
+
+            if target_languages:
+                table.add_row("", "Output files:")
+                for language in target_languages:
+                    file_path = run_dir / f"{language}.{output_format}"
+                    table.add_row("", f"  [cyan]{file_path}[/cyan]")
+            else:
+                # Fallback if no languages configured
+                table.add_row("", f"Output directory: [cyan]{run_dir}[/cyan]")
         else:
             # Export was not included - show export command
             output_dir = config.project.paths.output_dir
