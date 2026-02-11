@@ -85,3 +85,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 14): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes.
 - **Spec Audit** (round 12): PASS — Rubric `5/5/5/5/5`, non-negotiables PASS, demo latest PASS (run 14), fix-now count 0.
 - **Demo** (run 15, walk-spec): FAIL — Walk-spec interactive demo discovered two blocking issues: (1) eval set downloads English scripts instead of Japanese translations from KSRE, (2) download output includes `source_columns` field rejected by pipeline ingest. End-to-end workflow (download → run-pipeline → compare) has never worked. Tasks 13+14 added to plan.
+- **Task 13** (round 1): FAIL — JP path/hash/slice updates are present, but translation parsing still emits English `old` strings from `translate ... strings:` blocks (e.g., `speaker old`, `text Why?`), so Japanese-only extraction is incomplete.

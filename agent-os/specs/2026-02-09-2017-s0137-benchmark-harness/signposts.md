@@ -265,3 +265,12 @@
 - **Impact:** Users cannot feed `benchmark download` output directly into `rentl run-pipeline` as the end-to-end workflow requires. The spec's acceptance criterion for download producing "rentl-ingestable format" is not met.
 - **Solution required:** Either (a) exclude `source_columns` from the download JSONL output (e.g., `model_dump(exclude={"source_columns"})`) or (b) add `source_columns` to the ingest adapter's `ALLOWED_KEYS`. Option (a) is simpler and more correct — download output should match what ingest expects, not what the full schema allows.
 - **Files affected:** CLI benchmark download serialization in `services/rentl-cli/src/rentl_cli/main.py` (where SourceLines are written to JSONL)
+
+- **Task:** Task 13
+- **Status:** unresolved
+- **Problem:** The translation parser still leaks English source text from Ren'Py `translate <lang> strings:` blocks by parsing `old "..."` entries as dialogue.
+- **Evidence:** `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py:228` matches any `<word> "..."` line as translated dialogue, so `old "Why?"` is emitted. Repro: running `RenpyDialogueParser().parse_script(...)` on
+  `translate jp strings:\n    old "Why?"\n    new "どうしてですか？"` returns `speaker old`, `text Why?`. Parsing real `script-a1-monday.rpy` from `game/tl/jp` produced `old 1` and sample `old Why?`.
+- **Impact:** Task 13's "Japanese translations (not English originals)" contract is still incomplete; benchmark source extraction can include English lines and miss expected `new` translations from string-translation blocks.
+- **Solution required:** Teach `_parse_translation_file` to detect `translate ... strings:` sections, consume `old/new` pairs, and emit only `new` translated text. Add regression tests that fail if any parsed line has `speaker == "old"` for string blocks.
+- **Files affected:** `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py`, `tests/unit/benchmark/eval_sets/test_parser.py`
