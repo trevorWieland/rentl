@@ -77,3 +77,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 12): PASS — Step 1 verified working. Steps 2-5 validated via quality test with real LLMs. Full verification gate passes (800 unit + 86 integration + 5 quality tests).
 - **Spec Audit** (round 10): PASS — Rubric `5/5/5/5/5`, non-negotiables PASS, demo latest PASS (run 12), fix-now count 0.
 - **Feedback** (round 1): 2 items — 2 actionable, 0 addressed, 0 invalid, 0 out-of-scope
+- **Task 12** (round 3): PASS — Re-audit of commit `22b4afa` confirms Task 12 remains clean: demo steps use `run-pipeline` and Step 3 retains `--config rentl.toml`; CLI evidence still matches (`uv run rentl --help`, `uv run rentl run --help`).
