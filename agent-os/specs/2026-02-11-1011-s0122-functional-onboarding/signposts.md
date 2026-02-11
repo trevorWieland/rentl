@@ -170,3 +170,18 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Resolution:** do-task round 7 (2026-02-11)
 **Files affected:**
 - `tests/integration/cli/test_onboarding_e2e.py` (lines 251-322) - Updated export step to extract TranslatedLine records from edit artifact
+
+---
+
+## Signpost 8: README command examples drifted from live CLI/Make targets
+
+**Task:** Task 5 (audit round 5)
+**Status:** unresolved
+**Problem:** README examples include commands that are not currently runnable (`uv run rentl export` without required options, plus nonexistent `make test-int` and `make test-all` targets).
+**Evidence:**
+- `README.md:85` shows `uv run rentl export` with no flags.
+- `uv run rentl export --help` marks `--input`, `--output`, and `--format` as required options.
+- Export command signature requires those args at `services/rentl-cli/src/rentl_cli/main.py:769-780`.
+- `README.md:153-155` references `make test-int` and `make test-all`.
+- `Makefile:67-103` defines `unit`, `integration`, `quality`, `test`, `check`, and `all`, but no `test-int` or `test-all`.
+**Impact:** Task 5 "README is accurate" acceptance is no longer satisfied; first-time users following Quick Start/Development instructions will hit avoidable command failures.
