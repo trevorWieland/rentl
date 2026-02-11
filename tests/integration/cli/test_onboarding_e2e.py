@@ -65,7 +65,11 @@ def given_clean_temp_directory(tmp_path: Path) -> OnboardingContext:
 
 
 @when("I run init with preset provider selection")
-def when_run_init_with_preset(ctx: OnboardingContext, cli_runner: CliRunner) -> None:
+def when_run_init_with_preset(
+    ctx: OnboardingContext,
+    cli_runner: CliRunner,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Run rentl init with a preset provider selection.
 
     Uses OpenRouter preset (option 1) with automated input.
@@ -95,9 +99,13 @@ def when_run_init_with_preset(ctx: OnboardingContext, cli_runner: CliRunner) -> 
         + "\n"
     )
 
+    # Change working directory to project_dir before running init
+    # (init creates rentl.toml in Path.cwd())
+    monkeypatch.chdir(ctx.project_dir)
+
     ctx.init_result = cli_runner.invoke(
         cli_main.app,
-        ["init", "--target-dir", str(ctx.project_dir)],
+        ["init"],
         input=init_input,
     )
 
