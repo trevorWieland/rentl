@@ -169,7 +169,7 @@ make format
 
 ## License
 
-This project does not currently have a license file. Please contact the maintainer for licensing information.
+See the [LICENSE](https://github.com/trevorWieland/rentl/blob/main/LICENSE) file for details. If no license file is present, please contact the maintainer for licensing information.
 
 ## Contributing
 
