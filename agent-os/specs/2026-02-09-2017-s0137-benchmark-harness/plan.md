@@ -112,7 +112,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
     - [x] Fix: Add regression coverage for out-of-order async completion in benchmark compare progress reporting (mock staggered judge responses and assert monotonic completion to total) (`services/rentl-cli/src/rentl_cli/main.py:1413`, `tests/integration/benchmark/test_cli_command.py`) (audit round 1)
   - [x] Fix: Remove stale `_run_benchmark_async` monolithic placeholder path from pre-revision architecture (`services/rentl-cli/src/rentl_cli/main.py:2590`, `services/rentl-cli/src/rentl_cli/main.py:2695`; task contract: `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/plan.md:105`) (audit round 1)
 
-- [ ] Task 8: Tests (unit + integration + quality)
+- [x] Task 8: Tests (unit + integration + quality)
   - Unit tests: all schema validation, output loading, pairwise aggregation, Elo math, prompt construction
   - Integration tests (mocked LLM): full `rentl benchmark compare` CLI flow, `rentl benchmark download` flow
   - Quality test (real LLMs): run comparison on demo slice outputs, assert judge returns per-line results with reasoning for all rubric dimensions, assert report structure is complete
