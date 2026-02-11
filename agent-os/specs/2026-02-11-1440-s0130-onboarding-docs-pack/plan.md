@@ -18,13 +18,14 @@ Users discovering rentl on GitHub need a complete, consistent onboarding experie
   - Fix `--target-language` help text inconsistency between `run-pipeline` and `run-phase`
   - Files: `services/rentl-cli/src/rentl_cli/` command modules
   - Test: `uv run rentl <command> --help` for every command shows no `Raises:` text, all descriptions are meaningful
-- [x] Task 3: Rewrite README.md
+- [ ] Task 3: Rewrite README.md
   - Rewrite with sections: pitch, install (uv sync + uvx), quickstart (init -> doctor -> run-pipeline -> export), command reference table matching `rentl --help` exactly, configuration guide (rentl.toml sections + .env), project structure, development section, contributing/license links
   - Command table must list every command from `rentl --help` with matching descriptions
   - Quickstart must be copy-pasteable with no missing steps
   - Files: `README.md`
   - Test: command table entries match `rentl --help` output
   - [x] Fix: Replace the invalid Quick Start export input path `run-001/edited_lines.jsonl` with a real, generated path/workflow so the step is copy-pasteable (README.md:100; `uv run rentl export --input run-001/edited_lines.jsonl --output /tmp/translations.csv --format csv` fails with `No such file or directory`) (audit round 1)
+  - [ ] Fix: Quick Start still lacks a copy-pasteable export execution step; `uv run rentl export --help` is documentation lookup, not export workflow. Add an explicit `rentl export --input <translated-lines-jsonl-from-status> --output <path> --format <format>` command sequence using the status-provided path (README.md:103, README.md:106) (audit round 2)
 - [ ] Task 4: Create troubleshooting doc
   - Create `docs/troubleshooting.md` covering common failure modes:
     - Missing API key (symptom: connection error; cause: env var not set; fix: add to .env)
