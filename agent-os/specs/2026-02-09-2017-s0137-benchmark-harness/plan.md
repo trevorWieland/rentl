@@ -112,7 +112,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
     - [x] Fix: Add regression coverage for out-of-order async completion in benchmark compare progress reporting (mock staggered judge responses and assert monotonic completion to total) (`services/rentl-cli/src/rentl_cli/main.py:1413`, `tests/integration/benchmark/test_cli_command.py`) (audit round 1)
   - [x] Fix: Remove stale `_run_benchmark_async` monolithic placeholder path from pre-revision architecture (`services/rentl-cli/src/rentl_cli/main.py:2590`, `services/rentl-cli/src/rentl_cli/main.py:2695`; task contract: `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/plan.md:105`) (audit round 1)
 
-- [x] Task 8: Tests (unit + integration + quality)
+- [ ] Task 8: Tests (unit + integration + quality)
   - Unit tests: all schema validation, output loading, pairwise aggregation, Elo math, prompt construction
   - Integration tests (mocked LLM): full `rentl benchmark compare` CLI flow, `rentl benchmark download` flow
   - Quality test (real LLMs): run comparison on demo slice outputs, assert judge returns per-line results with reasoning for all rubric dimensions, assert report structure is complete
@@ -125,6 +125,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Align benchmark quality winner assertions with `HeadToHeadResult` contract (`A|B|tie`) instead of candidate-name labels so real-LLM quality runs validate actual compare output (`tests/quality/benchmark/test_benchmark_quality.py:214`, `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:30`) (audit round 2)
   - [x] Fix: Add mocked BDD integration coverage for the full `rentl benchmark compare` CLI flow (output loading, line-ID validation, judging, and report write) to satisfy Task 7/8 integration-test contract (`agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/plan.md:108`, `agent-os/specs/2026-02-09-2017-s0137-benchmark-harness/plan.md:112`, `tests/integration/benchmark/test_cli_command.py:94`) (audit round 4)
   - [x] Fix: Convert benchmark eval-set download integration coverage to BDD Given/When/Then scenarios (feature-backed) instead of direct pytest integration tests to satisfy integration-tier BDD requirements (`tests/integration/benchmark/eval_sets/test_download_flow.py:17`, `agent-os/standards/testing/bdd-for-integration-quality.md:3`) (audit round 7)
+  - [ ] Fix: Make the real-LLM benchmark quality scenario pass with the project OpenRouter config by using an OpenRouter-compatible judge model identifier (provider-qualified or config-derived) and verify the compare command no longer exits with `Unexpected error: not enough values to unpack (expected 2, got 1)` (`tests/quality/benchmark/test_benchmark_quality.py:152`, `services/rentl-cli/src/rentl_cli/main.py:1602`; repro: `set -a; source .env; set +a; uv run pytest -q tests/quality/benchmark/test_benchmark_quality.py`) (audit round 11)
 
 - [x] Task 9: Fix eval-set name normalization
   - Add kebab-case to snake_case normalization in `_benchmark_download_async` so CLI accepts `--eval-set katawa-shoujo` (user-facing format)
