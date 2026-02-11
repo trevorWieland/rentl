@@ -61,7 +61,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - [x] Fix: Replace the broken license URL in `README.md:172` (`https://github.com/trevorWieland/rentl/blob/main/LICENSE` returns HTTP 404) with a valid license reference (either add a root `LICENSE` file and link to it, or link to an existing license artifact) so the License section is accurate (audit round 2; see signposts.md Signpost 6)
   - [x] Fix: Add an actual license link in `README.md` (e.g., add a root `LICENSE` file and link `[LICENSE](./LICENSE)`, or link to an existing repository license artifact). Current license text at `README.md:172` is plain text with no hyperlink, so Task 5's "Links to license" requirement is still unmet (audit round 3; see signposts.md Signpost 6)
 
-- [ ] Task 6: End-to-end onboarding integration test
+- [x] Task 6: End-to-end onboarding integration test
   - BDD integration test in `tests/integration/cli/test_onboarding_e2e.py`
   - Exercises full flow: `init -> doctor -> run-pipeline -> export` with mocked LLM
   - Verifies: generated config is valid, doctor passes, pipeline completes, export produces output files
