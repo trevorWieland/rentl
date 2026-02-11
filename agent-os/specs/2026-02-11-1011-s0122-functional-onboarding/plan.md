@@ -14,12 +14,13 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch and push
 
-- [x] Task 2: Fix doctor `.env` loading
+- [ ] Task 2: Fix doctor `.env` loading
   - Add `_load_dotenv(config_path)` call to the `doctor()` command in `services/rentl-cli/src/rentl_cli/main.py` before running checks
   - Update doctor fix suggestions in `packages/rentl-core/src/rentl_core/doctor.py` to reference `.env` loading and provide copy-pasteable fix commands
   - Add unit tests for dotenv loading in doctor context (`tests/unit/core/test_doctor.py`)
   - Update integration test (`tests/integration/cli/test_doctor.py`)
   - Acceptance: `rentl doctor` passes API key check when key is only in `.env` file
+  - [ ] Fix: Add unit coverage in `tests/unit/core/test_doctor.py` for dotenv loading behavior in doctor context (at minimum: `.env` load path and `.env.local` handling), since Task 2 commit `4258ec3` did not modify this file (audit round 1)
 
 - [ ] Task 3: Add provider presets to `rentl init`
   - Add provider preset data structure with at least 3 presets: OpenRouter, OpenAI, Local/Ollama
