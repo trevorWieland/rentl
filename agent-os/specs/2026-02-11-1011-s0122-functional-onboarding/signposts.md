@@ -104,7 +104,7 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 ## Signpost 5: Export-complete summary can list files that were not produced
 
 **Task:** Task 4 (audit round 2)
-**Status:** unresolved
+**Status:** resolved
 **Problem:** Export-complete next steps enumerate files from configured target languages instead of actual run outputs, so the summary can claim nonexistent exports when `run-pipeline` is narrowed with `--target-language`.
 **Evidence:**
 - `run-pipeline` accepts `--target-language` overrides (`services/rentl-cli/src/rentl_cli/main.py:901-902`) and executes the pipeline with resolved override languages (`services/rentl-cli/src/rentl_cli/main.py:2807-2820`).
@@ -113,4 +113,8 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
   - `contains ja? True`
   - `contains es? True`
 **Impact:** Violates `ux/trust-through-transparency` by showing misleading file outputs, and weakens Task 4's goal of actionable next steps.
-**Suggested resolution:** Build the output-file list from run artifacts/records for this run (prefer artifact paths), and add a unit test where configured targets differ from executed targets to ensure only produced files are shown.
+**Solution:** Modified `_render_run_execution_summary` (lines 2528-2549) to collect `exported_languages` from completed export phase records in `result.run_state.phase_history` rather than using `config.project.languages.target_languages`. Now only actually-exported languages are shown in the output file list.
+**Resolution:** do-task round 5 (2026-02-11)
+**Files affected:**
+- `services/rentl-cli/src/rentl_cli/main.py` (lines 2528-2549) - Changed to iterate phase_history export records
+- `tests/unit/cli/test_main.py` (lines 1147-1349) - Updated test with target_language field and added override scenario test

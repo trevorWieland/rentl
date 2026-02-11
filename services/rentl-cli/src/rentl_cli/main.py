@@ -2525,33 +2525,28 @@ def _render_run_execution_summary(
 
     # Add next steps if run completed successfully
     if result.status == RunStatus.COMPLETED and config is not None:
-        export_phase_completed = False
+        # Collect languages from completed export phase records
+        exported_languages: list[str] = []
         if result.run_state and result.run_state.phase_history:
             for record in result.run_state.phase_history:
                 if (
                     record.phase == PhaseName.EXPORT
                     and record.status == PhaseStatus.COMPLETED
+                    and record.target_language
                 ):
-                    export_phase_completed = True
-                    break
+                    exported_languages.append(record.target_language)
 
-        if export_phase_completed:
+        if exported_languages:
             # Export was included - show output file paths
             output_format = config.project.formats.output_format
             run_dir = Path(config.project.paths.output_dir) / f"run-{result.run_id}"
-            target_languages = config.project.languages.target_languages
 
             table.add_row("", "")
             table.add_row("Next Steps", "[bold green]Export complete![/bold green]")
-
-            if target_languages:
-                table.add_row("", "Output files:")
-                for language in target_languages:
-                    file_path = run_dir / f"{language}.{output_format}"
-                    table.add_row("", f"  [cyan]{file_path}[/cyan]")
-            else:
-                # Fallback if no languages configured
-                table.add_row("", f"Output directory: [cyan]{run_dir}[/cyan]")
+            table.add_row("", "Output files:")
+            for language in exported_languages:
+                file_path = run_dir / f"{language}.{output_format}"
+                table.add_row("", f"  [cyan]{file_path}[/cyan]")
         else:
             # Export was not included - show export command
             output_dir = config.project.paths.output_dir
