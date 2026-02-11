@@ -138,11 +138,41 @@ and why this matters for reliability.
 3. Show the logs confirming the correct provider routing.
 ```
 
-Propose a demo and confirm with AskUserQuestion:
+#### 9a: Environment Assessment
+
+Before finalizing the demo steps, assess the execution environment with the user. The goal is to determine **upfront** which steps the autonomous `run-demo` agent can actually execute, so it doesn't have to guess later.
+
+Ask using AskUserQuestion:
+
+```
+For the autonomous demo runner, what's available in the execution environment?
+- API keys / credentials: [e.g., OPENROUTER_API_KEY in .env, no GCP credentials]
+- External services: [e.g., OpenRouter API reachable, no GPU cluster]
+- Hardware / resources: [e.g., 16GB RAM, no GPU]
+- Special setup needed: [e.g., "run make seed first", or "none"]
+
+Based on this, here's how I'd classify each demo step:
+1. **[RUN]** Download eval set — no external dependencies
+2. **[RUN]** Run pipeline with model X — API key available via .env
+3. **[VERIFY]** Run on GPU cluster — no GPU available; verify via [alternative]
+
+Does this look right?
+```
+
+Classify each step as:
+
+- **[RUN]** — The step will be executed by the autonomous demo agent. This is the default. Use this unless there's a concrete reason the step cannot run.
+- **[VERIFY]** — The step cannot be executed autonomously due to a documented environment limitation. Must include what will be verified instead and why. This is the exception — use sparingly.
+
+The classification is written into demo.md and becomes binding for `run-demo`. The agent does not get to reclassify steps at execution time.
+
+#### 9b: Finalize Demo Plan
+
+Propose the demo and confirm with AskUserQuestion:
 
 ```
 Here's my proposed demo for this feature:
-[demo plan]
+[demo plan with [RUN]/[VERIFY] tags]
 Does this cover what matters, or would you adjust it?
 ```
 
@@ -153,9 +183,10 @@ Demo plan qualities:
 - **Specific** — concrete actions and observable outcomes
 - **Accessible** — someone unfamiliar with the implementation could follow it
 - **Medium-agnostic** — CLI, TUI, web UI, config changes, API calls, whatever fits
+- **Executable by default** — most steps should be [RUN]; [VERIFY] requires justification
 
 The demo plan is used by every subsequent command:
-- `do-task` (via orchestrator) runs the demo after all tasks complete
+- `run-demo` (via orchestrator) executes [RUN] steps and verifies [VERIFY] steps
 - `audit-spec` verifies the demo was run and passed
 - `walk-spec` walks the user through the demo interactively
 
@@ -284,16 +315,27 @@ version: vX.Y
 
 [Narrative intro — what the feature is, why it matters]
 
+## Environment
+
+- API keys: [what's available, e.g., "OPENROUTER_API_KEY via .env"]
+- External services: [what's reachable, e.g., "OpenRouter API"]
+- Setup: [any pre-demo setup, or "none"]
+
 ## Steps
 
-1. [Action] — expected: [observable outcome]
-2. [Action] — expected: [observable outcome]
-3. [Action] — expected: [observable outcome]
+1. **[RUN]** [Action] — expected: [observable outcome]
+2. **[RUN]** [Action] — expected: [observable outcome]
+3. **[VERIFY]** [Action] — expected: [observable outcome] — verify: [what to check instead and why this can't be run]
 
 ## Results
 
 (Appended by run-demo — do not write this section during shaping)
 ```
+
+Step classification rules:
+- **[RUN]** is the default. The autonomous demo agent MUST execute these steps.
+- **[VERIFY]** means the step cannot run due to a documented environment limitation. The agent verifies indirectly but cannot claim PASS for it — it reports VERIFIED with what was checked.
+- Classifications are set during shape-spec and are binding. run-demo does not reclassify.
 
 ## Workflow
 

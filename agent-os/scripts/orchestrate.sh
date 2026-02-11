@@ -664,7 +664,23 @@ $LAST_GATE_OUTPUT
 
     case "$signal" in
         pass)
-            end_phase "ok" "all steps passed"
+            # Warn if the agent skipped steps — a PASS with skipped steps
+            # may mean the agent didn't actually exercise the demo.
+            skip_count=0
+            if [[ -f "$SPEC_FOLDER/demo.md" ]]; then
+                # Count SKIP/SKIPPED lines in the last "### Run" block
+                skip_count=$(awk '
+                    /^### Run [0-9]+/ { block=""; next }
+                    { block = block "\n" $0 }
+                    END { print block }
+                ' "$SPEC_FOLDER/demo.md" | grep -ciP 'SKIP' 2>/dev/null) || skip_count=0
+            fi
+            if [[ "$skip_count" -gt 0 ]]; then
+                end_phase "ok" "passed ($skip_count steps skipped)"
+                tput "  ${YELLOW}⚠ Demo PASS but %d step(s) were skipped — verify manually if needed${NC}\n" "$skip_count"
+            else
+                end_phase "ok" "all steps passed"
+            fi
             ;;
         fail)
             end_phase "ok" "failed — fix tasks added"

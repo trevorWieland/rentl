@@ -10,7 +10,9 @@ import httpx
 class KatawaShoujoDownloader:
     """Downloads Katawa Shoujo script files from KSRE GitHub repository."""
 
-    KSRE_RAW_BASE = "https://raw.githubusercontent.com/fleetingheart/ksre/master/game"
+    KSRE_RAW_BASE = (
+        "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp"
+    )
 
     def __init__(
         self,

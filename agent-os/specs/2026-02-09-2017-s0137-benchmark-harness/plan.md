@@ -186,7 +186,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - Demo should document the full end-to-end flow with correct commands and working model/endpoint config
   - Update acceptance criteria if needed
 
-- [ ] Task 13: Fix eval set to download Japanese translations (not English originals)
+- [x] Task 13: Fix eval set to download Japanese translations (not English originals)
   - **Root cause**: KSRE is "Katawa Shoujo: Re-Engineered", a modernization of the originally-English VN. Main `game/` scripts are English. Japanese translations are at `game/tl/jp/`.
   - **Change `KSRE_RAW_BASE`** in `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:13` from `game` to `game/tl/jp`
   - **Update `RenpyDialogueParser`** in `packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py` to handle Ren'Py translation file format (`translate` blocks mapping English→Japanese) instead of original script dialogue format

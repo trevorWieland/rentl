@@ -193,3 +193,91 @@ class TestRenpyDialogueParser:
             assert lines[0].line_id == "scriptasunday_1_1"
         finally:
             ksre_path.unlink()
+
+    def test_parse_translation_file_narration(
+        self, parser: RenpyDialogueParser
+    ) -> None:
+        """Parser extracts translated narration from translation file format."""
+        script_content = """# Translation file
+# game/script-a1-monday.rpy:13
+translate jp a1_monday_out_cold_99711a67:
+
+    # "Original English text"
+    "そよ風が吹き、頭上の葉の落ちた木々が、木製のウインドベルのようにざわつく。"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".rpy", delete=False) as f:
+            f.write(script_content)
+            script_path = Path(f.name)
+
+        try:
+            lines = parser.parse_script(script_path, scene_id="test_1")
+            assert len(lines) == 1
+            assert lines[0].speaker is None
+            # fmt: off
+            expected = "そよ風が吹き、頭上の葉の落ちた木々が、木製のウインドベルのようにざわつく。"  # noqa: E501
+            # fmt: on
+            assert lines[0].text == expected
+            assert lines[0].scene_id == "test_1"
+        finally:
+            script_path.unlink()
+
+    def test_parse_translation_file_dialogue(self, parser: RenpyDialogueParser) -> None:
+        """Parser extracts translated dialogue with speaker from translation file."""
+        # fmt: off
+        jp_text = "いつまで待ってればいいんだ？　手紙には午後４時って書いてあったはずだけど"  # noqa: RUF001, E501
+        # fmt: on
+        script_content = f"""# Translation file
+# game/script-a1-monday.rpy:21
+translate jp a1_monday_out_cold_48c2e508:
+
+    # hi "Just how long am I expected to wait out here, anyway?"
+    hi "{jp_text}"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".rpy", delete=False) as f:
+            f.write(script_content)
+            script_path = Path(f.name)
+
+        try:
+            lines = parser.parse_script(script_path, scene_id="test_1")
+            assert len(lines) == 1
+            assert lines[0].speaker == "hi"
+            assert lines[0].text == jp_text
+        finally:
+            script_path.unlink()
+
+    def test_parse_translation_file_mixed(self, parser: RenpyDialogueParser) -> None:
+        """Parser handles multiple translation blocks with mixed content."""
+        script_content = """# Translation file
+# game/script-a1-monday.rpy:13
+translate jp label_1:
+
+    # "Narration text"
+    "翻訳されたナレーション"
+
+# game/script-a1-monday.rpy:15
+translate jp label_2:
+
+    # hi "Dialogue text"
+    hi "翻訳された対話"
+
+# game/script-a1-monday.rpy:17
+translate jp label_3:
+
+    # "More narration"
+    "もっとナレーション"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".rpy", delete=False) as f:
+            f.write(script_content)
+            script_path = Path(f.name)
+
+        try:
+            lines = parser.parse_script(script_path, scene_id="test_1")
+            assert len(lines) == 3
+            assert lines[0].speaker is None
+            assert lines[0].text == "翻訳されたナレーション"
+            assert lines[1].speaker == "hi"
+            assert lines[1].text == "翻訳された対話"
+            assert lines[2].speaker is None
+            assert lines[2].text == "もっとナレーション"
+        finally:
+            script_path.unlink()
