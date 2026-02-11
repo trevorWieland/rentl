@@ -25,3 +25,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 1): FAIL — OpenRouter preset uses non-existent model ID "openai/gpt-4.1", blocking connectivity check and full onboarding flow (1 run, 0 verified)
 - **Task 7** (round 1): PASS — OpenRouter preset now uses `openai/gpt-4-turbo`, related init defaults/tests were updated, and the model ID was verified in OpenRouter's live models list.
 - **Task 8** (round 1): PASS — Added API-marked integration coverage for OpenRouter preset live validation (`init -> doctor`) with graceful key-based skip and verified structural preset checks.
+- **Demo** (run 2): FAIL — Init seed data language mismatch: seed data generated in English but config set source language to ja, causing pipeline to fail with "translated text matches source text" validation error (4 run, 2 verified)

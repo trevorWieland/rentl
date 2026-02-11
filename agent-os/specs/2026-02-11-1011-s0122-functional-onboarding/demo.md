@@ -34,3 +34,12 @@ This matters because it's the first impression. If the onboarding is broken, use
 - Step 5 [RUN]: **SKIPPED** — Cannot proceed without working configuration from Step 2.
 - Step 6 [RUN]: **SKIPPED** — Cannot proceed without working configuration from Step 2.
 - **Overall: FAIL**
+
+### Run 2 — After preset model ID fix (2026-02-11 12:20)
+- Step 1 [RUN]: **PASS** — `rentl init` created all expected files and directories (rentl.toml, .env, input/, out/, logs/). Seed data file generated. Provider menu offered 3 presets plus Custom option.
+- Step 2 [RUN]: **PASS** — `rentl doctor` passed all 6 checks (Python version, config file, config valid, workspace dirs, API keys, LLM connectivity). API key correctly loaded from .env.
+- Step 3 [RUN]: **FAIL** — `rentl run-pipeline` failed with validation error: `{"error":{"code":"untranslated_text","message":"3 export errors; first: line 1: Translated text matches source text"}}`. Root cause: Init-generated seed data is in English ("Example dialogue line 1"), but config specifies source language as Japanese (ja). LLM correctly refuses to "translate" English→English text, triggering export validation failure.
+- Step 4 [RUN]: **SKIPPED** — Cannot proceed without successful pipeline run from Step 3.
+- Step 5 [RUN]: **PASS** — E2E integration test passed (pytest tests/integration/cli/test_onboarding_e2e.py). Test uses mocked LLM responses so seed data language mismatch doesn't affect it.
+- Step 6 [RUN]: **PASS** — README.md exists with all required sections (Installation, Quick Start, Available Commands, License).
+- **Overall: FAIL**

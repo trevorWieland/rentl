@@ -273,3 +273,29 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 **Files affected:**
 - `packages/rentl-core/src/rentl_core/init.py` (lines 25-31) - OpenRouter preset definition
 - `tests/integration/cli/test_onboarding_e2e.py` - E2E test that should validate real preset model IDs
+
+---
+
+## Signpost 11: Init seed data language mismatch
+
+**Task:** Demo Run 2, Step 3
+**Status:** unresolved
+**Problem:** Init-generated seed data is always in English regardless of configured source language, causing pipeline validation failures
+**Evidence:**
+- Demo command sequence:
+  - `rentl init` with inputs: source language "ja", target language "en"
+  - Generated seed data: `{"scene_id": "scene_001", ..., "text": "Example dialogue line 1"}`
+  - Generated config: `source_language = "ja"`
+  - `rentl run-pipeline` output:
+    ```
+    {"data":null,"error":{"code":"untranslated_text","message":"3 export errors; first: line 1: Translated text matches source text","details":{"field":"text","provided":null,"valid_options":null},"exit_code":22},"meta":{"timestamp":"2026-02-11T18:18:35.080660Z","request_id":null}}
+    ```
+- LLM correctly recognizes the text is already in English and doesn't translate it, triggering the "translated text matches source text" validation error
+**Root cause:** The seed data generation in `rentl_core.init.generate_project()` always uses English placeholder text ("Example dialogue line N"), ignoring the `source_language` field from `InitAnswers`
+**Impact:**
+- Violates spec.md non-negotiable #1: "Init output must be immediately runnable" — the generated seed data + config cannot complete `rentl run-pipeline` without manual editing
+- Breaks the demo flow at Step 3 (pipeline execution)
+- Users who init with non-English source languages will hit this validation error on first run
+**Files affected:**
+- `packages/rentl-core/src/rentl_core/init.py` — seed data generation
+- Test gap: No test validates seed data language matches configured source language
