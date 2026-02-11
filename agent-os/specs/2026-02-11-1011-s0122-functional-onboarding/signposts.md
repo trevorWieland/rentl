@@ -197,7 +197,7 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 ## Signpost 9: OpenRouter preset uses non-existent model ID
 
 **Task:** Demo Run 1
-**Status:** unresolved
+**Status:** resolved
 **Problem:** The OpenRouter provider preset in `PROVIDER_PRESETS` uses model ID "openai/gpt-4.1" which does not exist on OpenRouter, causing LLM connectivity checks to fail and blocking the entire onboarding flow.
 **Evidence:**
 - Demo Step 2: Running `rentl doctor` after `rentl init` with OpenRouter preset (choice 1) fails with:
@@ -228,6 +228,16 @@ The current behavior (`.env` wins) may be intentional for security reasons (don'
 - Violates spec.md non-negotiable #3: "Doctor must catch all first-run blockers" - doctor correctly detects the issue but cannot fix it without a code change to the preset.
 - Demo fails at Step 2, blocking end-to-end validation.
 **Test gap:** The onboarding E2E test (`tests/integration/cli/test_onboarding_e2e.py`) uses mocked LLM responses and does not validate preset model IDs against live provider APIs. A test that validates at least one preset's model ID against its actual provider would catch this issue.
+**Solution:**
+- Updated OpenRouter preset model ID to `openai/gpt-4-turbo` in `packages/rentl-core/src/rentl_core/init.py:31`.
+- Updated init-related fixtures/defaults in `tests/unit/core/test_init.py`, `tests/unit/cli/test_main.py`, and `tests/integration/cli/test_init.py` to match the new preset default.
+- Verified model availability against OpenRouter models endpoint:
+  - `curl -fsSL https://openrouter.ai/api/v1/models | rg -n -o '"id":"openai/gpt-4-turbo"'`
+  - Output: `1:"id":"openai/gpt-4-turbo"`
+- Verified related init tests still pass after the change:
+  - `pytest -q tests/unit/core/test_init.py tests/integration/cli/test_init.py tests/unit/cli/test_main.py -k "init_command_happy_path or provider_presets or openrouter"`
+  - Output: `4 passed, 84 deselected`
+**Resolution:** Task 7 + audit round 1 verification (2026-02-11)
 **Files affected:**
 - `packages/rentl-core/src/rentl_core/init.py` (lines 25-31) - OpenRouter preset definition
 - `tests/integration/cli/test_onboarding_e2e.py` - E2E test that should validate real preset model IDs
