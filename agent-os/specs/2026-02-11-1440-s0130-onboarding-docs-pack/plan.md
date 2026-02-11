@@ -18,7 +18,7 @@ Users discovering rentl on GitHub need a complete, consistent onboarding experie
   - Fix `--target-language` help text inconsistency between `run-pipeline` and `run-phase`
   - Files: `services/rentl-cli/src/rentl_cli/` command modules
   - Test: `uv run rentl <command> --help` for every command shows no `Raises:` text, all descriptions are meaningful
-- [ ] Task 3: Rewrite README.md
+- [x] Task 3: Rewrite README.md
   - Rewrite with sections: pitch, install (uv sync + uvx), quickstart (init -> doctor -> run-pipeline -> export), command reference table matching `rentl --help` exactly, configuration guide (rentl.toml sections + .env), project structure, development section, contributing/license links
   - Command table must list every command from `rentl --help` with matching descriptions
   - Quickstart must be copy-pasteable with no missing steps
