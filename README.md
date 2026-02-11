@@ -94,17 +94,28 @@ Executes the full localization pipeline:
 - Runs QA checks on the output
 - Tracks progress and status throughout
 
-Once the pipeline completes, you can check its status and export the results:
+Once the pipeline completes, check its status:
 
 ```bash
-# View the pipeline run results
 uv run rentl status
-
-# Export translated lines (use the path from status output)
-# The export command requires a JSONL file of TranslatedLine records as input
-# For a complete export workflow, see the export command help
-uv run rentl export --help
 ```
+
+To export the translated lines, you need to:
+1. Find the edit phase artifact path from the status output
+2. Extract the `edited_lines` array from that artifact (it's a JSONL file containing an EditPhaseOutput object)
+3. Create a new JSONL file where each line is a TranslatedLine record
+4. Run the export command with that JSONL file
+
+Example export command (replace `<translated-lines.jsonl>` with your prepared file):
+
+```bash
+uv run rentl export \
+  --input <translated-lines.jsonl> \
+  --output translations.csv \
+  --format csv
+```
+
+For a complete step-by-step export workflow, see the [integration test example](tests/integration/cli/test_onboarding_e2e.py) which demonstrates extracting and exporting pipeline outputs.
 
 ## Available Commands
 
