@@ -25,7 +25,10 @@
 ## Task 5 - Quick Start export format note is stale vs CLI options
 
 - **Task:** 5
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** README Quick Start still references `--format json`, but the CLI export command does not support `json`.
 - **Evidence:** `README.md:109` says `# Export to CSV (or use --format jsonl/json)` while `uv run rentl export --help` shows `--format [csv|jsonl|txt]`.
+- **Solution:** Updated both occurrences: changed line 109 from `--format jsonl/json` to `--format jsonl/txt` and line 116 from `csv, jsonl, json` to `csv, jsonl, txt` to match CLI's actual supported formats.
+- **Resolution:** do-task round 2, 2026-02-11
+- **Files affected:** `README.md:109, README.md:116`
 - **Impact:** Users following Quick Start may choose an invalid format, causing avoidable command failures and violating the no-stale-references non-negotiable in `spec.md:40`.

@@ -45,4 +45,4 @@ Users discovering rentl on GitHub need a complete, consistent onboarding experie
   - Fix any stale references found across all docs
   - Files: `README.md`, `rentl.toml.example`, `.env.example`
   - Test: no orphaned commands, no undocumented config keys, no undocumented env vars
-  - [ ] Fix: README Quick Start export note lists unsupported `json` format (`--format jsonl/json`), but `rentl export --help` only allows `csv|jsonl|txt`; update the note to valid formats to remove stale command guidance (README.md:109) (audit round 1)
+  - [x] Fix: README Quick Start export note lists unsupported `json` format (`--format jsonl/json`), but `rentl export --help` only allows `csv|jsonl|txt`; update the note to valid formats to remove stale command guidance (README.md:109) (audit round 1)

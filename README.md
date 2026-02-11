@@ -106,14 +106,14 @@ EDIT_ARTIFACT=$(echo "$RUN_STATUS" | jq -r '.data.run_state.artifacts[] | select
 # Extract the edited_lines array from the EditPhaseOutput and write as JSONL
 jq -c '.edited_lines[]' "$EDIT_ARTIFACT" > translated_lines.jsonl
 
-# Export to CSV (or use --format jsonl/json)
+# Export to CSV (or use --format jsonl/txt)
 uv run rentl export \
   --input translated_lines.jsonl \
   --output translations.csv \
   --format csv
 ```
 
-The export command supports multiple formats (csv, jsonl, json) and writes to the specified output path.
+The export command supports multiple formats (csv, jsonl, txt) and writes to the specified output path.
 
 ## Available Commands
 
