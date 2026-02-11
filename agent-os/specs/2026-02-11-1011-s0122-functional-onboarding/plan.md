@@ -63,7 +63,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - [x] Fix: Update Quick Start Step 4 in `README.md:85` to a valid `rentl export` example with required `--input`, `--output`, and `--format` options; bare `uv run rentl export` fails because those options are required (`services/rentl-cli/src/rentl_cli/main.py:769-780`, `uv run rentl export --help`) (audit round 5; see signposts.md Signpost 7)
   - [x] Fix: Correct invalid Make target names in `README.md:153-155` (`make test-int`, `make test-all` do not exist) to match actual targets in `Makefile:67-103` (e.g., `make unit`, `make integration`, `make all`) so the README remains accurate (audit round 5)
 
-- [ ] Task 6: End-to-end onboarding integration test
+- [x] Task 6: End-to-end onboarding integration test
   - BDD integration test in `tests/integration/cli/test_onboarding_e2e.py`
   - Exercises full flow: `init -> doctor -> run-pipeline -> export` with mocked LLM
   - Verifies: generated config is valid, doctor passes, pipeline completes, export produces output files
