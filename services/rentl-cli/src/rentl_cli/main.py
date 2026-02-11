@@ -1206,9 +1206,15 @@ async def _benchmark_download_async(
                 output_file = output_path / f"{eval_set}.jsonl"
 
             # Write as JSONL
+            # (exclude source_columns to match ingest adapter ALLOWED_KEYS)
             async with await output_file.open("w", encoding="utf-8") as f:
                 for line in all_lines:
-                    await f.write(line.model_dump_json() + "\n")
+                    await f.write(
+                        line.model_dump_json(
+                            exclude={"source_columns"}, exclude_none=True
+                        )
+                        + "\n"
+                    )
 
             rprint(f"[green]✓[/green] Wrote source lines to {output_file}")
 

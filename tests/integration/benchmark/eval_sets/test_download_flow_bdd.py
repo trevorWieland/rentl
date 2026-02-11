@@ -15,6 +15,9 @@ from pytest_bdd import given, scenarios, then, when
 from rentl_core.benchmark.eval_sets.aligner import LineAligner
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
 from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser
+from rentl_io.ingest.jsonl_adapter import JsonlIngestAdapter
+from rentl_schemas.io import IngestSource
+from rentl_schemas.primitives import FileFormat
 
 if TYPE_CHECKING:
     from rentl_core.benchmark.eval_sets.aligner import AlignedLinePair
@@ -41,6 +44,9 @@ class DownloadFlowContext:
         self.ja_lines: list[SourceLine] = []
         self.en_lines: list[SourceLine] = []
         self.aligned: list[AlignedLinePair] = []
+        self.parsed_lines: list[SourceLine] = []
+        self.jsonl_path: Path | None = None
+        self.ingested_lines: list[SourceLine] = []
 
 
 @pytest.fixture
@@ -76,10 +82,10 @@ def given_mock_http_with_404(ctx: DownloadFlowContext) -> None:
     Args:
         ctx: Download flow context.
     """
-    # Mock 404 response
+    # Mock 404 response (Task 13: Japanese translations at game/tl/jp)
     with respx.mock:
         respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/missing.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/missing.rpy"
         ).mock(return_value=httpx.Response(404))
 
 
@@ -140,9 +146,9 @@ def when_download_with_correct_hash(ctx: DownloadFlowContext) -> None:
         ctx: Download flow context.
     """
     with respx.mock:
-        # Mock the HTTP request
+        # Mock the HTTP request (Task 13: Japanese translations at game/tl/jp)
         respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/test.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/test.rpy"
         ).mock(return_value=httpx.Response(200, content=ctx.script_content))
 
         assert ctx.temp_cache is not None
@@ -167,9 +173,9 @@ def when_download_with_wrong_hash(ctx: DownloadFlowContext) -> None:
     ctx.wrong_hash = "0" * 64  # Intentionally wrong hash
 
     with respx.mock:
-        # Mock the HTTP request
+        # Mock the HTTP request (Task 13: Japanese translations at game/tl/jp)
         respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/test.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/test.rpy"
         ).mock(return_value=httpx.Response(200, content=ctx.script_content))
 
         assert ctx.temp_cache is not None
@@ -195,8 +201,9 @@ def when_attempt_download_cached(ctx: DownloadFlowContext) -> None:
     """
     with respx.mock:
         # Mock should NOT be called if cache is used
+        # (Task 13: Japanese translations at game/tl/jp)
         ctx.mock_route = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/test.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/test.rpy"
         ).mock(return_value=httpx.Response(200, content=ctx.script_content))
 
         assert ctx.temp_cache is not None
@@ -221,12 +228,12 @@ def when_download_all_scripts(ctx: DownloadFlowContext) -> None:
     script2_content = b'emi "Second script."'
 
     with respx.mock:
-        # Mock HTTP requests
+        # Mock HTTP requests (Task 13: Japanese translations at game/tl/jp)
         respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/script1.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/script1.rpy"
         ).mock(return_value=httpx.Response(200, content=script1_content))
         respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/script2.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/script2.rpy"
         ).mock(return_value=httpx.Response(200, content=script2_content))
 
         def track_progress(file_name: str, current: int, total: int) -> None:
@@ -251,9 +258,9 @@ def when_download_missing_script(ctx: DownloadFlowContext) -> None:
         ctx: Download flow context.
     """
     with respx.mock:
-        # Mock 404 response
+        # Mock 404 response (Task 13: Japanese translations at game/tl/jp)
         respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/missing.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/missing.rpy"
         ).mock(return_value=httpx.Response(404))
 
         assert ctx.temp_cache is not None
@@ -308,12 +315,12 @@ emi "Hey!"
     en_hash = hashlib.sha256(en_content).hexdigest()
 
     with respx.mock:
-        # Mock HTTP requests
+        # Mock HTTP requests (Task 13: Japanese translations at game/tl/jp)
         respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/ja-script.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/ja-script.rpy"
         ).mock(return_value=httpx.Response(200, content=ja_content))
         respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/en-script.rpy"
+            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/en-script.rpy"
         ).mock(return_value=httpx.Response(200, content=en_content))
 
         # Download
@@ -496,3 +503,60 @@ def then_aligned_output_valid(ctx: DownloadFlowContext) -> None:
     assert ctx.aligned[1].source.speaker == "emi"
     assert ctx.aligned[1].reference is not None
     assert ctx.aligned[1].reference.text == "Hey!"
+
+
+@when("I parse the script with RenpyDialogueParser")
+def when_parse_single_script(ctx: DownloadFlowContext) -> None:
+    """Parse the downloaded script.
+
+    Args:
+        ctx: Download flow context.
+    """
+    assert ctx.results is not None
+    parser = RenpyDialogueParser()
+    ctx.parsed_lines = parser.parse_script(ctx.results["test.rpy"])
+
+
+@when("I serialize the parsed lines to JSONL")
+def when_serialize_to_jsonl(ctx: DownloadFlowContext) -> None:
+    """Serialize parsed lines to JSONL format excluding source_columns.
+
+    Args:
+        ctx: Download flow context.
+    """
+    assert ctx.temp_cache is not None
+    ctx.jsonl_path = ctx.temp_cache / "output.jsonl"
+
+    # Serialize lines excluding source_columns to match benchmark download behavior
+    with ctx.jsonl_path.open("w", encoding="utf-8") as f:
+        for line in ctx.parsed_lines:
+            f.write(
+                line.model_dump_json(exclude={"source_columns"}, exclude_none=True)
+                + "\n"
+            )
+
+
+@then("the JSONL can be loaded by the ingest adapter")
+def then_jsonl_ingestable(ctx: DownloadFlowContext) -> None:
+    """Verify JSONL can be loaded by the ingest adapter without errors.
+
+    Args:
+        ctx: Download flow context.
+    """
+    assert ctx.jsonl_path is not None
+    assert ctx.jsonl_path.exists()
+
+    # Create IngestSource with correct field names
+    source = IngestSource(
+        input_path=str(ctx.jsonl_path),
+        format=FileFormat.JSONL,
+    )
+
+    # Load via JsonlIngestAdapter
+    adapter = JsonlIngestAdapter()
+    ctx.ingested_lines = asyncio.run(adapter.load_source(source))
+
+    # Verify lines were loaded successfully
+    assert len(ctx.ingested_lines) > 0
+    assert ctx.ingested_lines[0].line_id == ctx.parsed_lines[0].line_id
+    assert ctx.ingested_lines[0].text == ctx.parsed_lines[0].text

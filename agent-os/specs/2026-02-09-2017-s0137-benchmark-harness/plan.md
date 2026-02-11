@@ -199,7 +199,7 @@ This eliminates the pipeline integration blocker, removes the MTL baseline gener
   - [x] Fix: Update `RenpyDialogueParser._parse_translation_file` to correctly handle `translate <lang> strings:` blocks by parsing `new "..."` translations (and skipping `old "..."` source text), so English source strings are not emitted as benchmark source lines (`packages/rentl-core/src/rentl_core/benchmark/eval_sets/parser.py:228`; repro: `speaker old`, `text Why?`) (audit round 1; see signposts.md: Task 13, translate-strings old/new leak)
   - [x] Fix: Add parser regression coverage for `translate ... strings:` old/new pairs asserting only translated `new` text is emitted (no `speaker=="old"` outputs), and add/update downloader unit coverage that validates the JP path contract (`game/tl/jp`) for Task 13 test-scope completeness (`tests/unit/benchmark/eval_sets/test_parser.py`, `tests/unit/benchmark/eval_sets/test_downloader.py`) (audit round 1)
 
-- [ ] Task 14: Fix benchmark download to produce pipeline-ingestable JSONL
+- [x] Task 14: Fix benchmark download to produce pipeline-ingestable JSONL
   - **Root cause**: `SourceLine.model_dump()` includes `source_columns: null`, but ingest adapter's `ALLOWED_KEYS` at `packages/rentl-io/src/rentl_io/ingest/jsonl_adapter.py:20` only allows `{line_id, route_id, scene_id, speaker, text, metadata}`
   - **Fix**: When writing download output JSONL, exclude `source_columns` from serialization (e.g., `line.model_dump(exclude={"source_columns"}, exclude_none=True)` or similar)
   - **Also ensure**: `route_id` is either omitted when None or populated with a valid value, since the ingest adapter may require it

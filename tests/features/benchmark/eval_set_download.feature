@@ -43,3 +43,10 @@ Feature: Benchmark Eval Set Download
     And I parse both scripts with RenpyDialogueParser
     And I align the parsed lines
     Then the aligned output contains paired source and reference lines
+
+  Scenario: Downloaded JSONL is pipeline-ingestable
+    Given a mock HTTP server with a valid script
+    When I download the script with correct hash
+    And I parse the script with RenpyDialogueParser
+    And I serialize the parsed lines to JSONL
+    Then the JSONL can be loaded by the ingest adapter
