@@ -21,3 +21,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 1): FAIL — New onboarding E2E test calls `init --target-dir`, but `init` has no `--target-dir` option, so the test fails immediately with exit code 2.
 - **Task 6** (round 2): FAIL — Onboarding E2E export step calls unsupported `rentl export` flags (`--run-id`, `--target-language`) and omits required export args, so the scenario still fails before export execution.
 - **Task 5** (round 5): FAIL — `README.md` contains inaccurate command guidance: Quick Start uses invalid bare `rentl export`, and Development lists nonexistent Make targets (`test-int`, `test-all`).
+- **Task 5** (round 6): PASS — README Quick Start export example now includes required flags, and Development Make targets match the current Makefile.
