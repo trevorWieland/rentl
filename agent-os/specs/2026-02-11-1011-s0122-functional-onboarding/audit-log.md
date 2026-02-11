@@ -13,3 +13,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 3** (round 2): PASS — Provider menu now rejects out-of-range input with validation error, and provider selection/custom URL loop behavior is covered by unit tests.
 - **Task 4** (round 1): FAIL — Export-completed summary branch labels `Output files:` but only prints `output_dir` instead of concrete exported file paths, and tests do not cover actual file-path rendering.
 - **Task 4** (round 2): FAIL — Export-complete summary derives file list from configured target languages instead of actual exported outputs, so it can display nonexistent files under `run-pipeline --target-language` overrides.
+- **Task 3** (round 3): PASS — Re-audit verified provider preset menu behavior remains correct, signpost 3 resolution is implemented, and focused Task 3 unit/integration tests pass.

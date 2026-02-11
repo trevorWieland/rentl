@@ -37,7 +37,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - [x] Fix: Restrict provider selection to valid menu choices in `services/rentl-cli/src/rentl_cli/main.py:587-596`; currently out-of-range numeric input (e.g., `999`) falls through to the Custom branch instead of returning a validation error (audit round 1; see signposts.md Signpost 3)
   - [x] Fix: Add CLI init coverage in `tests/unit/cli/test_main.py` for provider menu behavior introduced at `services/rentl-cli/src/rentl_cli/main.py:570-628` (preset selection, out-of-range rejection, and custom URL validation loop) per `testing/mandatory-coverage` (audit round 1)
 
-- [ ] Task 4: Add post-run next steps to pipeline summary
+- [x] Task 4: Add post-run next steps to pipeline summary
   - After `rentl run-pipeline` completes, append next steps to the summary panel in `services/rentl-cli/src/rentl_cli/main.py` (`_render_run_execution_summary`)
   - Show: `rentl export` command and the configured output directory path
   - If export phase was already included in the run, show the output file paths instead
