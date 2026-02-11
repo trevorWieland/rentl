@@ -125,6 +125,9 @@ enabled = false
 def mock_config(tmp_path: Path) -> RunConfig:
     """Create a minimal valid RunConfig for testing.
 
+    Uses relative paths (like production config) to test path resolution.
+    Creates physical directories in tmp_path for tests that check existence.
+
     Returns:
         RunConfig: Test configuration with temporary workspace.
     """
@@ -135,15 +138,16 @@ def mock_config(tmp_path: Path) -> RunConfig:
     logs_dir = workspace_dir / "logs"
     logs_dir.mkdir()
 
+    # Use relative paths like production config
     return RunConfig(
         project=ProjectConfig(
             schema_version=VersionInfo(major=0, minor=1, patch=0),
             project_name="test_project",
             paths=ProjectPaths(
-                workspace_dir=str(workspace_dir),
-                input_path=str(workspace_dir / "input.jsonl"),
-                output_dir=str(output_dir),
-                logs_dir=str(logs_dir),
+                workspace_dir="workspace",
+                input_path="workspace/input.jsonl",
+                output_dir="workspace/out",
+                logs_dir="workspace/logs",
             ),
             formats=FormatConfig(
                 input_format=FileFormat.JSONL,
@@ -379,31 +383,65 @@ enabled = false
 class TestCheckWorkspaceDirs:
     """Tests for check_workspace_dirs."""
 
-    def test_all_dirs_exist(self, mock_config: RunConfig) -> None:
+    def test_all_dirs_exist(self, mock_config: RunConfig, tmp_path: Path) -> None:
         """Test that all existing directories pass."""
-        result = check_workspace_dirs(mock_config)
+        result = check_workspace_dirs(mock_config, tmp_path)
         assert result.status == CheckStatus.PASS
         assert result.fix_suggestion is None
 
-    def test_missing_output_dir(self, mock_config: RunConfig) -> None:
+    def test_missing_output_dir(self, mock_config: RunConfig, tmp_path: Path) -> None:
         """Test that missing output directory fails."""
-        output_dir = Path(mock_config.project.paths.output_dir)
+        # Resolve relative path from config using config_dir
+        output_dir = tmp_path / mock_config.project.paths.output_dir
         output_dir.rmdir()
 
-        result = check_workspace_dirs(mock_config)
+        result = check_workspace_dirs(mock_config, tmp_path)
         assert result.status == CheckStatus.FAIL
         assert "output" in result.message
         assert result.fix_suggestion is not None
         assert "mkdir" in result.fix_suggestion
 
-    def test_missing_multiple_dirs(self, mock_config: RunConfig) -> None:
+    def test_missing_multiple_dirs(
+        self, mock_config: RunConfig, tmp_path: Path
+    ) -> None:
         """Test that multiple missing directories are reported."""
-        output_dir = Path(mock_config.project.paths.output_dir)
-        logs_dir = Path(mock_config.project.paths.logs_dir)
+        # Resolve relative paths from config using config_dir
+        output_dir = tmp_path / mock_config.project.paths.output_dir
+        logs_dir = tmp_path / mock_config.project.paths.logs_dir
         output_dir.rmdir()
         logs_dir.rmdir()
 
-        result = check_workspace_dirs(mock_config)
+        result = check_workspace_dirs(mock_config, tmp_path)
+        assert result.status == CheckStatus.FAIL
+        assert "output" in result.message
+        assert "logs" in result.message
+
+    def test_paths_resolve_relative_to_config_dir_not_cwd(
+        self, mock_config: RunConfig, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that workspace paths resolve relative to config_dir, not CWD.
+
+        Regression test for audit round 1 signpost: paths were incorrectly
+        resolved relative to CWD, causing false PASSes when unrelated CWD
+        directories happened to exist.
+        """
+        # Change CWD to a different directory with its own "workspace/out/logs"
+        unrelated_dir = tmp_path / "unrelated_cwd"
+        unrelated_dir.mkdir()
+        (unrelated_dir / "workspace").mkdir()
+        (unrelated_dir / "workspace" / "out").mkdir()
+        (unrelated_dir / "workspace" / "logs").mkdir()
+        monkeypatch.chdir(unrelated_dir)
+
+        # Delete the actual workspace directories (relative to config_dir, not CWD)
+        actual_output = tmp_path / mock_config.project.paths.output_dir
+        actual_logs = tmp_path / mock_config.project.paths.logs_dir
+        actual_output.rmdir()
+        actual_logs.rmdir()
+
+        # Check should FAIL because config_dir paths are missing,
+        # even though CWD has "workspace/out/logs"
+        result = check_workspace_dirs(mock_config, tmp_path)
         assert result.status == CheckStatus.FAIL
         assert "output" in result.message
         assert "logs" in result.message

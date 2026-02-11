@@ -14,7 +14,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch and push
 
-- [ ] Task 2: Fix doctor `.env` loading
+- [x] Task 2: Fix doctor `.env` loading
   - Add `_load_dotenv(config_path)` call to the `doctor()` command in `services/rentl-cli/src/rentl_cli/main.py` before running checks
   - Update doctor fix suggestions in `packages/rentl-core/src/rentl_core/doctor.py` to reference `.env` loading and provide copy-pasteable fix commands
   - Add unit tests for dotenv loading in doctor context (`tests/unit/core/test_doctor.py`)
@@ -24,7 +24,7 @@ The individual onboarding commands (`init`, `doctor`, `help`, `explain`) are com
   - [x] Fix: Add/move dotenv-loading tests into `tests/unit/core/test_doctor.py` (doctor-context coverage for config-dir `.env` path and `.env.local` handling); current additions were made in `tests/unit/cli/test_main.py` instead (audit round 2)
   - [x] Fix: Correct the inaccurate precedence claim in `tests/unit/core/test_doctor.py:811` ("`.env.local` takes precedence") to match actual behavior (`.env` currently wins because both loads use `override=False` in `services/rentl-cli/src/rentl_cli/main.py:2129-2132`; verified in `tests/unit/cli/test_main.py:2350`) (audit round 3; see signposts.md Signpost 1)
   - [x] Fix: Strengthen dotenv doctor-context coverage in `tests/unit/core/test_doctor.py:787-819` to assert real `.env`/`.env.local` load behavior rather than only setting environment variables via `monkeypatch.setenv(...)`, per `testing/mandatory-coverage` (audit round 3)
-  - [ ] Fix: Resolve doctor workspace path checks relative to `config_path.parent` (not CWD) before calling `check_workspace_dirs`; current core path checks use unresolved `RunConfig` strings (`packages/rentl-core/src/rentl_core/doctor.py:262-264`, loaded at `packages/rentl-core/src/rentl_core/doctor.py:450`) and can falsely PASS from unrelated CWD paths (repro: `workspace_status pass` while config-dir `out/` and `logs/` are absent) (audit round 1)
+  - [x] Fix: Resolve doctor workspace path checks relative to `config_path.parent` (not CWD) before calling `check_workspace_dirs`; current core path checks use unresolved `RunConfig` strings (`packages/rentl-core/src/rentl_core/doctor.py:262-264`, loaded at `packages/rentl-core/src/rentl_core/doctor.py:450`) and can falsely PASS from unrelated CWD paths (repro: `workspace_status pass` while config-dir `out/` and `logs/` are absent) (audit round 1)
 
 - [x] Task 3: Add provider presets to `rentl init`
   - Add provider preset data structure with at least 3 presets: OpenRouter, OpenAI, Local/Ollama

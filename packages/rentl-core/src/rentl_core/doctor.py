@@ -250,18 +250,20 @@ def check_config_valid(config_path: Path) -> CheckResult:
     )
 
 
-def check_workspace_dirs(config: RunConfig) -> CheckResult:
+def check_workspace_dirs(config: RunConfig, config_dir: Path) -> CheckResult:
     """Check if required workspace directories exist.
 
     Args:
         config: Validated run configuration.
+        config_dir: Directory containing the config file (for resolving relative paths).
 
     Returns:
         CheckResult: Check result for workspace directory structure.
     """
-    workspace_dir = Path(config.project.paths.workspace_dir)
-    output_dir = Path(config.project.paths.output_dir)
-    logs_dir = Path(config.project.paths.logs_dir)
+    # Resolve paths relative to config directory (not CWD)
+    workspace_dir = config_dir / config.project.paths.workspace_dir
+    output_dir = config_dir / config.project.paths.output_dir
+    logs_dir = config_dir / config.project.paths.logs_dir
 
     missing: list[str] = []
     if not workspace_dir.exists():
@@ -451,7 +453,7 @@ async def run_doctor(
 
     # Check 4: Workspace directories (depends on valid config)
     if config is not None:
-        checks.append(check_workspace_dirs(config))
+        checks.append(check_workspace_dirs(config, config_path.parent))
     else:
         checks.append(
             CheckResult(
