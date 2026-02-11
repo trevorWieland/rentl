@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import tomllib
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import rentl_cli.main as cli_main
 from rentl_core.doctor import (
     CheckStatus,
     check_api_keys,
@@ -787,14 +789,13 @@ class TestRunDoctor:
     async def test_dotenv_local_values_visible_to_checks(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test that .env.local values are visible to doctor checks.
+        """Test that .env and .env.local files are loaded in doctor context.
 
-        This test simulates the scenario where both .env and .env.local
-        files exist in the config directory. The CLI layer loads both
-        (via _load_dotenv), and this verifies the checks see the values.
+        This test verifies the actual dotenv loading behavior in the doctor
+        context: both .env and .env.local are loaded, and .env takes precedence
+        when both define the same key (both loaded with override=False, first wins).
 
-        This documents the expected integration for .env.local handling
-        in the doctor context.
+        This exercises real file loading rather than just monkeypatch.setenv.
         """
         config_path = tmp_path / "rentl.toml"
         config_path.write_text(VALID_TEST_CONFIG_TOML)
@@ -804,19 +805,34 @@ class TestRunDoctor:
         logs_dir = tmp_path / "logs"
         logs_dir.mkdir()
 
+        # Create .env file with TEST_KEY
+        env_file = tmp_path / ".env"
+        env_file.write_text("TEST_KEY=value_from_env\nENV_ONLY=env_value\n")
+
+        # Create .env.local file with TEST_KEY and a local-only key
+        env_local_file = tmp_path / ".env.local"
+        env_local_file.write_text("TEST_KEY=value_from_local\nLOCAL_ONLY=local_value\n")
+
         # Clear environment
         monkeypatch.delenv("TEST_KEY", raising=False)
+        monkeypatch.delenv("ENV_ONLY", raising=False)
+        monkeypatch.delenv("LOCAL_ONLY", raising=False)
 
-        # Simulate CLI layer having loaded .env.local
-        # (which takes precedence over .env in the current implementation)
-        monkeypatch.setenv("TEST_KEY", "value_from_env_local")
+        # Load dotenv files (as CLI layer does)
+        cli_main._load_dotenv(config_path)
 
         # Run doctor
         report = await run_doctor(config_path, runtime=None)
 
-        # API key check should pass with the .env.local value
+        # API key check should pass
         api_check = next(c for c in report.checks if c.name == "API Keys")
         assert api_check.status == CheckStatus.PASS
+
+        # Verify precedence: .env wins for shared keys
+        assert os.getenv("TEST_KEY") == "value_from_env"
+        # Verify both files are loaded
+        assert os.getenv("ENV_ONLY") == "env_value"
+        assert os.getenv("LOCAL_ONLY") == "local_value"
 
     @pytest.mark.asyncio
     async def test_api_key_failure_takes_precedence_over_connectivity_failure(
