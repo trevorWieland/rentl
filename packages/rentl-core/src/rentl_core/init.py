@@ -3,11 +3,48 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import FileFormat
+
+
+class ProviderPreset(BaseSchema):
+    """Provider preset with pre-filled configuration values."""
+
+    name: str = Field(..., description="Display name of the provider")
+    provider_name: str = Field(..., description="Provider identifier for config")
+    base_url: str = Field(..., description="OpenAI-compatible endpoint base URL")
+    api_key_env: str = Field(..., description="Environment variable name for API key")
+    model_id: str = Field(..., description="Default model identifier")
+
+
+# Provider presets for common LLM providers
+PROVIDER_PRESETS: list[ProviderPreset] = [
+    ProviderPreset(
+        name="OpenRouter",
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4.1",
+    ),
+    ProviderPreset(
+        name="OpenAI",
+        provider_name="openai",
+        base_url="https://api.openai.com/v1",
+        api_key_env="OPENAI_API_KEY",
+        model_id="gpt-4.1-turbo",
+    ),
+    ProviderPreset(
+        name="Local (Ollama)",
+        provider_name="ollama",
+        base_url="http://localhost:11434/v1",
+        api_key_env="OLLAMA_API_KEY",
+        model_id="llama3",
+    ),
+]
 
 
 class InitAnswers(BaseSchema):
@@ -48,6 +85,33 @@ class InitAnswers(BaseSchema):
     include_seed_data: bool = Field(
         True, description="Whether to create a seed sample input file"
     )
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        """Validate that base_url is a properly formatted URL.
+
+        Args:
+            v: The base_url value to validate.
+
+        Returns:
+            str: The validated base_url.
+
+        Raises:
+            ValueError: If the base_url is not a valid URL.
+        """
+        parsed = urlparse(v)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError(
+                f"Invalid URL format: '{v}'. Expected a full URL like "
+                "'https://api.example.com/v1' or 'http://localhost:11434/v1'"
+            )
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(
+                f"Invalid URL scheme: '{parsed.scheme}'. "
+                "Only 'http' and 'https' are supported."
+            )
+        return v
 
 
 class InitResult(BaseSchema):

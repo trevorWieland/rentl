@@ -7,8 +7,14 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from rentl_core.init import InitAnswers, InitResult, generate_project
+from rentl_core.init import (
+    PROVIDER_PRESETS,
+    InitAnswers,
+    InitResult,
+    generate_project,
+)
 from rentl_schemas.config import RunConfig
 from rentl_schemas.primitives import FileFormat
 
@@ -383,3 +389,130 @@ def test_generated_config_uses_correct_agent_names(
     # Check export phase exists
     assert "export" in phases
     assert phases.get("export") is None or phases.get("export") == []
+
+
+def test_provider_presets_exist() -> None:
+    """Test that provider presets are defined and contain expected providers."""
+    assert len(PROVIDER_PRESETS) >= 3, "Expected at least 3 provider presets"
+
+    # Verify expected providers are present
+    provider_names = [preset.name for preset in PROVIDER_PRESETS]
+    assert "OpenRouter" in provider_names
+    assert "OpenAI" in provider_names
+    assert "Local (Ollama)" in provider_names
+
+
+def test_provider_presets_have_required_fields() -> None:
+    """Test that all provider presets have complete field values."""
+    for preset in PROVIDER_PRESETS:
+        assert preset.name, f"Preset missing name: {preset}"
+        assert preset.provider_name, f"Preset {preset.name} missing provider_name"
+        assert preset.base_url, f"Preset {preset.name} missing base_url"
+        assert preset.api_key_env, f"Preset {preset.name} missing api_key_env"
+        assert preset.model_id, f"Preset {preset.name} missing model_id"
+
+        # Verify base_url is a valid URL
+        assert preset.base_url.startswith(("http://", "https://")), (
+            f"Preset {preset.name} has invalid base_url: {preset.base_url}"
+        )
+
+
+def test_provider_preset_creates_valid_config(tmp_path: Path) -> None:
+    """Test that each provider preset produces a valid config."""
+    for preset in PROVIDER_PRESETS:
+        # Create answers using preset values
+        answers = InitAnswers(
+            project_name="test_project",
+            game_name="test_game",
+            source_language="ja",
+            target_languages=["en"],
+            provider_name=preset.provider_name,
+            base_url=preset.base_url,
+            api_key_env=preset.api_key_env,
+            model_id=preset.model_id,
+            input_format=FileFormat.JSONL,
+            include_seed_data=True,
+        )
+
+        # Generate project in a preset-specific subdirectory
+        preset_dir = tmp_path / preset.provider_name
+        preset_dir.mkdir()
+        generate_project(answers, preset_dir)
+
+        # Verify config validates
+        config_path = preset_dir / "rentl.toml"
+        with config_path.open("rb") as f:
+            config_dict = tomllib.load(f)
+
+        config = RunConfig.model_validate(config_dict, strict=True)
+        assert config.endpoint is not None
+        assert config.endpoint.provider_name == preset.provider_name
+        assert config.endpoint.base_url == preset.base_url
+
+
+def test_base_url_validation_rejects_invalid_urls() -> None:
+    """Test that InitAnswers rejects invalid base_url formats."""
+    # Non-URL strings should be rejected (with ValueError for format issues)
+    invalid_urls_value_error = [
+        "not-a-url",
+        "just-text",
+        "ftp://invalid-scheme.com",  # Unsupported scheme
+        "//missing-scheme.com",
+    ]
+
+    for invalid_url in invalid_urls_value_error:
+        with pytest.raises(ValueError, match="Invalid URL"):
+            InitAnswers(
+                project_name="test_project",
+                game_name="test_game",
+                source_language="ja",
+                target_languages=["en"],
+                provider_name="test",
+                base_url=invalid_url,
+                api_key_env="TEST_KEY",
+                model_id="test-model",
+                input_format=FileFormat.JSONL,
+                include_seed_data=True,
+            )
+
+    # Empty string hits min_length constraint (ValidationError, not ValueError)
+    with pytest.raises(ValidationError):
+        InitAnswers(
+            project_name="test_project",
+            game_name="test_game",
+            source_language="ja",
+            target_languages=["en"],
+            provider_name="test",
+            base_url="",
+            api_key_env="TEST_KEY",
+            model_id="test-model",
+            input_format=FileFormat.JSONL,
+            include_seed_data=True,
+        )
+
+
+def test_base_url_validation_accepts_valid_urls() -> None:
+    """Test that InitAnswers accepts valid base_url formats."""
+    valid_urls = [
+        "https://api.openai.com/v1",
+        "https://openrouter.ai/api/v1",
+        "http://localhost:11434/v1",
+        "http://127.0.0.1:8080/api",
+        "https://custom-domain.example.com/endpoint",
+    ]
+
+    for valid_url in valid_urls:
+        # Should not raise
+        answers = InitAnswers(
+            project_name="test_project",
+            game_name="test_game",
+            source_language="ja",
+            target_languages=["en"],
+            provider_name="test",
+            base_url=valid_url,
+            api_key_env="TEST_KEY",
+            model_id="test-model",
+            input_format=FileFormat.JSONL,
+            include_seed_data=True,
+        )
+        assert answers.base_url == valid_url

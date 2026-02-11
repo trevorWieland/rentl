@@ -16,7 +16,7 @@ from typer.testing import CliRunner
 import rentl_cli.main as cli_main
 from rentl_agents.runtime import ProfileAgent
 from rentl_agents.wiring import build_agent_pools
-from rentl_core.init import InitAnswers, generate_project
+from rentl_core.init import PROVIDER_PRESETS, InitAnswers, generate_project
 from rentl_schemas.io import SourceLine
 from rentl_schemas.phases import (
     IdiomAnnotation,
@@ -504,3 +504,79 @@ def test_env_var_scoping_regression(
 
     # After exiting the context, verify restoration to original state
     assert os.environ.get("OPENROUTER_API_KEY") == original_value
+
+
+def test_all_provider_presets_produce_valid_configs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that all provider presets produce valid, runnable configs.
+
+    This integration test ensures that:
+    1. Each provider preset in PROVIDER_PRESETS is complete and valid
+    2. The preset values can generate a valid rentl.toml
+    3. The generated config passes schema validation
+    4. Agent pools can be built from the generated config (proving API compatibility)
+
+    This is a regression guard against incomplete or misconfigured presets.
+    """
+    for preset in PROVIDER_PRESETS:
+        # Create answers using the preset
+        answers = InitAnswers(
+            project_name=f"test-{preset.provider_name}",
+            game_name="Test Game",
+            source_language="ja",
+            target_languages=["en"],
+            provider_name=preset.provider_name,
+            base_url=preset.base_url,
+            api_key_env=preset.api_key_env,
+            model_id=preset.model_id,
+            input_format=FileFormat.JSONL,
+            include_seed_data=True,
+        )
+
+        # Generate project in preset-specific directory
+        preset_dir = tmp_path / preset.provider_name
+        preset_dir.mkdir()
+        result = generate_project(answers, preset_dir)
+
+        # Verify files were created
+        assert len(result.created_files) > 0, f"No files created for {preset.name}"
+
+        # Load and validate the generated config
+        config_path = preset_dir / "rentl.toml"
+        assert config_path.exists(), f"Config not created for {preset.name}"
+
+        with config_path.open("rb") as handle:
+            payload: dict[str, JsonValue] = tomllib.load(handle)
+
+        config = validate_run_config(payload)
+        assert config is not None, f"Config validation failed for {preset.name}"
+
+        # Verify endpoint matches preset
+        assert config.endpoint is not None
+        assert config.endpoint.provider_name == preset.provider_name, (
+            f"Provider name mismatch for {preset.name}"
+        )
+        assert config.endpoint.base_url == preset.base_url, (
+            f"Base URL mismatch for {preset.name}"
+        )
+        assert config.endpoint.api_key_env == preset.api_key_env, (
+            f"API key env mismatch for {preset.name}"
+        )
+
+        # Verify default model matches preset
+        assert config.pipeline.default_model is not None
+        assert config.pipeline.default_model.model_id == preset.model_id, (
+            f"Model ID mismatch for {preset.name}"
+        )
+
+        # Set the API key environment variable for agent pool building
+        # (different presets use different env var names)
+        monkeypatch.setenv(preset.api_key_env, "fake-api-key-for-testing")
+
+        # Verify agent pools can be built
+        # This proves the config is compatible with the agent system
+        pools = build_agent_pools(config=config)
+        assert pools is not None, f"Agent pools failed to build for {preset.name}"
+        assert len(pools.context_agents) > 0, f"No context agents for {preset.name}"
+        assert len(pools.translate_agents) > 0, f"No translate agents for {preset.name}"

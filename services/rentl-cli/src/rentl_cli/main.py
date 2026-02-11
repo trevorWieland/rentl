@@ -53,7 +53,12 @@ from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_su
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
-from rentl_core.init import InitAnswers, InitResult, generate_project
+from rentl_core.init import (
+    PROVIDER_PRESETS,
+    InitAnswers,
+    InitResult,
+    generate_project,
+)
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.migrate import (
     ConfigDict,
@@ -561,10 +566,67 @@ def init() -> None:
                 "[red]Error: At least one target language is required[/red]",
             )
             raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
-        provider_name = typer.prompt("Provider name", default="openrouter")
-        base_url = typer.prompt("API base URL", default="https://openrouter.ai/api/v1")
-        api_key_env = typer.prompt("API key env var", default="OPENROUTER_API_KEY")
-        model_id = typer.prompt("Model ID", default="openai/gpt-4.1")
+
+        # Display provider presets
+        rprint("\n[bold]Choose a provider:[/bold]")
+        for i, preset in enumerate(PROVIDER_PRESETS, start=1):
+            rprint(f"  {i}. {preset.name}")
+        rprint(f"  {len(PROVIDER_PRESETS) + 1}. Custom (enter manually)")
+
+        # Get provider choice
+        provider_choice = typer.prompt("Provider", default="1", show_default=True)
+        try:
+            choice_idx = int(provider_choice) - 1
+        except ValueError as exc:
+            rprint(
+                "[red]Error: Please enter a number corresponding "
+                "to the provider choice[/red]",
+            )
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from exc
+
+        # Apply preset or prompt for custom values
+        if 0 <= choice_idx < len(PROVIDER_PRESETS):
+            preset = PROVIDER_PRESETS[choice_idx]
+            provider_name = preset.provider_name
+            base_url = preset.base_url
+            api_key_env = preset.api_key_env
+            model_id = preset.model_id
+            rprint(f"[green]Selected {preset.name}:[/green] {base_url}")
+        else:
+            # Custom provider
+            provider_name = typer.prompt("Provider name", default="custom")
+            # Validate base_url in a loop until valid
+            while True:
+                base_url = typer.prompt("API base URL")
+                try:
+                    # Test validation by creating a temporary InitAnswers
+                    # (we'll create the real one below)
+                    InitAnswers(
+                        project_name="test",
+                        game_name="test",
+                        source_language="ja",
+                        target_languages=["en"],
+                        provider_name=provider_name,
+                        base_url=base_url,
+                        api_key_env="TEST",
+                        model_id="test",
+                        input_format=FileFormat.JSONL,
+                        include_seed_data=True,
+                    )
+                    # If validation passes, break the loop
+                    break
+                except ValidationError as exc:
+                    # Extract the error message for base_url
+                    errors = exc.errors()
+                    base_url_errors = [e for e in errors if e["loc"] == ("base_url",)]
+                    if base_url_errors:
+                        error_msg = base_url_errors[0].get("msg", "Invalid URL format")
+                        rprint(f"[red]Error: {error_msg}[/red]")
+                    else:
+                        rprint("[red]Error: Invalid URL format[/red]")
+            api_key_env = typer.prompt("API key env var")
+            model_id = typer.prompt("Model ID")
+
         input_format_str = typer.prompt(
             "Input format (jsonl, csv, txt)", default="jsonl"
         )
