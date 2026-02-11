@@ -43,3 +43,12 @@ This matters because it's the first impression. If the onboarding is broken, use
 - Step 5 [RUN]: **PASS** — E2E integration test passed (pytest tests/integration/cli/test_onboarding_e2e.py). Test uses mocked LLM responses so seed data language mismatch doesn't affect it.
 - Step 6 [RUN]: **PASS** — README.md exists with all required sections (Installation, Quick Start, Available Commands, License).
 - **Overall: FAIL**
+
+### Run 3 — After seed data language fix (2026-02-11 12:32)
+- Step 1 [RUN]: **PASS** — `rentl init` successfully created project structure with all expected files (rentl.toml, .env, input/, out/, logs/) and seed data file. Provider menu offered 3 presets (OpenRouter, OpenAI, Local/Ollama) plus Custom option. Seed data generated in Japanese ("サンプル台詞 1", "サンプル台詞 2", "サンプル台詞 3") matching configured source language ja.
+- Step 2 [RUN]: **PASS** — `rentl doctor` passed all 6 checks (Python version, config file, config valid, workspace dirs, API keys, LLM connectivity). API key correctly loaded from .env before checks ran.
+- Step 3 [RUN]: **PASS** — `rentl run-pipeline` completed successfully across all phases (ingest → context → pretranslation → translate → qa → edit → export). Run ID: 019c4dfa-b4f5-7676-ae5d-8fcb44390118. Pipeline processed 3 lines (ja → en) with 0 QA issues. Export output created at out/run-019c4dfa-b4f5-7676-ae5d-8fcb44390118/en.jsonl with translated content.
+- Step 4 [RUN]: **PASS** — `rentl export` successfully exported translated lines to CSV format. Exported 3 lines with no untranslated content. Output file created at specified path.
+- Step 5 [RUN]: **PASS** — E2E onboarding integration test passed (pytest tests/integration/cli/test_onboarding_e2e.py). Test exercised full `init -> doctor -> run-pipeline -> export` flow with mocked LLM and no manual edits between steps.
+- Step 6 [RUN]: **PASS** — README.md exists at project root with all required sections: what rentl is (pitch), installation instructions (uv/uvx), quickstart flow (init → doctor → run-pipeline → export), CLI command list, and license link.
+- **Overall: PASS**
