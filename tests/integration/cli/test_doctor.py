@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
@@ -40,12 +41,15 @@ def given_valid_config(
     ctx.config_dir = tmp_workspace.parent
     write_rentl_config(ctx.config_dir, tmp_workspace)
 
-    # Create necessary workspace directories
+    # Create necessary workspace directories inside tmp_workspace
     (tmp_workspace / "input").mkdir(exist_ok=True)
-    (tmp_workspace / "out").mkdir(exist_ok=True)
-    (tmp_workspace / "logs").mkdir(exist_ok=True)
     (tmp_workspace / "prompts").mkdir(exist_ok=True)
     (tmp_workspace / "agents").mkdir(exist_ok=True)
+
+    # Create output/logs directories relative to config directory (not workspace)
+    # These are resolved as config_dir / "out" and config_dir / "logs" in doctor
+    (ctx.config_dir / "out").mkdir(exist_ok=True)
+    (ctx.config_dir / "logs").mkdir(exist_ok=True)
 
     return ctx
 
@@ -105,3 +109,32 @@ def then_output_contains_fix_suggestions(ctx: DoctorContext) -> None:
         keyword in ctx.stdout.lower()
         for keyword in ["run", "create", "set", "install", "configure"]
     )
+
+
+@given("API keys are set in .env file")
+def given_api_keys_in_env_file(
+    ctx: DoctorContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Create a .env file with required API keys.
+
+    Args:
+        ctx: Doctor context with config directory.
+        monkeypatch: Pytest monkeypatch fixture.
+    """
+    assert ctx.config_dir is not None
+
+    # Clear env vars to ensure we're testing .env loading
+    monkeypatch.delenv("RENTL_OPENROUTER_API_KEY", raising=False)
+
+    # Create .env file with API key
+    env_path = ctx.config_dir / ".env"
+    env_path.write_text("RENTL_OPENROUTER_API_KEY=test_key_from_dotenv\n")
+
+
+@then("the API key check passes")
+def then_api_key_check_passes(ctx: DoctorContext) -> None:
+    """Assert the API key check passes."""
+    assert ctx.result is not None
+    assert ctx.result.exit_code == 0
+    # Should show API key check passed (not failed)
+    assert "api key" in ctx.stdout.lower() or "api" in ctx.stdout.lower()

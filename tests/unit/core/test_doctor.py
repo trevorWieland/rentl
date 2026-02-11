@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import tomllib
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import rentl_cli.main as cli_main
 from rentl_core.doctor import (
     CheckStatus,
     check_api_keys,
@@ -123,6 +125,9 @@ enabled = false
 def mock_config(tmp_path: Path) -> RunConfig:
     """Create a minimal valid RunConfig for testing.
 
+    Uses relative paths (like production config) to test path resolution.
+    Creates physical directories in tmp_path for tests that check existence.
+
     Returns:
         RunConfig: Test configuration with temporary workspace.
     """
@@ -133,15 +138,16 @@ def mock_config(tmp_path: Path) -> RunConfig:
     logs_dir = workspace_dir / "logs"
     logs_dir.mkdir()
 
+    # Use relative paths like production config
     return RunConfig(
         project=ProjectConfig(
             schema_version=VersionInfo(major=0, minor=1, patch=0),
             project_name="test_project",
             paths=ProjectPaths(
-                workspace_dir=str(workspace_dir),
-                input_path=str(workspace_dir / "input.jsonl"),
-                output_dir=str(output_dir),
-                logs_dir=str(logs_dir),
+                workspace_dir="workspace",
+                input_path="workspace/input.jsonl",
+                output_dir="workspace/out",
+                logs_dir="workspace/logs",
             ),
             formats=FormatConfig(
                 input_format=FileFormat.JSONL,
@@ -377,31 +383,65 @@ enabled = false
 class TestCheckWorkspaceDirs:
     """Tests for check_workspace_dirs."""
 
-    def test_all_dirs_exist(self, mock_config: RunConfig) -> None:
+    def test_all_dirs_exist(self, mock_config: RunConfig, tmp_path: Path) -> None:
         """Test that all existing directories pass."""
-        result = check_workspace_dirs(mock_config)
+        result = check_workspace_dirs(mock_config, tmp_path)
         assert result.status == CheckStatus.PASS
         assert result.fix_suggestion is None
 
-    def test_missing_output_dir(self, mock_config: RunConfig) -> None:
+    def test_missing_output_dir(self, mock_config: RunConfig, tmp_path: Path) -> None:
         """Test that missing output directory fails."""
-        output_dir = Path(mock_config.project.paths.output_dir)
+        # Resolve relative path from config using config_dir
+        output_dir = tmp_path / mock_config.project.paths.output_dir
         output_dir.rmdir()
 
-        result = check_workspace_dirs(mock_config)
+        result = check_workspace_dirs(mock_config, tmp_path)
         assert result.status == CheckStatus.FAIL
         assert "output" in result.message
         assert result.fix_suggestion is not None
         assert "mkdir" in result.fix_suggestion
 
-    def test_missing_multiple_dirs(self, mock_config: RunConfig) -> None:
+    def test_missing_multiple_dirs(
+        self, mock_config: RunConfig, tmp_path: Path
+    ) -> None:
         """Test that multiple missing directories are reported."""
-        output_dir = Path(mock_config.project.paths.output_dir)
-        logs_dir = Path(mock_config.project.paths.logs_dir)
+        # Resolve relative paths from config using config_dir
+        output_dir = tmp_path / mock_config.project.paths.output_dir
+        logs_dir = tmp_path / mock_config.project.paths.logs_dir
         output_dir.rmdir()
         logs_dir.rmdir()
 
-        result = check_workspace_dirs(mock_config)
+        result = check_workspace_dirs(mock_config, tmp_path)
+        assert result.status == CheckStatus.FAIL
+        assert "output" in result.message
+        assert "logs" in result.message
+
+    def test_paths_resolve_relative_to_config_dir_not_cwd(
+        self, mock_config: RunConfig, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that workspace paths resolve relative to config_dir, not CWD.
+
+        Regression test for audit round 1 signpost: paths were incorrectly
+        resolved relative to CWD, causing false PASSes when unrelated CWD
+        directories happened to exist.
+        """
+        # Change CWD to a different directory with its own "workspace/out/logs"
+        unrelated_dir = tmp_path / "unrelated_cwd"
+        unrelated_dir.mkdir()
+        (unrelated_dir / "workspace").mkdir()
+        (unrelated_dir / "workspace" / "out").mkdir()
+        (unrelated_dir / "workspace" / "logs").mkdir()
+        monkeypatch.chdir(unrelated_dir)
+
+        # Delete the actual workspace directories (relative to config_dir, not CWD)
+        actual_output = tmp_path / mock_config.project.paths.output_dir
+        actual_logs = tmp_path / mock_config.project.paths.logs_dir
+        actual_output.rmdir()
+        actual_logs.rmdir()
+
+        # Check should FAIL because config_dir paths are missing,
+        # even though CWD has "workspace/out/logs"
+        result = check_workspace_dirs(mock_config, tmp_path)
         assert result.status == CheckStatus.FAIL
         assert "output" in result.message
         assert "logs" in result.message
@@ -432,6 +472,43 @@ class TestCheckApiKeys:
         assert "TEST_API_KEY" in result.message
         assert result.fix_suggestion is not None
         assert ".env" in result.fix_suggestion
+
+    def test_api_key_from_dotenv_simulation(
+        self, mock_config: RunConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that API keys loaded from .env are visible to doctor checks.
+
+        This simulates the scenario where the CLI layer has already loaded
+        .env files via _load_dotenv() before calling run_doctor().
+        The actual dotenv loading happens in the CLI layer, but this test
+        verifies that once loaded, the keys are visible to the checks.
+        """
+        # Clear env first
+        monkeypatch.delenv("TEST_API_KEY", raising=False)
+
+        # Simulate what happens after _load_dotenv() loads .env
+        monkeypatch.setenv("TEST_API_KEY", "key_from_dotenv")
+
+        # Verify the check can see the key
+        result = check_api_keys(mock_config)
+        assert result.status == CheckStatus.PASS
+        assert result.fix_suggestion is None
+
+    def test_api_key_dotenv_local_override_simulation(
+        self, mock_config: RunConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that .env.local values are visible to doctor checks.
+
+        This simulates the scenario where both .env and .env.local exist.
+        The actual dotenv loading happens in the CLI layer, but this test
+        documents that the checks see whichever value was loaded last.
+        """
+        # Simulate .env.local having been loaded
+        monkeypatch.setenv("TEST_API_KEY", "key_from_env_local")
+
+        result = check_api_keys(mock_config)
+        assert result.status == CheckStatus.PASS
+        assert "1" in result.message
 
     def test_multi_endpoint_config(
         self, mock_config: RunConfig, monkeypatch: pytest.MonkeyPatch
@@ -708,6 +785,92 @@ class TestRunDoctor:
         assert llm_check.status == CheckStatus.WARN
         assert "skipped" in llm_check.message
         assert "no runtime provided" in llm_check.message
+
+    @pytest.mark.asyncio
+    async def test_dotenv_loaded_keys_visible_to_checks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that API keys loaded from .env are visible to doctor checks.
+
+        This test simulates the doctor workflow where the CLI layer loads
+        .env files from the config directory before calling run_doctor().
+        The actual dotenv loading happens in the CLI (_load_dotenv), but
+        this verifies that once loaded, the keys are visible to all checks.
+
+        This documents the expected integration between CLI dotenv loading
+        and core doctor checks for the config directory .env path.
+        """
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text(VALID_TEST_CONFIG_TOML)
+
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+
+        # Clear environment
+        monkeypatch.delenv("TEST_KEY", raising=False)
+
+        # Simulate CLI layer having loaded .env file from config directory
+        # (In real usage, _load_dotenv(config_path) would do this)
+        monkeypatch.setenv("TEST_KEY", "value_from_dotenv")
+
+        # Run doctor - it should see the environment variable
+        report = await run_doctor(config_path, runtime=None)
+
+        # API key check should pass
+        api_check = next(c for c in report.checks if c.name == "API Keys")
+        assert api_check.status == CheckStatus.PASS
+        assert "1" in api_check.message
+
+    @pytest.mark.asyncio
+    async def test_dotenv_local_values_visible_to_checks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that .env and .env.local files are loaded in doctor context.
+
+        This test verifies the actual dotenv loading behavior in the doctor
+        context: both .env and .env.local are loaded, and .env takes precedence
+        when both define the same key (both loaded with override=False, first wins).
+
+        This exercises real file loading rather than just monkeypatch.setenv.
+        """
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text(VALID_TEST_CONFIG_TOML)
+
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+
+        # Create .env file with TEST_KEY
+        env_file = tmp_path / ".env"
+        env_file.write_text("TEST_KEY=value_from_env\nENV_ONLY=env_value\n")
+
+        # Create .env.local file with TEST_KEY and a local-only key
+        env_local_file = tmp_path / ".env.local"
+        env_local_file.write_text("TEST_KEY=value_from_local\nLOCAL_ONLY=local_value\n")
+
+        # Clear environment
+        monkeypatch.delenv("TEST_KEY", raising=False)
+        monkeypatch.delenv("ENV_ONLY", raising=False)
+        monkeypatch.delenv("LOCAL_ONLY", raising=False)
+
+        # Load dotenv files (as CLI layer does)
+        cli_main._load_dotenv(config_path)
+
+        # Run doctor
+        report = await run_doctor(config_path, runtime=None)
+
+        # API key check should pass
+        api_check = next(c for c in report.checks if c.name == "API Keys")
+        assert api_check.status == CheckStatus.PASS
+
+        # Verify precedence: .env wins for shared keys
+        assert os.getenv("TEST_KEY") == "value_from_env"
+        # Verify both files are loaded
+        assert os.getenv("ENV_ONLY") == "env_value"
+        assert os.getenv("LOCAL_ONLY") == "local_value"
 
     @pytest.mark.asyncio
     async def test_api_key_failure_takes_precedence_over_connectivity_failure(

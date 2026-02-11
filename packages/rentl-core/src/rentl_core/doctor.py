@@ -250,18 +250,20 @@ def check_config_valid(config_path: Path) -> CheckResult:
     )
 
 
-def check_workspace_dirs(config: RunConfig) -> CheckResult:
+def check_workspace_dirs(config: RunConfig, config_dir: Path) -> CheckResult:
     """Check if required workspace directories exist.
 
     Args:
         config: Validated run configuration.
+        config_dir: Directory containing the config file (for resolving relative paths).
 
     Returns:
         CheckResult: Check result for workspace directory structure.
     """
-    workspace_dir = Path(config.project.paths.workspace_dir)
-    output_dir = Path(config.project.paths.output_dir)
-    logs_dir = Path(config.project.paths.logs_dir)
+    # Resolve paths relative to config directory (not CWD)
+    workspace_dir = config_dir / config.project.paths.workspace_dir
+    output_dir = config_dir / config.project.paths.output_dir
+    logs_dir = config_dir / config.project.paths.logs_dir
 
     missing: list[str] = []
     if not workspace_dir.exists():
@@ -322,14 +324,14 @@ def check_api_keys(config: RunConfig) -> CheckResult:
             missing.append(key_name)
 
     if missing:
-        env_file = Path(config.project.paths.workspace_dir) / ".env"
-        keys_list = ", ".join(f"{k}=your_key_here" for k in missing)
+        # Note: doctor now loads .env and .env.local from config directory
+        keys_list = " ".join(f"{k}=your_key_here" for k in missing)
         return CheckResult(
             name="API Keys",
             status=CheckStatus.FAIL,
             message=f"Missing API keys: {', '.join(missing)}",
             fix_suggestion=(
-                f"Set environment variables or add to {env_file}: {keys_list}"
+                f"Create .env file in config directory with: echo '{keys_list}' >> .env"
             ),
         )
 
@@ -391,9 +393,9 @@ async def check_llm_connectivity(
             status=CheckStatus.FAIL,
             message=f"{count_str} endpoint(s) failed: {endpoint_list}",
             fix_suggestion=(
-                "Verify API keys are correct, check network connectivity, "
-                "and confirm endpoint URLs are reachable (use 'rentl "
-                "validate-connection' for details)"
+                "Verify API keys in .env file (doctor loads .env and .env.local), "
+                "check network connectivity, and confirm endpoint URLs are reachable. "
+                "Use 'rentl validate-connection' for details."
             ),
         )
 
@@ -451,7 +453,7 @@ async def run_doctor(
 
     # Check 4: Workspace directories (depends on valid config)
     if config is not None:
-        checks.append(check_workspace_dirs(config))
+        checks.append(check_workspace_dirs(config, config_path.parent))
     else:
         checks.append(
             CheckResult(

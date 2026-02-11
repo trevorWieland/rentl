@@ -45,7 +45,7 @@
 - ✅ (s0.1.19) Initial Phase Agent: QA — Create an initial agent to act in the QA phase. Candidates include (but are not limited to): inaccurate translation detection, style-guide adherence critic, incorrect pronoun usage detection, etc. **Depends on:** s0.1.14, s0.1.18.
 - ✅ (s0.1.20) Initial Phase Agent: Edit — Create our main editor agent, which will take in translated lines and apply targeted fixes based on QA findings for iterative improvements. Future editor agents would involve extra features like flagging a line for full retranslation, or using tools for more complex fixes. **Depends on:** s0.1.14, s0.1.17, s0.1.19.
 - ✅ (s0.1.21) Observability Surface (CLI Status Viewer) — Display live phase status and completion summaries for trust and clarity. **Depends on:** s0.1.02, s0.1.06, s0.1.10, s0.1.11.
-- (s0.1.22) Functional Onboarding — Guide users to a first successful run with defaults and validation. **Depends on:** s0.1.11, s0.1.13, s0.1.15–s0.1.20, s0.1.29, s0.1.31.
+- ✅ (s0.1.22) Functional Onboarding — Guide users to a first successful run with defaults and validation. **Depends on:** s0.1.11, s0.1.13, s0.1.15–s0.1.20, s0.1.29, s0.1.31.
 - ✅ (s0.1.23) Unit Test Coverage Gate (>80%) — Enforce unit test coverage threshold across core and CLI packages. **Depends on:** s0.1.01–s0.1.13.
 - ✅ (s0.1.24) Integration Test Suite — Validate CLI workflows and runtime wiring across storage and BYOK endpoints. **Depends on:** s0.1.11, s0.1.12, s0.1.13, s0.1.23.
 - ✅ (s0.1.25) Quality Test Suite — Real-LLM smoke tests for runtime and agent behaviors. **Depends on:** s0.1.14, s0.1.15–s0.1.20, s0.1.23.

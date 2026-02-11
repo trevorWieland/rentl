@@ -70,8 +70,9 @@ timeout = 30
 addopts = "-v --tb=short"
 markers = [
     "unit: Unit tests (<250ms, mocks allowed)",
-    "integration: Integration tests (<5s, real services, no LLMs)",  
+    "integration: Integration tests (<5s, real services, no LLMs)",
     "quality: Quality tests (<30s, real LLMs)",
+    "api: API validation tests (require live API keys, can be skipped)",
 ]
 
 [tool.coverage.run]

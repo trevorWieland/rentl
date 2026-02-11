@@ -53,7 +53,12 @@ from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_su
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
-from rentl_core.init import InitAnswers, InitResult, generate_project
+from rentl_core.init import (
+    PROVIDER_PRESETS,
+    InitAnswers,
+    InitResult,
+    generate_project,
+)
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.migrate import (
     ConfigDict,
@@ -344,6 +349,9 @@ def doctor(config_path: Path = CONFIG_OPTION) -> None:
     console = Console()
     is_tty = sys.stdout.isatty()
 
+    # Load .env files before running checks so API keys are available
+    _load_dotenv(config_path)
+
     # Build runtime for connectivity check
     runtime = _build_llm_runtime()
 
@@ -558,10 +566,74 @@ def init() -> None:
                 "[red]Error: At least one target language is required[/red]",
             )
             raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
-        provider_name = typer.prompt("Provider name", default="openrouter")
-        base_url = typer.prompt("API base URL", default="https://openrouter.ai/api/v1")
-        api_key_env = typer.prompt("API key env var", default="OPENROUTER_API_KEY")
-        model_id = typer.prompt("Model ID", default="openai/gpt-4.1")
+
+        # Display provider presets
+        rprint("\n[bold]Choose a provider:[/bold]")
+        for i, preset in enumerate(PROVIDER_PRESETS, start=1):
+            rprint(f"  {i}. {preset.name}")
+        rprint(f"  {len(PROVIDER_PRESETS) + 1}. Custom (enter manually)")
+
+        # Get provider choice
+        provider_choice = typer.prompt("Provider", default="1", show_default=True)
+        try:
+            choice_idx = int(provider_choice) - 1
+        except ValueError as exc:
+            rprint(
+                "[red]Error: Please enter a number corresponding "
+                "to the provider choice[/red]",
+            )
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from exc
+
+        # Apply preset or prompt for custom values
+        if 0 <= choice_idx < len(PROVIDER_PRESETS):
+            preset = PROVIDER_PRESETS[choice_idx]
+            provider_name = preset.provider_name
+            base_url = preset.base_url
+            api_key_env = preset.api_key_env
+            model_id = preset.model_id
+            rprint(f"[green]Selected {preset.name}:[/green] {base_url}")
+        elif choice_idx == len(PROVIDER_PRESETS):
+            # Custom provider
+            provider_name = typer.prompt("Provider name", default="custom")
+            # Validate base_url in a loop until valid
+            while True:
+                base_url = typer.prompt("API base URL")
+                try:
+                    # Test validation by creating a temporary InitAnswers
+                    # (we'll create the real one below)
+                    InitAnswers(
+                        project_name="test",
+                        game_name="test",
+                        source_language="ja",
+                        target_languages=["en"],
+                        provider_name=provider_name,
+                        base_url=base_url,
+                        api_key_env="TEST",
+                        model_id="test",
+                        input_format=FileFormat.JSONL,
+                        include_seed_data=True,
+                    )
+                    # If validation passes, break the loop
+                    break
+                except ValidationError as exc:
+                    # Extract the error message for base_url
+                    errors = exc.errors()
+                    base_url_errors = [e for e in errors if e["loc"] == ("base_url",)]
+                    if base_url_errors:
+                        error_msg = base_url_errors[0].get("msg", "Invalid URL format")
+                        rprint(f"[red]Error: {error_msg}[/red]")
+                    else:
+                        rprint("[red]Error: Invalid URL format[/red]")
+            api_key_env = typer.prompt("API key env var")
+            model_id = typer.prompt("Model ID")
+        else:
+            # Invalid choice - out of range
+            rprint(
+                f"[red]Error: Please enter a number between 1 and "
+                f"{len(PROVIDER_PRESETS) + 1}[/red]",
+            )
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+
         input_format_str = typer.prompt(
             "Input format (jsonl, csv, txt)", default="jsonl"
         )
@@ -924,7 +996,7 @@ def run_pipeline(
             )
         response = _error_response(error)
     if progress is not None:
-        _render_run_execution_summary(response.data, console=console)
+        _render_run_execution_summary(response.data, console=console, config=config)
         if response.error is not None:
             _render_run_error(response.error, console=console)
             raise typer.Exit(code=response.error.exit_code)
@@ -1019,7 +1091,7 @@ def run_phase(
             )
         response = _error_response(error)
     if _should_render_progress():
-        _render_run_execution_summary(response.data, console=None)
+        _render_run_execution_summary(response.data, console=None, config=config)
         if response.error is not None:
             _render_run_error(response.error, console=None)
             raise typer.Exit(code=response.error.exit_code)
@@ -2115,9 +2187,18 @@ def _load_run_config(config_path: Path) -> RunConfig:
 
 
 def _load_dotenv(config_path: Path) -> None:
-    env_path = config_path.parent / ".env"
+    """Load .env and .env.local files from config directory.
+
+    .env.local takes precedence over .env (loaded second with override=False).
+    """
+    config_dir = config_path.parent
+    env_path = config_dir / ".env"
+    env_local_path = config_dir / ".env.local"
+
     if env_path.exists():
         load_dotenv(env_path, override=False)
+    if env_local_path.exists():
+        load_dotenv(env_local_path, override=False)
 
 
 def _resolve_project_paths(config: RunConfig, config_path: Path) -> RunConfig:
@@ -2384,6 +2465,7 @@ def _render_run_execution_summary(
     result: RunExecutionResult | None,
     *,
     console: Console | None,
+    config: RunConfig | None = None,
 ) -> None:
     if result is None:
         return
@@ -2440,6 +2522,40 @@ def _render_run_execution_summary(
             "Tokens",
             f"{input_tokens} in / {output_tokens} out (total {total_tokens})",
         )
+
+    # Add next steps if run completed successfully
+    if result.status == RunStatus.COMPLETED and config is not None:
+        # Collect languages from completed export phase records
+        exported_languages: list[str] = []
+        if result.run_state and result.run_state.phase_history:
+            for record in result.run_state.phase_history:
+                if (
+                    record.phase == PhaseName.EXPORT
+                    and record.status == PhaseStatus.COMPLETED
+                    and record.target_language
+                ):
+                    exported_languages.append(record.target_language)
+
+        if exported_languages:
+            # Export was included - show output file paths
+            output_format = config.project.formats.output_format
+            run_dir = Path(config.project.paths.output_dir) / f"run-{result.run_id}"
+
+            table.add_row("", "")
+            table.add_row("Next Steps", "[bold green]Export complete![/bold green]")
+            table.add_row("", "Output files:")
+            for language in exported_languages:
+                file_path = run_dir / f"{language}.{output_format}"
+                table.add_row("", f"  [cyan]{file_path}[/cyan]")
+        else:
+            # Export was not included - show export command
+            output_dir = config.project.paths.output_dir
+            table.add_row("", "")
+            table.add_row(
+                "Next Steps", "[bold]Run export to generate output files:[/bold]"
+            )
+            table.add_row("", "[cyan]rentl export[/cyan]")
+            table.add_row("", f"Output directory: [cyan]{output_dir}[/cyan]")
 
     panel = Panel(table, title="rentl run", expand=False)
     if console is not None:

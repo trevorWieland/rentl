@@ -7,8 +7,14 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from rentl_core.init import InitAnswers, InitResult, generate_project
+from rentl_core.init import (
+    PROVIDER_PRESETS,
+    InitAnswers,
+    InitResult,
+    generate_project,
+)
 from rentl_schemas.config import RunConfig
 from rentl_schemas.primitives import FileFormat
 
@@ -28,7 +34,7 @@ def default_answers() -> InitAnswers:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -173,7 +179,7 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.CSV,
         include_seed_data=True,
     )
@@ -193,7 +199,8 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
     # Check data rows
     for line in lines[1:]:
         assert "scene_001" in line
-        assert "Example dialogue line" in line
+        # Verify Japanese seed data (not English)
+        assert "サンプル台詞" in line
 
 
 def test_seed_data_txt_format(tmp_path: Path) -> None:
@@ -206,7 +213,7 @@ def test_seed_data_txt_format(tmp_path: Path) -> None:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.TXT,
         include_seed_data=True,
     )
@@ -220,7 +227,8 @@ def test_seed_data_txt_format(tmp_path: Path) -> None:
     # Check simple text format
     for line in lines:
         assert ":" in line
-        assert "Example dialogue line" in line
+        # Verify Japanese seed data (not English)
+        assert "サンプル台詞" in line
 
 
 def test_generate_project_without_seed_data(tmp_path: Path) -> None:
@@ -233,7 +241,7 @@ def test_generate_project_without_seed_data(tmp_path: Path) -> None:
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=False,
     )
@@ -261,7 +269,7 @@ def test_generate_project_with_multiple_target_languages(tmp_path: Path) -> None
         provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
         api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4.1",
+        model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -346,7 +354,7 @@ def test_unsupported_format_rejected() -> None:
             provider_name="openrouter",
             base_url="https://openrouter.ai/api/v1",
             api_key_env="OPENROUTER_API_KEY",
-            model_id="openai/gpt-4.1",
+            model_id="openai/gpt-4-turbo",
             input_format="tsv",  # type: ignore[arg-type]
             include_seed_data=True,
         )
@@ -383,3 +391,342 @@ def test_generated_config_uses_correct_agent_names(
     # Check export phase exists
     assert "export" in phases
     assert phases.get("export") is None or phases.get("export") == []
+
+
+def test_provider_presets_exist() -> None:
+    """Test that provider presets are defined and contain expected providers."""
+    assert len(PROVIDER_PRESETS) >= 3, "Expected at least 3 provider presets"
+
+    # Verify expected providers are present
+    provider_names = [preset.name for preset in PROVIDER_PRESETS]
+    assert "OpenRouter" in provider_names
+    assert "OpenAI" in provider_names
+    assert "Local (Ollama)" in provider_names
+
+
+def test_provider_presets_have_required_fields() -> None:
+    """Test that all provider presets have complete field values."""
+    for preset in PROVIDER_PRESETS:
+        assert preset.name, f"Preset missing name: {preset}"
+        assert preset.provider_name, f"Preset {preset.name} missing provider_name"
+        assert preset.base_url, f"Preset {preset.name} missing base_url"
+        assert preset.api_key_env, f"Preset {preset.name} missing api_key_env"
+        assert preset.model_id, f"Preset {preset.name} missing model_id"
+
+        # Verify base_url is a valid URL
+        assert preset.base_url.startswith(("http://", "https://")), (
+            f"Preset {preset.name} has invalid base_url: {preset.base_url}"
+        )
+
+
+def test_provider_preset_creates_valid_config(tmp_path: Path) -> None:
+    """Test that each provider preset produces a valid config."""
+    for preset in PROVIDER_PRESETS:
+        # Create answers using preset values
+        answers = InitAnswers(
+            project_name="test_project",
+            game_name="test_game",
+            source_language="ja",
+            target_languages=["en"],
+            provider_name=preset.provider_name,
+            base_url=preset.base_url,
+            api_key_env=preset.api_key_env,
+            model_id=preset.model_id,
+            input_format=FileFormat.JSONL,
+            include_seed_data=True,
+        )
+
+        # Generate project in a preset-specific subdirectory
+        preset_dir = tmp_path / preset.provider_name
+        preset_dir.mkdir()
+        generate_project(answers, preset_dir)
+
+        # Verify config validates
+        config_path = preset_dir / "rentl.toml"
+        with config_path.open("rb") as f:
+            config_dict = tomllib.load(f)
+
+        config = RunConfig.model_validate(config_dict, strict=True)
+        assert config.endpoint is not None
+        assert config.endpoint.provider_name == preset.provider_name
+        assert config.endpoint.base_url == preset.base_url
+
+
+def test_base_url_validation_rejects_invalid_urls() -> None:
+    """Test that InitAnswers rejects invalid base_url formats."""
+    # Non-URL strings should be rejected (with ValueError for format issues)
+    invalid_urls_value_error = [
+        "not-a-url",
+        "just-text",
+        "ftp://invalid-scheme.com",  # Unsupported scheme
+        "//missing-scheme.com",
+    ]
+
+    for invalid_url in invalid_urls_value_error:
+        with pytest.raises(ValueError, match="Invalid URL"):
+            InitAnswers(
+                project_name="test_project",
+                game_name="test_game",
+                source_language="ja",
+                target_languages=["en"],
+                provider_name="test",
+                base_url=invalid_url,
+                api_key_env="TEST_KEY",
+                model_id="test-model",
+                input_format=FileFormat.JSONL,
+                include_seed_data=True,
+            )
+
+    # Empty string hits min_length constraint (ValidationError, not ValueError)
+    with pytest.raises(ValidationError):
+        InitAnswers(
+            project_name="test_project",
+            game_name="test_game",
+            source_language="ja",
+            target_languages=["en"],
+            provider_name="test",
+            base_url="",
+            api_key_env="TEST_KEY",
+            model_id="test-model",
+            input_format=FileFormat.JSONL,
+            include_seed_data=True,
+        )
+
+
+def test_base_url_validation_accepts_valid_urls() -> None:
+    """Test that InitAnswers accepts valid base_url formats."""
+    valid_urls = [
+        "https://api.openai.com/v1",
+        "https://openrouter.ai/api/v1",
+        "http://localhost:11434/v1",
+        "http://127.0.0.1:8080/api",
+        "https://custom-domain.example.com/endpoint",
+    ]
+
+    for valid_url in valid_urls:
+        # Should not raise
+        answers = InitAnswers(
+            project_name="test_project",
+            game_name="test_game",
+            source_language="ja",
+            target_languages=["en"],
+            provider_name="test",
+            base_url=valid_url,
+            api_key_env="TEST_KEY",
+            model_id="test-model",
+            input_format=FileFormat.JSONL,
+            include_seed_data=True,
+        )
+        assert answers.base_url == valid_url
+
+
+def test_seed_data_matches_source_language_japanese(tmp_path: Path) -> None:
+    """Test that seed data is generated in Japanese when source_language is ja."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="ja",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    result = generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify Japanese text is present
+    assert "サンプル台詞" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+    # Verify no fallback warning is emitted for supported language
+    warning_found = any("not supported" in step for step in result.next_steps)
+    assert not warning_found, (
+        f"Unexpected fallback warning for supported language: {result.next_steps}"
+    )
+
+
+def test_seed_data_matches_source_language_chinese(tmp_path: Path) -> None:
+    """Test that seed data is generated in Chinese when source_language is zh."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="zh",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify Chinese text is present
+    assert "示例对话" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_korean(tmp_path: Path) -> None:
+    """Test that seed data is generated in Korean when source_language is ko."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="ko",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify Korean text is present
+    assert "샘플 대사" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_spanish(tmp_path: Path) -> None:
+    """Test that seed data is generated in Spanish when source_language is es."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="es",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify Spanish text is present
+    assert "Línea de diálogo de ejemplo" in content
+    # Verify English text is not present
+    assert "Example dialogue line 1" not in content
+
+
+def test_seed_data_matches_source_language_french(tmp_path: Path) -> None:
+    """Test that seed data is generated in French when source_language is fr."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="fr",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify French text is present
+    assert "Ligne de dialogue exemple" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_german(tmp_path: Path) -> None:
+    """Test that seed data is generated in German when source_language is de."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="de",
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify German text is present
+    assert "Beispiel-Dialogzeile" in content
+    # Verify English text is not present
+    assert "Example dialogue line" not in content
+
+
+def test_seed_data_matches_source_language_english(tmp_path: Path) -> None:
+    """Test that seed data is generated in English when source_language is en."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="en",
+        target_languages=["ja"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify English text is present
+    assert "Example dialogue line" in content
+
+
+def test_seed_data_unsupported_language_falls_back_to_english(
+    tmp_path: Path,
+) -> None:
+    """Test that unsupported languages fall back to English with warning."""
+    answers = InitAnswers(
+        project_name="test_project",
+        game_name="test_game",
+        source_language="ru",  # Russian - not in supported list
+        target_languages=["en"],
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        api_key_env="OPENROUTER_API_KEY",
+        model_id="openai/gpt-4-turbo",
+        input_format=FileFormat.JSONL,
+        include_seed_data=True,
+    )
+
+    result = generate_project(answers, tmp_path)
+    seed_path = tmp_path / "input" / f"{answers.game_name}.jsonl"
+
+    content = seed_path.read_text(encoding="utf-8")
+    # Verify English fallback text is present
+    assert "Example dialogue line" in content
+
+    # Verify warning is present in next_steps
+    warning_found = any(
+        "language 'ru' not supported" in step and "Replace the content" in step
+        for step in result.next_steps
+    )
+    assert warning_found, (
+        f"Expected fallback warning in next_steps, got: {result.next_steps}"
+    )
