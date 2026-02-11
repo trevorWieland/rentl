@@ -5,6 +5,8 @@ architecture:
     description: Never access infrastructure adapters directly; access protocols defined in the Core Domain
   api-response-format:
     description: All responses use pydantic-based {data, error, meta} envelopes
+  config-path-resolution:
+    description: Config paths resolve relative to config file parent, not CWD; keep configs in-workspace
   id-formats:
     description: UUIDv7 vs human-readable ID formats
   log-line-format:
@@ -13,6 +15,8 @@ architecture:
     description: Use consistent naming conventions across all code; snake_case for modules/functions/variables, PascalCase for classes/types
   none-vs-empty:
     description: Meaning of None vs empty lists in schemas
+  openrouter-provider-routing:
+    description: Validate OpenRouter provider compatibility before pipeline runs; use provider-qualified model IDs and whitelists
   thin-adapter-pattern:
     description: Surface layers (CLI, TUI, API) are thin adapters; all business logic lives in the Core Domain
 
@@ -23,8 +27,12 @@ global:
     description: Register tools with explicit names via pydantic_ai.Tool to prevent prompt/tool mismatches
   batch-alignment-feedback:
     description: Batch agents must verify output IDs match input IDs; provide structured retry feedback on mismatch
+  no-placeholder-artifacts:
+    description: Never commit placeholder values; all artifacts must be functional and verified at commit time
   prefer-dependency-updates:
     description: Prefer frequent dependency updates; use compatible ranges instead of exact pins
+  pydantic-ai-structured-output:
+    description: All LLM calls must use pydantic-ai Agent with output_type; never hand-roll JSON parsing
   required-tool-gating:
     description: Gate output tools until required function tools are called; use exhaustive end_strategy
 
