@@ -21,4 +21,4 @@ def test_version_info_str() -> None:
 def test_global_version_exists() -> None:
     """Test global VERSION is defined and valid."""
     assert VERSION is not None
-    assert str(VERSION) == "0.1.0"
+    assert str(VERSION) == "0.1.4"

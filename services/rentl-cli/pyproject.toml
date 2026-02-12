@@ -1,13 +1,14 @@
 [project]
 name = "rentl"
-version = "0.1.0"
+version = "0.1.4"
 description = "CLI for rentl"
 requires-python = ">=3.14"
 dependencies = [
-    "rentl-core",
-    "rentl-llm",
-    "rentl-io",
-    "rentl-schemas",
+    "rentl-agents>=0.1.0",
+    "rentl-core>=0.1.2",
+    "rentl-llm>=0.1.0",
+    "rentl-io>=0.1.0",
+    "rentl-schemas>=0.1.0",
     "python-dotenv>=1.0.1",
     "typer>=0.21.1",
     "rich>=14.3.1",

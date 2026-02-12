@@ -37,9 +37,9 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Verify each package appears on PyPI
   - Use lock-step versioning (all packages at 0.1.0)
   - Test: all 5 packages visible on PyPI, `uv pip install rentl` resolves all deps
-- [ ] Task 5: Verify uvx installation on fresh environment
-  - On a machine without rentl installed, run `uvx rentl --version`
-  - Test: version outputs correctly (e.g., `rentl v0.1.0`)
+- [x] Task 5: Verify uvx installation on fresh environment
+  - On a machine without rentl installed, run `uvx rentl version`
+  - Test: version outputs correctly (e.g., `rentl v0.1.4`)
 - [ ] Task 6: Verify `rentl init` end-to-end
   - Run `uvx rentl init` in a clean directory
   - Verify rentl.toml, .env, workspace directories are created

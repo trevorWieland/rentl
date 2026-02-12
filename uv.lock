@@ -2339,10 +2339,11 @@ wheels = [
 
 [[package]]
 name = "rentl"
-version = "0.1.0"
+version = "0.1.4"
 source = { editable = "services/rentl-cli" }
 dependencies = [
     { name = "python-dotenv" },
+    { name = "rentl-agents" },
     { name = "rentl-core" },
     { name = "rentl-io" },
     { name = "rentl-llm" },
@@ -2354,6 +2355,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "rentl-agents", editable = "packages/rentl-agents" },
     { name = "rentl-core", editable = "packages/rentl-core" },
     { name = "rentl-io", editable = "packages/rentl-io" },
     { name = "rentl-llm", editable = "packages/rentl-llm" },
@@ -2402,7 +2404,7 @@ requires-dist = [
 
 [[package]]
 name = "rentl-core"
-version = "0.1.0"
+version = "0.1.4"
 source = { editable = "packages/rentl-core" }
 dependencies = [
     { name = "httpx" },

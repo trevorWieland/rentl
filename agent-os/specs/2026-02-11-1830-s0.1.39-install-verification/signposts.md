@@ -194,3 +194,77 @@ rentl-schemas (no internal deps)
 **Solution:** Expand Task 4 to build and publish all 5 packages in dependency order. Add CI publish script (Task 10) for future releases. User chose multi-package publishing over bundling to preserve workspace architecture and extensibility.
 
 **Resolution:** user via resolve-blockers 2026-02-11
+
+## Task 5: Missing rentl-agents dependency in published package
+
+**Status:** resolved
+
+**Problem:** The `rentl` package failed at runtime when installed via `uvx rentl` with `ModuleNotFoundError: No module named 'rentl_agents'`. The package was missing from both the dependency list and PyPI.
+
+**Evidence:**
+```bash
+uvx rentl version
+```
+
+Output:
+```
+Traceback (most recent call last):
+  File "/home/trevor/.cache/uv/archive-v0/zLvGGMGZdZGFrW7VCq41T/bin/rentl", line 6, in <module>
+    from rentl.main import app
+  File "/home/trevor/.cache/uv/archive-v0/zLvGGMGZdZGFrW7VCq41T/lib/python3.14/site-packages/rentl/main.py", line 40, in <module>
+    from rentl_agents.providers import detect_provider
+ModuleNotFoundError: No module named 'rentl_agents'
+```
+
+**Tried:**
+1. Checked `services/rentl-cli/pyproject.toml` - `rentl-agents` was not in dependencies
+2. Verified `packages/rentl-agents/pyproject.toml` exists but was never published to PyPI
+
+**Solution:**
+1. Added `rentl-agents>=0.1.0` to `services/rentl-cli/pyproject.toml` dependencies
+2. Built and published `rentl-agents` package to PyPI (v0.1.0)
+3. Republished `rentl` with updated dependencies (bumped to v0.1.1)
+
+**Resolution:** do-task round 1 (Task 5)
+
+**Files affected:**
+- `/home/trevor/github/rentl/services/rentl-cli/pyproject.toml` (added rentl-agents dependency)
+- `/home/trevor/github/rentl/packages/rentl-agents/pyproject.toml` (built and published)
+
+## Task 5: Version mismatch - hardcoded VERSION in rentl-core
+
+**Status:** resolved
+
+**Problem:** The `rentl version` command showed `v0.1.0` even after publishing `rentl` v0.1.1+. The version is read from `rentl_core.VERSION` which was hardcoded to `0.1.0` and not synchronized with package versions.
+
+**Evidence:**
+```bash
+uvx rentl@0.1.2 version
+# Output: rentl v0.1.0
+```
+
+The version string comes from:
+- `services/rentl-cli/src/rentl/main.py:243` uses `VERSION` constant
+- `VERSION` is imported from `rentl_core` (line 42)
+- `packages/rentl-core/src/rentl_core/version.py:5` defines `VERSION = VersionInfo(major=0, minor=1, patch=0)`
+
+**Tried:**
+1. Only updating `services/rentl-cli/pyproject.toml` version - version command still showed 0.1.0
+2. Updating `services/rentl-cli/src/rentl/__init__.py` `__version__` - not used by version command
+
+**Solution:**
+1. Updated `packages/rentl-core/src/rentl_core/version.py` to `VERSION = VersionInfo(major=0, minor=1, patch=4)`
+2. Bumped `packages/rentl-core/pyproject.toml` to v0.1.4 and republished
+3. Updated `services/rentl-cli/pyproject.toml` dependency to `rentl-core>=0.1.2` (ensures latest version)
+4. Bumped `services/rentl-cli` to v0.1.4 and republished
+5. Updated test assertions in `tests/unit/core/test_version.py` and `tests/unit/cli/test_main.py` from "0.1.0" to "0.1.4"
+
+**Resolution:** do-task round 1 (Task 5)
+
+**Files affected:**
+- `/home/trevor/github/rentl/packages/rentl-core/src/rentl_core/version.py` (updated VERSION constant)
+- `/home/trevor/github/rentl/packages/rentl-core/pyproject.toml` (bumped to 0.1.4)
+- `/home/trevor/github/rentl/services/rentl-cli/pyproject.toml` (bumped to 0.1.4, added version constraints)
+- `/home/trevor/github/rentl/services/rentl-cli/src/rentl/__init__.py` (bumped __version__)
+- `/home/trevor/github/rentl/tests/unit/core/test_version.py` (updated test assertion)
+- `/home/trevor/github/rentl/tests/unit/cli/test_main.py` (updated test assertion)
