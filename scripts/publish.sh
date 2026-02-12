@@ -96,14 +96,22 @@ log_info "All build artifacts present"
 if [[ "$DRY_RUN" == "true" ]]; then
   log_warn "Running in DRY RUN mode - no packages will be published"
 
+  # Load PYPI_TOKEN from .env if it exists, otherwise use environment variable
+  if [[ -f .env ]]; then
+    source .env
+  fi
+
+  if [[ -z "${PYPI_TOKEN:-}" ]]; then
+    log_error "PYPI_TOKEN not set. Please set it in .env or environment"
+    exit 1
+  fi
+
   for pkg in "${PACKAGES[@]}"; do
     log_info "Would publish $pkg..."
     wheel_name="${pkg//-/_}"
     wheel_file=$(ls dist/"${wheel_name}"-*.whl | head -1)
     sdist_file=$(ls dist/"${wheel_name}"-*.tar.gz | head -1)
 
-    # Source .env to load PYPI_TOKEN
-    source .env
     if ! UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run "$wheel_file" "$sdist_file"; then
       log_error "Dry run failed for $pkg"
       exit 1

@@ -914,7 +914,7 @@ Every package now correctly invokes `uv publish --dry-run`, evidenced by the "Ch
 
 ## Task 10: Dry-run fails when `.env` is missing
 
-**Status:** unresolved
+**Status:** resolved
 
 **Problem:** `scripts/publish.sh --dry-run` now unconditionally runs `source .env` inside the publish loop, so dry-run exits non-zero when `.env` is absent even if CI/environment variables are otherwise configured.
 
@@ -939,3 +939,43 @@ scripts/publish.sh: line 106: .env: No such file or directory
 Exit code: 1
 
 **Impact:** The dry-run safety path is no longer robust for CI or local environments that rely on exported `PYPI_TOKEN` without a checked-in `.env`, so Task 10's `--dry-run` testability contract regresses.
+
+**Solution:** Applied the same .env guarding pattern from the production publish path to the dry-run path. Moved `source .env` outside the loop, guarded it with `if [[ -f .env ]]`, and added validation that `PYPI_TOKEN` is set (either from .env or from environment).
+
+**Resolution:** do-task round 3
+
+### Task 10 Verification Evidence (with .env missing)
+
+Test without .env file but with PYPI_TOKEN from environment:
+```bash
+bash -lc 'set -euo pipefail; bak=".env.audit.bak.$$"; mv .env "$bak"; trap "mv \"$bak\" .env" EXIT; export PYPI_TOKEN="test_token"; bash scripts/publish.sh --dry-run 2>&1 | tail -5'
+```
+
+Output:
+```
+▶ Dry run completed successfully
+
+▶ Publish script completed
+⚠ DRY RUN mode - no packages were actually published
+▶ To publish for real, run: scripts/publish.sh
+```
+
+Exit code: 0
+
+Test without .env file and without PYPI_TOKEN environment variable:
+```bash
+bash -lc 'set -euo pipefail; bak=".env.audit.bak.$$"; mv .env "$bak"; trap "mv \"$bak\" .env" EXIT; bash scripts/publish.sh --dry-run 2>&1 | grep -A1 "DRY RUN\|PYPI_TOKEN"'
+```
+
+Output:
+```
+⚠ Running in DRY RUN mode - no packages will be published
+✗ PYPI_TOKEN not set. Please set it in .env or environment
+```
+
+Exit code: 1 (expected - fails with helpful error instead of bash error)
+
+The dry-run path now supports both `.env` file and environment variables, with graceful error handling when neither is available.
+
+**Files affected:**
+- `/home/trevor/github/rentl/scripts/publish.sh` (guarded source .env, added PYPI_TOKEN validation)
