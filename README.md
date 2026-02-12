@@ -13,19 +13,23 @@ rentl delivers a coherent, playable v1 translation in hours through a phase-base
 
 ## Installation
 
-rentl requires Python 3.14+ and uses [uv](https://github.com/astral-sh/uv) for dependency management.
+### Option 1: uvx (Recommended)
 
-### Install uv
+The fastest way to get started with rentl is using `uvx`, which runs the latest version without requiring installation:
 
-If you don't have uv installed:
+```bash
+uvx rentl --version
+```
+
+If you don't have `uvx` installed, install it first:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### Install rentl
+### Option 2: From Source
 
-Clone the repository and install dependencies:
+For development or to run the latest unreleased changes:
 
 ```bash
 git clone https://github.com/trevorWieland/rentl.git
@@ -33,11 +37,7 @@ cd rentl
 uv sync
 ```
 
-Or run directly with uvx (no installation required):
-
-```bash
-uvx --from git+https://github.com/trevorWieland/rentl.git rentl --help
-```
+rentl requires Python 3.14+ and uses [uv](https://github.com/astral-sh/uv) for dependency management.
 
 ## Quick Start
 
@@ -46,33 +46,35 @@ Get started with a new rentl project in four steps:
 ### 1. Initialize a new project
 
 ```bash
-uv run rentl init
+uvx rentl init
 ```
 
 This interactive command will:
 - Guide you through provider selection (OpenRouter, OpenAI, Local/Ollama, or custom)
 - Pre-fill configuration with sensible defaults
 - Generate a valid `rentl.toml` configuration file
+- Create required directory structure (`input/`, `out/`, `logs/`)
+- Generate a `.env` file for API key configuration
 
 ### 2. Add your API key
 
-Create a `.env` file in your project directory with your API key:
+Edit the `.env` file in your project directory with your API key:
 
 ```bash
 # For OpenRouter
-echo "OPENROUTER_API_KEY=your_key_here" > .env
+OPENROUTER_API_KEY=your_key_here
 
 # For OpenAI
-echo "OPENAI_API_KEY=your_key_here" > .env
+OPENAI_API_KEY=your_key_here
 
 # For local endpoints (Ollama, LM Studio)
-echo "RENTL_LOCAL_API_KEY=placeholder" > .env
+RENTL_LOCAL_API_KEY=placeholder
 ```
 
 ### 3. Verify your setup
 
 ```bash
-uv run rentl doctor
+uvx rentl doctor
 ```
 
 Doctor runs diagnostic checks on your configuration and environment, including:
@@ -84,7 +86,7 @@ Doctor runs diagnostic checks on your configuration and environment, including:
 ### 4. Run the pipeline
 
 ```bash
-uv run rentl run-pipeline
+uvx rentl run-pipeline
 ```
 
 Executes the full localization pipeline:
@@ -98,7 +100,7 @@ Once the pipeline completes, export the translated lines to your preferred forma
 
 ```bash
 # Get the run status with JSON output
-RUN_STATUS=$(uv run rentl status --json)
+RUN_STATUS=$(uvx rentl status --json)
 
 # Extract the edit phase artifact path for target language (e.g., "en")
 EDIT_ARTIFACT=$(echo "$RUN_STATUS" | jq -r '.data.run_state.artifacts[] | select(.phase == "edit") | .artifacts[0].path')
@@ -107,13 +109,15 @@ EDIT_ARTIFACT=$(echo "$RUN_STATUS" | jq -r '.data.run_state.artifacts[] | select
 jq -c '.edited_lines[]' "$EDIT_ARTIFACT" > translated_lines.jsonl
 
 # Export to CSV (or use --format jsonl/txt)
-uv run rentl export \
+uvx rentl export \
   --input translated_lines.jsonl \
   --output translations.csv \
   --format csv
 ```
 
 The export command supports multiple formats (csv, jsonl, txt) and writes to the specified output path.
+
+**Note:** If you installed from source, replace `uvx rentl` with `uv run rentl` in all commands above.
 
 ## Available Commands
 
@@ -136,8 +140,10 @@ The export command supports multiple formats (csv, jsonl, txt) and writes to the
 For detailed help on any command, run:
 
 ```bash
-uv run rentl <command> --help
+uvx rentl <command> --help
 ```
+
+**Note:** If you installed from source, replace `uvx rentl` with `uv run rentl`.
 
 ## Configuration
 

@@ -55,7 +55,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Test: pipeline succeeds end-to-end
   - [x] Fix: Re-run Task 7 verification with valid API credentials and prove `uvx rentl run-pipeline` completes successfully (shell exit code 0, no `error` in output); current evidence records `runtime_error` with `exit_code: 99` (`signposts.md:495`) after writing an invalid key (`signposts.md:490`) (audit round 1; see signposts.md: Task 7, Task verification did not satisfy pipeline success criteria)
   - [x] Fix: Replace `timeout 15 ... run-pipeline` evidence with full end-to-end completion evidence that shows successful pipeline completion output plus explicit shell exit code 0 (`signposts.md:490-498`) (audit round 1; see signposts.md: Task 7, Task verification did not satisfy pipeline success criteria)
-- [ ] Task 8: Update README install instructions
+- [x] Task 8: Update README install instructions
   - Document `uvx rentl` as the primary install method
   - Ensure commands match exactly what works
   - Test: README instructions are verbatim what a user should type
