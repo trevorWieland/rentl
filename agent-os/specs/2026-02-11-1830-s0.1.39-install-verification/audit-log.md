@@ -44,3 +44,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 4): FAIL — Performance 4/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 2/5 (fix-now: 1)
 - **Task 14** (round 3): PASS — Commit `ae8dc5c` remains clean: Run 3 evidence in `demo.md` covers all five demo steps on `rentl==0.1.8`, verifies standardized `RENTL_LOCAL_API_KEY`, and keeps README commands aligned with the documented flow.
 - **Demo** (run 7): PASS — All 5 [RUN] steps executed successfully: version check (v0.1.8), init (standardized RENTL_LOCAL_API_KEY), API config, pipeline run (all 7 phases completed with 2 lines translated), README verification (5 run, 0 verified)
+- **Spec Audit** (round 5): FAIL — Performance 4/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 2/5 (fix-now: 1; intermittent `test_translate_phase_produces_translated_output` failure with `Hit request limit (4)` on repeated runs)
