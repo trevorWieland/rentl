@@ -11,14 +11,14 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Rename package from rentl-cli to rentl
+- [x] Task 2: Rename package from rentl-cli to rentl
   - Update `services/rentl-cli/pyproject.toml`: `name = "rentl-cli"` → `name = "rentl"`
   - Update root `pyproject.toml`: `rentl-cli = { workspace = true }` → `rentl = { workspace = true }`
   - Update root `pyproject.toml`: `"rentl-cli"` in dev deps → `"rentl"`
   - Internal module `rentl_cli` stays unchanged (no import changes needed)
   - Test: `uv sync` succeeds, `make all` passes
-  - [ ] Fix: Make Task 2 verification pass by fixing `make all` failure at `tests/quality/agents/test_edit_agent.py:183` (`AssertionError: Eval failures detected`) caused by request-limit exhaustion in `packages/rentl-agents/src/rentl_agents/runtime.py:250` (`RuntimeError: Agent basic_editor FAILED: Hit request limit (10)`) (audit round 1; see signposts.md: Task 2, Required verification gate currently fails in quality tier)
-  - [ ] Fix: Re-run and capture clean evidence for Task 2 required gate (`uv sync` + `make all`) after resolving the quality failure; attach exact command output proving exit code 0 (audit round 1)
+  - [x] Fix: Make Task 2 verification pass by fixing `make all` failure at `tests/quality/agents/test_edit_agent.py:183` (`AssertionError: Eval failures detected`) caused by request-limit exhaustion in `packages/rentl-agents/src/rentl_agents/runtime.py:250` (`RuntimeError: Agent basic_editor FAILED: Hit request limit (10)`) (audit round 1; see signposts.md: Task 2, Required verification gate currently fails in quality tier)
+  - [x] Fix: Re-run and capture clean evidence for Task 2 required gate (`uv sync` + `make all`) after resolving the quality failure; attach exact command output proving exit code 0 (audit round 1)
 - [ ] Task 3: Build rentl package
   - Run `uv build --package rentl --no-sources` from workspace root
   - Verify `dist/` contains wheel and sdist
