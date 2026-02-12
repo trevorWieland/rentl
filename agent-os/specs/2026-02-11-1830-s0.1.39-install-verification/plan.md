@@ -11,7 +11,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Rename package from rentl-cli to rentl
+- [x] Task 2: Rename package from rentl-cli to rentl
   - Update `services/rentl-cli/pyproject.toml`: `name = "rentl-cli"` → `name = "rentl"`
   - Update root `pyproject.toml`: `rentl-cli = { workspace = true }` → `rentl = { workspace = true }`
   - Update root `pyproject.toml`: `"rentl-cli"` in dev deps → `"rentl"`
