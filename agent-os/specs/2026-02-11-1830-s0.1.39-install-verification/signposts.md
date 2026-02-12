@@ -540,7 +540,7 @@ All agent profiles and prompts are now correctly packaged and accessible.
 
 ## Task 7: Task verification did not satisfy pipeline success criteria
 
-**Status:** unresolved
+**Status:** resolved
 
 **Problem:** Task 7 requires `uvx rentl run-pipeline` to start and complete without errors (`plan.md:53-55`), but the recorded verification used an intentionally invalid API key and captured a runtime failure.
 
@@ -551,3 +551,91 @@ All agent profiles and prompts are now correctly packaged and accessible.
 - `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/plan.md:52` was checked complete despite failed pipeline evidence.
 
 **Impact:** The spec acceptance criterion that `uvx rentl run-pipeline` completes successfully (`spec.md:30`) is not actually verified, so end-to-end regressions can be marked complete without proof of success.
+
+**Solution:** Re-ran verification with valid OpenRouter API key. Pipeline completed successfully with all phases finishing and output files generated.
+
+**Resolution:** do-task round 2
+
+### Task 7 Complete Verification Evidence
+
+Clean environment test of full pipeline with valid API key:
+
+Setup commands:
+```bash
+CLEAN_DIR=$(mktemp -d) && cd "$CLEAN_DIR" && cat > input.txt <<'EOF'
+test-project
+test-game
+ja
+en
+1
+jsonl
+n
+EOF
+cat input.txt | uvx --from rentl==0.1.7 rentl init
+source /home/trevor/github/rentl/.env && echo "OPENROUTER_API_KEY=$RENTL_OPENROUTER_API_KEY" >> .env
+cat > input/test-game.jsonl <<'EOF'
+{"line_id": "line_001", "scene_id": "scene_001", "speaker": "田中", "text": "元気です"}
+{"line_id": "line_002", "scene_id": "scene_001", "speaker": "佐藤", "text": "それはよかった"}
+EOF
+```
+
+Pipeline execution:
+```bash
+cd /tmp/tmp.IX0MO6z8FM && uvx --from rentl==0.1.7 rentl run-pipeline; echo "EXIT:$?"
+```
+
+Output (JSON response, key fields extracted):
+```json
+{
+  "data": {
+    "run_id": "019c527f-bf88-72c9-88ec-ff4047c91ada",
+    "status": "completed",
+    "run_state": {
+      "metadata": {
+        "status": "completed",
+        "started_at": "2026-02-12T15:37:09.786160Z",
+        "completed_at": "2026-02-12T15:37:33.250565Z"
+      },
+      "progress": {
+        "phases": [
+          {"phase": "ingest", "status": "completed"},
+          {"phase": "context", "status": "completed"},
+          {"phase": "pretranslation", "status": "completed"},
+          {"phase": "translate", "status": "completed"},
+          {"phase": "qa", "status": "completed"},
+          {"phase": "edit", "status": "completed"},
+          {"phase": "export", "status": "completed"}
+        ]
+      },
+      "last_error": null
+    }
+  },
+  "error": null
+}
+```
+
+Exit code: 0
+
+Verification of output artifacts:
+```bash
+ls -la out/run-019c527f-bf88-72c9-88ec-ff4047c91ada/
+```
+
+Output:
+```
+total 12
+drwxr-xr-x 2 trevor trevor 4096 Feb 12 09:37 .
+drwxr-xr-x 3 trevor trevor 4096 Feb 12 09:37 ..
+-rw-r--r-- 1 trevor trevor  278 Feb 12 09:37 en.jsonl
+```
+
+All phases completed successfully:
+- ✓ ingest (2 lines, 1 scene)
+- ✓ context (1 scene summary, 2 characters)
+- ✓ pretranslation (0 annotations)
+- ✓ translate (2 lines translated to English)
+- ✓ qa (0 issues found)
+- ✓ edit (2 lines edited, 0 changes)
+- ✓ export (2 lines exported to en.jsonl)
+
+**Files affected:** signposts.md (added Task 7 complete verification evidence)
