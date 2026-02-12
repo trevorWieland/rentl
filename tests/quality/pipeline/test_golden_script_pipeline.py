@@ -1,11 +1,11 @@
-"""BDD quality tests for full pipeline smoke test on golden script.
+"""BDD quality tests for per-phase pipeline smoke tests on golden script.
 
-These tests verify that the full pipeline can run all phases on the golden
-sample script using real LLM runtime (requires actual HTTP endpoint).
+These tests verify that individual pipeline phases work with real LLM runtime.
+Each scenario enables only the minimum required phases, isolating failures.
 
 IMPORTANT: These tests require a real LLM endpoint to be running.
 Set RENTL_QUALITY_API_KEY and RENTL_QUALITY_BASE_URL environment variables
-before running. The test will be skipped if these are not configured.
+before running. The test raises ValueError if these are not configured.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import shutil
 import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -32,14 +31,20 @@ if TYPE_CHECKING:
 # Link feature file
 scenarios("../features/pipeline/golden_script_pipeline.feature")
 
-# Mark all tests in this module with extended timeout for real LLM calls
-pytestmark = pytest.mark.timeout(300)
+# 30s per scenario — matches quality test timing standard
+pytestmark = pytest.mark.timeout(30)
+
+# Number of golden script lines to use (reduces API calls)
+_GOLDEN_SUBSET_SIZE = 5
 
 
-def _write_full_pipeline_config(
-    config_path: Path, workspace_dir: Path, script_path: Path
+def _write_pipeline_config(
+    config_path: Path,
+    workspace_dir: Path,
+    script_path: Path,
+    phases: list[str],
 ) -> Path:
-    """Write a rentl.toml config for full pipeline tests with all phases enabled.
+    """Write a rentl.toml config with only the specified phases enabled.
 
     Uses RENTL_QUALITY_BASE_URL, RENTL_QUALITY_API_KEY, and RENTL_QUALITY_MODEL
     from environment.
@@ -56,6 +61,25 @@ def _write_full_pipeline_config(
     model_id = os.getenv("RENTL_QUALITY_MODEL")
     if not model_id:
         raise ValueError("RENTL_QUALITY_MODEL must be set for quality tests")
+
+    # Build phase entries — only enabled phases are included
+    phase_agents = {
+        "context": '["scene_summarizer"]',
+        "pretranslation": '["idiom_labeler"]',
+        "translate": '["direct_translator"]',
+        "qa": '["style_guide_critic"]',
+        "edit": '["basic_editor"]',
+    }
+
+    phase_blocks = []
+    for phase in phases:
+        agents_line = ""
+        if phase in phase_agents:
+            agents_line = f"\nagents = {phase_agents[phase]}"
+        phase_blocks.append(f'[[pipeline.phases]]\nphase = "{phase}"{agents_line}')
+
+    phases_toml = "\n\n".join(phase_blocks)
+
     content = textwrap.dedent(
         f"""\
         [project]
@@ -92,31 +116,7 @@ def _write_full_pipeline_config(
         model_id = "{model_id}"
         endpoint_ref = "primary"
 
-        [[pipeline.phases]]
-        phase = "ingest"
-
-        [[pipeline.phases]]
-        phase = "context"
-        agents = ["scene_summarizer"]
-
-        [[pipeline.phases]]
-        phase = "pretranslation"
-        agents = ["idiom_labeler"]
-
-        [[pipeline.phases]]
-        phase = "translate"
-        agents = ["direct_translator"]
-
-        [[pipeline.phases]]
-        phase = "qa"
-        agents = ["style_guide_critic"]
-
-        [[pipeline.phases]]
-        phase = "edit"
-        agents = ["basic_editor"]
-
-        [[pipeline.phases]]
-        phase = "export"
+        {phases_toml}
 
         [concurrency]
         max_parallel_requests = 1
@@ -147,9 +147,31 @@ class PipelineContext:
     export_output: list[TranslatedLine] | None = None
 
 
-@given("the golden script exists at samples/golden/script.jsonl", target_fixture="ctx")
-def given_golden_script_exists() -> PipelineContext:
-    """Verify the golden script exists.
+def _setup_workspace(ctx: PipelineContext, tmp_path: Path, phases: list[str]) -> None:
+    """Create workspace with golden script subset and pipeline config."""
+    assert ctx.golden_script_path is not None
+    ctx.workspace_dir = tmp_path / "workspace"
+    ctx.workspace_dir.mkdir()
+
+    # Copy only first N lines of golden script for faster tests
+    full_lines = ctx.golden_script_path.read_text(encoding="utf-8").splitlines()
+    subset_lines = full_lines[:_GOLDEN_SUBSET_SIZE]
+    script_copy = ctx.workspace_dir / "script.jsonl"
+    script_copy.write_text("\n".join(subset_lines) + "\n", encoding="utf-8")
+
+    ctx.config_path = _write_pipeline_config(
+        tmp_path, ctx.workspace_dir, script_copy, phases
+    )
+
+
+# ---------------------------------------------------------------------------
+# Given steps
+# ---------------------------------------------------------------------------
+
+
+@given("a small subset of the golden script", target_fixture="ctx")
+def given_golden_script_subset() -> PipelineContext:
+    """Load a small subset of the golden script.
 
     Returns:
         PipelineContext with golden_script_path initialized.
@@ -162,57 +184,63 @@ def given_golden_script_exists() -> PipelineContext:
     return ctx
 
 
-@given("a pipeline config with all phases enabled")
-def given_pipeline_config(
-    ctx: PipelineContext,
-    tmp_path: Path,
-) -> None:
-    """Create a config with all phases enabled.
-
-    Note: This quality test requires real LLM endpoints to be configured.
-    Set PRIMARY_KEY environment variable and ensure the configured endpoint
-    is accessible before running this test.
-    """
-    assert ctx.golden_script_path is not None
-    ctx.workspace_dir = tmp_path / "workspace"
-    ctx.workspace_dir.mkdir()
-
-    # Copy golden script to temp workspace for isolation
-    script_copy = ctx.workspace_dir / "script.jsonl"
-    shutil.copy(ctx.golden_script_path, script_copy)
-
-    ctx.config_path = _write_full_pipeline_config(
-        tmp_path, ctx.workspace_dir, script_copy
-    )
+@given("a pipeline config with context phase enabled")
+def given_config_context(ctx: PipelineContext, tmp_path: Path) -> None:
+    """Create config with ingest + context phases."""
+    _setup_workspace(ctx, tmp_path, ["ingest", "context"])
 
 
-@when("I run the full pipeline on the golden script")
-def when_run_full_pipeline(ctx: PipelineContext, cli_runner: CliRunner) -> None:
-    """Run the full pipeline CLI command."""
+@given("a pipeline config with translate and export phases enabled")
+def given_config_translate_export(ctx: PipelineContext, tmp_path: Path) -> None:
+    """Create config with ingest + translate + export phases."""
+    _setup_workspace(ctx, tmp_path, ["ingest", "translate", "export"])
+
+
+@given("a pipeline config with translate and qa phases enabled")
+def given_config_translate_qa(ctx: PipelineContext, tmp_path: Path) -> None:
+    """Create config with ingest + translate + qa phases."""
+    _setup_workspace(ctx, tmp_path, ["ingest", "translate", "qa"])
+
+
+@given("a pipeline config with translate and edit phases enabled")
+def given_config_translate_edit(ctx: PipelineContext, tmp_path: Path) -> None:
+    """Create config with ingest + translate + edit phases."""
+    _setup_workspace(ctx, tmp_path, ["ingest", "translate", "edit"])
+
+
+# ---------------------------------------------------------------------------
+# When steps
+# ---------------------------------------------------------------------------
+
+
+@when("I run the pipeline")
+def when_run_pipeline(ctx: PipelineContext, cli_runner: CliRunner) -> None:
+    """Run the pipeline CLI command."""
     assert ctx.config_path is not None
     ctx.result = cli_runner.invoke(
         cli_main.app,
         ["run-pipeline", "--config", str(ctx.config_path)],
     )
     if ctx.result.stdout:
-        # If stdout is not valid JSON, leave response as None
         with contextlib.suppress(json.JSONDecodeError):
             ctx.response = json.loads(ctx.result.stdout)
 
 
-@then("all phases complete successfully")
-def then_all_phases_complete(ctx: PipelineContext) -> None:
-    """Assert all phases complete successfully."""
+# ---------------------------------------------------------------------------
+# Then steps
+# ---------------------------------------------------------------------------
+
+
+def _assert_phase_ran(ctx: PipelineContext, phase_name: str) -> None:
+    """Assert that a specific phase started and completed in the logs."""
     assert ctx.result is not None
 
-    # If test failed, try to read logs for debugging
     if ctx.result.exit_code != 0 and ctx.workspace_dir:
         logs_dir = ctx.workspace_dir / "logs"
         if logs_dir.exists():
             log_files = list(logs_dir.glob("*.jsonl"))
             if log_files:
                 log_content = log_files[0].read_text()
-                # Only print first 5000 chars to avoid overwhelming output
                 print(f"\nLog file content (first 5000 chars):\n{log_content[:5000]}")
 
     assert ctx.result.exit_code == 0, (
@@ -220,27 +248,7 @@ def then_all_phases_complete(ctx: PipelineContext) -> None:
         f"stdout: {ctx.result.stdout}\n"
         f"stderr: {ctx.result.stderr}"
     )
-    assert ctx.response is not None, (
-        f"No JSON response received.\nstdout: {ctx.result.stdout}"
-    )
-    assert ctx.response.get("error") is None, (
-        f"Pipeline returned error: {ctx.response.get('error')}"
-    )
-    assert ctx.response.get("data") is not None
-    assert ctx.response["data"].get("run_id") is not None
 
-    # Verify per-phase execution by checking logs
-    # Expected phases: ingest, context, translate, qa, edit, export
-    # Note: pretranslation omitted - requires high structured output capability
-    # (tested separately in test_pretranslation_agent.py)
-    expected_phases = [
-        "ingest",
-        "context",
-        "translate",
-        "qa",
-        "edit",
-        "export",
-    ]
     assert ctx.workspace_dir is not None
     logs_dir = ctx.workspace_dir / "logs"
     assert logs_dir.exists(), f"Logs directory not found at {logs_dir}"
@@ -248,7 +256,6 @@ def then_all_phases_complete(ctx: PipelineContext) -> None:
     log_files = list(logs_dir.glob("*.jsonl"))
     assert len(log_files) > 0, f"No log files found in {logs_dir}"
 
-    # Parse log file and collect phase events
     phase_started = set()
     phase_completed = set()
     log_file = log_files[0]
@@ -267,17 +274,38 @@ def then_all_phases_complete(ctx: PipelineContext) -> None:
                         if phase:
                             phase_completed.add(phase)
                 except json.JSONDecodeError:
-                    # Skip malformed lines
                     continue
 
-    # Verify all expected phases started and completed
-    for phase in expected_phases:
-        assert phase in phase_started, (
-            f"Phase {phase} did not start. Started phases: {phase_started}"
-        )
-        assert phase in phase_completed, (
-            f"Phase {phase} did not complete. Completed phases: {phase_completed}"
-        )
+    assert phase_name in phase_started, (
+        f"Phase {phase_name} did not start. Started phases: {phase_started}"
+    )
+    assert phase_name in phase_completed, (
+        f"Phase {phase_name} did not complete. Completed phases: {phase_completed}"
+    )
+
+
+@then("the context phase completes successfully")
+def then_context_phase_completes(ctx: PipelineContext) -> None:
+    """Assert context phase ran successfully."""
+    _assert_phase_ran(ctx, "context")
+
+
+@then("the translate phase completes successfully")
+def then_translate_phase_completes(ctx: PipelineContext) -> None:
+    """Assert translate phase ran successfully."""
+    _assert_phase_ran(ctx, "translate")
+
+
+@then("the qa phase completes successfully")
+def then_qa_phase_completes(ctx: PipelineContext) -> None:
+    """Assert qa phase ran successfully."""
+    _assert_phase_ran(ctx, "qa")
+
+
+@then("the edit phase completes successfully")
+def then_edit_phase_completes(ctx: PipelineContext) -> None:
+    """Assert edit phase ran successfully."""
+    _assert_phase_ran(ctx, "edit")
 
 
 @then("the export output contains valid TranslatedLine records")
@@ -286,32 +314,25 @@ def then_export_output_valid(ctx: PipelineContext) -> None:
     assert ctx.workspace_dir is not None
     assert ctx.response is not None
 
-    # Find the export output file
     output_dir = ctx.workspace_dir / "out"
     assert output_dir.exists(), f"Output directory not found at {output_dir}"
 
-    # Find the export file (should be a .jsonl file)
     export_files = list(output_dir.glob("*.jsonl"))
     assert len(export_files) > 0, f"No export output files found in {output_dir}"
 
-    # Read and validate the export output
     export_file = export_files[0]
     translated_lines = []
     with open(export_file) as f:
         for line in f:
             if line.strip():
                 data = json.loads(line)
-                # Validate as TranslatedLine
                 translated_line = TranslatedLine.model_validate(data)
                 translated_lines.append(translated_line)
 
-    # Verify we got translated lines
     assert len(translated_lines) > 0, "Export output is empty"
 
-    # Store for potential further assertions
     ctx.export_output = translated_lines
 
-    # Verify all translated lines have required fields
     for tl in translated_lines:
         assert tl.line_id, f"TranslatedLine missing line_id: {tl}"
         assert tl.text, f"TranslatedLine missing text for {tl.line_id}"

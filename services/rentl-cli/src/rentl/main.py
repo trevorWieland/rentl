@@ -238,7 +238,6 @@ def main(
         False,
         "--version",
         help="Display version information",
-        is_flag=True,
     ),
 ) -> None:
     """Rentl CLI.
