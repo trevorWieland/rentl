@@ -62,7 +62,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Replace the Step 2 API key snippet in `README.md:61`/`README.md:63-72` with copy-pasteable commands that actually write to `.env`; the current `bash` block only assigns shell variables and leaves `.env` unchanged (violates `copy-pasteable-examples`, `standards.md:8-9`) (audit round 1)
   - [x] Fix: Re-validate the Quick Start command snippets in `README.md:48-115` in a clean temp project and keep only commands users can run verbatim for Task 8 acceptance (audit round 1)
   - [x] Fix: Replace the Step 2 `.env` `bash` block in `README.md:63-72` with a command that mutates `.env` (or mark it as `.env` file contents, not runnable shell), because executing the current block leaves `.env` unchanged and still violates `copy-pasteable-examples` (`standards.md:8-9`) (audit round 2; see signposts.md: Task 8, README Quick Start workflow simplification)
-- [ ] Task 9: Developer verification
+- [x] Task 9: Developer verification
   - Run `make all` from workspace root
   - Verify lint, typecheck, and all test tiers pass
   - Test: `make all` exits with code 0
@@ -72,7 +72,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
     - [x] Fix: Blocked by Task 11 (init refactor) and Task 12 (quality test cleanup) — re-run `make all` after those tasks complete
   - [x] Fix: `test_translate_phase_produces_translated_output` times out at 30s during `make all` (walk-spec gate, 2026-02-12). The translate+export pipeline scenario on 1 golden script line does not reliably complete within the 30s quality test budget. Timeout must NOT be increased (`three-tier-test-structure` standard). The test must be restructured or the pipeline path optimized so the scenario reliably finishes within 30s. (see signposts.md: Walk-spec gate: translate pipeline quality test times out)
   - [x] Fix: Re-stabilize `test_translate_phase_produces_translated_output` in `tests/quality/pipeline/test_golden_script_pipeline.py:288`; audit round 3 reproduced intermittent timeout >30s (`make all` failed with `1 failed, 11 passed` and focused reruns produced `PASS`, `FAIL timeout`, `PASS`). Keep timeout at 30s and make runtime deterministic within `three-tier-test-structure` limits. (audit round 3)
-  - [ ] Fix: Re-stabilize `test_translate_phase_produces_translated_output` in `tests/quality/pipeline/test_golden_script_pipeline.py:289`; audit round 4 reproduced full-gate regression with `make all` failing in quality (`1 failed, 11 passed`, `Failed: Timeout (>30.0s)`), while focused reruns still pass, confirming non-deterministic behavior. Keep timeout at 30s and make `make all` deterministic. (audit round 4)
+  - [x] Fix: Re-stabilize `test_translate_phase_produces_translated_output` in `tests/quality/pipeline/test_golden_script_pipeline.py:289`; audit round 4 reproduced full-gate regression with `make all` failing in quality (`1 failed, 11 passed`, `Failed: Timeout (>30.0s)`), while focused reruns still pass, confirming non-deterministic behavior. Keep timeout at 30s and make `make all` deterministic. (audit round 4)
 - [x] Task 10: Add CI publish script
   - Create `scripts/publish.sh` that builds and publishes all packages in correct dependency order
   - Script should: clean dist/, build all 5 packages, publish in order, verify each on PyPI
