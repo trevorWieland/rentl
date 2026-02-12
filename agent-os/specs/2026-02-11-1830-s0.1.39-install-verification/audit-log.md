@@ -27,3 +27,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 1): PASS — All 5 steps executed successfully: version check, init, API config, pipeline run (all phases completed), README verification (5 run, 0 verified)
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5 (fix-now: 1)
 - **Task 11** (round 1): FAIL — Init refactor regressed generated endpoint fields: `api_key_env` no longer matches `.env.example` and `provider_name` is serialized as a `ProviderCapabilities(...)` repr instead of a provider name string.
+- **Task 11** (round 2): PASS — Commit `aa5f663` fixes env-var standardization (`RENTL_LOCAL_API_KEY`) and provider-name serialization (`detect_provider(...).name`) with unit/integration regression coverage passing.
