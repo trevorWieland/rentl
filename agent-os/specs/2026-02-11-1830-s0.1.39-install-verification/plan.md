@@ -49,7 +49,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Test: init completes without errors, config is valid
   - [x] Fix: Add Task 6 command evidence in `signposts.md` with exact `uvx rentl init` output and explicit exit code 0 from a clean directory, including proof of created `rentl.toml`, `.env`, `input/`, `out/`, and `logs/` (audit round 1; `plan.md:44-46`)
   - [x] Fix: Add Task 6 config-valid evidence in `signposts.md` with exact validation command output and explicit exit code 0 (audit round 1; `plan.md:47`)
-- [ ] Task 7: Verify full pipeline run via uvx
+- [x] Task 7: Verify full pipeline run via uvx
   - Run `uvx rentl run-pipeline` on the initialized project
   - Verify pipeline starts and completes without errors
   - Test: pipeline succeeds end-to-end

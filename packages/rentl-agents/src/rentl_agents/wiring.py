@@ -315,11 +315,9 @@ def get_default_prompts_dir() -> Path:
     Returns:
         Path to the prompts directory in rentl-agents package.
     """
-    # Navigate from this file to the package prompts directory
-    # File is in: packages/rentl-agents/src/rentl_agents/wiring.py
-    # Prompts are in: packages/rentl-agents/prompts/
-    package_root = Path(__file__).parent.parent.parent  # Up to rentl-agents/
-    return package_root / "prompts"
+    # File is in: site-packages/rentl_agents/wiring.py (when installed)
+    # Prompts are in: site-packages/rentl_agents/prompts/
+    return Path(__file__).parent / "prompts"
 
 
 def get_default_agents_dir() -> Path:
@@ -328,11 +326,9 @@ def get_default_agents_dir() -> Path:
     Returns:
         Path to the agents directory in rentl-agents package.
     """
-    # Navigate from this file to the package agents directory
-    # File is in: packages/rentl-agents/src/rentl_agents/wiring.py
-    # Agents are in: packages/rentl-agents/agents/
-    package_root = Path(__file__).parent.parent.parent  # Up to rentl-agents/
-    return package_root / "agents"
+    # File is in: site-packages/rentl_agents/wiring.py (when installed)
+    # Agents are in: site-packages/rentl_agents/agents/
+    return Path(__file__).parent / "agents"
 
 
 def _with_required_tools_from_profile(

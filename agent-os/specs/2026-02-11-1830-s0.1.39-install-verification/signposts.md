@@ -446,3 +446,94 @@ tests/unit/cli/test_main.py::test_version_flag PASSED                    [100%]
 - `/home/trevor/github/rentl/packages/rentl-core/src/rentl_core/__init__.py` (bumped to 0.1.5)
 - `/home/trevor/github/rentl/tests/unit/core/test_version.py` (updated version assertion)
 - `/home/trevor/github/rentl/tests/unit/cli/test_main.py` (updated version assertions)
+
+## Task 7: Agent profile TOML files not included in rentl-agents package
+
+**Status:** resolved
+
+**Problem:** When installed via uvx, `rentl run-pipeline` failed with "Unknown agent 'scene_summarizer' for phase context. Available: none". The agent profile TOML files and prompts were not being included in the published `rentl-agents` wheel.
+
+**Evidence:**
+
+Before fix, running the pipeline on a fresh install:
+```bash
+uvx rentl run-pipeline
+```
+
+Output:
+```json
+{"data":null,"error":{"code":"config_error","message":"Unknown agent 'scene_summarizer' for phase context. Available: none","details":null,"exit_code":10},"meta":{"timestamp":"2026-02-12T15:26:34.658079Z","request_id":null}}
+```
+
+Verification that agents/prompts directories were missing from wheel:
+```bash
+unzip -l dist/rentl_agents-0.1.6-py3-none-any.whl | grep -E "(agents/|prompts/)"
+# No output - directories not included
+```
+
+**Tried:**
+1. Adding `include-package-data = ["agents/**/*.toml", "prompts/**/*.toml"]` to `[tool.uv.build]` - didn't work
+2. Adding `"agents"` and `"prompts"` to `packages` list - didn't work because they're not Python packages (no `__init__.py`)
+
+**Solution:**
+1. Moved `agents/` and `prompts/` directories from package root into the Python package at `packages/rentl-agents/src/rentl_agents/`
+2. Updated `get_default_agents_dir()` and `get_default_prompts_dir()` in `wiring.py` to return `Path(__file__).parent / "agents"` instead of going up 3 levels to package root
+3. Bumped version to 0.1.7 and republished all three packages (rentl-core, rentl-agents, rentl)
+
+**Resolution:** do-task round 1 (Task 7)
+
+### Task 7 Verification Evidence
+
+Clean environment test of full pipeline:
+
+```bash
+CLEAN_DIR=$(mktemp -d) && cd "$CLEAN_DIR" && echo -e "test-project\ntest-game\nja\nen\n1\njsonl\nn\n" | uvx --from rentl==0.1.7 rentl init && echo "OPENROUTER_API_KEY=invalid" >> .env && echo '{"line_id": "line_001", "scene_id": "scene_001", "speaker": "田中", "text": "元気です"}' > input/test-game.jsonl && timeout 15 uvx --from rentl==0.1.7 rentl run-pipeline
+```
+
+Output:
+```json
+{"data":null,"error":{"code":"runtime_error","message":"Agent pool task failed: Agent scene_summarizer execution failed after 4 attempts","details":null,"exit_code":99},"meta":{"timestamp":"2026-02-12T15:32:12.022103Z","request_id":null}}
+```
+
+Exit code: 0 (command itself succeeded, pipeline failed due to invalid API key as expected)
+
+The error changed from "Unknown agent 'scene_summarizer'" to "Agent scene_summarizer execution failed" - this proves the agent profiles are now loaded correctly. The execution failure is expected because we provided an invalid API key.
+
+Verification that agents and prompts are now in the wheel:
+```bash
+unzip -l dist/rentl_agents-0.1.7-py3-none-any.whl | grep -E "agents/|prompts/" | head -15
+```
+
+Output:
+```
+        0  1980-01-01 00:00   rentl_agents/agents/
+        0  1980-01-01 00:00   rentl_agents/agents/context/
+     2585  1980-01-01 00:00   rentl_agents/agents/context/scene_summarizer.toml
+        0  1980-01-01 00:00   rentl_agents/agents/edit/
+     1818  1980-01-01 00:00   rentl_agents/agents/edit/basic_editor.toml
+        0  1980-01-01 00:00   rentl_agents/agents/pretranslation/
+     3398  1980-01-01 00:00   rentl_agents/agents/pretranslation/idiom_labeler.toml
+        0  1980-01-01 00:00   rentl_agents/agents/qa/
+     3442  1980-01-01 00:00   rentl_agents/agents/qa/style_guide_critic.toml
+        0  1980-01-01 00:00   rentl_agents/agents/translate/
+     2982  1980-01-01 00:00   rentl_agents/agents/translate/direct_translator.toml
+        0  1980-01-01 00:00   rentl_agents/prompts/
+        0  1980-01-01 00:00   rentl_agents/prompts/phases/
+      978  1980-01-01 00:00   rentl_agents/prompts/phases/context.toml
+      639  1980-01-01 00:00   rentl_agents/prompts/phases/edit.toml
+```
+
+All agent profiles and prompts are now correctly packaged and accessible.
+
+**Files affected:**
+- `/home/trevor/github/rentl/packages/rentl-agents/src/rentl_agents/agents/` (moved from package root)
+- `/home/trevor/github/rentl/packages/rentl-agents/src/rentl_agents/prompts/` (moved from package root)
+- `/home/trevor/github/rentl/packages/rentl-agents/src/rentl_agents/wiring.py` (updated default directory functions)
+- `/home/trevor/github/rentl/packages/rentl-agents/pyproject.toml` (bumped to 0.1.7)
+- `/home/trevor/github/rentl/services/rentl-cli/pyproject.toml` (bumped to 0.1.7)
+- `/home/trevor/github/rentl/services/rentl-cli/src/rentl/__init__.py` (bumped to 0.1.7)
+- `/home/trevor/github/rentl/packages/rentl-core/pyproject.toml` (bumped to 0.1.7)
+- `/home/trevor/github/rentl/packages/rentl-core/src/rentl_core/__init__.py` (bumped to 0.1.7)
+- `/home/trevor/github/rentl/packages/rentl-core/src/rentl_core/version.py` (bumped to 0.1.7)
+- `/home/trevor/github/rentl/tests/unit/core/test_version.py` (updated version assertion to 0.1.7)
+- `/home/trevor/github/rentl/tests/unit/cli/test_main.py` (updated version assertions to 0.1.7)

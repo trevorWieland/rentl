@@ -1,6 +1,6 @@
 [project]
 name = "rentl"
-version = "0.1.5"
+version = "0.1.7"
 description = "CLI for rentl"
 requires-python = ">=3.14"
 dependencies = [
