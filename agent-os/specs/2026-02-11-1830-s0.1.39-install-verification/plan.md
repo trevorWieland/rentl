@@ -62,7 +62,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Replace the Step 2 API key snippet in `README.md:61`/`README.md:63-72` with copy-pasteable commands that actually write to `.env`; the current `bash` block only assigns shell variables and leaves `.env` unchanged (violates `copy-pasteable-examples`, `standards.md:8-9`) (audit round 1)
   - [x] Fix: Re-validate the Quick Start command snippets in `README.md:48-115` in a clean temp project and keep only commands users can run verbatim for Task 8 acceptance (audit round 1)
   - [x] Fix: Replace the Step 2 `.env` `bash` block in `README.md:63-72` with a command that mutates `.env` (or mark it as `.env` file contents, not runnable shell), because executing the current block leaves `.env` unchanged and still violates `copy-pasteable-examples` (`standards.md:8-9`) (audit round 2; see signposts.md: Task 8, README Quick Start workflow simplification)
-- [x] Task 9: Developer verification
+- [ ] Task 9: Developer verification
   - Run `make all` from workspace root
   - Verify lint, typecheck, and all test tiers pass
   - Test: `make all` exits with code 0
@@ -74,6 +74,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Re-stabilize `test_translate_phase_produces_translated_output` in `tests/quality/pipeline/test_golden_script_pipeline.py:288`; audit round 3 reproduced intermittent timeout >30s (`make all` failed with `1 failed, 11 passed` and focused reruns produced `PASS`, `FAIL timeout`, `PASS`). Keep timeout at 30s and make runtime deterministic within `three-tier-test-structure` limits. (audit round 3)
   - [x] Fix: Re-stabilize `test_translate_phase_produces_translated_output` in `tests/quality/pipeline/test_golden_script_pipeline.py:289`; audit round 4 reproduced full-gate regression with `make all` failing in quality (`1 failed, 11 passed`, `Failed: Timeout (>30.0s)`), while focused reruns still pass, confirming non-deterministic behavior. Keep timeout at 30s and make `make all` deterministic. (audit round 4)
   - [x] Fix: Re-stabilize `test_translate_phase_produces_translated_output` under repeated runs; audit round 5 reproduced a new intermittent failure (`exit_code: 99`) with `Agent direct_translator FAILED: Hit request limit (4)` on run 3/3 while adjacent reruns passed (failing assertion at `tests/quality/pipeline/test_golden_script_pipeline.py:317`; request-budget derivation at `packages/rentl-agents/src/rentl_agents/wiring.py:1463`). Keep timeout at 30s and make the quality gate deterministic. (audit round 5)
+  - [ ] Fix: Re-stabilize `test_translate_phase_produces_translated_output` under repeated runs; audit round 6 reproduced two failures in a 3-run sequence (`Failed: Timeout (>30.0s)` at `tests/quality/pipeline/test_golden_script_pipeline.py:289` and `Pipeline failed with exit code 99` at `tests/quality/pipeline/test_golden_script_pipeline.py:317` with `Agent direct_translator execution failed after 1 attempts`). Keep timeout at 30s and make the quality gate deterministic in repeated executions. (audit round 6)
 - [x] Task 10: Add CI publish script
   - Create `scripts/publish.sh` that builds and publishes all packages in correct dependency order
   - Script should: clean dist/, build all 5 packages, publish in order, verify each on PyPI
