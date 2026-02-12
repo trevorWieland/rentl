@@ -70,7 +70,20 @@ Key stack locations from the failing run:
 
 **Resolution:** do-task round 2
 
-Verification evidence:
+Verification evidence (uv sync):
+```bash
+uv sync
+```
+
+Output:
+```
+Resolved 194 packages in 24ms
+Audited 190 packages in 54ms
+```
+
+Exit code: 0
+
+Verification evidence (make all):
 ```bash
 make all
 ```
