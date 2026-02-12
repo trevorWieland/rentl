@@ -817,7 +817,7 @@ This satisfies both `spec.md:35` (make all passes) and `standards.md:11-12` (all
 
 ## Task 10: Dry-run branch skips uv publish checks
 
-**Status:** unresolved
+**Status:** resolved
 
 **Problem:** `scripts/publish.sh --dry-run` reports success without actually running `uv publish --dry-run` for each package.
 
@@ -846,3 +846,68 @@ Output excerpt:
 No `uv publish --dry-run` lines appear in trace output.
 
 **Impact:** Task 10's dry-run safety check is ineffective; script can pass audit while skipping the publish-validation step it is intended to exercise.
+
+**Tried:**
+The issue was that using `&&` in the condition caused it to short-circuit. When `source .env` succeeds (exit 0), the `&&` operator evaluates the whole expression as true without running the second command.
+
+**Solution:**
+Separated the `source .env` command from the condition check. Now the flow is:
+1. Source .env to load PYPI_TOKEN
+2. Run uv publish --dry-run in the condition check
+
+Changed from:
+```bash
+if ! source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run "$wheel_file" "$sdist_file"; then
+```
+
+To:
+```bash
+# Source .env to load PYPI_TOKEN
+source .env
+if ! UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run "$wheel_file" "$sdist_file"; then
+```
+
+**Resolution:** do-task round 1
+
+### Task 10 Verification Evidence
+
+Dry-run execution after fix:
+```bash
+bash scripts/publish.sh --dry-run
+```
+
+Output excerpt (showing uv publish actually executes):
+```
+▶ Would publish rentl-schemas...
+Checking 2 files against https://upload.pypi.org/legacy/
+Checking rentl_schemas-0.1.0-py3-none-any.whl (40.5KiB)
+Checking rentl_schemas-0.1.0.tar.gz (29.4KiB)
+▶ Would publish rentl-core...
+Checking 2 files against https://upload.pypi.org/legacy/
+Checking rentl_core-0.1.7-py3-none-any.whl (76.8KiB)
+Checking rentl_core-0.1.7.tar.gz (58.2KiB)
+▶ Would publish rentl-llm...
+Checking 2 files against https://upload.pypi.org/legacy/
+Checking rentl_llm-0.1.0-py3-none-any.whl (2.7KiB)
+Checking rentl_llm-0.1.0.tar.gz (1.7KiB)
+▶ Would publish rentl-io...
+Checking 2 files against https://upload.pypi.org/legacy/
+Checking rentl_io-0.1.0.tar.gz (13.7KiB)
+Checking rentl_io-0.1.0-py3-none-any.whl (23.5KiB)
+▶ Would publish rentl-agents...
+Checking 2 files against https://upload.pypi.org/legacy/
+Checking rentl_agents-0.1.7.tar.gz (43.9KiB)
+Checking rentl_agents-0.1.7-py3-none-any.whl (61.8KiB)
+▶ Would publish rentl...
+Checking 2 files against https://upload.pypi.org/legacy/
+Checking rentl-0.1.7.tar.gz (29.6KiB)
+Checking rentl-0.1.7-py3-none-any.whl (30.7KiB)
+▶ Dry run completed successfully
+```
+
+Exit code: 0
+
+Every package now correctly invokes `uv publish --dry-run`, evidenced by the "Checking ... files against https://upload.pypi.org/legacy/" output for each package.
+
+**Files affected:**
+- `/home/trevor/github/rentl/scripts/publish.sh` (fixed dry-run condition)

@@ -102,7 +102,9 @@ if [[ "$DRY_RUN" == "true" ]]; then
     wheel_file=$(ls dist/"${wheel_name}"-*.whl | head -1)
     sdist_file=$(ls dist/"${wheel_name}"-*.tar.gz | head -1)
 
-    if ! source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run "$wheel_file" "$sdist_file"; then
+    # Source .env to load PYPI_TOKEN
+    source .env
+    if ! UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run "$wheel_file" "$sdist_file"; then
       log_error "Dry run failed for $pkg"
       exit 1
     fi
