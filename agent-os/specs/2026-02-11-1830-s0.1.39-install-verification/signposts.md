@@ -1911,3 +1911,39 @@ After fix: 9 quality tests (5 agent evals, 1 pipeline scenario, 2 preset validat
 
 **Files affected:**
 - `tests/quality/features/pipeline/golden_script_pipeline.feature` (removed 3 scenarios, kept translate+export)
+
+## Quality pipeline test: request limit exhaustion with timeout_s=10
+
+**Status:** resolved
+
+**Task:** Post-task quality gate fix (make all failure)
+
+**Problem:** `test_translate_phase_produces_translated_output` failed with `Agent direct_translator FAILED: Hit request limit (3). Model repeatedly failed to produce valid structured output.` The quality model (`qwen/qwen3-vl-30b-a3b-instruct`) sometimes needs more than 1 output validation retry to produce valid structured output for the `TranslationResultList` schema.
+
+**Evidence:**
+
+`make all` quality tier output:
+```
+FAILED tests/quality/pipeline/test_golden_script_pipeline.py::test_translate_phase_produces_translated_output
+E   AssertionError: Pipeline failed with exit code 99.
+E     stdout: {"data":null,"error":{"code":"runtime_error","message":"Agent pool task failed: Agent direct_translator FAILED: Hit request limit (3). Model repeatedly failed to produce valid structured output."}}
+```
+
+With `timeout_s = 10`, the wiring formula at `wiring.py:1462` produces:
+- `max_requests = min(30, max(2, int(30/10))) = 3`
+- `max_output_retries = max(1, 3-2) = 1`
+
+Only 1 output validation retry is insufficient for the quality model.
+
+**Tried:** N/A — root cause clear from the formula and error.
+
+**Solution:** Reduced `timeout_s` from 10 to 6 in the test's endpoint config (`test_golden_script_pipeline.py:142`). With `timeout_s = 6`:
+- `max_requests = min(30, max(2, int(30/6))) = 5`
+- `max_output_retries = max(1, 5-2) = 3`
+- Worst case: 5 × 6s = 30s (still within 30s test budget)
+- 3 output retries gives the model sufficient chances to produce valid structured output
+
+**Resolution:** do-task quality gate fix
+
+**Files affected:**
+- `tests/quality/pipeline/test_golden_script_pipeline.py` (reduced endpoint timeout_s from 10 to 6)
