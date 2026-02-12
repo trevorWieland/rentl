@@ -58,17 +58,23 @@ This interactive command will:
 
 ### 2. Add your API key
 
-Edit the `.env` file in your project directory with your API key:
+Edit the `.env` file in your project directory and add your API key. The file will already have a placeholder - replace it with your actual key:
 
 ```bash
-# For OpenRouter
+# For OpenRouter (replace "your_key_here" with your actual key)
 OPENROUTER_API_KEY=your_key_here
 
-# For OpenAI
+# For OpenAI (replace "your_key_here" with your actual key)
 OPENAI_API_KEY=your_key_here
 
 # For local endpoints (Ollama, LM Studio)
 RENTL_LOCAL_API_KEY=placeholder
+```
+
+Or use sed to replace the placeholder:
+
+```bash
+sed -i 's/OPENROUTER_API_KEY=.*/OPENROUTER_API_KEY=your_key_here/' .env
 ```
 
 ### 3. Verify your setup
@@ -94,28 +100,17 @@ Executes the full localization pipeline:
 - Builds context and analyzes source text
 - Translates with your configured model
 - Runs QA checks on the output
-- Tracks progress and status throughout
+- Exports translated lines to `out/run-{run_id}/{target_language}.jsonl`
 
-Once the pipeline completes, export the translated lines to your preferred format. First, capture the pipeline output to extract the edit phase artifact:
+Once the pipeline completes, your translated output is ready in the `out/` directory. Check the pipeline output for the run ID and find your translated files:
 
 ```bash
-# Get the run status with JSON output
-RUN_STATUS=$(uvx rentl status --json)
+# List output files
+ls -la out/run-*/
 
-# Extract the edit phase artifact path for target language (e.g., "en")
-EDIT_ARTIFACT=$(echo "$RUN_STATUS" | jq -r '.data.run_state.artifacts[] | select(.phase == "edit") | .artifacts[0].path')
-
-# Extract the edited_lines array from the EditPhaseOutput and write as JSONL
-jq -c '.edited_lines[]' "$EDIT_ARTIFACT" > translated_lines.jsonl
-
-# Export to CSV (or use --format jsonl/txt)
-uvx rentl export \
-  --input translated_lines.jsonl \
-  --output translations.csv \
-  --format csv
+# View translated lines
+cat out/run-*/en.jsonl
 ```
-
-The export command supports multiple formats (csv, jsonl, txt) and writes to the specified output path.
 
 **Note:** If you installed from source, replace `uvx rentl` with `uv run rentl` in all commands above.
 
