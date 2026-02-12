@@ -40,7 +40,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
 - [x] Task 5: Verify uvx installation on fresh environment
   - On a machine without rentl installed, run `uvx rentl version`
   - Test: version outputs correctly (e.g., `rentl v0.1.4`)
-- [ ] Task 6: Verify `rentl init` end-to-end
+- [x] Task 6: Verify `rentl init` end-to-end
   - Run `uvx rentl init` in a clean directory
   - Verify rentl.toml, .env, workspace directories are created
   - Verify API key prompt works
