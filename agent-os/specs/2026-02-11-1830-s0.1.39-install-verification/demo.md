@@ -16,4 +16,10 @@ rentl should be installable and runnable in under a minute by someone who has ne
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Fresh install verification (2026-02-12 10:10)
+- Step 1: PASS — `uvx rentl --version` output "rentl v0.1.7", exit 0
+- Step 2: PASS — `uvx rentl init` created rentl.toml, .env, input/, out/, logs/, exit 0
+- Step 3: PASS — Valid API key configured in .env, exit 0
+- Step 4: PASS — `uvx rentl run-pipeline` completed successfully with status "completed", all 7 phases passed (ingest, context, pretranslation, translate, qa, edit, export), error: null, exit 0
+- Step 5: PASS — README commands at lines 21, 49, 77, 95 match demo steps 1-4 exactly and are copy-pasteable
+- **Overall: PASS**

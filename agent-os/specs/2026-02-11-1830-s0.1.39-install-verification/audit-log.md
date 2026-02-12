@@ -24,3 +24,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 9** (round 2): PASS — Commit `67f9af5` adds persisted `make all` evidence in `signposts.md:764` with explicit `Exit code: 0` and passing format/lint/type/unit/integration/quality tiers, satisfying `spec.md:35` and `standards.md:11-12`.
 - **Task 10** (round 1): FAIL — `scripts/publish.sh --dry-run` returns 0 but does not execute `uv publish --dry-run` because of a broken condition at `scripts/publish.sh:105`, so dry-run publish validation is not actually performed.
 - **Task 10** (round 2): FAIL — Commit `cdb6860` fixes `uv publish --dry-run` invocation but introduces an unconditional `source .env` at `scripts/publish.sh:106`; dry-run now exits 1 with `.env: No such file or directory` when `.env` is absent.
+- **Demo** (run 1): PASS — All 5 steps executed successfully: version check, init, API config, pipeline run (all phases completed), README verification (5 run, 0 verified)
