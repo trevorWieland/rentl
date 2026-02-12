@@ -1,10 +1,13 @@
 """Unit tests for EvalSetLoader."""
 
 import asyncio
+import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import httpx
 import pytest
+import respx
 
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
 from rentl_core.benchmark.eval_sets.loader import EvalSetLoader
@@ -82,10 +85,39 @@ class TestEvalSetLoader:
 
         This validates that the configured demo slice meets the Task 3
         requirement for mixed content types suitable for parser/judge testing.
+        Uses a mocked HTTP response to avoid network I/O in unit tests.
 
         Note: Menu choices may not be present in translation files as they're
         often handled separately from translated text blocks.
         """
+        # Build a synthetic Ren'Py translation file with dialogue, narration,
+        # and multiple speakers within lines 1-180.
+        translate_blocks = []
+        for i in range(1, 26):
+            if i % 3 == 0:
+                # Narration (no speaker)
+                translate_blocks.append(
+                    f"translate jp block_{i}:\n"
+                    f'    # "Original narration {i}"\n'
+                    f'    "ナレーション {i}"\n\n'
+                )
+            elif i % 3 == 1:
+                # Speaker A dialogue
+                translate_blocks.append(
+                    f"translate jp block_{i}:\n"
+                    f'    # "Original line {i}"\n'
+                    f'    hi "こんにちは {i}"\n\n'
+                )
+            else:
+                # Speaker B dialogue
+                translate_blocks.append(
+                    f"translate jp block_{i}:\n"
+                    f'    # "Original line {i}"\n'
+                    f'    ke "おはよう {i}"\n\n'
+                )
+        synthetic_content = "".join(translate_blocks).encode()
+        synthetic_hash = hashlib.sha256(synthetic_content).hexdigest()
+
         # Load slice config
         slices_config = EvalSetLoader.load_slices("katawa_shoujo")
         demo_slice = slices_config.slices["demo"]
@@ -96,15 +128,20 @@ class TestEvalSetLoader:
         script_file = script_spec.file
         line_start, line_end = script_spec.line_range
 
-        # Download the script (with hash validation)
-        manifest = EvalSetLoader.load_manifest("katawa_shoujo")
+        # Build a manifest with matching hash for the synthetic content
+        mock_manifest = {script_file: synthetic_hash}
 
         with TemporaryDirectory() as tmpdir:
             downloader = KatawaShoujoDownloader(cache_dir=Path(tmpdir))
 
-            script_paths = asyncio.run(
-                downloader.download_scripts([script_file], manifest.scripts)
-            )
+            url = f"{downloader.KSRE_RAW_BASE}/{script_file}"
+            with respx.mock:
+                respx.get(url).mock(
+                    return_value=httpx.Response(200, content=synthetic_content)
+                )
+                script_paths = asyncio.run(
+                    downloader.download_scripts([script_file], mock_manifest)
+                )
 
             # Parse the script
             parser = RenpyDialogueParser()
