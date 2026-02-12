@@ -2025,3 +2025,82 @@ Only 2 output retries, which is insufficient for the quality model's structured 
 
 **Files affected:**
 - `tests/quality/pipeline/test_golden_script_pipeline.py` (reduced endpoint timeout_s from 6 to 5)
+
+## Task 9 Fix: Remove wiring formula that artificially limited retries
+
+**Status:** resolved
+
+**Task:** Task 9, fix item from audit round 6
+
+**Problem:** Audit round 6 reproduced two failure modes in a 3-run sequence: (1) `Failed: Timeout (>30.0s)` and (2) `Pipeline failed with exit code 99` with `Agent direct_translator execution failed after 1 attempts`. The root cause was the wiring formula in `_build_profile_agent_config` that derived `max_requests_per_run` and `max_output_retries` from `timeout_s`. With `timeout_s = 5`, the formula gave `max_requests = 5` and `max_output_retries = 3`. This created two problems:
+
+1. **Tight budget**: 5 requests × 5s = 25s left almost no headroom for pipeline overhead, causing timeouts when the model needed all retries.
+2. **Short per-request timeout**: 5s was too aggressive for the LLM endpoint, causing individual requests to time out and propagate as "execution failed after 1 attempts" (since `max_retries = 0`).
+
+Previous rounds (3-9) tried increasingly complex formula tuning — adjusting `llm_budget_s` from 30→25→20, `timeout_s` from 20→15→10→8→7→6→5, and minimum floors for `max_requests`. Each fix traded one failure mode for another because the formula created a tight coupling between per-request timeout, retry budget, and total test budget.
+
+**Evidence:**
+
+Wiring formula before fix (`wiring.py:1455-1473`):
+```python
+timeout_s = endpoint.timeout_s
+llm_budget_s = 25
+if timeout_s < 60:
+    max_requests = min(30, max(2, int(llm_budget_s / timeout_s)))
+    max_output_retries = max(1, max_requests - 2)
+```
+
+With `timeout_s = 5`: `max_requests = 5`, `max_output_retries = 3`. Worst case = 25s + overhead → exceeds 30s.
+
+**Solution:** Removed the wiring formula entirely. The function now uses `ProfileAgentConfig` defaults (`max_requests_per_run = 30`, `max_output_retries = 10`) and lets the test's per-request timeout + pytest's 30s timeout provide the safety net. Also raised the test endpoint `timeout_s` from 5 to 10 to give each LLM request adequate time.
+
+Rationale:
+- The pytest 30s timeout is the hard safety net — it kills the test if total time exceeds budget
+- The per-request timeout (10s) prevents individual requests from hanging
+- The model gets sufficient output retries (10) for structured output validation
+- In typical cases, the test completes in 3-8s (1-2 requests × 3-5s)
+- The formula was an optimization that created 6 rounds of whack-a-mole tuning
+
+**Resolution:** do-task round 10
+
+### Verification Evidence
+
+3 consecutive focused test runs:
+- Run 1: PASSED in 3.36s
+- Run 2: PASSED in 3.29s
+- Run 3: PASSED in 7.10s
+
+Full verification gate:
+```bash
+make all
+```
+
+Output:
+```
+🚀 Starting Full Verification...
+🎨 Formatting code...
+  Checking...
+✅ format Passed
+🛠️  Fixing lints...
+  Checking...
+✅ lint Passed
+types checking types...
+  Checking...
+✅ type Passed
+🧪 Running unit tests with coverage...
+  Checking...
+✅  Unit Tests 838 passed
+🔌 Running integration tests...
+  Checking...
+✅  Integration Tests 91 passed
+💎 Running quality tests...
+  Checking...
+✅  Quality Tests 9 passed
+🎉 All Checks Passed!
+```
+
+Exit code: 0
+
+**Files affected:**
+- `packages/rentl-agents/src/rentl_agents/wiring.py` (removed retry-limiting formula from `_build_profile_agent_config`)
+- `tests/quality/pipeline/test_golden_script_pipeline.py` (raised endpoint timeout_s from 5 to 10)

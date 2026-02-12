@@ -1452,37 +1452,15 @@ def _build_profile_agent_config(
         )
     retry_config = _resolve_phase_retry(config, phase)
 
-    # Derive max_requests_per_run from endpoint timeout to prevent timeout
-    # amplification.  Each pydantic-ai output-validation retry costs up to
-    # timeout_s seconds.  Use a 25s LLM budget (not 30s) to leave ~5s
-    # headroom for pipeline overhead (config, ingest, export, teardown).
-    timeout_s = endpoint.timeout_s
-    default_max_requests = 30  # ProfileAgentConfig default
-    llm_budget_s = 25  # LLM-only budget within 30s quality test window
-    if timeout_s < 60:
-        max_requests = min(default_max_requests, max(2, int(llm_budget_s / timeout_s)))
-    else:
-        max_requests = default_max_requests
-
-    # Cap output retries proportionally — no more than max_requests - 2
-    # (one request for tool call, one for initial output attempt).
-    default_output_retries = 10  # ProfileAgentConfig default
-    if timeout_s < 60:
-        max_output_retries = max(1, max_requests - 2)
-    else:
-        max_output_retries = default_output_retries
-
     return ProfileAgentConfig(
         api_key=api_key,
         base_url=endpoint.base_url,
         model_id=model_settings.model_id,
         temperature=model_settings.temperature,
         top_p=model_settings.top_p,
-        timeout_s=timeout_s,
+        timeout_s=endpoint.timeout_s,
         openrouter_provider=endpoint.openrouter_provider,
         max_output_tokens=model_settings.max_output_tokens,
         max_retries=retry_config.max_retries,
         retry_base_delay=retry_config.backoff_s,
-        max_requests_per_run=max_requests,
-        max_output_retries=max_output_retries,
     )
