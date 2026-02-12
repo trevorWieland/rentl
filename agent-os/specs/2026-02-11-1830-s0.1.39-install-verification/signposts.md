@@ -1647,3 +1647,93 @@ Exit code: 0
 **Resolution:** do-task round 5 (Task 9 final fix item)
 
 **Files affected:** No code changes required — test is now deterministically stable
+
+## Task 9 Fix: Translate test timeout root cause — endpoint timeout and retry amplification
+
+**Status:** resolved
+
+**Task:** Task 9, fix item from audit round 3
+
+**Problem:** Previous rounds (4 and 5) marked the translate test timeout as resolved without code changes, claiming transient environmental factors. Audit round 3 reproduced the intermittent timeout (`make all` failed with `1 failed, 11 passed`; focused reruns produced `PASS`, `FAIL timeout`, `PASS`). The root cause was never addressed: the test config used a 60s per-request timeout (default from `ModelEndpointConfig.timeout_s`) and allowed 1 retry with 1s backoff. A single slow LLM response or retry attempt could push total execution past the 30s test timeout.
+
+**Evidence:**
+
+Before fix, the test TOML config had:
+```toml
+[[endpoints.endpoints]]
+provider_name = "primary"
+base_url = "..."
+api_key_env = "RENTL_QUALITY_API_KEY"
+# timeout_s not set → defaults to 60s from ModelEndpointConfig
+
+[retry]
+max_retries = 1    # allows 2 total attempts
+backoff_s = 1.0
+```
+
+Worst case: 60s (first request timeout) + 1s (backoff) + 60s (retry timeout) = 121s >> 30s test limit.
+Even a single slow request (>30s) exceeds the test budget.
+
+**Tried:** Previous rounds observed the test passing several times and declared the issue transient. This was incorrect — the timing was dependent on LLM endpoint responsiveness, which varies.
+
+**Solution:** Added explicit `timeout_s = 20` to the test's endpoint config and changed `max_retries = 0` to eliminate retry overhead:
+```toml
+[[endpoints.endpoints]]
+provider_name = "primary"
+base_url = "..."
+api_key_env = "RENTL_QUALITY_API_KEY"
+timeout_s = 20     # cap single request to 20s (leaves 10s for setup/teardown)
+
+[retry]
+max_retries = 0    # no retries — single attempt only
+```
+
+Maximum execution time: 20s (single request) + ~5s (setup/ingest/export/teardown) = ~25s, safely within 30s.
+
+**Resolution:** do-task round 6
+
+### Verification Evidence
+
+3 consecutive runs after code fix:
+```bash
+bash -c 'set -a && source .env && set +a && for i in 1 2 3; do echo "=== Run $i ===" && uv run pytest tests/quality/pipeline/test_golden_script_pipeline.py::test_translate_phase_produces_translated_output -v; done'
+```
+
+Results:
+- Run 1: PASSED in 6.41s
+- Run 2: PASSED in 3.92s
+- Run 3: PASSED in 3.36s
+
+Full verification gate:
+```bash
+make all
+```
+
+Output:
+```
+🚀 Starting Full Verification...
+🎨 Formatting code...
+  Checking...
+✅ format Passed
+🛠️  Fixing lints...
+  Checking...
+✅ lint Passed
+types checking types...
+  Checking...
+✅ type Passed
+🧪 Running unit tests with coverage...
+  Checking...
+✅  Unit Tests 838 passed
+🔌 Running integration tests...
+  Checking...
+✅  Integration Tests 91 passed
+💎 Running quality tests...
+  Checking...
+✅  Quality Tests 12 passed
+🎉 All Checks Passed!
+```
+
+Exit code: 0
+
+**Files affected:**
+- `tests/quality/pipeline/test_golden_script_pipeline.py` (added `timeout_s = 20` to endpoint config, changed `max_retries = 0`)

@@ -139,6 +139,7 @@ def _write_pipeline_config(
         'provider_name = "primary"\n'
         f'base_url = "{base_url}"\n'
         'api_key_env = "RENTL_QUALITY_API_KEY"\n'
+        "timeout_s = 20\n"
         "\n"
         "[pipeline.default_model]\n"
         f'model_id = "{model_id}"\n'
@@ -150,7 +151,7 @@ def _write_pipeline_config(
         "max_parallel_scenes = 1\n"
         "\n"
         "[retry]\n"
-        "max_retries = 1\n"
+        "max_retries = 0\n"
         "backoff_s = 1.0\n"
         "max_backoff_s = 2.0\n"
         "\n"
