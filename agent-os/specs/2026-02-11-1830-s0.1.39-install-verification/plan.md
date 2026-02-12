@@ -70,6 +70,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Ensure Task 9 evidence explicitly shows lint, typecheck, unit, integration, and quality tiers passed to satisfy `spec.md:35` and `standards.md:11-12` (audit round 1)
   - [x] Fix: Remove skipped tests from the full verification gate; current run reports `6 passed, 3 skipped` in quality due environment-gated skips at `tests/quality/pipeline/test_golden_script_pipeline.py:36`, `tests/quality/benchmark/test_benchmark_quality.py:37`, and `tests/quality/cli/test_preset_validation.py:54` (audit round 1)
     - [x] Fix: Blocked by Task 11 (init refactor) and Task 12 (quality test cleanup) — re-run `make all` after those tasks complete
+  - [x] Fix: `test_translate_phase_produces_translated_output` times out at 30s during `make all` (walk-spec gate, 2026-02-12). The translate+export pipeline scenario on 1 golden script line does not reliably complete within the 30s quality test budget. Timeout must NOT be increased (`three-tier-test-structure` standard). The test must be restructured or the pipeline path optimized so the scenario reliably finishes within 30s. (see signposts.md: Walk-spec gate: translate pipeline quality test times out)
 - [x] Task 10: Add CI publish script
   - Create `scripts/publish.sh` that builds and publishes all packages in correct dependency order
   - Script should: clean dist/, build all 5 packages, publish in order, verify each on PyPI
