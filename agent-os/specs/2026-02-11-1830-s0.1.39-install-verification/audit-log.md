@@ -34,3 +34,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 2): FAIL — Task 11 env var standardization changes exist in local codebase but not in published PyPI v0.1.7; `uvx rentl==0.1.7 init` generates `OPENROUTER_API_KEY` instead of standardized `RENTL_LOCAL_API_KEY` (4 run, 0 verified, 1 failed)
 - **Task 13** (round 1): PASS — Commit `d6d8057` applies lock-step `0.1.8` version updates across all publishable packages and records Task 11 env-var verification evidence for `uvx --from rentl==0.1.8 rentl init` in `signposts.md`.
 - **Demo** (run 4): PASS — All 5 [RUN] steps executed successfully: version check (v0.1.8), init (standardized RENTL_LOCAL_API_KEY), API config, pipeline run (all 7 phases completed with 2 lines translated), README verification (5 run, 0 verified)
+- **Spec Audit** (round 2): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5 (fix-now: 0)
