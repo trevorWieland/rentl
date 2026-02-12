@@ -1016,7 +1016,7 @@ pydantic_ai/providers/openrouter.py:126:
 
 ## Init writes provider-specific env vars (architectural debt)
 
-**Status:** unresolved
+**Status:** resolved
 
 **Problem:** `rentl init` writes provider-specific environment variable names (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_API_KEY`) into the generated `rentl.toml`, but the project's env var scheme (`.env.example`) uses standardized `RENTL_*` names. This forces quality tests to use workarounds (writing `.env` files with provider keys, monkeypatching env vars) and confuses the distinction between the app's config and provider-specific credentials.
 
@@ -1055,7 +1055,7 @@ There is no enum, BaseModel, or central definition for env var names — they're
 - No single source of truth for env var naming
 - Provider selection step in init is unnecessary complexity
 
-**Resolution:** unresolved — fix in Task 11 (init refactor) and Task 12 (quality test cleanup)
+**Resolution:** resolved by Task 11 (init refactor — `StandardEnvVar` enum, `RENTL_LOCAL_API_KEY`, removed provider presets) and Task 12 (quality test cleanup — removed all `.env` workarounds, standardized to `RENTL_QUALITY_*`). Published in v0.1.8 via Task 13.
 
 **Files affected:**
 - `packages/rentl-core/src/rentl_core/init.py` (PROVIDER_PRESETS, generate_project)
@@ -1404,7 +1404,7 @@ pytestmark = [
 
 ## Demo Run 2: Task 11 env var standardization not published to PyPI
 
-**Status:** unresolved
+**Status:** resolved
 
 **Problem:** The Task 11 changes that standardized environment variable naming to `RENTL_LOCAL_API_KEY` were committed to the local codebase but never republished to PyPI. The current published version (0.1.7) still generates provider-specific env var names (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`) instead of the standardized naming scheme.
 
