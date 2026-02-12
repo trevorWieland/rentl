@@ -139,7 +139,7 @@ def _write_pipeline_config(
         'provider_name = "primary"\n'
         f'base_url = "{base_url}"\n'
         'api_key_env = "RENTL_QUALITY_API_KEY"\n'
-        "timeout_s = 6\n"
+        "timeout_s = 5\n"
         "\n"
         "[pipeline.default_model]\n"
         f'model_id = "{model_id}"\n'
