@@ -20,7 +20,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Make Task 2 verification pass by fixing `make all` failure at `tests/quality/agents/test_edit_agent.py:183` (`AssertionError: Eval failures detected`) caused by request-limit exhaustion in `packages/rentl-agents/src/rentl_agents/runtime.py:250` (`RuntimeError: Agent basic_editor FAILED: Hit request limit (10)`) (audit round 1; see signposts.md: Task 2, Required verification gate currently fails in quality tier)
   - [x] Fix: Re-run and capture clean evidence for Task 2 required gate (`uv sync` + `make all`) after resolving the quality failure; attach exact command output proving exit code 0 (audit round 1)
   - [x] Fix: Add missing `uv sync` verification evidence for Task 2 in `signposts.md` with exact command output and explicit exit code 0 (`signposts.md:74` currently shows only `make all` evidence) (audit round 2)
-- [ ] Task 3: Build rentl package
+- [x] Task 3: Build rentl package
   - Run `uv build --package rentl --no-sources` from workspace root
   - Verify `dist/` contains wheel and sdist
   - Test: build succeeds, artifacts are valid
