@@ -31,3 +31,15 @@ rentl should be installable and runnable in under a minute by someone who has ne
 - Step 4 [RUN]: PASS — `uvx rentl==0.1.7 run-pipeline` completed successfully with status "completed", all 7 phases passed, error: null, exit 0
 - Step 5 [RUN]: PASS — README commands at lines 21, 49, 77, 95 match demo steps 1-4 and are copy-pasteable
 - **Overall: FAIL** — Task 11 standardized env vars not published to PyPI v0.1.7
+
+### Run 3 — Published v0.1.8 with Task 11 standardization (2026-02-12 19:44)
+- Step 1: PASS — `uvx --from rentl==0.1.8 rentl --version` output "rentl v0.1.8", exit 0
+- Step 2: PASS — `uvx --from rentl==0.1.8 rentl init` created rentl.toml, .env with standardized `api_key_env = "RENTL_LOCAL_API_KEY"` (not provider-specific names), exit 0
+  - Generated `.env` contains: `RENTL_LOCAL_API_KEY=`
+  - Generated `rentl.toml` contains: `provider_name = "OpenRouter"`, `api_key_env = "RENTL_LOCAL_API_KEY"`
+- Step 3: PASS — Valid API key configured in .env via sed, exit 0
+- Step 4: PASS — `uvx --from rentl==0.1.8 rentl run-pipeline` completed successfully with status "completed", all 7 phases passed (ingest, context, pretranslation, translate, qa, edit, export), 2 lines translated from Japanese to English, error: null, exit 0
+  - Output: `out/run-019c5361-e362-7648-b157-96438f23abf0/en.jsonl` (277 bytes, 2 translated lines)
+  - Verification: `cat out/run-*/en.jsonl` shows properly translated lines with source_text preserved
+- Step 5: PASS — README commands at lines 21, 49, 71, 89 match demo steps 1-4 exactly and are copy-pasteable (updated to use RENTL_LOCAL_API_KEY)
+- **Overall: PASS** — All acceptance criteria satisfied with v0.1.8

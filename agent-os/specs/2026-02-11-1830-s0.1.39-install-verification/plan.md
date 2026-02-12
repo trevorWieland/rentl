@@ -105,7 +105,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Run `scripts/publish.sh` to build and publish all packages in dependency order
   - Verify published packages on PyPI contain Task 11 changes
   - Test: `uvx --from rentl==0.1.8 rentl init` generates `RENTL_LOCAL_API_KEY` in `.env`
-- [ ] Task 14: Re-run demo verification with published v0.1.8
+- [x] Task 14: Re-run demo verification with published v0.1.8
   - Run complete demo workflow using `uvx --from rentl==0.1.8`
   - Verify Step 2 generates standardized env vars
   - Verify all 5 steps pass with new version

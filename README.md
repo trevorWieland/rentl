@@ -61,20 +61,14 @@ This interactive command will:
 Edit the `.env` file in your project directory and add your API key. The file will already have a placeholder - replace it with your actual key:
 
 ```env
-# For OpenRouter (replace "your_key_here" with your actual key)
-OPENROUTER_API_KEY=your_key_here
-
-# For OpenAI (replace "your_key_here" with your actual key)
-OPENAI_API_KEY=your_key_here
-
-# For local endpoints (Ollama, LM Studio)
-RENTL_LOCAL_API_KEY=placeholder
+# Set your API key for the LLM endpoint
+RENTL_LOCAL_API_KEY=your_key_here
 ```
 
 Or use sed to replace the placeholder:
 
 ```bash
-sed -i 's/OPENROUTER_API_KEY=.*/OPENROUTER_API_KEY=your_key_here/' .env
+sed -i 's/RENTL_LOCAL_API_KEY=.*/RENTL_LOCAL_API_KEY=your_key_here/' .env
 ```
 
 ### 3. Verify your setup
