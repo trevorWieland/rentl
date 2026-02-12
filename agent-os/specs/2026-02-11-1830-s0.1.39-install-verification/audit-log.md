@@ -28,3 +28,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5 (fix-now: 1)
 - **Task 11** (round 1): FAIL — Init refactor regressed generated endpoint fields: `api_key_env` no longer matches `.env.example` and `provider_name` is serialized as a `ProviderCapabilities(...)` repr instead of a provider name string.
 - **Task 11** (round 2): PASS — Commit `aa5f663` fixes env-var standardization (`RENTL_LOCAL_API_KEY`) and provider-name serialization (`detect_provider(...).name`) with unit/integration regression coverage passing.
+- **Task 12** (round 1): FAIL — `tests/quality/cli/test_preset_validation.py:97-98` still rewrites `.env`, so Task 12's required removal of `.env` workaround and init-output validation (`plan.md:96-97`, `no-mocks-for-quality-tests`) is not satisfied.

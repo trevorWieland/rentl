@@ -1173,3 +1173,30 @@ model_id = "gpt-4"
 - `tests/quality/pipeline/test_golden_script_pipeline.py` (removed skipif, use RENTL_QUALITY_MODEL from env)
 - `tests/quality/benchmark/test_benchmark_quality.py` (removed skipif, raise ValueError for missing env)
 - `tests/quality/cli/test_preset_validation.py` (removed skipif and OPENROUTER_API_KEY, use RENTL_QUALITY_API_KEY)
+
+## Task 12: preset validation still rewrites `.env` instead of using init output
+
+**Status:** unresolved
+
+**Problem:** Task 12 is not complete yet. `test_preset_validation.py` still rewrites `.env` with an env value, which is the same workaround pattern the task explicitly required removing (`plan.md:96-97`), and it prevents validating the `.env` content produced by `rentl init`.
+
+**Evidence:**
+
+`tests/quality/cli/test_preset_validation.py:97-98`:
+```python
+env_path = project_dir / ".env"
+env_path.write_text(f"{StandardEnvVar.API_KEY.value}={api_key}\n")
+```
+
+Task requirement still open in plan:
+- `plan.md:96` requires removing `.env`-writing workarounds
+- `plan.md:97` requires testing against init output using standardized env vars
+
+**Impact:**
+- Leaves a setup workaround in a quality test path intended to exercise real init output
+- Masks regressions in generated `.env` contents from `rentl init`
+
+**Resolution:** unresolved — add Task 12 fix item and update test to consume init-generated `.env` directly
+
+**Files affected:**
+- `tests/quality/cli/test_preset_validation.py:97-98`
