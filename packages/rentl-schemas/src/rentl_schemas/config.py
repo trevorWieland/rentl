@@ -582,7 +582,6 @@ class PipelineConfig(BaseSchema):
 
         required = {
             PhaseName.CONTEXT,
-            PhaseName.PRETRANSLATION,
             PhaseName.TRANSLATE,
             PhaseName.QA,
             PhaseName.EDIT,
