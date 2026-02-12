@@ -268,3 +268,27 @@ The version string comes from:
 - `/home/trevor/github/rentl/services/rentl-cli/src/rentl/__init__.py` (bumped __version__)
 - `/home/trevor/github/rentl/tests/unit/core/test_version.py` (updated test assertion)
 - `/home/trevor/github/rentl/tests/unit/cli/test_main.py` (updated test assertion)
+
+## Task 6: Verification task checked without persisted command evidence
+
+**Status:** unresolved
+
+**Problem:** Task 6 was checked off, but the task commit does not include persisted evidence that `uvx rentl init` was executed in a clean directory and validated per task requirements.
+
+**Evidence:**
+
+Task 6 commit touched only `plan.md`:
+```bash
+git show --name-status --stat 3c79c23
+# M agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/plan.md
+```
+
+The actual diff only flips the checkbox:
+```diff
+- [ ] Task 6: Verify `rentl init` end-to-end
++ [x] Task 6: Verify `rentl init` end-to-end
+```
+
+No Task 6 section exists in this file with command output, exit codes, or artifact listings.
+
+**Impact:** Future auditors and orchestrator steps cannot independently verify Task 6 completion against `plan.md:44-47` requirements, increasing regression risk for fresh-install setup behavior.
