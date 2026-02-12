@@ -2,9 +2,9 @@
 
 ## Implementation Files
 
-- `services/rentl-cli/pyproject.toml` — Package configuration with entry point
+- `services/rentl-cli/pyproject.toml` — Package configuration (rename to `name = "rentl"`)
 - `services/rentl-cli/src/rentl_cli/main.py` — CLI implementation (init, run-pipeline, etc.)
-- `pyproject.toml` — Workspace root configuration
+- `pyproject.toml` — Workspace root configuration (update workspace source and dev deps)
 - `README.md` — Install instructions to update
 
 ## Related Issues
@@ -19,4 +19,4 @@
 ## External Resources
 
 - [uv publish guide](https://docs.astral.sh/uv/guides/package/) — How to build and publish with uv
-- [PyPI](https://pypi.org/) — Package registry target
+- [PyPI](https://pypi.org/project/rentl/) — Package registry target (after publish)
