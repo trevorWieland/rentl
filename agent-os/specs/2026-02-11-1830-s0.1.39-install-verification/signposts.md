@@ -115,3 +115,81 @@ types checking types...
 Exit code: 0
 
 **Files affected:** Task 2 verification now passes.
+
+## Task 4: PyPI token authentication failure
+
+**Status:** resolved
+
+**Problem:** Publishing to PyPI fails with 403 Forbidden authentication error. The PYPI_TOKEN in .env may be expired or invalid.
+
+**Evidence:**
+Command:
+```bash
+UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish
+```
+
+Output:
+```
+Publishing 2 files to https://upload.pypi.org/legacy/
+Uploading rentl-0.1.0-py3-none-any.whl (30.5KiB)
+error: Failed to publish `dist/rentl-0.1.0-py3-none-any.whl` to https://upload.pypi.org/legacy/
+  Caused by: Upload failed with status code 403 Forbidden. Server says: 403 Invalid or non-existent authentication information. See https://pypi.org/help/#invalid-auth for more information.
+```
+
+Exit code: 2
+
+**Solution:** User regenerated the PyPI API token. The old token was expired/invalid. New token verified working via dry-run:
+
+```bash
+source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run
+```
+
+Output:
+```
+Checking 2 files against https://upload.pypi.org/legacy/
+Checking rentl-0.1.0-py3-none-any.whl (30.5KiB)
+Checking rentl-0.1.0.tar.gz (29.5KiB)
+```
+
+Exit code: 0
+
+**Resolution:** user via resolve-blockers 2026-02-11
+
+## Task 4: Workspace dependencies not published to PyPI
+
+**Status:** resolved
+
+**Problem:** The `rentl` wheel (CLI package) declares dependencies on `rentl-core`, `rentl-io`, `rentl-llm`, and `rentl-schemas` — none of which exist on PyPI. Publishing only the `rentl` package would make `uvx rentl` fail because pip/uv cannot resolve the workspace-internal dependencies.
+
+**Evidence:**
+```bash
+curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/rentl-core/json"
+# 404
+curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/rentl-io/json"
+# 404
+curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/rentl-llm/json"
+# 404
+curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/rentl-schemas/json"
+# 404
+```
+
+Wheel METADATA confirms the dependency chain:
+```
+Requires-Dist: rentl-core
+Requires-Dist: rentl-llm
+Requires-Dist: rentl-io
+Requires-Dist: rentl-schemas
+```
+
+Workspace dependency graph (publish order):
+```
+rentl-schemas (no internal deps)
+  → rentl-core (depends on schemas)
+    → rentl-llm (depends on core, schemas)
+    → rentl-io (depends on core, schemas)
+      → rentl (CLI — depends on core, llm, io, schemas)
+```
+
+**Solution:** Expand Task 4 to build and publish all 5 packages in dependency order. Add CI publish script (Task 10) for future releases. User chose multi-package publishing over bundling to preserve workspace architecture and extensibility.
+
+**Resolution:** user via resolve-blockers 2026-02-11

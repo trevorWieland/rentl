@@ -24,11 +24,18 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Run `uv build --package rentl --no-sources` from workspace root
   - Verify `dist/` contains wheel and sdist
   - Test: build succeeds, artifacts are valid
-- [ ] Task 4: Publish rentl to PyPI
-  - Set `UV_PUBLISH_TOKEN` from user's PYPI_TOKEN in .env
-  - Run `uv publish` from workspace root (or specify dist/)
-  - Verify package appears on PyPI at https://pypi.org/project/rentl/
-  - Test: `pip show rentl` works after publish
+- [ ] Task 4: Build and publish all packages to PyPI
+  - All 5 packages must be published (not just rentl) because the CLI depends on workspace packages that don't exist on PyPI yet (see signposts.md: Task 4, Workspace dependencies not published)
+  - Build each package: `uv build --package <name> --no-sources` for each
+  - Publish in dependency order using `UV_PUBLISH_TOKEN` from .env:
+    1. `rentl-schemas` (no internal deps)
+    2. `rentl-core` (depends on schemas)
+    3. `rentl-llm` (depends on core, schemas) — can publish in parallel with rentl-io
+    4. `rentl-io` (depends on core, schemas) — can publish in parallel with rentl-llm
+    5. `rentl` (CLI — depends on core, llm, io, schemas)
+  - Verify each package appears on PyPI
+  - Use lock-step versioning (all packages at 0.1.0)
+  - Test: all 5 packages visible on PyPI, `uv pip install rentl` resolves all deps
 - [ ] Task 5: Verify uvx installation on fresh environment
   - On a machine without rentl installed, run `uvx rentl --version`
   - Test: version outputs correctly (e.g., `rentl v0.1.0`)
@@ -49,3 +56,8 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Run `make all` from workspace root
   - Verify lint, typecheck, and all test tiers pass
   - Test: `make all` exits with code 0
+- [ ] Task 10: Add CI publish script
+  - Create `scripts/publish.sh` that builds and publishes all packages in correct dependency order
+  - Script should: clean dist/, build all 5 packages, publish in order, verify each on PyPI
+  - Support `--dry-run` flag for testing without actual upload
+  - Test: `scripts/publish.sh --dry-run` succeeds
