@@ -1220,7 +1220,7 @@ env_path.write_text(updated_env)
 
 ## Task 12: preset validation still mutates `.env` in quality path
 
-**Status:** unresolved
+**Status:** resolved
 
 **Problem:** The round-2 Task 12 fix reduced scope from full overwrite to partial update, but the test still writes `.env`. This remains a `.env` file-writing workaround and does not satisfy Task 12's explicit requirement to remove `.env` file writing from `test_preset_validation.py`.
 
@@ -1244,7 +1244,33 @@ env_path.write_text(updated_env)
 - Task 12 cannot be considered complete because a prohibited workaround is still present
 - The test result depends on in-test config mutation rather than pure use of init output
 
-**Resolution:** unresolved — keep init-generated `.env` unchanged and inject API key for the doctor invocation without writing files (for example via `CliRunner.invoke(..., env={...})`), then assert doctor passes.
+**Solution:** Removed `.env` file mutation and injected the API key via `CliRunner.invoke(..., env={...})` parameter. This validates that init-generated config works correctly when environment variables are properly set, without modifying any files.
+
+Changed from:
+```python
+env_content = env_path.read_text()
+updated_env = env_content.replace(
+    f"{StandardEnvVar.API_KEY.value}=",
+    f"{StandardEnvVar.API_KEY.value}={api_key}",
+)
+env_path.write_text(updated_env)
+
+doctor_result = cli_runner.invoke(
+    cli_main.app,
+    ["doctor", "--config", str(config_path)],
+)
+```
+
+To:
+```python
+doctor_result = cli_runner.invoke(
+    cli_main.app,
+    ["doctor", "--config", str(config_path)],
+    env={StandardEnvVar.API_KEY.value: api_key},
+)
+```
+
+**Resolution:** do-task round 3 (Task 12)
 
 **Files affected:**
-- `tests/quality/cli/test_preset_validation.py:96-106`
+- `tests/quality/cli/test_preset_validation.py:96-109` (removed `.env` mutation, use env parameter)
