@@ -537,3 +537,17 @@ All agent profiles and prompts are now correctly packaged and accessible.
 - `/home/trevor/github/rentl/packages/rentl-core/src/rentl_core/version.py` (bumped to 0.1.7)
 - `/home/trevor/github/rentl/tests/unit/core/test_version.py` (updated version assertion to 0.1.7)
 - `/home/trevor/github/rentl/tests/unit/cli/test_main.py` (updated version assertions to 0.1.7)
+
+## Task 7: Task verification did not satisfy pipeline success criteria
+
+**Status:** unresolved
+
+**Problem:** Task 7 requires `uvx rentl run-pipeline` to start and complete without errors (`plan.md:53-55`), but the recorded verification used an intentionally invalid API key and captured a runtime failure.
+
+**Evidence:**
+- `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/signposts.md:490` writes `OPENROUTER_API_KEY=invalid` before running pipeline.
+- `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/signposts.md:495` shows pipeline output with `error.code = "runtime_error"` and `exit_code = 99`.
+- `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/signposts.md:498` explicitly says the pipeline failed due to invalid API key.
+- `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/plan.md:52` was checked complete despite failed pipeline evidence.
+
+**Impact:** The spec acceptance criterion that `uvx rentl run-pipeline` completes successfully (`spec.md:30`) is not actually verified, so end-to-end regressions can be marked complete without proof of success.
