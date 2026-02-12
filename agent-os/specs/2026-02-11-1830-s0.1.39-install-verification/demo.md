@@ -95,3 +95,16 @@ rentl should be installable and runnable in under a minute by someone who has ne
   - Verification: `cat out/run-*/en.jsonl` shows properly translated lines with source_text preserved (line_001: "I'm feeling great!", line_002: "That's wonderful!")
 - Step 5 [RUN]: PASS — README commands at lines 21, 49, 71, 89 match demo steps 1-4 exactly and are copy-pasteable
 - **Overall: PASS** — All acceptance criteria satisfied (5 run, 0 verified)
+
+### Run 8 — Post-audit round 5 verification (2026-02-12 22:54)
+- Step 1 [RUN]: PASS — `uvx --from rentl==0.1.8 rentl --version` output "rentl v0.1.8", exit 0
+- Step 2 [RUN]: PASS — `uvx --from rentl==0.1.8 rentl init` created rentl.toml, .env, input/, out/, logs/, exit 0
+  - Init output confirms standardized env var: "Set your API key in .env: RENTL_LOCAL_API_KEY=your_key_here"
+  - Generated `.env` contains: `RENTL_LOCAL_API_KEY=`
+  - Generated `rentl.toml` contains: `provider_name = "OpenRouter"`, `api_key_env = "RENTL_LOCAL_API_KEY"`
+- Step 3 [RUN]: PASS — Valid API key configured in .env via sed, exit 0
+- Step 4 [RUN]: PASS — `uvx --from rentl==0.1.8 rentl run-pipeline` completed successfully with status "completed", all 7 phases passed (ingest, context, pretranslation, translate, qa, edit, export), 3 lines translated from Japanese to English, error: null, exit 0
+  - Output: `out/run-019c540f-dcdf-7560-b1bd-8df5149ff208/en.jsonl` (3 translated lines)
+  - Verification: `cat out/run-*/en.jsonl` shows properly translated lines with source_text preserved (line_001: "Sample line 1", line_002: "Sample line 2", line_003: "Sample line 3")
+- Step 5 [RUN]: PASS — README commands at lines 21, 49, 71, 89 match demo steps 1-4 exactly and are copy-pasteable
+- **Overall: PASS** — All acceptance criteria satisfied (5 run, 0 verified)
