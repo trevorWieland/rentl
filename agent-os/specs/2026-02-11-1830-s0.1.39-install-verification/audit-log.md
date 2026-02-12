@@ -12,3 +12,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 1): PASS — All five packages are published at `0.1.0` and an isolated `uv pip install rentl==0.1.0` resolves `rentl-core`, `rentl-io`, `rentl-llm`, and `rentl-schemas`.
 - **Task 5** (round 1): PASS — Commit `3dcaf43` resolves missing `rentl-agents` runtime dependency and version sync drift; `uvx rentl version` now returns `rentl v0.1.4`.
 - **Task 6** (round 1): FAIL — Commit `3c79c23` only flips the Task 6 checkbox in `plan.md` and does not persist required `uvx rentl init` verification evidence.
+- **Task 5** (round 2): FAIL — Spec requires `uvx rentl --version` (`spec.md:27`), but CLI exits 2 with `No such option: --version`; Task 5 unchecked with fix items.

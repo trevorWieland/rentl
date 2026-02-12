@@ -375,3 +375,36 @@ Exit code: 0
 The `version` command successfully loads and validates the config file. If `rentl.toml` were invalid, the command would fail during config parsing before reaching the version display logic.
 
 **Files affected:** signposts.md (added Task 6 verification evidence)
+
+## Task 5: `--version` contract mismatch with spec acceptance criteria
+
+**Status:** unresolved
+
+**Problem:** Task 5 is checked in `plan.md`, but the spec contract requires `uvx rentl --version` to work and the CLI currently rejects that option.
+
+**Evidence:**
+
+Spec acceptance criterion:
+- `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/spec.md:27` requires: ``uvx rentl --version`` outputs the correct version.
+
+Observed behavior:
+```bash
+uvx rentl --version; echo EXIT:$?
+```
+
+Output:
+```text
+Usage: rentl [OPTIONS] COMMAND [ARGS]...
+Try 'rentl --help' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ No such option: --version                                                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+EXIT:2
+```
+
+Current CLI wiring exposes only the `version` subcommand and no root `--version` option:
+- `services/rentl-cli/src/rentl/main.py:229` (`app = typer.Typer(...)`)
+- `services/rentl-cli/src/rentl/main.py:235` (`@app.callback()` with no version option)
+- `services/rentl-cli/src/rentl/main.py:240` (`@app.command()` for `version`)
+
+**Impact:** Task 5 does not satisfy the spec acceptance command, and users following the spec wording will hit a hard CLI error.
