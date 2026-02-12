@@ -814,3 +814,35 @@ This satisfies both `spec.md:35` (make all passes) and `standards.md:11-12` (all
 **Resolution:** do-task round 2
 
 **Files affected:** Task 9 verification complete, ready for spec finalization
+
+## Task 10: Dry-run branch skips uv publish checks
+
+**Status:** unresolved
+
+**Problem:** `scripts/publish.sh --dry-run` reports success without actually running `uv publish --dry-run` for each package.
+
+**Evidence:**
+Broken condition in script:
+- `scripts/publish.sh:105`
+```bash
+if ! source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run "$wheel_file" "$sdist_file"; then
+```
+
+Trace output proves only `source .env` runs and `uv publish` is never invoked:
+```bash
+bash -x scripts/publish.sh --dry-run 2>&1 | rg -n "source \\.env|uv publish|Would publish|Dry run completed"
+```
+
+Output excerpt:
+```text
+116:+ log_info 'Would publish rentl-schemas...'
+126:+ source .env
+136:+ log_info 'Would publish rentl-core...'
+146:+ source .env
+...
+235:+ log_info 'Dry run completed successfully'
+```
+
+No `uv publish --dry-run` lines appear in trace output.
+
+**Impact:** Task 10's dry-run safety check is ineffective; script can pass audit while skipping the publish-validation step it is intended to exercise.
