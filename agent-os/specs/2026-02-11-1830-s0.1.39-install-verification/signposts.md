@@ -41,3 +41,29 @@ When attempting `uv sync` after only changing package name in pyproject.toml fil
 - /home/trevor/github/rentl/services/rentl-cli/pyproject.toml (package name + scripts + build packages)
 - /home/trevor/github/rentl/services/rentl-cli/src/rentl_cli/ → src/rentl/
 - All test files (22 files with import changes)
+
+## Task 2: Required verification gate currently fails in quality tier
+
+**Status:** unresolved
+
+**Problem:** Task 2 requires `make all` to pass, but the quality tier currently fails, so the task cannot remain checked off.
+
+**Evidence:**
+Command:
+```bash
+make all
+```
+
+Output excerpt:
+```text
+FAILED tests/quality/agents/test_edit_agent.py::test_edit_agent_evaluation_passes
+AssertionError: Eval failures detected
+RuntimeError: Agent basic_editor FAILED: Hit request limit (10).
+```
+
+Key stack locations from the failing run:
+- `tests/quality/agents/test_edit_agent.py:183`
+- `tests/quality/agents/evaluators.py:29`
+- `packages/rentl-agents/src/rentl_agents/runtime.py:250`
+
+**Impact:** Task 2's explicit verification requirement (`uv sync` and `make all`) is not satisfied, so downstream tasks should treat Task 2 as incomplete until the quality failure is resolved and the gate is re-run with exit code 0 evidence.
