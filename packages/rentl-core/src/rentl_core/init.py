@@ -15,7 +15,7 @@ from rentl_schemas.primitives import FileFormat
 class StandardEnvVar(StrEnum):
     """Standardized environment variable names for rentl configuration."""
 
-    API_KEY = "RENTL_API_KEY"
+    API_KEY = "RENTL_LOCAL_API_KEY"
     BASE_URL = "RENTL_BASE_URL"
 
 
@@ -191,7 +191,8 @@ def _generate_toml(answers: InitAnswers) -> str:
     # Import here to avoid circular dependency (rentl_agents imports rentl_core)
     from rentl_agents.providers import detect_provider  # noqa: PLC0415
 
-    provider_name = detect_provider(answers.base_url)
+    provider_capabilities = detect_provider(answers.base_url)
+    provider_name = provider_capabilities.name
 
     return f'''[project]
 schema_version = {{ major = 0, minor = 1, patch = 0 }}

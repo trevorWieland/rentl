@@ -1066,7 +1066,7 @@ There is no enum, BaseModel, or central definition for env var names — they're
 
 ## Task 11: provider_name serialization regression
 
-**Status:** unresolved
+**Status:** resolved
 
 **Problem:** Task 11 switched to `detect_provider(base_url)` but writes the returned `ProviderCapabilities` object directly into `endpoint.provider_name` in generated `rentl.toml`, producing a dataclass repr string instead of a provider name.
 
@@ -1084,7 +1084,7 @@ provider_name = "{provider_name}"
 
 `detect_provider` returns `ProviderCapabilities`, not `str` (`packages/rentl-agents/src/rentl_agents/providers.py:115`).
 
-Repro command output:
+Repro command output (before fix):
 ```bash
 python - <<'PY'
 from pathlib import Path
@@ -1111,19 +1111,27 @@ print(cfg["endpoint"]["provider_name"])
 PY
 ```
 
-Output:
+Output (before fix):
 ```
 ProviderCapabilities(name='OpenRouter', is_openrouter=True, supports_tool_calling=True, supports_tool_choice_required=True)
 ```
 
-**Impact:**
-- Generated config contains unstable implementation detail strings instead of a provider name
-- Task 11's provider auto-detection intent is only partially implemented and not covered by explicit assertion tests
+**Solution:**
+1. Changed `packages/rentl-core/src/rentl_core/init.py:194-195` to extract `.name` from `ProviderCapabilities`:
+   ```python
+   provider_capabilities = detect_provider(answers.base_url)
+   provider_name = provider_capabilities.name
+   ```
+2. Changed `StandardEnvVar.API_KEY` from `"RENTL_API_KEY"` to `"RENTL_LOCAL_API_KEY"` to match `.env.example:2`
+3. Added regression assertions in tests:
+   - `tests/unit/core/test_init.py:118` asserts `provider_name == "OpenRouter"`
+   - `tests/unit/core/test_init.py:435-437` asserts `isinstance(provider_name, str)` and not empty
+   - `tests/integration/cli/test_init.py:568-573` asserts `isinstance(provider_name, str)` and not empty
 
-**Resolution:** unresolved — update generation to serialize a provider name string (not object repr) and add regression assertions for `endpoint.provider_name`.
+**Resolution:** do-task round 1 (Task 11)
 
 **Files affected:**
-- `packages/rentl-core/src/rentl_core/init.py:194`
-- `packages/rentl-core/src/rentl_core/init.py:221`
-- `tests/unit/core/test_init.py`
-- `tests/integration/cli/test_init.py`
+- `packages/rentl-core/src/rentl_core/init.py:18` (StandardEnvVar.API_KEY updated)
+- `packages/rentl-core/src/rentl_core/init.py:194-195` (provider_name extraction)
+- `tests/unit/core/test_init.py` (added provider_name assertions)
+- `tests/integration/cli/test_init.py` (added provider_name assertions)

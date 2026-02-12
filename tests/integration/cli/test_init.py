@@ -569,6 +569,12 @@ def test_all_endpoint_presets_produce_valid_configs(
         assert config.endpoint.base_url == preset.base_url, (
             f"Base URL mismatch for {preset.name}"
         )
+        assert isinstance(config.endpoint.provider_name, str), (
+            f"provider_name should be a string for {preset.name}"
+        )
+        assert config.endpoint.provider_name, (
+            f"provider_name should not be empty for {preset.name}"
+        )
         # api_key_env uses standardized name
         assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value, (
             f"API key env should be standardized for {preset.name}"

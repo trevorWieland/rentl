@@ -116,6 +116,7 @@ def test_generated_config_validates_against_schema(
     assert config.endpoint is not None
     # provider_name is auto-detected from base_url
     assert config.endpoint.base_url == default_answers.base_url
+    assert config.endpoint.provider_name == "OpenRouter"  # detected from base_url
     # api_key_env uses standardized name
     assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
     assert config.pipeline.default_model is not None
@@ -433,6 +434,8 @@ def test_endpoint_preset_creates_valid_config(tmp_path: Path) -> None:
         assert config.endpoint is not None
         # provider_name is auto-detected from base_url
         assert config.endpoint.base_url == preset.base_url
+        assert isinstance(config.endpoint.provider_name, str)
+        assert config.endpoint.provider_name  # not empty
         # api_key_env uses standardized name
         assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
 
