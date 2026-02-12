@@ -1217,3 +1217,34 @@ env_path.write_text(updated_env)
 
 **Files affected:**
 - `tests/quality/cli/test_preset_validation.py:93-104` (changed from full rewrite to surgical update)
+
+## Task 12: preset validation still mutates `.env` in quality path
+
+**Status:** unresolved
+
+**Problem:** The round-2 Task 12 fix reduced scope from full overwrite to partial update, but the test still writes `.env`. This remains a `.env` file-writing workaround and does not satisfy Task 12's explicit requirement to remove `.env` file writing from `test_preset_validation.py`.
+
+**Evidence:**
+
+Task requirement:
+- `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/plan.md:96` — "Remove `.env` file writing ... workarounds in `test_preset_validation.py`"
+
+Current code still mutates `.env`:
+```python
+env_content = env_path.read_text()
+updated_env = env_content.replace(
+    f"{StandardEnvVar.API_KEY.value}=",
+    f"{StandardEnvVar.API_KEY.value}={api_key}",
+)
+env_path.write_text(updated_env)
+```
+(`tests/quality/cli/test_preset_validation.py:101-106`)
+
+**Impact:**
+- Task 12 cannot be considered complete because a prohibited workaround is still present
+- The test result depends on in-test config mutation rather than pure use of init output
+
+**Resolution:** unresolved — keep init-generated `.env` unchanged and inject API key for the doctor invocation without writing files (for example via `CliRunner.invoke(..., env={...})`), then assert doctor passes.
+
+**Files affected:**
+- `tests/quality/cli/test_preset_validation.py:96-106`
