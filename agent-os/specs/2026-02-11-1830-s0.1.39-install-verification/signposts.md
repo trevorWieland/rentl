@@ -911,3 +911,31 @@ Every package now correctly invokes `uv publish --dry-run`, evidenced by the "Ch
 
 **Files affected:**
 - `/home/trevor/github/rentl/scripts/publish.sh` (fixed dry-run condition)
+
+## Task 10: Dry-run fails when `.env` is missing
+
+**Status:** unresolved
+
+**Problem:** `scripts/publish.sh --dry-run` now unconditionally runs `source .env` inside the publish loop, so dry-run exits non-zero when `.env` is absent even if CI/environment variables are otherwise configured.
+
+**Evidence:**
+- `scripts/publish.sh:106`
+```bash
+source .env
+if ! UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run "$wheel_file" "$sdist_file"; then
+```
+
+Reproduction command:
+```bash
+bash -lc 'set -euo pipefail; bak=".env.audit.bak.$$"; mv .env "$bak"; trap "mv \"$bak\" .env" EXIT; bash scripts/publish.sh --dry-run'
+```
+
+Observed failure:
+```text
+▶ Would publish rentl-schemas...
+scripts/publish.sh: line 106: .env: No such file or directory
+```
+
+Exit code: 1
+
+**Impact:** The dry-run safety path is no longer robust for CI or local environments that rely on exported `PYPI_TOKEN` without a checked-in `.env`, so Task 10's `--dry-run` testability contract regresses.
