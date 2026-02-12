@@ -1454,12 +1454,13 @@ def _build_profile_agent_config(
 
     # Derive max_requests_per_run from endpoint timeout to prevent timeout
     # amplification.  Each pydantic-ai output-validation retry costs up to
-    # timeout_s seconds.  Cap total requests so worst-case wall-clock time
-    # stays bounded (e.g. 10s timeout → 3 requests max = 30s worst case).
+    # timeout_s seconds.  Use a 25s LLM budget (not 30s) to leave ~5s
+    # headroom for pipeline overhead (config, ingest, export, teardown).
     timeout_s = endpoint.timeout_s
     default_max_requests = 30  # ProfileAgentConfig default
+    llm_budget_s = 25  # LLM-only budget within 30s quality test window
     if timeout_s < 60:
-        max_requests = min(default_max_requests, max(2, int(30 / timeout_s)))
+        max_requests = min(default_max_requests, max(2, int(llm_budget_s / timeout_s)))
     else:
         max_requests = default_max_requests
 

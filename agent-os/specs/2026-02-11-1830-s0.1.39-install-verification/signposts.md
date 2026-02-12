@@ -1947,3 +1947,48 @@ Only 1 output validation retry is insufficient for the quality model.
 
 **Files affected:**
 - `tests/quality/pipeline/test_golden_script_pipeline.py` (reduced endpoint timeout_s from 10 to 6)
+
+## Wiring formula budget leaves zero headroom for pipeline overhead
+
+**Status:** resolved
+
+**Task:** Task 9, fix item from audit round 4 (make all gate failure)
+
+**Problem:** `test_translate_phase_produces_translated_output` timed out at 30s during `make all`. The wiring formula used `int(30 / timeout_s)` to compute `max_requests_per_run`, assuming all 30s of the quality test budget can be spent on LLM calls. With `timeout_s = 6`, this gives `max_requests = 5` and worst case = 30s. Pipeline overhead (config parsing, ingest, export, teardown) adds several seconds, causing the pytest 30s timeout to fire before the pipeline completes.
+
+**Evidence:**
+
+`make all` quality tier output (before fix):
+```
+FAILED tests/quality/pipeline/test_golden_script_pipeline.py::test_translate_phase_produces_translated_output
+E   Failed: Timeout (>30.0s) from pytest-timeout.
+==================== 1 failed, 8 passed in 70.63s (0:01:10) ====================
+```
+
+The stack trace showed the test was blocked in `selectors.py:452` waiting for an HTTP response — the pipeline was mid-LLM-call when the 30s pytest timeout fired.
+
+Formula before fix:
+```python
+max_requests = min(default_max_requests, max(2, int(30 / timeout_s)))
+# With timeout_s = 6: max_requests = 5, worst case = 30s (zero headroom)
+```
+
+**Tried:** N/A — root cause was clear from the formula arithmetic.
+
+**Solution:** Changed the wiring formula's LLM budget from 30s to 25s, leaving ~5s headroom for pipeline overhead:
+
+```python
+llm_budget_s = 25  # LLM-only budget within 30s quality test window
+max_requests = min(default_max_requests, max(2, int(llm_budget_s / timeout_s)))
+# With timeout_s = 6: max_requests = 4, worst case = 24s (6s headroom)
+# max_output_retries = max(1, 4-2) = 2
+```
+
+The change only affects configs with `timeout_s < 60` — production defaults (60s+) are unchanged.
+
+Two consecutive `make all` runs passed after the fix.
+
+**Resolution:** do-task round 8
+
+**Files affected:**
+- `packages/rentl-agents/src/rentl_agents/wiring.py` (changed LLM budget from 30 to 25 in max_requests formula)
