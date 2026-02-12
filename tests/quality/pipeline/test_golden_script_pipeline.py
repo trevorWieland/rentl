@@ -18,7 +18,6 @@ import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
@@ -32,24 +31,27 @@ if TYPE_CHECKING:
 # Link feature file
 scenarios("../features/pipeline/golden_script_pipeline.feature")
 
-# Skip entire module if quality test environment is not configured
-pytestmark = pytest.mark.skipif(
-    not os.getenv("RENTL_QUALITY_API_KEY") or not os.getenv("RENTL_QUALITY_BASE_URL"),
-    reason="Requires RENTL_QUALITY_API_KEY and RENTL_QUALITY_BASE_URL to be set",
-)
-
 
 def _write_full_pipeline_config(
     config_path: Path, workspace_dir: Path, script_path: Path
 ) -> Path:
     """Write a rentl.toml config for full pipeline tests with all phases enabled.
 
-    Uses RENTL_QUALITY_BASE_URL and RENTL_QUALITY_API_KEY from environment.
+    Uses RENTL_QUALITY_BASE_URL, RENTL_QUALITY_API_KEY, and RENTL_QUALITY_MODEL
+    from environment.
 
     Returns:
         Path to the written config file.
+
+    Raises:
+        ValueError: If required environment variables are not set.
     """
-    base_url = os.getenv("RENTL_QUALITY_BASE_URL", "http://localhost:8001/v1")
+    base_url = os.getenv("RENTL_QUALITY_BASE_URL")
+    if not base_url:
+        raise ValueError("RENTL_QUALITY_BASE_URL must be set for quality tests")
+    model_id = os.getenv("RENTL_QUALITY_MODEL")
+    if not model_id:
+        raise ValueError("RENTL_QUALITY_MODEL must be set for quality tests")
     content = textwrap.dedent(
         f"""\
         [project]
@@ -83,7 +85,7 @@ def _write_full_pipeline_config(
         api_key_env = "RENTL_QUALITY_API_KEY"
 
         [pipeline.default_model]
-        model_id = "gpt-4"
+        model_id = "{model_id}"
         endpoint_ref = "primary"
 
         [[pipeline.phases]]

@@ -1135,3 +1135,41 @@ ProviderCapabilities(name='OpenRouter', is_openrouter=True, supports_tool_callin
 - `packages/rentl-core/src/rentl_core/init.py:194-195` (provider_name extraction)
 - `tests/unit/core/test_init.py` (added provider_name assertions)
 - `tests/integration/cli/test_init.py` (added provider_name assertions)
+
+## Task 12: Quality tests standardized to use RENTL_QUALITY_* env vars
+
+**Status:** resolved
+
+**Problem:** Quality tests violated `no-test-skipping` and `no-mocks-for-quality-tests` standards by using `pytest.mark.skipif`, hardcoding obsolete model IDs, and referencing non-standard `OPENROUTER_API_KEY` instead of `RENTL_QUALITY_*` env vars.
+
+**Evidence:**
+
+Before fix, quality tests used skipif decorators:
+- `tests/quality/pipeline/test_golden_script_pipeline.py:36-39`
+- `tests/quality/benchmark/test_benchmark_quality.py:37-40`
+
+Before fix, `test_preset_validation.py:52-54` used `pytest.skip()`:
+```python
+openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+if not openrouter_key:
+    pytest.skip("OPENROUTER_API_KEY not set in environment")
+```
+
+Before fix, `test_golden_script_pipeline.py:86` hardcoded model:
+```python
+model_id = "gpt-4"
+```
+
+**Solution:**
+1. Removed all `pytest.mark.skipif` decorators from quality test modules
+2. Replaced `pytest.skip()` with `raise ValueError()` to fail fast when env vars missing
+3. Updated `test_preset_validation.py` to use `RENTL_QUALITY_API_KEY` instead of `OPENROUTER_API_KEY`
+4. Replaced hardcoded `model_id = "gpt-4"` with `os.getenv("RENTL_QUALITY_MODEL")` from environment
+5. Added proper docstring `Raises` sections for lint compliance
+
+**Resolution:** do-task round 1 (Task 12)
+
+**Files affected:**
+- `tests/quality/pipeline/test_golden_script_pipeline.py` (removed skipif, use RENTL_QUALITY_MODEL from env)
+- `tests/quality/benchmark/test_benchmark_quality.py` (removed skipif, raise ValueError for missing env)
+- `tests/quality/cli/test_preset_validation.py` (removed skipif and OPENROUTER_API_KEY, use RENTL_QUALITY_API_KEY)

@@ -39,19 +39,20 @@ def test_openrouter_preset_validates_against_live_api(
      AND I run doctor with a valid API key
     THEN doctor's LLM connectivity check passes
 
-    This test requires a valid OPENROUTER_API_KEY in the environment.
-    It is marked with @pytest.mark.api and can be skipped if the key
-    is not available.
+    This test requires RENTL_QUALITY_API_KEY in the environment.
 
     Args:
         tmp_path: Temporary directory for the test project.
         cli_runner: CliRunner for invoking CLI commands.
         monkeypatch: Pytest monkeypatch for setting environment variables.
+
+    Raises:
+        ValueError: If RENTL_QUALITY_API_KEY is not set.
     """
-    # Skip if API key is not available
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-    if not openrouter_key:
-        pytest.skip("OPENROUTER_API_KEY not set in environment")
+    # Require API key for quality tests
+    api_key = os.environ.get("RENTL_QUALITY_API_KEY")
+    if not api_key:
+        raise ValueError("RENTL_QUALITY_API_KEY must be set for quality tests")
 
     # Create a project directory
     project_dir = tmp_path / "preset-validation-test"
@@ -94,7 +95,7 @@ def test_openrouter_preset_validates_against_live_api(
 
     # Create .env file with the API key using standardized env var name
     env_path = project_dir / ".env"
-    env_path.write_text(f"{StandardEnvVar.API_KEY.value}={openrouter_key}\n")
+    env_path.write_text(f"{StandardEnvVar.API_KEY.value}={api_key}\n")
 
     # Run doctor with the generated config
     doctor_result = cli_runner.invoke(
