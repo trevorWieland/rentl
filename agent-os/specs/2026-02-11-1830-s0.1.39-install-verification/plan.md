@@ -78,7 +78,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Correct dry-run publish condition in `scripts/publish.sh:105` so `uv publish --dry-run` actually executes and failures are surfaced; current `if ! source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run ...` short-circuits on successful `source .env` and never runs publish validation (audit round 1; see signposts.md: Task 10, Dry-run branch skips uv publish checks)
   - [x] Fix: Re-run `scripts/publish.sh --dry-run` after the condition fix and persist evidence that each package invokes `uv publish --dry-run` (e.g., `Checking ... files against https://upload.pypi.org/legacy/`) with explicit shell exit code 0 (audit round 1; see signposts.md: Task 10, Dry-run branch skips uv publish checks)
   - [x] Fix: Make `--dry-run` resilient when `.env` is absent by guarding `source .env` and supporting existing `PYPI_TOKEN` from environment; current unconditional `source .env` at `scripts/publish.sh:106` exits with `scripts/publish.sh: line 106: .env: No such file or directory` (`bash -lc 'mv .env ...; bash scripts/publish.sh --dry-run'` exit 1) (audit round 2; see signposts.md: Task 10, Dry-run fails when `.env` is missing)
-- [x] Task 11: Refactor init to remove provider selection and standardize env vars
+- [ ] Task 11: Refactor init to remove provider selection and standardize env vars
   - Remove the "Choose a provider" step from `rentl init` — rentl just needs a base URL and an API key
   - `detect_provider(base_url)` already handles internal routing (OpenAI vs OpenRouter handler); no user-facing provider concept needed
   - Replace `PROVIDER_PRESETS` with simplified endpoint presets that only pre-fill `base_url` (e.g., "OpenRouter: https://openrouter.ai/api/v1") — no provider-specific `api_key_env` names
@@ -87,6 +87,8 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Update `.env` template generation to match
   - Test: `rentl init` generates config with standardized env vars; `rentl doctor` reads them correctly
   - See signposts.md: "Init writes provider-specific env vars (architectural debt)"
+  - [ ] Fix: Align init-generated API key env var with `.env.example` (`.env.example:2` is `RENTL_LOCAL_API_KEY`), because Task 11 currently emits `RENTL_API_KEY` via `StandardEnvVar.API_KEY` in `packages/rentl-core/src/rentl_core/init.py:18`, `packages/rentl-core/src/rentl_core/init.py:223`, and `packages/rentl-core/src/rentl_core/init.py:281` (audit round 1; see signposts.md: Init writes provider-specific env vars (architectural debt))
+  - [ ] Fix: Correct provider auto-detection serialization in `packages/rentl-core/src/rentl_core/init.py:194`/`packages/rentl-core/src/rentl_core/init.py:221`; `detect_provider()` returns `ProviderCapabilities`, but the generated `provider_name` is currently the full dataclass repr instead of a provider name string. Add regression assertions in init tests for `endpoint.provider_name` (audit round 1; see signposts.md: Task 11, provider_name serialization regression)
 - [ ] Task 12: Fix quality tests to comply with testing standards
   - Remove all `pytest.mark.skipif` and `pytest.skip()` from quality tests — tests must pass or fail, never skip (standard: `no-test-skipping`)
   - Remove all references to `OPENROUTER_API_KEY` from quality tests — use only `RENTL_QUALITY_*` env vars

@@ -26,3 +26,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 10** (round 2): FAIL — Commit `cdb6860` fixes `uv publish --dry-run` invocation but introduces an unconditional `source .env` at `scripts/publish.sh:106`; dry-run now exits 1 with `.env: No such file or directory` when `.env` is absent.
 - **Demo** (run 1): PASS — All 5 steps executed successfully: version check, init, API config, pipeline run (all phases completed), README verification (5 run, 0 verified)
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5 (fix-now: 1)
+- **Task 11** (round 1): FAIL — Init refactor regressed generated endpoint fields: `api_key_env` no longer matches `.env.example` and `provider_name` is serialized as a `ProviderCapabilities(...)` repr instead of a provider name string.

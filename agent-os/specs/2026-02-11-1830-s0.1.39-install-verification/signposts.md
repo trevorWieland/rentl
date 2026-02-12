@@ -1063,3 +1063,67 @@ There is no enum, BaseModel, or central definition for env var names — they're
 - `tests/quality/cli/test_preset_validation.py` (OPENROUTER_API_KEY workaround)
 - `tests/quality/pipeline/test_golden_script_pipeline.py` (hardcoded model)
 - `tests/quality/benchmark/test_benchmark_quality.py` (skipif)
+
+## Task 11: provider_name serialization regression
+
+**Status:** unresolved
+
+**Problem:** Task 11 switched to `detect_provider(base_url)` but writes the returned `ProviderCapabilities` object directly into `endpoint.provider_name` in generated `rentl.toml`, producing a dataclass repr string instead of a provider name.
+
+**Evidence:**
+
+`packages/rentl-core/src/rentl_core/init.py:194`:
+```python
+provider_name = detect_provider(answers.base_url)
+```
+
+`packages/rentl-core/src/rentl_core/init.py:221`:
+```toml
+provider_name = "{provider_name}"
+```
+
+`detect_provider` returns `ProviderCapabilities`, not `str` (`packages/rentl-agents/src/rentl_agents/providers.py:115`).
+
+Repro command output:
+```bash
+python - <<'PY'
+from pathlib import Path
+import tomllib
+from rentl_core.init import InitAnswers, generate_project
+from rentl_schemas.primitives import FileFormat
+
+target = Path("tmp-init-audit")
+target.mkdir(exist_ok=True)
+answers = InitAnswers(
+    project_name="p",
+    game_name="g",
+    source_language="ja",
+    target_languages=["en"],
+    base_url="https://openrouter.ai/api/v1",
+    model_id="openai/gpt-4-turbo",
+    input_format=FileFormat.JSONL,
+    include_seed_data=True,
+)
+generate_project(answers, target)
+with (target / "rentl.toml").open("rb") as f:
+    cfg = tomllib.load(f)
+print(cfg["endpoint"]["provider_name"])
+PY
+```
+
+Output:
+```
+ProviderCapabilities(name='OpenRouter', is_openrouter=True, supports_tool_calling=True, supports_tool_choice_required=True)
+```
+
+**Impact:**
+- Generated config contains unstable implementation detail strings instead of a provider name
+- Task 11's provider auto-detection intent is only partially implemented and not covered by explicit assertion tests
+
+**Resolution:** unresolved — update generation to serialize a provider name string (not object repr) and add regression assertions for `endpoint.provider_name`.
+
+**Files affected:**
+- `packages/rentl-core/src/rentl_core/init.py:194`
+- `packages/rentl-core/src/rentl_core/init.py:221`
+- `tests/unit/core/test_init.py`
+- `tests/integration/cli/test_init.py`
