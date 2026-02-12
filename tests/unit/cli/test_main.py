@@ -18,6 +18,7 @@ from typer.testing import CliRunner
 import rentl.main as cli_main
 from rentl.main import app
 from rentl_agents.wiring import build_agent_pools
+from rentl_core.init import StandardEnvVar
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
@@ -1971,7 +1972,7 @@ def test_init_command_target_languages_blank_fails(
 def test_init_command_provider_preset_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test init command with provider preset selection (OpenRouter, OpenAI, Ollama)."""
+    """Test init command with endpoint preset selection (OpenRouter, OpenAI, Ollama)."""
     # Change to temp directory
     monkeypatch.chdir(tmp_path)
 
@@ -1981,7 +1982,7 @@ def test_init_command_provider_preset_selection(
         "",  # game_name (default)
         "",  # source_language (default: ja)
         "",  # target_languages (default: en)
-        "1",  # provider choice: OpenRouter
+        "1",  # endpoint choice: OpenRouter
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1994,19 +1995,20 @@ def test_init_command_provider_preset_selection(
     assert "OpenRouter" in result.stdout
     assert "https://openrouter.ai/api/v1" in result.stdout
 
-    # Verify rentl.toml contains correct provider settings
+    # Verify rentl.toml contains correct endpoint settings with standardized env var
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
         config = tomllib.load(f)
     assert config["endpoint"]["base_url"] == "https://openrouter.ai/api/v1"
-    assert config["endpoint"]["api_key_env"] == "OPENROUTER_API_KEY"
+    # Env var should now be standardized
+    assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
 
 
 def test_init_command_provider_custom_option(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test init command with custom provider option (choice 4)."""
+    """Test init command with custom endpoint option (choice 4)."""
     # Change to temp directory
     monkeypatch.chdir(tmp_path)
 
@@ -2016,10 +2018,8 @@ def test_init_command_provider_custom_option(
         "",  # game_name (default)
         "",  # source_language (default: ja)
         "",  # target_languages (default: en)
-        "4",  # provider choice: Custom
-        "mycustom",  # custom provider name
+        "4",  # endpoint choice: Custom
         "https://api.example.com/v1",  # custom base URL
-        "MY_API_KEY",  # custom API key env var
         "my-model-v1",  # custom model ID
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
@@ -2031,13 +2031,14 @@ def test_init_command_provider_custom_option(
     # Assert successful exit
     assert result.exit_code == 0
 
-    # Verify rentl.toml contains custom provider settings
+    # Verify rentl.toml contains custom endpoint settings with standardized env var
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
         config = tomllib.load(f)
     assert config["endpoint"]["base_url"] == "https://api.example.com/v1"
-    assert config["endpoint"]["api_key_env"] == "MY_API_KEY"
+    # Env var should be standardized (not custom)
+    assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
     assert config["pipeline"]["default_model"]["model_id"] == "my-model-v1"
 
 
@@ -2084,11 +2085,9 @@ def test_init_command_custom_url_validation_loop(
         "",  # game_name (default)
         "",  # source_language (default: ja)
         "",  # target_languages (default: en)
-        "4",  # provider choice: Custom
-        "mycustom",  # custom provider name
+        "4",  # endpoint choice: Custom
         "not-a-url",  # invalid base URL (should fail validation and loop)
         "https://api.example.com/v1",  # valid base URL (second attempt)
-        "MY_API_KEY",  # custom API key env var
         "my-model-v1",  # custom model ID
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)

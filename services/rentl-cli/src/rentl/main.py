@@ -54,7 +54,7 @@ from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
 from rentl_core.init import (
-    PROVIDER_PRESETS,
+    ENDPOINT_PRESETS,
     InitAnswers,
     InitResult,
     generate_project,
@@ -586,34 +586,31 @@ def init() -> None:
             )
             raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
 
-        # Display provider presets
-        rprint("\n[bold]Choose a provider:[/bold]")
-        for i, preset in enumerate(PROVIDER_PRESETS, start=1):
-            rprint(f"  {i}. {preset.name}")
-        rprint(f"  {len(PROVIDER_PRESETS) + 1}. Custom (enter manually)")
+        # Display endpoint presets
+        rprint("\n[bold]Choose an endpoint:[/bold]")
+        for i, preset in enumerate(ENDPOINT_PRESETS, start=1):
+            rprint(f"  {i}. {preset.name}: {preset.base_url}")
+        rprint(f"  {len(ENDPOINT_PRESETS) + 1}. Custom (enter manually)")
 
-        # Get provider choice
-        provider_choice = typer.prompt("Provider", default="1", show_default=True)
+        # Get endpoint choice
+        endpoint_choice = typer.prompt("Endpoint", default="1", show_default=True)
         try:
-            choice_idx = int(provider_choice) - 1
+            choice_idx = int(endpoint_choice) - 1
         except ValueError as exc:
             rprint(
                 "[red]Error: Please enter a number corresponding "
-                "to the provider choice[/red]",
+                "to the endpoint choice[/red]",
             )
             raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from exc
 
         # Apply preset or prompt for custom values
-        if 0 <= choice_idx < len(PROVIDER_PRESETS):
-            preset = PROVIDER_PRESETS[choice_idx]
-            provider_name = preset.provider_name
+        if 0 <= choice_idx < len(ENDPOINT_PRESETS):
+            preset = ENDPOINT_PRESETS[choice_idx]
             base_url = preset.base_url
-            api_key_env = preset.api_key_env
-            model_id = preset.model_id
-            rprint(f"[green]Selected {preset.name}:[/green] {base_url}")
-        elif choice_idx == len(PROVIDER_PRESETS):
-            # Custom provider
-            provider_name = typer.prompt("Provider name", default="custom")
+            model_id = preset.default_model
+            rprint(f"[green]Selected {preset.name}[/green]")
+        elif choice_idx == len(ENDPOINT_PRESETS):
+            # Custom endpoint
             # Validate base_url in a loop until valid
             while True:
                 base_url = typer.prompt("API base URL")
@@ -625,9 +622,7 @@ def init() -> None:
                         game_name="test",
                         source_language="ja",
                         target_languages=["en"],
-                        provider_name=provider_name,
                         base_url=base_url,
-                        api_key_env="TEST",
                         model_id="test",
                         input_format=FileFormat.JSONL,
                         include_seed_data=True,
@@ -643,13 +638,12 @@ def init() -> None:
                         rprint(f"[red]Error: {error_msg}[/red]")
                     else:
                         rprint("[red]Error: Invalid URL format[/red]")
-            api_key_env = typer.prompt("API key env var")
             model_id = typer.prompt("Model ID")
         else:
             # Invalid choice - out of range
             rprint(
                 f"[red]Error: Please enter a number between 1 and "
-                f"{len(PROVIDER_PRESETS) + 1}[/red]",
+                f"{len(ENDPOINT_PRESETS) + 1}[/red]",
             )
             raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
 
@@ -665,9 +659,7 @@ def init() -> None:
             game_name=game_name,
             source_language=source_language,
             target_languages=target_languages,
-            provider_name=provider_name,
             base_url=base_url,
-            api_key_env=api_key_env,
             model_id=model_id,
             input_format=input_format,
             include_seed_data=include_seed_data,

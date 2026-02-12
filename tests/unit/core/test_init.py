@@ -10,9 +10,10 @@ import pytest
 from pydantic import ValidationError
 
 from rentl_core.init import (
-    PROVIDER_PRESETS,
+    ENDPOINT_PRESETS,
     InitAnswers,
     InitResult,
+    StandardEnvVar,
     generate_project,
 )
 from rentl_schemas.config import RunConfig
@@ -31,9 +32,7 @@ def default_answers() -> InitAnswers:
         game_name="test_game",
         source_language="ja",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -115,9 +114,10 @@ def test_generated_config_validates_against_schema(
     assert config.project.languages.source_language == default_answers.source_language
     assert config.project.languages.target_languages == default_answers.target_languages
     assert config.endpoint is not None
-    assert config.endpoint.provider_name == default_answers.provider_name
+    # provider_name is auto-detected from base_url
     assert config.endpoint.base_url == default_answers.base_url
-    assert config.endpoint.api_key_env == default_answers.api_key_env
+    # api_key_env uses standardized name
+    assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
     assert config.pipeline.default_model is not None
     assert config.pipeline.default_model.model_id == default_answers.model_id
 
@@ -148,8 +148,9 @@ def test_generated_env_contains_api_key_placeholder(
     env_path = tmp_path / ".env"
 
     env_content = env_path.read_text(encoding="utf-8")
-    assert default_answers.api_key_env in env_content
-    assert f"{default_answers.api_key_env}=" in env_content
+    # Should use standardized env var name
+    assert StandardEnvVar.API_KEY.value in env_content
+    assert f"{StandardEnvVar.API_KEY.value}=" in env_content
 
 
 def test_seed_data_jsonl_format(tmp_path: Path, default_answers: InitAnswers) -> None:
@@ -176,9 +177,7 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="ja",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.CSV,
         include_seed_data=True,
@@ -210,9 +209,7 @@ def test_seed_data_txt_format(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="ja",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.TXT,
         include_seed_data=True,
@@ -238,9 +235,7 @@ def test_generate_project_without_seed_data(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="ja",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=False,
@@ -266,9 +261,7 @@ def test_generate_project_with_multiple_target_languages(tmp_path: Path) -> None
         game_name="test_game",
         source_language="ja",
         target_languages=["en", "es", "fr"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -292,9 +285,7 @@ def test_init_answers_validation() -> None:
         game_name="test",
         source_language="ja",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="KEY",
         model_id="model",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -307,9 +298,7 @@ def test_init_answers_validation() -> None:
             game_name="test",
             source_language="ja",
             target_languages=["en"],
-            provider_name="openrouter",
             base_url="https://openrouter.ai/api/v1",
-            api_key_env="KEY",
             model_id="model",
             input_format=FileFormat.JSONL,
             include_seed_data=True,
@@ -322,9 +311,7 @@ def test_init_answers_validation() -> None:
             game_name="test",
             source_language="ja",
             target_languages=[],
-            provider_name="openrouter",
             base_url="https://openrouter.ai/api/v1",
-            api_key_env="KEY",
             model_id="model",
             input_format=FileFormat.JSONL,
             include_seed_data=True,
@@ -351,9 +338,7 @@ def test_unsupported_format_rejected() -> None:
             game_name="test_game",
             source_language="ja",
             target_languages=["en"],
-            provider_name="openrouter",
             base_url="https://openrouter.ai/api/v1",
-            api_key_env="OPENROUTER_API_KEY",
             model_id="openai/gpt-4-turbo",
             input_format="tsv",  # type: ignore[arg-type]
             include_seed_data=True,
@@ -393,25 +378,23 @@ def test_generated_config_uses_correct_agent_names(
     assert phases.get("export") is None or phases.get("export") == []
 
 
-def test_provider_presets_exist() -> None:
-    """Test that provider presets are defined and contain expected providers."""
-    assert len(PROVIDER_PRESETS) >= 3, "Expected at least 3 provider presets"
+def test_endpoint_presets_exist() -> None:
+    """Test that endpoint presets are defined and contain expected endpoints."""
+    assert len(ENDPOINT_PRESETS) >= 3, "Expected at least 3 endpoint presets"
 
-    # Verify expected providers are present
-    provider_names = [preset.name for preset in PROVIDER_PRESETS]
-    assert "OpenRouter" in provider_names
-    assert "OpenAI" in provider_names
-    assert "Local (Ollama)" in provider_names
+    # Verify expected endpoints are present
+    endpoint_names = [preset.name for preset in ENDPOINT_PRESETS]
+    assert "OpenRouter" in endpoint_names
+    assert "OpenAI" in endpoint_names
+    assert "Local (Ollama)" in endpoint_names
 
 
-def test_provider_presets_have_required_fields() -> None:
-    """Test that all provider presets have complete field values."""
-    for preset in PROVIDER_PRESETS:
+def test_endpoint_presets_have_required_fields() -> None:
+    """Test that all endpoint presets have complete field values."""
+    for preset in ENDPOINT_PRESETS:
         assert preset.name, f"Preset missing name: {preset}"
-        assert preset.provider_name, f"Preset {preset.name} missing provider_name"
         assert preset.base_url, f"Preset {preset.name} missing base_url"
-        assert preset.api_key_env, f"Preset {preset.name} missing api_key_env"
-        assert preset.model_id, f"Preset {preset.name} missing model_id"
+        assert preset.default_model, f"Preset {preset.name} missing default_model"
 
         # Verify base_url is a valid URL
         assert preset.base_url.startswith(("http://", "https://")), (
@@ -419,25 +402,25 @@ def test_provider_presets_have_required_fields() -> None:
         )
 
 
-def test_provider_preset_creates_valid_config(tmp_path: Path) -> None:
-    """Test that each provider preset produces a valid config."""
-    for preset in PROVIDER_PRESETS:
+def test_endpoint_preset_creates_valid_config(tmp_path: Path) -> None:
+    """Test that each endpoint preset produces a valid config."""
+    for preset in ENDPOINT_PRESETS:
         # Create answers using preset values
         answers = InitAnswers(
             project_name="test_project",
             game_name="test_game",
             source_language="ja",
             target_languages=["en"],
-            provider_name=preset.provider_name,
             base_url=preset.base_url,
-            api_key_env=preset.api_key_env,
-            model_id=preset.model_id,
+            model_id=preset.default_model,
             input_format=FileFormat.JSONL,
             include_seed_data=True,
         )
 
         # Generate project in a preset-specific subdirectory
-        preset_dir = tmp_path / preset.provider_name
+        preset_dir = tmp_path / preset.name.replace(" ", "_").replace("(", "").replace(
+            ")", ""
+        )
         preset_dir.mkdir()
         generate_project(answers, preset_dir)
 
@@ -448,8 +431,10 @@ def test_provider_preset_creates_valid_config(tmp_path: Path) -> None:
 
         config = RunConfig.model_validate(config_dict, strict=True)
         assert config.endpoint is not None
-        assert config.endpoint.provider_name == preset.provider_name
+        # provider_name is auto-detected from base_url
         assert config.endpoint.base_url == preset.base_url
+        # api_key_env uses standardized name
+        assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
 
 
 def test_base_url_validation_rejects_invalid_urls() -> None:
@@ -469,9 +454,7 @@ def test_base_url_validation_rejects_invalid_urls() -> None:
                 game_name="test_game",
                 source_language="ja",
                 target_languages=["en"],
-                provider_name="test",
                 base_url=invalid_url,
-                api_key_env="TEST_KEY",
                 model_id="test-model",
                 input_format=FileFormat.JSONL,
                 include_seed_data=True,
@@ -484,9 +467,7 @@ def test_base_url_validation_rejects_invalid_urls() -> None:
             game_name="test_game",
             source_language="ja",
             target_languages=["en"],
-            provider_name="test",
             base_url="",
-            api_key_env="TEST_KEY",
             model_id="test-model",
             input_format=FileFormat.JSONL,
             include_seed_data=True,
@@ -510,9 +491,7 @@ def test_base_url_validation_accepts_valid_urls() -> None:
             game_name="test_game",
             source_language="ja",
             target_languages=["en"],
-            provider_name="test",
             base_url=valid_url,
-            api_key_env="TEST_KEY",
             model_id="test-model",
             input_format=FileFormat.JSONL,
             include_seed_data=True,
@@ -527,9 +506,7 @@ def test_seed_data_matches_source_language_japanese(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="ja",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -557,9 +534,7 @@ def test_seed_data_matches_source_language_chinese(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="zh",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -582,9 +557,7 @@ def test_seed_data_matches_source_language_korean(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="ko",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -607,9 +580,7 @@ def test_seed_data_matches_source_language_spanish(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="es",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -632,9 +603,7 @@ def test_seed_data_matches_source_language_french(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="fr",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -657,9 +626,7 @@ def test_seed_data_matches_source_language_german(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="de",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -682,9 +649,7 @@ def test_seed_data_matches_source_language_english(tmp_path: Path) -> None:
         game_name="test_game",
         source_language="en",
         target_languages=["ja"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
@@ -707,9 +672,7 @@ def test_seed_data_unsupported_language_falls_back_to_english(
         game_name="test_game",
         source_language="ru",  # Russian - not in supported list
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
