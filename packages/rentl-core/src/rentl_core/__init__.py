@@ -36,7 +36,7 @@ from rentl_core.status import build_status_result
 from rentl_core.telemetry import AgentTelemetryEmitter
 from rentl_core.version import VERSION
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 
 __all__ = [
     "VERSION",

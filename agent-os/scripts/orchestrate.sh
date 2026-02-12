@@ -78,6 +78,7 @@ fanfare() {
 SCRIPT_START=$(date +%s)
 TIMER_PID=""
 AGENT_PID=""
+AGENT_PGID=""
 AGENT_OUTPUT_FILE=""
 
 SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
@@ -91,20 +92,25 @@ cleanup_timer() {
 }
 
 cleanup_agent() {
-    if [[ -n "$AGENT_PID" ]]; then
-        # Kill the agent and its entire process tree (timeout → claude/codex)
-        kill -TERM "$AGENT_PID" 2>/dev/null || true
-        # Also kill any children (grandchildren of this script)
-        pkill -TERM -P "$AGENT_PID" 2>/dev/null || true
+    if [[ -n "$AGENT_PGID" ]]; then
+        # Kill the entire process group (agent + all descendants) by negated PGID.
+        # This is the only reliable way to kill timeout → claude → bash → make → ...
+        # chains, because killing individual PIDs leaves orphaned grandchildren.
+        kill -TERM -"$AGENT_PGID" 2>/dev/null || true
         # Brief grace period for clean shutdown
         local i=0
         while kill -0 "$AGENT_PID" 2>/dev/null && [[ $i -lt 5 ]]; do
             sleep 1
             i=$((i + 1))
         done
-        # Force kill if still alive
+        # Force kill the entire group if anything survived
+        kill -KILL -"$AGENT_PGID" 2>/dev/null || true
+        wait "$AGENT_PID" 2>/dev/null || true
+        AGENT_PID=""
+        AGENT_PGID=""
+    elif [[ -n "$AGENT_PID" ]]; then
+        # Fallback if PGID wasn't captured
         kill -KILL "$AGENT_PID" 2>/dev/null || true
-        pkill -KILL -P "$AGENT_PID" 2>/dev/null || true
         wait "$AGENT_PID" 2>/dev/null || true
         AGENT_PID=""
     fi
@@ -113,11 +119,12 @@ cleanup_agent() {
 cleanup_all() {
     cleanup_timer
     cleanup_agent
-    rm -f "${STATUS_FILE:-}" "${SPEC_BACKUP:-}" "${AGENT_OUTPUT_FILE:-}" 2>/dev/null || true
+    rm -f "${STATUS_FILE:-}" "${SPEC_BACKUP:-}" "${AGENT_OUTPUT_FILE:-}" "${GATE_OUTPUT_FILE:-}" "${PID_FILE:-}" 2>/dev/null || true
     # Clear the spinner line on interrupt so the terminal is clean
     printf "\r\033[K" > /dev/tty 2>/dev/null || true
 }
-trap cleanup_all EXIT INT TERM
+# HUP: terminal closed. Must be trapped or backgrounded children become orphans.
+trap cleanup_all EXIT INT TERM HUP
 
 _timer_loop() {
     local label="$1" model="$2" start_ts="$3"
@@ -235,6 +242,11 @@ if ! flock -n 9; then
     exit 1
 fi
 
+# Write PID file so the orchestrator can be found and killed externally.
+# The cleanup trap removes it on exit.
+PID_FILE="$SPEC_FOLDER/.orchestrate.pid"
+echo $$ > "$PID_FILE"
+
 # --- Helper functions ---
 
 next_task_label() {
@@ -342,16 +354,22 @@ For example, write exactly one line like \`${command_name}-status: complete\` to
 
     # Use file-based output capture so we don't need command substitution.
     # This keeps the agent in a background process where `wait` is interruptible.
+    #
+    # setsid gives the agent its own process group so we can kill the entire
+    # tree (timeout → claude → bash → make → pytest → ...) with a single
+    # `kill -PGID`. Without this, closing the terminal orphans grandchildren.
     AGENT_OUTPUT_FILE=$(mktemp)
     local exit_code
 
     if [[ "$cli" == *codex* ]]; then
         local last_msg_file
         last_msg_file=$(mktemp)
-        eval "timeout $AGENT_TIMEOUT $cmd -o '$last_msg_file'" <<< "$prompt" > /dev/null 2>&1 &
+        setsid bash -c "eval \"timeout $AGENT_TIMEOUT $cmd -o '$last_msg_file'\"" <<< "$prompt" > /dev/null 2>&1 &
         AGENT_PID=$!
+        AGENT_PGID=$AGENT_PID  # setsid makes PID == PGID
         wait "$AGENT_PID" && exit_code=0 || exit_code=$?
         AGENT_PID=""
+        AGENT_PGID=""
 
         if [[ $exit_code -eq 124 ]]; then
             fail "Agent timed out after ${AGENT_TIMEOUT}s: $command_name"
@@ -366,10 +384,12 @@ For example, write exactly one line like \`${command_name}-status: complete\` to
         fi
         rm -f "$last_msg_file"
     else
-        eval "timeout $AGENT_TIMEOUT $cmd" <<< "$prompt" > "$AGENT_OUTPUT_FILE" 2>&1 &
+        setsid bash -c "eval \"timeout $AGENT_TIMEOUT $cmd\"" <<< "$prompt" > "$AGENT_OUTPUT_FILE" 2>&1 &
         AGENT_PID=$!
+        AGENT_PGID=$AGENT_PID  # setsid makes PID == PGID
         wait "$AGENT_PID" && exit_code=0 || exit_code=$?
         AGENT_PID=""
+        AGENT_PGID=""
 
         if [[ $exit_code -eq 124 ]]; then
             fail "Agent timed out after ${AGENT_TIMEOUT}s: $command_name"
@@ -390,15 +410,33 @@ For example, write exactly one line like \`${command_name}-status: complete\` to
 }
 
 # Run a gate command silently with spinner. Output stored in LAST_GATE_OUTPUT.
+# Uses setsid so the gate's entire process tree (make → pytest → ...) can be
+# killed as a group on interrupt — same pattern as invoke_agent.
 LAST_GATE_OUTPUT=""
+GATE_OUTPUT_FILE=""
 run_gate() {
     local label="$1"
     local gate_cmd="$2"
 
     begin_phase "$label"
 
+    GATE_OUTPUT_FILE=$(mktemp)
     local exit_code
-    LAST_GATE_OUTPUT=$(eval "$gate_cmd" 2>&1) && exit_code=0 || exit_code=$?
+
+    setsid bash -c "eval \"$gate_cmd\"" > "$GATE_OUTPUT_FILE" 2>&1 &
+    AGENT_PID=$!
+    AGENT_PGID=$AGENT_PID
+    wait "$AGENT_PID" && exit_code=0 || exit_code=$?
+    AGENT_PID=""
+    AGENT_PGID=""
+
+    if [[ -s "$GATE_OUTPUT_FILE" ]]; then
+        LAST_GATE_OUTPUT=$(<"$GATE_OUTPUT_FILE")
+    else
+        LAST_GATE_OUTPUT=""
+    fi
+    rm -f "$GATE_OUTPUT_FILE"
+    GATE_OUTPUT_FILE=""
 
     if [[ $exit_code -eq 0 ]]; then
         end_phase "ok"

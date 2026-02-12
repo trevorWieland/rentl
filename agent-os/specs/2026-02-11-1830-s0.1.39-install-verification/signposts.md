@@ -1457,7 +1457,46 @@ git log --oneline services/rentl-cli/pyproject.toml | grep -E "0.1.[6-8]" | head
 
 **Solution:** Republish all packages with Task 11 changes included, bump version to 0.1.8, and re-verify demo with new published version.
 
-**Resolution:** unresolved — needs task to republish packages
+**Resolution:** resolved by Task 13
+
+### Task 13 Verification Evidence
+
+All packages bumped to version 0.1.8 and published to PyPI:
+
+```bash
+bash scripts/publish.sh
+```
+
+Output:
+```
+▶ All packages built successfully
+▶ All build artifacts present
+▶ Publishing packages to PyPI...
+▶ All packages published successfully
+▶ All 6 packages published to PyPI in dependency order
+```
+
+Verification that published package contains Task 11 standardized env vars:
+
+```bash
+uvx --refresh --from rentl==0.1.8 rentl init
+```
+
+Generated `.env` file:
+```
+# Set your API key for the LLM endpoint (https://openrouter.ai/api/v1)
+RENTL_LOCAL_API_KEY=
+```
+
+Generated `rentl.toml` endpoint config:
+```toml
+[endpoint]
+provider_name = "OpenRouter"
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "RENTL_LOCAL_API_KEY"
+```
+
+The published version correctly generates `RENTL_LOCAL_API_KEY` (not `OPENROUTER_API_KEY`), confirming Task 11 changes are included.
 
 **Files affected:**
-- All 6 packages need republishing: rentl-schemas, rentl-core, rentl-io, rentl-llm, rentl-agents, rentl
+- All 6 packages published at version 0.1.8: rentl-schemas, rentl-core, rentl-io, rentl-llm, rentl-agents, rentl

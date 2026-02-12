@@ -76,14 +76,14 @@ def test_version_command() -> None:
     """Test version command outputs version string."""
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "0.1.7" in result.stdout
+    assert "0.1.8" in result.stdout
 
 
 def test_version_flag() -> None:
     """Test --version flag outputs version string and exits successfully."""
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "0.1.7" in result.stdout
+    assert "0.1.8" in result.stdout
 
 
 def test_export_command_outputs_warnings(tmp_path: Path) -> None:
