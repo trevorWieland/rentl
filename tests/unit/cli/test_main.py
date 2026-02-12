@@ -15,9 +15,9 @@ from uuid import uuid7
 import pytest
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
+from rentl.main import app
 from rentl_agents.wiring import build_agent_pools
-from rentl_cli.main import app
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
@@ -2214,7 +2214,7 @@ def test_help_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(cli_main, "Console", PatchedConsole)
     # Patch isatty to return True, triggering the Rich code paths
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: True)
 
     # Test list all commands (Rich table path)
     result = runner.invoke(app, ["help"])
@@ -2261,7 +2261,7 @@ def test_explain_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(cli_main, "Console", PatchedConsole)
     # Patch isatty to return True, triggering the Rich code paths
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: True)
 
     # Test list all phases (Rich table path)
     result = runner.invoke(app, ["explain"])
@@ -2312,7 +2312,7 @@ def test_doctor_command_tty_rendering(
 
     monkeypatch.setattr(cli_main, "Console", PatchedConsole)
     # Patch isatty to return True, triggering the Rich code paths
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: True)
 
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
@@ -2339,7 +2339,7 @@ def test_doctor_command_exit_propagation(
     """Test that doctor propagates non-success exit codes when checks fail.
 
     This test validates the exit code propagation logic at
-    services/rentl-cli/src/rentl_cli/main.py:374
+    services/rentl-cli/src/rentl/main.py:374
     by ensuring that failing checks result in non-zero exit codes.
     """
     from rich.console import Console as RichConsole  # noqa: PLC0415
@@ -2352,7 +2352,7 @@ def test_doctor_command_exit_propagation(
 
     monkeypatch.setattr(cli_main, "Console", PatchedConsole)
     # Patch isatty to return True, triggering the Rich code paths
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: True)
 
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
@@ -2385,7 +2385,7 @@ def test_help_command_plain_text_output(monkeypatch: pytest.MonkeyPatch) -> None
     ensuring all commands produce readable plain text for scripting/logging.
     """
     # Force non-TTY mode (CliRunner does this by default, but be explicit)
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: False)
 
     # Test list all commands (plain text path)
     result = runner.invoke(app, ["help"])
@@ -2419,7 +2419,7 @@ def test_doctor_command_plain_text_output(
     ensuring check results are readable in plain text for scripting/logging.
     """
     # Force non-TTY mode
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: False)
 
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
@@ -2448,7 +2448,7 @@ def test_explain_command_plain_text_output(monkeypatch: pytest.MonkeyPatch) -> N
     ensuring phase information is readable in plain text for scripting/logging.
     """
     # Force non-TTY mode
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: False)
 
     # Test list all phases (plain text path)
     result = runner.invoke(app, ["explain"])

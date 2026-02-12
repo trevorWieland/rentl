@@ -13,7 +13,7 @@ import pytest
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 from rentl_agents.runtime import ProfileAgent
 from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import PROVIDER_PRESETS, InitAnswers, generate_project

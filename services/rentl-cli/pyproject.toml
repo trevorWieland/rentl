@@ -1,5 +1,5 @@
 [project]
-name = "rentl-cli"
+name = "rentl"
 version = "0.1.0"
 description = "CLI for rentl"
 requires-python = ">=3.14"
@@ -14,11 +14,11 @@ dependencies = [
 ]
 
 [project.scripts]
-rentl = "rentl_cli.main:app"
+rentl = "rentl.main:app"
 
 [build-system]
 requires = ["uv-build>=0.1.0"]
 build-backend = "uv_build"
 
 [tool.uv.build]
-packages = ["src/rentl_cli"]
+packages = ["src/rentl"]

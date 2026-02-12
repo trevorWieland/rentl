@@ -22,7 +22,7 @@ import pytest
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 from rentl_schemas.benchmark.report import BenchmarkReport
 from rentl_schemas.io import TranslatedLine
 
