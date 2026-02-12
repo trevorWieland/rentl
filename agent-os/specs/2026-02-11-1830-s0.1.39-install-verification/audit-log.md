@@ -40,3 +40,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 5): PASS — All 5 [RUN] steps executed successfully: version check (v0.1.8), init (standardized RENTL_LOCAL_API_KEY), API config, pipeline run (all 7 phases completed with 2 lines translated), README verification (5 run, 0 verified)
 - **Spec Audit** (round 3): FAIL — Performance 4/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 3/5 (fix-now: 1)
 - **Task 14** (round 2): PASS — Commit `ae8dc5c` fully satisfies Task 14 scope: `plan.md` task check-off, `demo.md` Run 3 records all five steps as PASS on `rentl==0.1.8`, and README Step 2 API-key instructions were updated to standardized `RENTL_LOCAL_API_KEY`.
+- **Demo** (run 6): PASS — All 5 [RUN] steps executed successfully: version check (v0.1.8), init (standardized RENTL_LOCAL_API_KEY), API config, pipeline run (all 7 phases completed with 2 lines translated), README verification (5 run, 0 verified)
