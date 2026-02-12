@@ -24,7 +24,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Run `uv build --package rentl --no-sources` from workspace root
   - Verify `dist/` contains wheel and sdist
   - Test: build succeeds, artifacts are valid
-- [ ] Task 4: Build and publish all packages to PyPI
+- [x] Task 4: Build and publish all packages to PyPI
   - All 5 packages must be published (not just rentl) because the CLI depends on workspace packages that don't exist on PyPI yet (see signposts.md: Task 4, Workspace dependencies not published)
   - Build each package: `uv build --package <name> --no-sources` for each
   - **IMPORTANT:** `.env` must be sourced before using `$PYPI_TOKEN` — it is NOT auto-exported to the shell. Use `source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish ...` (see signposts.md: Task 4, PyPI token authentication failure)
