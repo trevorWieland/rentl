@@ -16,3 +16,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 3): PASS — Commit `8742d01` correctly implements root `--version`, adds unit coverage, and includes clean-environment verification evidence with exit code 0.
 - **Task 6** (round 2): PASS — Task 6 requirements are satisfied with persisted clean-directory `uvx rentl init` evidence and config validation evidence in `signposts.md`.
 - **Task 7** (round 1): FAIL — Packaging fix is implemented, but Task 7 evidence shows `run-pipeline` runtime failure (`signposts.md:495`) after setting an invalid API key (`signposts.md:490`), so successful end-to-end completion is unverified.
+- **Task 7** (round 2): PASS — Commit `bd8f87a` resolves the prior Task 7 audit item by adding valid-credentials `uvx --from rentl==0.1.7 rentl run-pipeline` completion evidence with `error: null`, all phases `completed`, and exit code 0 in `signposts.md`.
