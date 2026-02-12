@@ -93,9 +93,17 @@ def test_openrouter_preset_validates_against_live_api(
     # Verify config was created
     assert config_path.exists(), f"Config file not created: {config_path}"
 
-    # Create .env file with the API key using standardized env var name
+    # Update the init-generated .env file with the API key
     env_path = project_dir / ".env"
-    env_path.write_text(f"{StandardEnvVar.API_KEY.value}={api_key}\n")
+    assert env_path.exists(), f".env file not created by init: {env_path}"
+
+    # Read the init-generated .env and update the API key value
+    env_content = env_path.read_text()
+    updated_env = env_content.replace(
+        f"{StandardEnvVar.API_KEY.value}=",
+        f"{StandardEnvVar.API_KEY.value}={api_key}",
+    )
+    env_path.write_text(updated_env)
 
     # Run doctor with the generated config
     doctor_result = cli_runner.invoke(
