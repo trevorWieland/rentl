@@ -6,40 +6,40 @@ fix_now_count: 1
 - Spec: s0.1.39
 - Issue: https://github.com/trevorWieland/rentl/issues/39
 - Date: 2026-02-12
-- Round: 3
+- Round: 4
 
 ## Rubric Scores (1-5)
 - Performance: 4/5
 - Intent: 5/5
 - Completion: 4/5
 - Security: 5/5
-- Stability: 3/5
+- Stability: 2/5
 
 ## Non-Negotiable Compliance
-1. Fresh install must succeed: **PASS** — Fresh audit run succeeded with `uvx --from rentl==0.1.8 rentl --version` (`rentl v0.1.8`) and `uvx --from rentl==0.1.8 rentl init` (`INIT_EXIT:0`) creating `input/`, `out/`, `logs/`, `rentl.toml`, and `.env` with `RENTL_LOCAL_API_KEY` (`README.md:21`, `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:61`).
-2. README install instructions are accurate: **PASS** — Demo Run 5 verifies README quick-start commands match working install/init/doctor/run flow (`README.md:21`, `README.md:49`, `README.md:71`, `README.md:89`; `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:70`).
-3. Full verification gate passes: **FAIL** — Current audit run of `make all` exited non-zero after quality timeout in `tests/quality/pipeline/test_golden_script_pipeline.py:288` (`1 failed, 11 passed`), violating `spec.md` non-negotiable #3 (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/spec.md:44`).
-4. No skipped tests: **PASS** — No skip markers were found in quality tests (`NO_SKIP_MARKERS_FOUND` from `rg` scan) and failing quality output reported only pass/fail counts (`1 failed, 11 passed`), satisfying no-skips requirement despite gate failure (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/spec.md:45`).
+1. Fresh install must succeed: **PASS** — fresh published install path works in this audit (`uvx --from rentl==0.1.8 rentl --version` -> `rentl v0.1.8`; `uvx --from rentl==0.1.8 rentl init` -> `INIT_EXIT:0`, generated `input/`, `out/`, `logs/`, `.env`, `rentl.toml` with `RENTL_LOCAL_API_KEY`) and aligns with latest passing demo run (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:73`, `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:75`).
+2. README install instructions are accurate: **PASS** — README quick-start commands match working paths (`README.md:21`, `README.md:49`, `README.md:71`, `README.md:89`) and latest demo run confirms command parity (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:83`).
+3. Full verification gate passes: **FAIL** — current audit run of `make all` failed in quality (`make: *** [Makefile:102: all] Error 2`) due `Timeout (>30.0s)` in `tests/quality/pipeline/test_golden_script_pipeline.py:289`, violating the gate requirement (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/spec.md:44`).
+4. No skipped tests: **PASS** — no skip markers found in repo test code (`rg "pytest\\.mark\\.skip|pytest\\.skip\\(" tests` returned no matches), and executed tiers reported only pass/fail counts (`838 passed`, `91 passed`, `1 failed, 11 passed`) with no skipped tests.
 
 ## Demo Status
-- Latest run: PASS (Run 5, 2026-02-12)
-- Results are convincing: Run 5 shows all five demo steps passing on `rentl==0.1.8`, including standardized env var output and full pipeline completion (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:61`, `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:67`, `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:70`).
+- Latest run: PASS (Run 6, 2026-02-12)
+- Results are convincing: demo Run 6 records all 5 steps passing on published `rentl==0.1.8`, including standardized env var output and successful full pipeline execution (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:74`, `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:80`, `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:83`).
 
 ## Standards Adherence
-- frictionless-by-default: PASS — `rentl init` remains guided with defaults and endpoint presets (`services/rentl-cli/src/rentl/main.py:572`, `services/rentl-cli/src/rentl/main.py:589`, `services/rentl-cli/src/rentl/main.py:595`).
-- copy-pasteable-examples: PASS — README install/quick-start commands used in demo remain executable as written (`README.md:21`, `README.md:49`, `README.md:71`, `README.md:89`; `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/demo.md:70`).
-- make-all-gate: violation (**High**) — Required gate currently fails due quality timeout (`tests/quality/pipeline/test_golden_script_pipeline.py:288`), so shipping gate is not met (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/standards.md:11`).
-- mandatory-coverage: PASS — Regression coverage still exists for version flag and standardized init config (`tests/unit/cli/test_main.py:82`, `tests/unit/core/test_init.py:99`, `tests/integration/cli/test_init.py:520`).
-- three-tier-test-structure: violation (**High**) — Quality scenario with `pytest.mark.timeout(30)` is not reliably completing within tier budget (audit reruns: PASS/FAIL timeout/PASS), violating the <30s quality reliability expectation (`tests/quality/pipeline/test_golden_script_pipeline.py:36`, `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/standards.md:17`).
+- frictionless-by-default: PASS — `rentl init` remains guided with defaults, endpoint presets, and actionable next-step output (`services/rentl-cli/src/rentl/main.py:569`, `services/rentl-cli/src/rentl/main.py:595`, `packages/rentl-core/src/rentl_core/init.py:162`).
+- copy-pasteable-examples: PASS — documented install/quick-start commands are executable as written (`README.md:21`, `README.md:49`, `README.md:71`, `README.md:89`).
+- make-all-gate: violation (**High**) — full gate failed in this audit due quality timeout (`Makefile:102`, `tests/quality/pipeline/test_golden_script_pipeline.py:289`; standard source `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/standards.md:11`).
+- mandatory-coverage: PASS — regression-critical paths remain covered (e.g., root `--version`, init env-var/provider serialization, integration init preset validation) (`tests/unit/cli/test_main.py:82`, `tests/unit/core/test_init.py:119`, `tests/integration/cli/test_init.py:520`).
+- three-tier-test-structure: violation (**High**) — quality scenario with `pytest.mark.timeout(30)` is not deterministic at 30s budget (focused reruns can pass, but full suite/full gate still times out) (`tests/quality/pipeline/test_golden_script_pipeline.py:36`, `tests/quality/pipeline/test_golden_script_pipeline.py:289`; standard source `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/standards.md:17`).
 
 ## Regression Check
-- Prior rounds already flagged this same timeout class as a blocker (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/audit-log.md:38`).
-- The issue has regressed despite prior closure: this audit's `make all` failed with the same test timeout, and focused reruns reproduced intermittent behavior (PASS, FAIL timeout, PASS), confirming unresolved systemic flakiness.
+- This is a recurrence of the same timeout class previously recorded in spec history (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/audit-log.md:38`, `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/audit-log.md:41`).
+- Signposts previously marked the issue resolved (`agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/signposts.md:1651`), but new round-4 evidence shows unresolved non-determinism: one full-quality run failed (`1 failed, 11 passed`) and `make all` failed in the same place while focused single-test reruns passed.
 
 ## Action Items
 
 ### Fix Now
-- Re-stabilize `test_translate_phase_produces_translated_output` so `make all` is deterministic and green without increasing timeouts (`tests/quality/pipeline/test_golden_script_pipeline.py:288`, `tests/quality/pipeline/test_golden_script_pipeline.py:36`).
+- Re-stabilize `test_translate_phase_produces_translated_output` to make `make all` deterministic within the 30s quality budget (`tests/quality/pipeline/test_golden_script_pipeline.py:289`, `Makefile:79`, `Makefile:102`).
 
 ### Deferred
 - None.
