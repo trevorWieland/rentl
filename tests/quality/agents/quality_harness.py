@@ -76,11 +76,9 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         base_url=config.base_url,
         model_id=config.model_id,
         temperature=0.2,
-        timeout_s=60.0,  # Increased for OpenRouter latency
-        max_retries=2,  # Add retries for OpenRouter
-        retry_base_delay=2.0,
-        # max_output_retries and max_requests_per_run use runtime defaults (10, 30)
-        # which are appropriate for less capable models
+        timeout_s=15.0,  # Cap per-request to stay within 30s test budget
+        max_retries=0,  # No retries — single attempt to avoid timeout amplification
+        retry_base_delay=1.0,
         end_strategy="exhaustive",
         required_tool_calls=["get_game_info"],
     )
