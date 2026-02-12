@@ -378,7 +378,7 @@ The `version` command successfully loads and validates the config file. If `rent
 
 ## Task 5: `--version` contract mismatch with spec acceptance criteria
 
-**Status:** unresolved
+**Status:** resolved
 
 **Problem:** Task 5 is checked in `plan.md`, but the spec contract requires `uvx rentl --version` to work and the CLI currently rejects that option.
 
@@ -387,7 +387,7 @@ The `version` command successfully loads and validates the config file. If `rent
 Spec acceptance criterion:
 - `agent-os/specs/2026-02-11-1830-s0.1.39-install-verification/spec.md:27` requires: ``uvx rentl --version`` outputs the correct version.
 
-Observed behavior:
+Observed behavior (before fix):
 ```bash
 uvx rentl --version; echo EXIT:$?
 ```
@@ -402,9 +402,47 @@ Try 'rentl --help' for help.
 EXIT:2
 ```
 
-Current CLI wiring exposes only the `version` subcommand and no root `--version` option:
-- `services/rentl-cli/src/rentl/main.py:229` (`app = typer.Typer(...)`)
-- `services/rentl-cli/src/rentl/main.py:235` (`@app.callback()` with no version option)
-- `services/rentl-cli/src/rentl/main.py:240` (`@app.command()` for `version`)
+**Solution:**
+1. Added `--version` flag to the root `@app.callback()` in `services/rentl-cli/src/rentl/main.py`
+2. Used `invoke_without_command=True` to allow the callback to execute without a subcommand
+3. Added logic to display version and exit when the flag is used
+4. Added unit test coverage in `tests/unit/cli/test_main.py::test_version_flag`
+5. Bumped version to 0.1.5 and republished to PyPI
 
-**Impact:** Task 5 does not satisfy the spec acceptance command, and users following the spec wording will hit a hard CLI error.
+**Resolution:** do-task round 1 (Task 5 fix items)
+
+### Task 5 Verification Evidence
+
+Clean environment test of `uvx rentl --version`:
+
+```bash
+uvx --from rentl==0.1.5 rentl --version; echo "EXIT:$?"
+```
+
+Output:
+```
+rentl v0.1.5
+EXIT:0
+```
+
+Unit test coverage:
+```bash
+uv run pytest tests/unit/cli/test_main.py::test_version_flag -v
+```
+
+Output:
+```
+tests/unit/cli/test_main.py::test_version_flag PASSED                    [100%]
+=============================== 1 passed, 1 warning in 1.05s =========================
+```
+
+**Files affected:**
+- `/home/trevor/github/rentl/services/rentl-cli/src/rentl/main.py` (added --version flag support)
+- `/home/trevor/github/rentl/tests/unit/cli/test_main.py` (added test_version_flag)
+- `/home/trevor/github/rentl/services/rentl-cli/pyproject.toml` (bumped to 0.1.5)
+- `/home/trevor/github/rentl/services/rentl-cli/src/rentl/__init__.py` (bumped to 0.1.5)
+- `/home/trevor/github/rentl/packages/rentl-core/src/rentl_core/version.py` (bumped to 0.1.5)
+- `/home/trevor/github/rentl/packages/rentl-core/pyproject.toml` (bumped to 0.1.5)
+- `/home/trevor/github/rentl/packages/rentl-core/src/rentl_core/__init__.py` (bumped to 0.1.5)
+- `/home/trevor/github/rentl/tests/unit/core/test_version.py` (updated version assertion)
+- `/home/trevor/github/rentl/tests/unit/cli/test_main.py` (updated version assertions)

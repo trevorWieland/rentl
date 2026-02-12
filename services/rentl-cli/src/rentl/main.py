@@ -228,13 +228,32 @@ OUTPUT_PATH_OPTION = typer.Option(
 
 app = typer.Typer(
     help="Agentic localization pipeline",
-    no_args_is_help=True,
 )
 
 
-@app.callback()
-def main() -> None:
-    """Rentl CLI."""
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    version_flag: bool = typer.Option(
+        False,
+        "--version",
+        help="Display version information",
+        is_flag=True,
+    ),
+) -> None:
+    """Rentl CLI.
+
+    Raises:
+        typer.Exit: When --version flag is used or no command is provided.
+    """
+    if version_flag:
+        rprint(f"[bold]rentl[/bold] v{VERSION}")
+        raise typer.Exit(0)
+
+    # Show help if no command was provided
+    if ctx.invoked_subcommand is None:
+        rprint(ctx.get_help())
+        raise typer.Exit(0)
 
 
 @app.command()

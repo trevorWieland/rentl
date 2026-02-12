@@ -37,11 +37,11 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Verify each package appears on PyPI
   - Use lock-step versioning (all packages at 0.1.0)
   - Test: all 5 packages visible on PyPI, `uv pip install rentl` resolves all deps
-- [ ] Task 5: Verify uvx installation on fresh environment
+- [x] Task 5: Verify uvx installation on fresh environment
   - On a machine without rentl installed, run `uvx rentl version`
   - Test: version outputs correctly (e.g., `rentl v0.1.4`)
-  - [ ] Fix: Implement CLI support for root `--version` so `uvx rentl --version` exits 0 and prints the version required by `spec.md:27` (currently fails with `No such option: --version`; `services/rentl-cli/src/rentl/main.py:229`, `services/rentl-cli/src/rentl/main.py:235`) (audit round 2; see signposts.md: Task 5, `--version` contract mismatch)
-  - [ ] Fix: Add unit coverage for the `--version` code path in `tests/unit/cli/test_main.py` and persist clean-environment verification evidence (`uvx rentl --version` output + exit code 0) in `signposts.md` before re-checking Task 5 (audit round 2; see signposts.md: Task 5, `--version` contract mismatch)
+  - [x] Fix: Implement CLI support for root `--version` so `uvx rentl --version` exits 0 and prints the version required by `spec.md:27` (currently fails with `No such option: --version`; `services/rentl-cli/src/rentl/main.py:229`, `services/rentl-cli/src/rentl/main.py:235`) (audit round 2; see signposts.md: Task 5, `--version` contract mismatch)
+  - [x] Fix: Add unit coverage for the `--version` code path in `tests/unit/cli/test_main.py` and persist clean-environment verification evidence (`uvx rentl --version` output + exit code 0) in `signposts.md` before re-checking Task 5 (audit round 2; see signposts.md: Task 5, `--version` contract mismatch)
 - [ ] Task 6: Verify `rentl init` end-to-end
   - Run `uvx rentl init` in a clean directory
   - Verify rentl.toml, .env, workspace directories are created
