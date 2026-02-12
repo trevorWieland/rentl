@@ -69,7 +69,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Run `make all` from workspace root and record exact command output with explicit `Exit code: 0` evidence in `signposts.md` (audit round 1; `plan.md:66-68`)
   - [x] Fix: Ensure Task 9 evidence explicitly shows lint, typecheck, unit, integration, and quality tiers passed to satisfy `spec.md:35` and `standards.md:11-12` (audit round 1)
   - [x] Fix: Remove skipped tests from the full verification gate; current run reports `6 passed, 3 skipped` in quality due environment-gated skips at `tests/quality/pipeline/test_golden_script_pipeline.py:36`, `tests/quality/benchmark/test_benchmark_quality.py:37`, and `tests/quality/cli/test_preset_validation.py:54` (audit round 1)
-    - [  ] Fix: Resolve OpenRouter agent execution bug revealed by enabling quality tests; `test_run_full_pipeline_on_golden_script_with_real_llm_runtime` fails with `ValueError: not enough values to unpack (expected 2, got 1)` during scene_summarizer agent execution (see signposts.md: Task 9, Quality test reveals OpenRouter agent execution bug)
+    - [ ] Fix: Blocked by Task 11 (init refactor) and Task 12 (quality test cleanup) — re-run `make all` after those tasks complete
 - [x] Task 10: Add CI publish script
   - Create `scripts/publish.sh` that builds and publishes all packages in correct dependency order
   - Script should: clean dist/, build all 5 packages, publish in order, verify each on PyPI
@@ -78,3 +78,20 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Correct dry-run publish condition in `scripts/publish.sh:105` so `uv publish --dry-run` actually executes and failures are surfaced; current `if ! source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run ...` short-circuits on successful `source .env` and never runs publish validation (audit round 1; see signposts.md: Task 10, Dry-run branch skips uv publish checks)
   - [x] Fix: Re-run `scripts/publish.sh --dry-run` after the condition fix and persist evidence that each package invokes `uv publish --dry-run` (e.g., `Checking ... files against https://upload.pypi.org/legacy/`) with explicit shell exit code 0 (audit round 1; see signposts.md: Task 10, Dry-run branch skips uv publish checks)
   - [x] Fix: Make `--dry-run` resilient when `.env` is absent by guarding `source .env` and supporting existing `PYPI_TOKEN` from environment; current unconditional `source .env` at `scripts/publish.sh:106` exits with `scripts/publish.sh: line 106: .env: No such file or directory` (`bash -lc 'mv .env ...; bash scripts/publish.sh --dry-run'` exit 1) (audit round 2; see signposts.md: Task 10, Dry-run fails when `.env` is missing)
+- [ ] Task 11: Refactor init to remove provider selection and standardize env vars
+  - Remove the "Choose a provider" step from `rentl init` — rentl just needs a base URL and an API key
+  - `detect_provider(base_url)` already handles internal routing (OpenAI vs OpenRouter handler); no user-facing provider concept needed
+  - Replace `PROVIDER_PRESETS` with simplified endpoint presets that only pre-fill `base_url` (e.g., "OpenRouter: https://openrouter.ai/api/v1") — no provider-specific `api_key_env` names
+  - Standardize env var naming: use a central definition (enum/BaseModel), not hardcoded strings per preset
+  - Generated `rentl.toml` and `.env` must use standardized env var names matching `.env.example`
+  - Update `.env` template generation to match
+  - Test: `rentl init` generates config with standardized env vars; `rentl doctor` reads them correctly
+  - See signposts.md: "Init writes provider-specific env vars (architectural debt)"
+- [ ] Task 12: Fix quality tests to comply with testing standards
+  - Remove all `pytest.mark.skipif` and `pytest.skip()` from quality tests — tests must pass or fail, never skip (standard: `no-test-skipping`)
+  - Remove all references to `OPENROUTER_API_KEY` from quality tests — use only `RENTL_QUALITY_*` env vars
+  - Replace hardcoded `model_id = "gpt-4"` in `test_golden_script_pipeline.py:82` with `RENTL_QUALITY_MODEL` from environment
+  - Remove `.env` file writing and `monkeypatch.setenv` workarounds in `test_preset_validation.py` — quality tests use real services, no mocks (standard: `no-mocks-for-quality-tests`)
+  - `test_preset_validation.py` must test against the init output using standardized env vars (depends on Task 11)
+  - Test: `make all` passes with zero skips; `pytest -r s` shows no skipped tests in quality tier
+  - See signposts.md: "Task 9: Quality test fails due to hardcoded unqualified model ID" and "Init writes provider-specific env vars"

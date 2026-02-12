@@ -980,60 +980,86 @@ The dry-run path now supports both `.env` file and environment variables, with g
 **Files affected:**
 - `/home/trevor/github/rentl/scripts/publish.sh` (guarded source .env, added PYPI_TOKEN validation)
 
-## Task 9: Quality test reveals OpenRouter agent execution bug
+## Task 9: Quality test fails due to hardcoded unqualified model ID
 
 **Status:** unresolved
 
-**Problem:** After configuring environment variables to enable previously-skipped quality tests, `test_run_full_pipeline_on_golden_script_with_real_llm_runtime` now fails with a tuple unpacking error in agent execution.
+**Problem:** `test_run_full_pipeline_on_golden_script_with_real_llm_runtime` fails with `ValueError: not enough values to unpack (expected 2, got 1)` because the test hardcodes `model_id = "gpt-4"` (unqualified) at `tests/quality/pipeline/test_golden_script_pipeline.py:82`, but the quality test environment uses an OpenRouter endpoint. pydantic-ai's OpenRouter provider at `pydantic_ai/providers/openrouter.py:126` does `provider, model_name = model_name.split('/', 1)` which requires provider-qualified model IDs like `openai/gpt-4`.
 
 **Evidence:**
 
-Test invocation:
-```bash
-bash -c 'set -a && source .env && set +a && uv run pytest tests/quality/pipeline/test_golden_script_pipeline.py::test_run_full_pipeline_on_golden_script_with_real_llm_runtime -v'
+The test config at `tests/quality/pipeline/test_golden_script_pipeline.py:82`:
+```toml
+[pipeline.default_model]
+model_id = "gpt-4"
 ```
 
-Error:
-```
-AssertionError: Pipeline failed with exit code 99.
-  stdout: {"data":null,"error":{"code":"runtime_error","message":"Agent pool task failed: Agent scene_summarizer execution failed after 2 attempts","details":null,"exit_code":99},"meta":{"timestamp":"2026-02-12T16:21:29.312385Z","request_id":null}}
-```
+The env var `RENTL_QUALITY_MODEL` exists for this purpose and is set to `qwen/qwen3-vl-30b-a3b-instruct` in `.env`. The test should use it instead of hardcoding an ancient, unqualified model ID.
 
-Log excerpt shows the actual error:
-```
-{"timestamp":"2026-02-12T16:21:28.302214Z","level":"info","event":"agent_progress","run_id":"019c52a8-503c-73b3-a46a-d5523b44e3cc","phase":"context","message":"Retrying after error: not enough values to unpack (expected 2, got 1)","data":{"agent_run_id":"scene_summarizer_019c52a8505573c486735a17d9bc1208","agent_name":"scene_summarizer","phase":"context","status":"running","attempt":2}}
+The `quality_harness.py:55` already does this correctly:
+```python
+model_id = _require_env("RENTL_QUALITY_MODEL")
 ```
 
-The error `not enough values to unpack (expected 2, got 1)` occurs during OpenRouter agent execution. This happens consistently when the scene_summarizer agent runs against the OpenRouter endpoint.
-
-Verification that this is a pre-existing bug (not introduced by this task):
-```bash
-git checkout d4d715d  # audit commit
-bash -c 'set -a && source .env && set +a && make quality'
-# Result: Same error - test fails with identical "not enough values to unpack"
+pydantic-ai error trace:
+```
+pydantic_ai/providers/openrouter.py:126:
+    provider, model_name = model_name.split('/', 1)  # fails on "gpt-4"
 ```
 
-The bug was previously hidden because these tests were skipped due to missing environment variables.
+**Root cause:** Not a pydantic-ai bug. The test hardcodes the wrong model ID. The same issue was previously hit and fixed in the benchmark harness spec (using `openai/gpt-4o-mini` → qualified).
 
-**Tried:**
-1. Added `OPENROUTER_API_KEY`, `RENTL_QUALITY_API_KEY`, and `RENTL_QUALITY_BASE_URL` to `.env` - tests no longer skip but one fails
-2. Modified `Makefile` quality target to source `.env` before running pytest - environment variables now available to tests
-3. Verified error exists on pre-task commit - confirmed this is a pre-existing product bug, not a regression
-
-**Solution:**
-Environment configuration complete (`bash -c 'set -a && source .env && set +a && uv run pytest tests/quality -q'` now runs 9 tests instead of skipping 3), but underlying agent execution bug must be resolved before quality suite passes.
-
-Root cause investigation needed:
-- Error happens in pydantic-ai OpenRouter model execution
-- Current pydantic-ai version: 1.57.0 (packages require `>=1.47.0`)
-- Suspect tuple unpacking mismatch in provider response handling
-- May be related to OpenRouter-specific model_settings or provider config
-
-**Resolution:** unresolved - requires root cause investigation and bug fix
+**Resolution:** unresolved — fix as part of quality test cleanup (Task 12)
 
 **Files affected:**
-- `/home/trevor/github/rentl/.env` (added OPENROUTER_API_KEY)
-- `/home/trevor/github/rentl/Makefile` (modified quality target to source .env)
-- `/home/trevor/github/rentl/tests/quality/pipeline/test_golden_script_pipeline.py` (test now runs, reveals bug)
-- `/home/trevor/github/rentl/tests/quality/benchmark/test_benchmark_quality.py` (test now runs, passes)
-- `/home/trevor/github/rentl/tests/quality/cli/test_preset_validation.py` (test now runs, passes)
+- `tests/quality/pipeline/test_golden_script_pipeline.py:82` (hardcoded `model_id = "gpt-4"`)
+
+## Init writes provider-specific env vars (architectural debt)
+
+**Status:** unresolved
+
+**Problem:** `rentl init` writes provider-specific environment variable names (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_API_KEY`) into the generated `rentl.toml`, but the project's env var scheme (`.env.example`) uses standardized `RENTL_*` names. This forces quality tests to use workarounds (writing `.env` files with provider keys, monkeypatching env vars) and confuses the distinction between the app's config and provider-specific credentials.
+
+Deeper issue: the provider selection in init is unnecessary. rentl just needs a base URL and an API key — `detect_provider(base_url)` already handles internal routing (OpenAI vs OpenRouter handler). Asking users to "Choose a provider: 1. OpenRouter 2. OpenAI 3. Ollama" adds friction and false complexity.
+
+**Evidence:**
+
+`PROVIDER_PRESETS` in `packages/rentl-core/src/rentl_core/init.py:25-47` hardcodes provider-specific env var names:
+```python
+ProviderPreset(
+    name="OpenRouter",
+    api_key_env="OPENROUTER_API_KEY",  # not standardized
+    ...
+),
+ProviderPreset(
+    name="OpenAI",
+    api_key_env="OPENAI_API_KEY",  # not standardized
+    ...
+),
+```
+
+`.env.example` uses standardized names — no `OPENROUTER_API_KEY` anywhere:
+```
+RENTL_QUALITY_API_KEY=
+RENTL_QUALITY_BASE_URL=
+RENTL_QUALITY_MODEL=
+```
+
+The preset_validation quality test at `tests/quality/cli/test_preset_validation.py:51-53` skips if `OPENROUTER_API_KEY` is not set, and at line 96 writes a fake `.env` file with it — both violating `no-test-skipping` and `no-mocks-for-quality-tests` standards.
+
+There is no enum, BaseModel, or central definition for env var names — they're hardcoded strings scattered across presets.
+
+**Impact:**
+- Quality tests can't use standardized env vars without workarounds
+- End users get provider-specific env var names that don't match `.env.example`
+- No single source of truth for env var naming
+- Provider selection step in init is unnecessary complexity
+
+**Resolution:** unresolved — fix in Task 11 (init refactor) and Task 12 (quality test cleanup)
+
+**Files affected:**
+- `packages/rentl-core/src/rentl_core/init.py` (PROVIDER_PRESETS, generate_project)
+- `services/rentl-cli/src/rentl/main.py` (init command flow)
+- `tests/quality/cli/test_preset_validation.py` (OPENROUTER_API_KEY workaround)
+- `tests/quality/pipeline/test_golden_script_pipeline.py` (hardcoded model)
+- `tests/quality/benchmark/test_benchmark_quality.py` (skipif)
