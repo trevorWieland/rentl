@@ -62,12 +62,12 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - [x] Fix: Replace the Step 2 API key snippet in `README.md:61`/`README.md:63-72` with copy-pasteable commands that actually write to `.env`; the current `bash` block only assigns shell variables and leaves `.env` unchanged (violates `copy-pasteable-examples`, `standards.md:8-9`) (audit round 1)
   - [x] Fix: Re-validate the Quick Start command snippets in `README.md:48-115` in a clean temp project and keep only commands users can run verbatim for Task 8 acceptance (audit round 1)
   - [x] Fix: Replace the Step 2 `.env` `bash` block in `README.md:63-72` with a command that mutates `.env` (or mark it as `.env` file contents, not runnable shell), because executing the current block leaves `.env` unchanged and still violates `copy-pasteable-examples` (`standards.md:8-9`) (audit round 2; see signposts.md: Task 8, README Quick Start workflow simplification)
-- [ ] Task 9: Developer verification
+- [x] Task 9: Developer verification
   - Run `make all` from workspace root
   - Verify lint, typecheck, and all test tiers pass
   - Test: `make all` exits with code 0
-  - [ ] Fix: Run `make all` from workspace root and record exact command output with explicit `Exit code: 0` evidence in `signposts.md` (audit round 1; `plan.md:66-68`)
-  - [ ] Fix: Ensure Task 9 evidence explicitly shows lint, typecheck, unit, integration, and quality tiers passed to satisfy `spec.md:35` and `standards.md:11-12` (audit round 1)
+  - [x] Fix: Run `make all` from workspace root and record exact command output with explicit `Exit code: 0` evidence in `signposts.md` (audit round 1; `plan.md:66-68`)
+  - [x] Fix: Ensure Task 9 evidence explicitly shows lint, typecheck, unit, integration, and quality tiers passed to satisfy `spec.md:35` and `standards.md:11-12` (audit round 1)
 - [ ] Task 10: Add CI publish script
   - Create `scripts/publish.sh` that builds and publishes all packages in correct dependency order
   - Script should: clean dist/, build all 5 packages, publish in order, verify each on PyPI
