@@ -23,3 +23,11 @@ rentl should be installable and runnable in under a minute by someone who has ne
 - Step 4: PASS — `uvx rentl run-pipeline` completed successfully with status "completed", all 7 phases passed (ingest, context, pretranslation, translate, qa, edit, export), error: null, exit 0
 - Step 5: PASS — README commands at lines 21, 49, 77, 95 match demo steps 1-4 exactly and are copy-pasteable
 - **Overall: PASS**
+
+### Run 2 — Task 11 verification (2026-02-12 19:32)
+- Step 1 [RUN]: PASS — `uvx rentl==0.1.7 --version` output "rentl v0.1.7", exit 0
+- Step 2 [RUN]: FAIL — `uvx rentl==0.1.7 init` created rentl.toml, .env with `api_key_env = "OPENROUTER_API_KEY"` instead of standardized `RENTL_LOCAL_API_KEY` (Task 11 changes not published to PyPI)
+- Step 3 [RUN]: PASS — Valid API key configured in .env (using OPENROUTER_API_KEY for compatibility), exit 0
+- Step 4 [RUN]: PASS — `uvx rentl==0.1.7 run-pipeline` completed successfully with status "completed", all 7 phases passed, error: null, exit 0
+- Step 5 [RUN]: PASS — README commands at lines 21, 49, 77, 95 match demo steps 1-4 and are copy-pasteable
+- **Overall: FAIL** — Task 11 standardized env vars not published to PyPI v0.1.7
