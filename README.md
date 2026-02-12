@@ -60,7 +60,7 @@ This interactive command will:
 
 Edit the `.env` file in your project directory and add your API key. The file will already have a placeholder - replace it with your actual key:
 
-```bash
+```env
 # For OpenRouter (replace "your_key_here" with your actual key)
 OPENROUTER_API_KEY=your_key_here
 
