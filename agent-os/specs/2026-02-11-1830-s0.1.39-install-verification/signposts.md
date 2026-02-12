@@ -120,40 +120,41 @@ Exit code: 0
 
 **Status:** resolved
 
-**Problem:** Publishing to PyPI fails with 403 Forbidden authentication error. The PYPI_TOKEN in .env may be expired or invalid.
+**Problem:** Publishing to PyPI fails with 403 Forbidden authentication error. The token was valid but not loaded into the shell environment.
 
 **Evidence:**
-Command:
+
+The agent ran this command without first sourcing `.env`:
 ```bash
 UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish
 ```
 
-Output:
+`PYPI_TOKEN` is defined in `.env` but `.env` is NOT auto-sourced — it must be explicitly loaded. Without `source .env`, `${PYPI_TOKEN}` expands to an empty string, so the actual command sent was `UV_PUBLISH_TOKEN="" uv publish`, which produces the 403.
+
+Proof that the token is not in the environment without sourcing:
+```bash
+echo "PYPI_TOKEN in env: '${PYPI_TOKEN}'"
+# PYPI_TOKEN in env: ''
 ```
-Publishing 2 files to https://upload.pypi.org/legacy/
-Uploading rentl-0.1.0-py3-none-any.whl (30.5KiB)
-error: Failed to publish `dist/rentl-0.1.0-py3-none-any.whl` to https://upload.pypi.org/legacy/
-  Caused by: Upload failed with status code 403 Forbidden. Server says: 403 Invalid or non-existent authentication information. See https://pypi.org/help/#invalid-auth for more information.
-```
 
-Exit code: 2
-
-**Solution:** User regenerated the PyPI API token. The old token was expired/invalid. New token verified working via dry-run:
-
+Proof that sourcing .env first works:
 ```bash
 source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish --dry-run
 ```
-
 Output:
 ```
 Checking 2 files against https://upload.pypi.org/legacy/
 Checking rentl-0.1.0-py3-none-any.whl (30.5KiB)
 Checking rentl-0.1.0.tar.gz (29.5KiB)
 ```
-
 Exit code: 0
 
-**Resolution:** user via resolve-blockers 2026-02-11
+**Solution:** Always `source .env` before referencing `$PYPI_TOKEN`. The correct publish command is:
+```bash
+source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish
+```
+
+**Resolution:** resolve-blockers 2026-02-11 (root cause: missing `source .env`, not an invalid token)
 
 ## Task 4: Workspace dependencies not published to PyPI
 

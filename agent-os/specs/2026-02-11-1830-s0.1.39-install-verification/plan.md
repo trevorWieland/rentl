@@ -27,7 +27,8 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
 - [ ] Task 4: Build and publish all packages to PyPI
   - All 5 packages must be published (not just rentl) because the CLI depends on workspace packages that don't exist on PyPI yet (see signposts.md: Task 4, Workspace dependencies not published)
   - Build each package: `uv build --package <name> --no-sources` for each
-  - Publish in dependency order using `UV_PUBLISH_TOKEN` from .env:
+  - **IMPORTANT:** `.env` must be sourced before using `$PYPI_TOKEN` — it is NOT auto-exported to the shell. Use `source .env && UV_PUBLISH_TOKEN="${PYPI_TOKEN}" uv publish ...` (see signposts.md: Task 4, PyPI token authentication failure)
+  - Publish in dependency order:
     1. `rentl-schemas` (no internal deps)
     2. `rentl-core` (depends on schemas)
     3. `rentl-llm` (depends on core, schemas) — can publish in parallel with rentl-io
