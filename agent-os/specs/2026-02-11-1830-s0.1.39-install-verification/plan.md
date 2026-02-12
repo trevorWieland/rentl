@@ -68,7 +68,7 @@ This spec ensures end users can install rentl via `uvx rentl` — the primary di
   - Test: `make all` exits with code 0
   - [x] Fix: Run `make all` from workspace root and record exact command output with explicit `Exit code: 0` evidence in `signposts.md` (audit round 1; `plan.md:66-68`)
   - [x] Fix: Ensure Task 9 evidence explicitly shows lint, typecheck, unit, integration, and quality tiers passed to satisfy `spec.md:35` and `standards.md:11-12` (audit round 1)
-- [ ] Task 10: Add CI publish script
+- [x] Task 10: Add CI publish script
   - Create `scripts/publish.sh` that builds and publishes all packages in correct dependency order
   - Script should: clean dist/, build all 5 packages, publish in order, verify each on PyPI
   - Support `--dry-run` flag for testing without actual upload
