@@ -2104,3 +2104,38 @@ Exit code: 0
 **Files affected:**
 - `packages/rentl-agents/src/rentl_agents/wiring.py` (removed retry-limiting formula from `_build_profile_agent_config`)
 - `tests/quality/pipeline/test_golden_script_pipeline.py` (raised endpoint timeout_s from 5 to 10)
+
+## Task 11: Cross-package import from rentl-core to rentl-agents
+
+**Status:** unresolved
+
+**Problem:** `rentl-core` imports `detect_provider` from `rentl_agents.providers` at `packages/rentl-core/src/rentl_core/init.py:192` with a `# noqa: PLC0415` suppression. This violates the PLC0415 lint rule (lazy imports are banned). The `rentl-core` package does not declare `rentl-agents` as a dependency in `packages/rentl-core/pyproject.toml:6-10`, creating an undeclared cross-package dependency where a lower-level package (core) imports from a higher-level package (agents).
+
+**Evidence:**
+```python
+# packages/rentl-core/src/rentl_core/init.py:190-195
+    # Detect provider name from base URL for internal routing
+    # Import here to avoid circular dependency (rentl_agents imports rentl_core)
+    from rentl_agents.providers import detect_provider  # noqa: PLC0415
+
+    provider_capabilities = detect_provider(answers.base_url)
+    provider_name = provider_capabilities.name
+```
+
+`rentl-core` dependencies (no `rentl-agents`):
+```toml
+# packages/rentl-core/pyproject.toml:6-10
+dependencies = [
+    "rentl-schemas",
+    "pydantic-ai>=1.47.0",
+    "httpx>=0.28.1",
+]
+```
+
+Identified by PR #123 review from @chatgpt-codex-connector[bot].
+
+**Impact:** Lint rule violation with noqa suppression; dependency inversion (core → agents). Only `provider_capabilities.name` (a string) is used, so the fix is straightforward: call `detect_provider` in the CLI layer and pass the provider name to `_generate_toml`.
+
+**Files affected:**
+- `packages/rentl-core/src/rentl_core/init.py:192` (cross-package import)
+- `services/rentl-cli/src/rentl/main.py:668` (caller of `generate_project`)
