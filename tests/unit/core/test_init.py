@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from rentl_agents.providers import detect_provider
 from rentl_core.init import (
     ENDPOINT_PRESETS,
     InitAnswers,
@@ -36,6 +37,7 @@ def default_answers() -> InitAnswers:
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
+        provider_name="OpenRouter",
     )
 
 
@@ -416,6 +418,7 @@ def test_endpoint_preset_creates_valid_config(tmp_path: Path) -> None:
             model_id=preset.default_model,
             input_format=FileFormat.JSONL,
             include_seed_data=True,
+            provider_name=detect_provider(preset.base_url).name,
         )
 
         # Generate project in a preset-specific subdirectory

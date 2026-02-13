@@ -652,6 +652,9 @@ def init() -> None:
         input_format = FileFormat(input_format_str)
         include_seed_data = typer.confirm("Include seed data?", default=True)
 
+        # Detect provider from base URL for internal routing
+        provider_caps = detect_provider(base_url)
+
         # Build answers
         answers = InitAnswers(
             project_name=project_name,
@@ -662,6 +665,7 @@ def init() -> None:
             model_id=model_id,
             input_format=input_format,
             include_seed_data=include_seed_data,
+            provider_name=provider_caps.name,
         )
 
         # Generate project

@@ -14,6 +14,7 @@ from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl.main as cli_main
+from rentl_agents.providers import detect_provider
 from rentl_agents.runtime import ProfileAgent
 from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import (
@@ -80,6 +81,7 @@ def when_generate_project_with_defaults(ctx: InitContext) -> None:
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
+        provider_name="OpenRouter",
     )
 
     # Generate the project
@@ -486,6 +488,7 @@ def test_env_var_scoping_regression(
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
+        provider_name="OpenRouter",
     )
 
     target_dir = tmp_path / "test-env-scope"
@@ -541,6 +544,7 @@ def test_all_endpoint_presets_produce_valid_configs(
             model_id=preset.default_model,
             input_format=FileFormat.JSONL,
             include_seed_data=True,
+            provider_name=detect_provider(preset.base_url).name,
         )
 
         # Generate project in preset-specific directory
