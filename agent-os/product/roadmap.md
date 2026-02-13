@@ -62,7 +62,7 @@
 - ❌ (s0.1.36) Deterministic Rerun Validation — Closed as impractical; LLM pipelines are chaotic systems and true determinism is outside our control. Addressed via benchmark harness and caching where it matters.
 - ✅ (s0.1.37) Benchmark Harness v0.1 — Curated small evaluation set with baseline MTL comparison; runnable outside default CI. **Depends on:** s0.1.17, s0.1.19, s0.1.20.
 - (s0.1.38) Benchmark Transparency Pack — Publish configs, prompts, rubric, and input/output hashes with a provenance and verification guide (no text release). **Depends on:** s0.1.37.
-- (s0.1.39) Install Verification (uvx/uv tool) — Validate install + `rentl init` + full run on a clean environment. **Depends on:** s0.1.29, s0.1.24.
+- ✅ (s0.1.39) Install Verification (uvx/uv tool) — Validate install + `rentl init` + full run on a clean environment. **Depends on:** s0.1.29, s0.1.24.
 
 **Success Criteria:**
 - A new user can run `rentl init` → full pipeline → export without manual edits
