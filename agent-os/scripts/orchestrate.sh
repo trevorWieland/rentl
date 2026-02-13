@@ -186,11 +186,11 @@ shift
 # Defaults — implementation uses Claude, auditing uses Codex (different model = independent review)
 _DEFAULT_CLI="${ORCH_CLI:-claude -p --dangerously-skip-permissions}"
 DO_CLI="${ORCH_DO_CLI:-$_DEFAULT_CLI}"
-DO_MODEL="${ORCH_DO_MODEL:-sonnet}"
+DO_MODEL="${ORCH_DO_MODEL:-opus}"
 AUDIT_CLI="${ORCH_AUDIT_CLI:-codex exec --yolo}"
 AUDIT_MODEL="${ORCH_AUDIT_MODEL:-gpt-5.3-codex}"
 DEMO_CLI="${ORCH_DEMO_CLI:-$_DEFAULT_CLI}"
-DEMO_MODEL="${ORCH_DEMO_MODEL:-sonnet}"
+DEMO_MODEL="${ORCH_DEMO_MODEL:-opus}"
 SPEC_CLI="${ORCH_SPEC_CLI:-codex exec --yolo}"
 SPEC_MODEL="${ORCH_SPEC_MODEL:-gpt-5.3-codex}"
 TASK_GATE="${ORCH_TASK_GATE:-make check}"
