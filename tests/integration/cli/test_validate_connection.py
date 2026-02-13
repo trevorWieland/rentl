@@ -11,7 +11,7 @@ from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import pytest
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 
 if TYPE_CHECKING:

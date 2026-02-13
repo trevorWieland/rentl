@@ -63,13 +63,14 @@ class ProfileAgentConfig(BaseSchema):
     retry_base_delay: float = 2.0
     openrouter_provider: OpenRouterProviderRoutingConfig | None = None
     # Safeguards against infinite loops - FAIL LOUDLY when exceeded
-    # Note: pydantic-ai default is 50, but we use a lower limit to control costs
-    # and detect problematic prompts/schemas earlier
+    # Note: pydantic-ai default is 50, but we use a moderate limit to control
+    # costs while supporting less capable models that may need more retries
     max_requests_per_run: int = (
-        20  # Max API requests per single run - includes output validation retries
+        30  # Max API requests per single run - includes output validation retries
     )
     # Output validation retries (pydantic-ai provides feedback to model)
-    max_output_retries: int = 5
+    # Higher limit supports models with lower structured output reliability
+    max_output_retries: int = 10
     # Strategy for handling tool calls after an output tool is found
     end_strategy: Literal["early", "exhaustive"] = "early"
     # Optional list of tool names that must be called before output tools are allowed

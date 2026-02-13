@@ -15,7 +15,7 @@ from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 from rentl_core.benchmark.eval_sets.aligner import LineAligner
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
 from rentl_core.benchmark.eval_sets.parser import RenpyDialogueParser

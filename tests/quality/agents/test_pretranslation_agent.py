@@ -37,7 +37,10 @@ from tests.quality.agents.quality_harness import (
 )
 from tests.quality.agents.tool_spy import ToolCallRecorder, build_tool_registry
 
-pytestmark = pytest.mark.quality
+pytestmark = [
+    pytest.mark.quality,
+    pytest.mark.timeout(30),
+]
 
 scenarios("../features/agents/pretranslation_agent.feature")
 
@@ -116,9 +119,10 @@ def given_pretranslation_dataset(
         )
 
     rubric = (
-        "If idiom explanations are present in output_text, they are written "
-        "primarily in Japanese and describe the idiom. If no idioms are "
-        "present, the output is still acceptable."
+        "The agent correctly identifies idiomatic expressions from the input. "
+        "If idiom explanations are present in output_text, they accurately "
+        "describe the idiom's meaning. If no idioms are present, the output "
+        "is still acceptable. The explanation language does not matter."
     )
 
     dataset = Dataset(

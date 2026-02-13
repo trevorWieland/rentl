@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 import pytest
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
-from rentl_core.init import PROVIDER_PRESETS
+import rentl.main as cli_main
+from rentl_core.init import ENDPOINT_PRESETS, StandardEnvVar
 
 if TYPE_CHECKING:
     pass
@@ -39,19 +39,20 @@ def test_openrouter_preset_validates_against_live_api(
      AND I run doctor with a valid API key
     THEN doctor's LLM connectivity check passes
 
-    This test requires a valid OPENROUTER_API_KEY in the environment.
-    It is marked with @pytest.mark.api and can be skipped if the key
-    is not available.
+    This test requires RENTL_QUALITY_API_KEY in the environment.
 
     Args:
         tmp_path: Temporary directory for the test project.
         cli_runner: CliRunner for invoking CLI commands.
         monkeypatch: Pytest monkeypatch for setting environment variables.
+
+    Raises:
+        ValueError: If RENTL_QUALITY_API_KEY is not set.
     """
-    # Skip if API key is not available
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-    if not openrouter_key:
-        pytest.skip("OPENROUTER_API_KEY not set in environment")
+    # Require API key for quality tests
+    api_key = os.environ.get("RENTL_QUALITY_API_KEY")
+    if not api_key:
+        raise ValueError("RENTL_QUALITY_API_KEY must be set for quality tests")
 
     # Create a project directory
     project_dir = tmp_path / "preset-validation-test"
@@ -65,8 +66,7 @@ def test_openrouter_preset_validates_against_live_api(
             "Preset Test Game",  # game name
             "ja",  # source language
             "en",  # target languages
-            "1",  # provider choice (OpenRouter preset)
-            "",  # model_id (accept preset default)
+            "1",  # endpoint choice (OpenRouter preset)
             "jsonl",  # input format
             "y",  # include seed data
         ])
@@ -93,14 +93,15 @@ def test_openrouter_preset_validates_against_live_api(
     # Verify config was created
     assert config_path.exists(), f"Config file not created: {config_path}"
 
-    # Create .env file with the OpenRouter API key
+    # Verify .env was created by init
     env_path = project_dir / ".env"
-    env_path.write_text(f"OPENROUTER_API_KEY={openrouter_key}\n")
+    assert env_path.exists(), f".env file not created by init: {env_path}"
 
-    # Run doctor with the generated config
+    # Run doctor with the generated config, injecting API key via environment
     doctor_result = cli_runner.invoke(
         cli_main.app,
         ["doctor", "--config", str(config_path)],
+        env={StandardEnvVar.API_KEY.value: api_key},
     )
 
     # Assert doctor succeeded
@@ -127,17 +128,17 @@ def test_openrouter_preset_validates_against_live_api(
         f"Doctor reported LLM connectivity failure:\n{doctor_output}\n"
         f"\n"
         f"OpenRouter preset configuration:\n"
-        f"  Model ID: {PROVIDER_PRESETS[0].model_id}\n"
-        f"  Base URL: {PROVIDER_PRESETS[0].base_url}\n"
+        f"  Model ID: {ENDPOINT_PRESETS[0].default_model}\n"
+        f"  Base URL: {ENDPOINT_PRESETS[0].base_url}\n"
     )
 
 
 def test_all_presets_have_valid_structure(
     cli_runner: CliRunner,
 ) -> None:
-    """Test that all provider presets have valid structure.
+    """Test that all endpoint presets have valid structure.
 
-    GIVEN the list of PROVIDER_PRESETS
+    GIVEN the list of ENDPOINT_PRESETS
     WHEN I inspect each preset
     THEN each preset has required fields populated
 
@@ -147,25 +148,23 @@ def test_all_presets_have_valid_structure(
     Args:
         cli_runner: CliRunner (unused, but required for test signature consistency).
     """
-    assert len(PROVIDER_PRESETS) >= 3, (
-        "Spec requires at least 3 provider presets (OpenRouter, OpenAI, Local/Ollama)"
+    assert len(ENDPOINT_PRESETS) >= 3, (
+        "Spec requires at least 3 endpoint presets (OpenRouter, OpenAI, Local/Ollama)"
     )
 
     required_preset_names = {"OpenRouter", "OpenAI", "Local (Ollama)"}
-    available_preset_names = {preset.name for preset in PROVIDER_PRESETS}
+    available_preset_names = {preset.name for preset in ENDPOINT_PRESETS}
 
     assert required_preset_names.issubset(available_preset_names), (
         f"Missing required presets. Expected: {required_preset_names}, "
         f"Got: {available_preset_names}"
     )
 
-    for preset in PROVIDER_PRESETS:
+    for preset in ENDPOINT_PRESETS:
         # Verify all fields are populated
         assert preset.name, f"Preset missing name: {preset}"
-        assert preset.provider_name, f"Preset {preset.name} missing provider_name"
         assert preset.base_url, f"Preset {preset.name} missing base_url"
-        assert preset.api_key_env, f"Preset {preset.name} missing api_key_env"
-        assert preset.model_id, f"Preset {preset.name} missing model_id"
+        assert preset.default_model, f"Preset {preset.name} missing default_model"
 
         # Verify base_url is a valid URL format
         assert preset.base_url.startswith("http"), (

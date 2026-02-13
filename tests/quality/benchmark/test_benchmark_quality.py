@@ -22,7 +22,7 @@ import pytest
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 from rentl_schemas.benchmark.report import BenchmarkReport
 from rentl_schemas.io import TranslatedLine
 
@@ -32,12 +32,6 @@ if TYPE_CHECKING:
 
 # Link feature file
 scenarios("../features/benchmark/benchmark_quality.feature")
-
-# Skip entire module if quality test environment is not configured
-pytestmark = pytest.mark.skipif(
-    not os.getenv("RENTL_QUALITY_API_KEY") or not os.getenv("RENTL_QUALITY_BASE_URL"),
-    reason="Requires RENTL_QUALITY_API_KEY and RENTL_QUALITY_BASE_URL to be set",
-)
 
 
 class BenchmarkContext:
@@ -126,9 +120,15 @@ def create_sample_outputs(ctx: BenchmarkContext) -> None:
 
 @given("real LLM endpoints are configured")
 def verify_llm_endpoints(ctx: BenchmarkContext) -> None:
-    """Verify that real LLM endpoint configuration is available."""
-    assert os.getenv("RENTL_QUALITY_API_KEY"), "RENTL_QUALITY_API_KEY must be set"
-    assert os.getenv("RENTL_QUALITY_BASE_URL"), "RENTL_QUALITY_BASE_URL must be set"
+    """Verify that real LLM endpoint configuration is available.
+
+    Raises:
+        ValueError: If required environment variables are not set.
+    """
+    if not os.getenv("RENTL_QUALITY_API_KEY"):
+        raise ValueError("RENTL_QUALITY_API_KEY must be set for quality tests")
+    if not os.getenv("RENTL_QUALITY_BASE_URL"):
+        raise ValueError("RENTL_QUALITY_BASE_URL must be set for quality tests")
 
 
 @when("I run benchmark compare on the output files")

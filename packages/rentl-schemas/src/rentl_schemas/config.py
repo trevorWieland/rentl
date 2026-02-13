@@ -580,17 +580,8 @@ class PipelineConfig(BaseSchema):
         if len(set(phase_names)) != len(phase_names):
             raise ValueError("phases must not contain duplicates")
 
-        required = {
-            PhaseName.CONTEXT,
-            PhaseName.PRETRANSLATION,
-            PhaseName.TRANSLATE,
-            PhaseName.QA,
-            PhaseName.EDIT,
-        }
-        missing = required.difference(set(phase_names))
-        if missing:
-            missing_list = ", ".join(sorted(missing))
-            raise ValueError(f"missing required phases: {missing_list}")
+        # No phase requirements enforced - allow flexible pipeline configurations
+        # This enables per-phase testing and custom pipeline configurations
 
         order_index = {phase: index for index, phase in enumerate(PIPELINE_PHASE_ORDER)}
         last_index = -1

@@ -7,7 +7,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from rentl_cli.main import app
+from rentl.main import app
 
 
 @pytest.fixture
