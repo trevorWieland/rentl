@@ -54,7 +54,7 @@ class ProfileAgentConfig(BaseSchema):
 
     api_key: str
     base_url: str = "https://api.openai.com/v1"
-    model_id: str = "gpt-4o-mini"
+    model_id: str
     temperature: float = 0.7
     top_p: float = 1.0
     timeout_s: float = 180.0
@@ -252,7 +252,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                     f"Agent {self.name} FAILED: Hit request limit ({limit}). "
                     f"Model repeatedly failed to produce valid structured output. "
                     f"The model may not be capable enough for this task. "
-                    f"Try a more capable model (e.g., gpt-4o, claude-3.5-sonnet). "
+                    f"Try a more capable model (e.g., gpt-5-nano, qwen/qwen3-30b-a3b). "
                     f"Details: {e}"
                 ) from e
             except UnexpectedModelBehavior as e:

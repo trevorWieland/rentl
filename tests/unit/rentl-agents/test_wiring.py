@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from rentl_agents.runtime import ProfileAgentConfig
 from rentl_agents.wiring import (
@@ -55,7 +56,7 @@ def _build_config() -> ProfileAgentConfig:
     return ProfileAgentConfig(
         api_key="test",
         base_url="http://localhost",
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
     )
 
 
@@ -363,3 +364,9 @@ def test_build_agent_pools_uses_package_defaults_when_agents_is_none(
     assert isinstance(edit_pool, PhaseAgentPool)
     edit_agent = edit_pool._agents[0]
     assert isinstance(edit_agent, EditBasicEditorAgent)
+
+
+def test_profile_agent_config_requires_model_id() -> None:
+    """Omitting model_id raises ValidationError."""
+    with pytest.raises(ValidationError, match="model_id"):
+        ProfileAgentConfig(api_key="test-key")  # type: ignore[call-arg]

@@ -46,7 +46,7 @@ class AgentHarnessConfig(BaseSchema):
 
     api_key: str
     base_url: str = "https://api.openai.com/v1"
-    model_id: str = "gpt-4o-mini"
+    model_id: str
     temperature: float = 0.7
     top_p: float = 1.0
     timeout_s: float = 30.0

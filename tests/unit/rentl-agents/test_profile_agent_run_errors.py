@@ -93,7 +93,7 @@ def _build_agent_args() -> _AgentArgs:
         "config": ProfileAgentConfig(
             api_key="test",
             base_url="http://localhost",
-            model_id="gpt-4o-mini",
+            model_id="gpt-5-nano",
             max_retries=1,
             retry_base_delay=0.0,
         ),

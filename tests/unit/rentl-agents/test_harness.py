@@ -6,7 +6,7 @@ from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from rentl_agents.harness import AgentHarness, AgentHarnessConfig
 from rentl_schemas.base import BaseSchema
@@ -92,7 +92,7 @@ class TestAgentHarness:
             output_type=MockOutput,
         )
 
-        config = AgentHarnessConfig(api_key="test-key")
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
 
         await harness.initialize(config)
 
@@ -153,7 +153,7 @@ class TestAgentHarness:
             output_type=MockOutput,
         )
 
-        config = AgentHarnessConfig(api_key="test-key")
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
         await harness.initialize(config)
 
         expected_output = MockOutput(result="こんにちは", confidence=0.95)
@@ -182,7 +182,7 @@ class TestAgentHarness:
             retry_base_delay=0.01,
         )
 
-        config = AgentHarnessConfig(api_key="test-key")
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
         await harness.initialize(config)
 
         # Mock _execute_agent to always fail
@@ -213,7 +213,7 @@ class TestAgentHarness:
             tools=[mock_tool_fn],
         )
 
-        config = AgentHarnessConfig(api_key="test-key")
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
         await harness.initialize(config)
 
         # Verify the harness stored the tools
@@ -234,7 +234,7 @@ class TestAgentHarness:
             tools=[mock_tool_fn],
         )
 
-        config = AgentHarnessConfig(api_key="test-key")
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
         await harness.initialize(config)
 
         expected_output = MockOutput(result="Processed", confidence=0.9)
@@ -283,6 +283,7 @@ class TestAgentHarnessExecuteAgent:
         config = AgentHarnessConfig(
             api_key="test-api-key",
             base_url="https://custom.api.com/v1",
+            model_id="gpt-5-nano",
         )
         await harness.initialize(config)
 
@@ -324,7 +325,7 @@ class TestAgentHarnessExecuteAgent:
 
         config = AgentHarnessConfig(
             api_key="test-key",
-            model_id="gpt-4o",
+            model_id="gpt-5-nano",
         )
         await harness.initialize(config)
 
@@ -347,7 +348,7 @@ class TestAgentHarnessExecuteAgent:
             input_data = MockInput(text="Hello", target_lang="ja")
             await harness.run(input_data)
 
-            mock_model_cls.assert_called_once_with("gpt-4o", provider=mock_provider)
+            mock_model_cls.assert_called_once_with("gpt-5-nano", provider=mock_provider)
 
     @pytest.mark.asyncio
     async def test_execute_agent_passes_tools_to_agent(self) -> None:
@@ -377,7 +378,7 @@ class TestAgentHarnessExecuteAgent:
             tools=tools_list,
         )
 
-        config = AgentHarnessConfig(api_key="test-key")
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
         await harness.initialize(config)
 
         mock_result = MagicMock()
@@ -415,7 +416,7 @@ class TestAgentHarnessExecuteAgent:
             output_type=MockOutput,
         )
 
-        config = AgentHarnessConfig(api_key="test-key")
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
         await harness.initialize(config)
 
         mock_result = MagicMock()
@@ -455,6 +456,7 @@ class TestAgentHarnessExecuteAgent:
 
         config = AgentHarnessConfig(
             api_key="test-key",
+            model_id="gpt-5-nano",
             temperature=0.5,
             top_p=0.9,
             timeout_s=60.0,
@@ -498,7 +500,7 @@ class TestAgentHarnessExecuteAgent:
             output_type=MockOutput,
         )
 
-        config = AgentHarnessConfig(api_key="test-key")
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
         await harness.initialize(config)
 
         expected_output = MockOutput(result="processed text", confidence=0.92)
@@ -534,3 +536,12 @@ class TestAgentHarnessExecuteAgent:
         # Call _execute_agent directly without initializing
         with pytest.raises(RuntimeError, match="Agent not initialized"):
             await harness._execute_agent("test prompt")
+
+
+class TestAgentHarnessConfigValidation:
+    """Test cases for AgentHarnessConfig field validation."""
+
+    def test_model_id_required(self) -> None:
+        """Omitting model_id raises ValidationError."""
+        with pytest.raises(ValidationError, match="model_id"):
+            AgentHarnessConfig(api_key="test-key")  # type: ignore[call-arg]

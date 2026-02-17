@@ -29,7 +29,7 @@ Model choices:
   - Update `tests/unit/cli/test_main.py` (4 occurrences of old model strings)
   - Update `tests/integration/cli/test_init.py` (2 occurrences of old model strings)
   - Acceptance: selecting Local preset prompts for model; selecting OpenRouter/OpenAI presets auto-fills model; CLI tests pass
-- [ ] Task 4: Remove model_id defaults from runtime configs
+- [x] Task 4: Remove model_id defaults from runtime configs
   - `packages/rentl-agents/src/rentl_agents/runtime.py`: remove `"gpt-4o-mini"` default from `ProfileAgentConfig.model_id`, make it a required field with clear validation error
   - `packages/rentl-agents/src/rentl_agents/harness.py`: remove `"gpt-4o-mini"` default from `AgentHarnessConfig.model_id`, make it a required field with clear validation error
   - Update unit tests: `test_wiring.py`, `test_runtime_telemetry.py`, `test_profile_agent_execute.py`, `test_profile_agent_run_errors.py`, `test_alignment_retries.py`

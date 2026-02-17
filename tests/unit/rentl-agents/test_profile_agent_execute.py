@@ -96,7 +96,7 @@ def test_profile_agent_execute_openrouter_uses_openrouter_model() -> None:
     config = ProfileAgentConfig(
         api_key="test",
         base_url="https://openrouter.ai/api/v1",
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
         max_requests_per_run=3,
     )
     agent = ProfileAgent(
@@ -148,7 +148,7 @@ def test_profile_agent_execute_non_openrouter_uses_openai_model() -> None:
     config = ProfileAgentConfig(
         api_key="test",
         base_url="http://localhost:8000/v1",
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
         max_requests_per_run=3,
     )
     agent = ProfileAgent(
@@ -193,7 +193,7 @@ def test_profile_agent_execute_sets_prepare_output_tools_when_required() -> None
     config = ProfileAgentConfig(
         api_key="test",
         base_url="http://localhost",
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
         required_tool_calls=["get_game_info"],
         max_requests_per_run=2,
     )
