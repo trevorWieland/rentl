@@ -8,10 +8,10 @@ version: v0.1
 rentl is approaching v0.1 release and needs comprehensive documentation for users and contributors. The existing README covers installation and quick start but lacks depth. This spec adds a CHANGELOG, a standalone getting started guide, architecture docs, data schema reference, and license compliance — the final deliverables before v0.1 can ship.
 
 ## Tasks
-- [ ] Task 1: Save Spec Documentation
+- [x] Task 1: Save Spec Documentation
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit spec artifacts to the issue branch
-  - [ ] Fix: Correct stale demo verification claim that `run-phase --phase all` exists; CLI only accepts concrete `PhaseName` values (`demo.md:29`, `services/rentl-cli/src/rentl/main.py:215`, `services/rentl-cli/src/rentl/main.py:1030`) (audit round 1)
+  - [x] Fix: Correct stale demo verification claim that `run-phase --phase all` exists; CLI only accepts concrete `PhaseName` values (`demo.md:29`, `services/rentl-cli/src/rentl/main.py:215`, `services/rentl-cli/src/rentl/main.py:1030`) (audit round 1)
 - [x] Task 2: Create CHANGELOG.md
   - Write v0.1 release notes in Keep a Changelog format
   - Cross-reference `agent-os/product/roadmap.md` for all completed specs
