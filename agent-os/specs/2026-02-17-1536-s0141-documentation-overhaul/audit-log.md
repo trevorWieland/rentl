@@ -23,3 +23,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 2): FAIL — Performance 5/5, Intent 4/5, Completion 3/5, Security 5/5, Stability 4/5; fix-now count 2
 - **Task 6** (round 6): PASS — Task 6 remains compliant: README cross-links required new docs, benchmark CC BY-NC-ND source/license/non-bundling details match implementation (`fleetingheart/ksre`), and all repository `pyproject.toml` files retain `license = "MIT"`.
 - **Demo** (run 3): PASS — All 6 [RUN] steps passed: CHANGELOG covers 37 specs, 11 CLI commands/flags verified via help output, architecture doc at 298 lines with 30+ names verified, schema fields across 28+ models match, all 9 pyproject.toml files MIT-licensed, README cross-links present (6 run, 0 verified)
+- **Spec Audit** (round 3): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 1 (intermittent quality-test timeout)
