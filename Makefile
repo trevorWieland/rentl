@@ -76,7 +76,7 @@ integration:
 # Run quality tests
 quality:
 	@echo "💎 Running quality tests..."
-	$(call run_test, bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=30', .quality.log, Quality Tests)
+	$(call run_test, bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=90', .quality.log, Quality Tests)
 
 # Run all tests with coverage
 test:
