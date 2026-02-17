@@ -10,3 +10,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 3** (round 2): PASS — Step 3 now documents the actual init-generated `RENTL_LOCAL_API_KEY` variable and removes GNU-only `sed -i`; CLI command references in the guide match current `rentl` help output.
 - **Task 4** (round 1): FAIL — `docs/architecture.md` includes stale architecture references (package inventory/dependency statements, storage-path layout, and BYOK config snippet) that do not match current code and config schema.
 - **Task 4** (round 2): FAIL — `docs/architecture.md` still misstates artifact index location (`.rentl/artifacts/{run_id}/index.jsonl`), but code stores a global index at `.rentl/artifacts/index.jsonl`.
+- **Task 4** (round 3): PASS — `docs/architecture.md` now correctly documents the global artifact index at `.rentl/artifacts/index.jsonl`, matching `FileSystemArtifactStore` behavior.
