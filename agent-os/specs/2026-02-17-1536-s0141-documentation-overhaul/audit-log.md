@@ -11,3 +11,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 1): FAIL — `docs/architecture.md` includes stale architecture references (package inventory/dependency statements, storage-path layout, and BYOK config snippet) that do not match current code and config schema.
 - **Task 4** (round 2): FAIL — `docs/architecture.md` still misstates artifact index location (`.rentl/artifacts/{run_id}/index.jsonl`), but code stores a global index at `.rentl/artifacts/index.jsonl`.
 - **Task 4** (round 3): PASS — `docs/architecture.md` now correctly documents the global artifact index at `.rentl/artifacts/index.jsonl`, matching `FileSystemArtifactStore` behavior.
+- **Task 5** (round 1): PASS — `docs/data-schemas.md` covers the required schema surfaces, and documented fields/types align with `rentl-schemas` model definitions with example JSONL lines matching `samples/golden/artifacts/`.
