@@ -24,7 +24,7 @@ Model choices:
   - Update `InitAnswers.model_id` field description example
   - Update `tests/unit/core/test_init.py` (~14 occurrences of old model strings)
   - Acceptance: `ENDPOINT_PRESETS` contains only current models; `EndpointPreset.default_model` accepts `None`; unit tests pass
-- [ ] Task 3: Handle None default_model in CLI init flow
+- [x] Task 3: Handle None default_model in CLI init flow
   - Update `services/rentl-cli/src/rentl/main.py` init flow: when preset has `default_model=None`, prompt user for model name instead of silently using None
   - Update `tests/unit/cli/test_main.py` (4 occurrences of old model strings)
   - Update `tests/integration/cli/test_init.py` (2 occurrences of old model strings)
