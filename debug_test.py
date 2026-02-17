@@ -9,7 +9,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from rentl_cli.main import app
+from rentl.main import app
 
 runner = CliRunner()
 

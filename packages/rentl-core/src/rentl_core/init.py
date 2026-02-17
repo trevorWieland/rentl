@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -11,38 +12,37 @@ from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import FileFormat
 
 
-class ProviderPreset(BaseSchema):
-    """Provider preset with pre-filled configuration values."""
+class StandardEnvVar(StrEnum):
+    """Standardized environment variable names for rentl configuration."""
 
-    name: str = Field(..., description="Display name of the provider")
-    provider_name: str = Field(..., description="Provider identifier for config")
+    API_KEY = "RENTL_LOCAL_API_KEY"
+    BASE_URL = "RENTL_BASE_URL"
+
+
+class EndpointPreset(BaseSchema):
+    """Endpoint preset with pre-filled base URL."""
+
+    name: str = Field(..., description="Display name of the endpoint")
     base_url: str = Field(..., description="OpenAI-compatible endpoint base URL")
-    api_key_env: str = Field(..., description="Environment variable name for API key")
-    model_id: str = Field(..., description="Default model identifier")
+    default_model: str = Field(..., description="Suggested default model identifier")
 
 
-# Provider presets for common LLM providers
-PROVIDER_PRESETS: list[ProviderPreset] = [
-    ProviderPreset(
+# Endpoint presets for common LLM providers
+ENDPOINT_PRESETS: list[EndpointPreset] = [
+    EndpointPreset(
         name="OpenRouter",
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
-        model_id="openai/gpt-4-turbo",
+        default_model="openai/gpt-4-turbo",
     ),
-    ProviderPreset(
+    EndpointPreset(
         name="OpenAI",
-        provider_name="openai",
         base_url="https://api.openai.com/v1",
-        api_key_env="OPENAI_API_KEY",
-        model_id="gpt-4.1-turbo",
+        default_model="gpt-4-turbo",
     ),
-    ProviderPreset(
+    EndpointPreset(
         name="Local (Ollama)",
-        provider_name="ollama",
         base_url="http://localhost:11434/v1",
-        api_key_env="OLLAMA_API_KEY",
-        model_id="llama3",
+        default_model="llama3.2",
     ),
 ]
 
@@ -62,18 +62,8 @@ class InitAnswers(BaseSchema):
     target_languages: list[str] = Field(
         ..., min_length=1, description="Target language codes (e.g., ['en'])"
     )
-    provider_name: str = Field(
-        ..., min_length=1, description="Endpoint provider name (e.g., 'openrouter')"
-    )
     base_url: str = Field(
         ..., min_length=1, description="OpenAI-compatible endpoint base URL"
-    )
-    api_key_env: str = Field(
-        ...,
-        min_length=1,
-        description=(
-            "Environment variable name for API key (e.g., 'OPENROUTER_API_KEY')"
-        ),
     )
     model_id: str = Field(
         ..., min_length=1, description="Model identifier (e.g., 'openai/gpt-4-turbo')"
@@ -84,6 +74,10 @@ class InitAnswers(BaseSchema):
     )
     include_seed_data: bool = Field(
         True, description="Whether to create a seed sample input file"
+    )
+    provider_name: str = Field(
+        "",
+        description="Provider name for endpoint routing",
     )
 
     @field_validator("base_url")
@@ -169,7 +163,7 @@ def generate_project(answers: InitAnswers, target_dir: Path) -> InitResult:
     # Build next-step instructions
     input_file = f"./input/{answers.game_name}.{answers.input_format}"
     next_steps = [
-        f"Set your API key in .env: {answers.api_key_env}=your_key_here",
+        f"Set your API key in .env: {StandardEnvVar.API_KEY.value}=your_key_here",
     ]
     if not answers.include_seed_data:
         next_steps.append(f"Place your input data into {input_file}")
@@ -197,6 +191,9 @@ def _generate_toml(answers: InitAnswers) -> str:
     # Join target languages as comma-separated strings for TOML array
     target_langs = ", ".join(f'"{lang}"' for lang in answers.target_languages)
 
+    # Provider name is set by the CLI layer via detect_provider
+    provider_name = answers.provider_name or "Generic OpenAI-compatible"
+
     return f'''[project]
 schema_version = {{ major = 0, minor = 1, patch = 0 }}
 project_name = "{answers.project_name}"
@@ -222,9 +219,9 @@ sinks = [
 ]
 
 [endpoint]
-provider_name = "{answers.provider_name}"
+provider_name = "{provider_name}"
 base_url = "{answers.base_url}"
-api_key_env = "{answers.api_key_env}"
+api_key_env = "{StandardEnvVar.API_KEY.value}"
 
 [pipeline]
 
@@ -280,7 +277,10 @@ def _generate_env(answers: InitAnswers) -> str:
     Returns:
         str: .env file content.
     """
-    return f"# Set your API key for {answers.provider_name}\n{answers.api_key_env}=\n"
+    return (
+        f"# Set your API key for the LLM endpoint ({answers.base_url})\n"
+        f"{StandardEnvVar.API_KEY.value}=\n"
+    )
 
 
 def _get_sample_text(language: str) -> tuple[tuple[str, str, str], bool]:

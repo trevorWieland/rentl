@@ -13,10 +13,16 @@ import pytest
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
+from rentl_agents.providers import detect_provider
 from rentl_agents.runtime import ProfileAgent
 from rentl_agents.wiring import build_agent_pools
-from rentl_core.init import PROVIDER_PRESETS, InitAnswers, generate_project
+from rentl_core.init import (
+    ENDPOINT_PRESETS,
+    InitAnswers,
+    StandardEnvVar,
+    generate_project,
+)
 from rentl_schemas.io import SourceLine
 from rentl_schemas.phases import (
     IdiomAnnotation,
@@ -71,12 +77,11 @@ def when_generate_project_with_defaults(ctx: InitContext) -> None:
         game_name="Test Game",
         source_language="ja",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
+        provider_name="OpenRouter",
     )
 
     # Generate the project
@@ -247,7 +252,7 @@ def then_pipeline_executes_end_to_end(
 
     # Set the API key environment variable that the generated config references
     # This makes the test deterministic and self-contained
-    monkeypatch.setenv(ctx.answers.api_key_env, "fake-api-key-for-testing")
+    monkeypatch.setenv(StandardEnvVar.API_KEY.value, "fake-api-key-for-testing")
 
     # Verify pipeline has required ingest and export phases
     # Without these, the pipeline will fail at runtime
@@ -471,7 +476,7 @@ def test_env_var_scoping_regression(
     regardless of pre-existing environment state.
     """
     # Capture the original state (might be set or unset)
-    original_value = os.environ.get("OPENROUTER_API_KEY")
+    original_value = os.environ.get(StandardEnvVar.API_KEY.value)
 
     # Generate a project with default answers
     answers = InitAnswers(
@@ -479,12 +484,11 @@ def test_env_var_scoping_regression(
         game_name="Test Game",
         source_language="ja",
         target_languages=["en"],
-        provider_name="openrouter",
         base_url="https://openrouter.ai/api/v1",
-        api_key_env="OPENROUTER_API_KEY",
         model_id="openai/gpt-4-turbo",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
+        provider_name="OpenRouter",
     )
 
     target_dir = tmp_path / "test-env-scope"
@@ -500,49 +504,53 @@ def test_env_var_scoping_regression(
     # Use isolated patch scope to verify temporary override + restoration
     with monkeypatch.context() as m:
         # Temporarily set the API key within the isolated scope
-        m.setenv("OPENROUTER_API_KEY", "fake-api-key-for-scoping-test")
+        m.setenv(StandardEnvVar.API_KEY.value, "fake-api-key-for-scoping-test")
 
         # Verify it's set within the monkeypatch scope
-        assert os.environ.get("OPENROUTER_API_KEY") == "fake-api-key-for-scoping-test"
+        assert (
+            os.environ.get(StandardEnvVar.API_KEY.value)
+            == "fake-api-key-for-scoping-test"
+        )
 
         # Build agent pools (this should work with the monkeypatched env var)
         pools = build_agent_pools(config=config)
         assert pools is not None
 
     # After exiting the context, verify restoration to original state
-    assert os.environ.get("OPENROUTER_API_KEY") == original_value
+    assert os.environ.get(StandardEnvVar.API_KEY.value) == original_value
 
 
-def test_all_provider_presets_produce_valid_configs(
+def test_all_endpoint_presets_produce_valid_configs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Verify that all provider presets produce valid, runnable configs.
+    """Verify that all endpoint presets produce valid, runnable configs.
 
     This integration test ensures that:
-    1. Each provider preset in PROVIDER_PRESETS is complete and valid
+    1. Each endpoint preset in ENDPOINT_PRESETS is complete and valid
     2. The preset values can generate a valid rentl.toml
     3. The generated config passes schema validation
     4. Agent pools can be built from the generated config (proving API compatibility)
 
     This is a regression guard against incomplete or misconfigured presets.
     """
-    for preset in PROVIDER_PRESETS:
+    for preset in ENDPOINT_PRESETS:
         # Create answers using the preset
         answers = InitAnswers(
-            project_name=f"test-{preset.provider_name}",
+            project_name=f"test-{preset.name.lower().replace(' ', '-')}",
             game_name="Test Game",
             source_language="ja",
             target_languages=["en"],
-            provider_name=preset.provider_name,
             base_url=preset.base_url,
-            api_key_env=preset.api_key_env,
-            model_id=preset.model_id,
+            model_id=preset.default_model,
             input_format=FileFormat.JSONL,
             include_seed_data=True,
+            provider_name=detect_provider(preset.base_url).name,
         )
 
         # Generate project in preset-specific directory
-        preset_dir = tmp_path / preset.provider_name
+        preset_dir = tmp_path / preset.name.replace(" ", "_").replace("(", "").replace(
+            ")", ""
+        )
         preset_dir.mkdir()
         result = generate_project(answers, preset_dir)
 
@@ -561,25 +569,29 @@ def test_all_provider_presets_produce_valid_configs(
 
         # Verify endpoint matches preset
         assert config.endpoint is not None
-        assert config.endpoint.provider_name == preset.provider_name, (
-            f"Provider name mismatch for {preset.name}"
-        )
+        # provider_name is auto-detected from base_url
         assert config.endpoint.base_url == preset.base_url, (
             f"Base URL mismatch for {preset.name}"
         )
-        assert config.endpoint.api_key_env == preset.api_key_env, (
-            f"API key env mismatch for {preset.name}"
+        assert isinstance(config.endpoint.provider_name, str), (
+            f"provider_name should be a string for {preset.name}"
+        )
+        assert config.endpoint.provider_name, (
+            f"provider_name should not be empty for {preset.name}"
+        )
+        # api_key_env uses standardized name
+        assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value, (
+            f"API key env should be standardized for {preset.name}"
         )
 
         # Verify default model matches preset
         assert config.pipeline.default_model is not None
-        assert config.pipeline.default_model.model_id == preset.model_id, (
+        assert config.pipeline.default_model.model_id == preset.default_model, (
             f"Model ID mismatch for {preset.name}"
         )
 
-        # Set the API key environment variable for agent pool building
-        # (different presets use different env var names)
-        monkeypatch.setenv(preset.api_key_env, "fake-api-key-for-testing")
+        # Set the standardized API key environment variable for agent pool building
+        monkeypatch.setenv(StandardEnvVar.API_KEY.value, "fake-api-key-for-testing")
 
         # Verify agent pools can be built
         # This proves the config is compatible with the agent system

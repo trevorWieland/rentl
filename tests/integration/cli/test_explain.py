@@ -8,7 +8,7 @@ from click.testing import Result
 from pytest_bdd import scenarios, then, when
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 
 if TYPE_CHECKING:
     pass

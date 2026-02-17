@@ -1,5 +1,5 @@
 [project]
-name = "rentl"
+name = "rentl-workspace"
 version = "0.1.0"
 description = "Agentic localization pipeline"
 requires-python = ">=3.14"
@@ -18,7 +18,7 @@ members = ["packages/*", "services/*"]
 [tool.uv.sources]
 rentl-agents = { workspace = true }
 rentl-api = { workspace = true }
-rentl-cli = { workspace = true }
+rentl = { workspace = true }
 rentl-core = { workspace = true }
 rentl-io = { workspace = true }
 rentl-llm = { workspace = true }
@@ -52,7 +52,7 @@ select = [
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["rentl_schemas", "rentl_io", "rentl_core", "rentl_llm", "rentl_agents", "rentl_cli", "rentl_tui", "rentl_api"]
+known-first-party = ["rentl_schemas", "rentl_io", "rentl_core", "rentl_llm", "rentl_agents", "rentl", "rentl_tui", "rentl_api"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -97,7 +97,7 @@ dev = [
     "rentl-core",
     "rentl-llm",
     "rentl-agents",
-    "rentl-cli",
+    "rentl",
     "rentl-tui",
     "rentl-api",
     "ruff>=0.14.14",

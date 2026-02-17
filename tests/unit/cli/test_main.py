@@ -15,9 +15,10 @@ from uuid import uuid7
 import pytest
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
+from rentl.main import app
 from rentl_agents.wiring import build_agent_pools
-from rentl_cli.main import app
+from rentl_core.init import StandardEnvVar
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
@@ -75,7 +76,14 @@ def test_version_command() -> None:
     """Test version command outputs version string."""
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "0.1.0" in result.stdout
+    assert "0.1.8" in result.stdout
+
+
+def test_version_flag() -> None:
+    """Test --version flag outputs version string and exits successfully."""
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "0.1.8" in result.stdout
 
 
 def test_export_command_outputs_warnings(tmp_path: Path) -> None:
@@ -1964,7 +1972,7 @@ def test_init_command_target_languages_blank_fails(
 def test_init_command_provider_preset_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test init command with provider preset selection (OpenRouter, OpenAI, Ollama)."""
+    """Test init command with endpoint preset selection (OpenRouter, OpenAI, Ollama)."""
     # Change to temp directory
     monkeypatch.chdir(tmp_path)
 
@@ -1974,7 +1982,7 @@ def test_init_command_provider_preset_selection(
         "",  # game_name (default)
         "",  # source_language (default: ja)
         "",  # target_languages (default: en)
-        "1",  # provider choice: OpenRouter
+        "1",  # endpoint choice: OpenRouter
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1987,19 +1995,20 @@ def test_init_command_provider_preset_selection(
     assert "OpenRouter" in result.stdout
     assert "https://openrouter.ai/api/v1" in result.stdout
 
-    # Verify rentl.toml contains correct provider settings
+    # Verify rentl.toml contains correct endpoint settings with standardized env var
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
         config = tomllib.load(f)
     assert config["endpoint"]["base_url"] == "https://openrouter.ai/api/v1"
-    assert config["endpoint"]["api_key_env"] == "OPENROUTER_API_KEY"
+    # Env var should now be standardized
+    assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
 
 
 def test_init_command_provider_custom_option(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test init command with custom provider option (choice 4)."""
+    """Test init command with custom endpoint option (choice 4)."""
     # Change to temp directory
     monkeypatch.chdir(tmp_path)
 
@@ -2009,10 +2018,8 @@ def test_init_command_provider_custom_option(
         "",  # game_name (default)
         "",  # source_language (default: ja)
         "",  # target_languages (default: en)
-        "4",  # provider choice: Custom
-        "mycustom",  # custom provider name
+        "4",  # endpoint choice: Custom
         "https://api.example.com/v1",  # custom base URL
-        "MY_API_KEY",  # custom API key env var
         "my-model-v1",  # custom model ID
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
@@ -2024,13 +2031,14 @@ def test_init_command_provider_custom_option(
     # Assert successful exit
     assert result.exit_code == 0
 
-    # Verify rentl.toml contains custom provider settings
+    # Verify rentl.toml contains custom endpoint settings with standardized env var
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
         config = tomllib.load(f)
     assert config["endpoint"]["base_url"] == "https://api.example.com/v1"
-    assert config["endpoint"]["api_key_env"] == "MY_API_KEY"
+    # Env var should be standardized (not custom)
+    assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
     assert config["pipeline"]["default_model"]["model_id"] == "my-model-v1"
 
 
@@ -2077,11 +2085,9 @@ def test_init_command_custom_url_validation_loop(
         "",  # game_name (default)
         "",  # source_language (default: ja)
         "",  # target_languages (default: en)
-        "4",  # provider choice: Custom
-        "mycustom",  # custom provider name
+        "4",  # endpoint choice: Custom
         "not-a-url",  # invalid base URL (should fail validation and loop)
         "https://api.example.com/v1",  # valid base URL (second attempt)
-        "MY_API_KEY",  # custom API key env var
         "my-model-v1",  # custom model ID
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
@@ -2214,7 +2220,7 @@ def test_help_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(cli_main, "Console", PatchedConsole)
     # Patch isatty to return True, triggering the Rich code paths
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: True)
 
     # Test list all commands (Rich table path)
     result = runner.invoke(app, ["help"])
@@ -2261,7 +2267,7 @@ def test_explain_command_tty_rendering(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(cli_main, "Console", PatchedConsole)
     # Patch isatty to return True, triggering the Rich code paths
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: True)
 
     # Test list all phases (Rich table path)
     result = runner.invoke(app, ["explain"])
@@ -2312,7 +2318,7 @@ def test_doctor_command_tty_rendering(
 
     monkeypatch.setattr(cli_main, "Console", PatchedConsole)
     # Patch isatty to return True, triggering the Rich code paths
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: True)
 
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
@@ -2339,7 +2345,7 @@ def test_doctor_command_exit_propagation(
     """Test that doctor propagates non-success exit codes when checks fail.
 
     This test validates the exit code propagation logic at
-    services/rentl-cli/src/rentl_cli/main.py:374
+    services/rentl-cli/src/rentl/main.py:374
     by ensuring that failing checks result in non-zero exit codes.
     """
     from rich.console import Console as RichConsole  # noqa: PLC0415
@@ -2352,7 +2358,7 @@ def test_doctor_command_exit_propagation(
 
     monkeypatch.setattr(cli_main, "Console", PatchedConsole)
     # Patch isatty to return True, triggering the Rich code paths
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: True)
 
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
@@ -2385,7 +2391,7 @@ def test_help_command_plain_text_output(monkeypatch: pytest.MonkeyPatch) -> None
     ensuring all commands produce readable plain text for scripting/logging.
     """
     # Force non-TTY mode (CliRunner does this by default, but be explicit)
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: False)
 
     # Test list all commands (plain text path)
     result = runner.invoke(app, ["help"])
@@ -2419,7 +2425,7 @@ def test_doctor_command_plain_text_output(
     ensuring check results are readable in plain text for scripting/logging.
     """
     # Force non-TTY mode
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: False)
 
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
@@ -2448,7 +2454,7 @@ def test_explain_command_plain_text_output(monkeypatch: pytest.MonkeyPatch) -> N
     ensuring phase information is readable in plain text for scripting/logging.
     """
     # Force non-TTY mode
-    monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("rentl.main.sys.stdout.isatty", lambda: False)
 
     # Test list all phases (plain text path)
     result = runner.invoke(app, ["explain"])

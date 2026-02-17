@@ -22,6 +22,8 @@
 - Functional onboarding surfaces (docs + help + doctor)
 - Standards review: declarative agent configuration and conventions
 - Log redaction and error taxonomy enforcement
+- Model default freshness (no presets with announced EOL)
+- Release documentation (CHANGELOG, Getting Started, architecture, schema reference)
 
 **Spec List (Expanded):**
 - ✅ (s0.1.01) Schema Definitions & Validation — Define strict Pydantic schemas for configs, inputs, outputs, and artifacts so the pipeline is deterministic and debuggable. **Depends on:** None.
@@ -51,7 +53,7 @@
 - ✅ (s0.1.25) Quality Test Suite — Real-LLM smoke tests for runtime and agent behaviors. **Depends on:** s0.1.14, s0.1.15–s0.1.20, s0.1.23.
 - (s0.1.26) Standards Review: Declarative Agent Config — Lock in agent configuration conventions and documentation. **Depends on:** s0.1.14–s0.1.16.
 - ✅ (s0.1.27) End-to-End Logging & Error Surfacing — Ensure full logging coverage and raise actionable errors instead of silent failures. **Depends on:** s0.1.06, s0.1.07, s0.1.14–s0.1.16.
-- (s0.1.28) OpenRouter Full Support - Ensure that both local models and openrouter models are fully capable, using tools, and work reliantly. **Depends on:** s0.1.12, s0.1.13, s0.1.14.
+- ✅ (s0.1.28) OpenRouter Full Support - Ensure that both local models and openrouter models are fully capable, using tools, and work reliantly. **Depends on:** s0.1.12, s0.1.13, s0.1.14.
 - ✅ (s0.1.29) Project Bootstrap Command — Add `rentl init` to create a project from the template with sample data and config defaults. **Depends on:** s0.1.01, s0.1.03, s0.1.11.
 - ✅ (s0.1.30) Onboarding Docs Pack — Quickstart, first-run tutorial, and troubleshooting checklist. **Depends on:** s0.1.22, s0.1.29.
 - ✅ (s0.1.31) CLI Help/Doctor Commands — `rentl help`, `rentl doctor`, and `rentl explain <phase>` for actionable diagnostics. **Depends on:** s0.1.06, s0.1.11, s0.1.12.
@@ -59,17 +61,18 @@
 - ✅ (s0.1.33) Config Schema Versioning + Migrate — Versioned config with `rentl migrate` and a schema changelog. **Depends on:** s0.1.01.
 - ✅ (s0.1.34) Log Redaction & Safety Audit — Enforce secret redaction in logs and artifacts. **Depends on:** s0.1.06, s0.1.27.
 - ✅ (s0.1.35) CLI Exit Codes + Error Taxonomy — Stable exit codes for CI and scripting. **Depends on:** s0.1.06, s0.1.11.
-- (s0.1.36) Deterministic Rerun Validation — Same inputs + config produce identical artifacts and summaries. **Depends on:** s0.1.07, s0.1.09.
+- ❌ (s0.1.36) Deterministic Rerun Validation — Closed as impractical; LLM pipelines are chaotic systems and true determinism is outside our control. Addressed via benchmark harness and caching where it matters.
 - ✅ (s0.1.37) Benchmark Harness v0.1 — Curated small evaluation set with baseline MTL comparison; runnable outside default CI. **Depends on:** s0.1.17, s0.1.19, s0.1.20.
-- (s0.1.38) Benchmark Transparency Pack — Publish configs, prompts, rubric, and input/output hashes with a reproducibility guide (no text release). **Depends on:** s0.1.37.
-- (s0.1.39) Install Verification (uvx/uv tool) — Validate install + `rentl init` + full run on a clean environment. **Depends on:** s0.1.29, s0.1.24.
+- (s0.1.38) Benchmark Transparency Pack — Publish configs, prompts, rubric, and input/output hashes with a provenance and verification guide (no text release). **Depends on:** s0.1.37.
+- ✅ (s0.1.39) Install Verification (uvx/uv tool) — Validate install + `rentl init` + full run on a clean environment. **Depends on:** s0.1.29, s0.1.24.
+- (s0.1.40) Model Default Updates — Replace outdated model presets (gpt-4-turbo, gpt-4o-mini, llama3.2) with modern open-weight defaults; require explicit model_id in config. **Depends on:** s0.1.29, s0.1.13, s0.1.14.
+- (s0.1.41) Documentation Overhaul for v0.1 Release — CHANGELOG, Getting Started guide, architecture overview, data schema reference, and license/legal review. **Depends on:** s0.1.39, s0.1.30.
 
 **Success Criteria:**
 - A new user can run `rentl init` → full pipeline → export without manual edits
-- Re-running the same inputs/config yields identical artifacts and summaries
 - No secrets appear in logs or artifacts (redaction verified)
 - Small benchmark set beats baseline MTL on the rubric
-- Benchmark report is reproducible via published configs, rubric, and hashes
+- Benchmark report verifiable via published configs, rubric, and hashes
 - Full-script run completes end-to-end without fatal errors (Katawa Shoujo Ren'Py script under CC BY-NC-ND or licensed equivalent)
 - Onboarding docs + help/doctor resolve first-run issues in a clean environment
 

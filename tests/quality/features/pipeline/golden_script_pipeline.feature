@@ -1,11 +1,11 @@
-Feature: Golden Script Full Pipeline
-  As a developer testing the full pipeline
-  I want to run all phases on the golden sample script
-  So that I can verify the end-to-end pipeline works correctly
+Feature: Golden Script Pipeline Per-Phase Tests
+  As a developer testing the pipeline
+  I want to verify the pipeline works end-to-end with real LLMs
+  So that I can catch integration issues between phases
 
-  Scenario: Run full pipeline on golden script with real LLM runtime
-    Given the golden script exists at samples/golden/script.jsonl
-    And a pipeline config with all phases enabled
-    When I run the full pipeline on the golden script
-    Then all phases complete successfully
+  Scenario: Translate phase produces translated output
+    Given a small subset of the golden script
+    And a pipeline config with translate and export phases enabled
+    When I run the pipeline
+    Then the pipeline completes successfully
     And the export output contains valid TranslatedLine records

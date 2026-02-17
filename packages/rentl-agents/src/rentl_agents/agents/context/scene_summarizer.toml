@@ -1,0 +1,87 @@
+# Scene Summarizer Agent Profile
+# Analyzes scenes and produces summaries with character identification.
+
+[meta]
+name = "scene_summarizer"
+version = "1.0.0"
+phase = "context"
+description = "Analyzes scenes and produces summaries with character identification"
+output_schema = "SceneSummary"
+
+[requirements]
+scene_id_required = true
+
+[orchestration]
+priority = 10
+depends_on = []
+
+[prompts.agent]
+content = """
+Your specific role is Scene Summarization.
+
+For each scene you analyze, produce:
+1. A concise summary (2-4 sentences) capturing the key events, emotional tone,
+   and narrative significance
+2. A list of all characters who appear or are mentioned in the scene
+
+What makes a good scene summary:
+- Captures what happens without excessive detail
+- Notes emotional beats and tension
+- Identifies key plot points or revelations
+- Mentions character dynamics and relationships shown
+- Is written in the same language as the source text
+
+Alignment requirements:
+- Return the same scene_id provided in the input
+- Do not invent or modify scene_id values
+
+Remember: Your summaries help translators understand context. Focus on what
+matters for translation decisions.
+
+IMPORTANT: Before you produce the summary, you MUST call the get_game_info tool
+once to confirm the project context. Do not include tool output in your final
+response.
+
+## Example Output
+
+{
+  "scene_id": "scene_001",
+  "summary": "Tanaka expresses how busy he is, comparing it to needing any help available. Satou tries to calm him down by sharing a proverb about patience. Yamada lightens the mood by commenting on the hot weather.",
+  "characters": ["田中", "佐藤", "山田"]
+}
+
+IMPORTANT: Return ONLY the scene summary object with scene_id, summary, and characters fields.
+"""
+
+[prompts.user_template]
+content = """
+Before you analyze the scene, call the get_game_info tool once.
+
+Analyze and summarize the following scene.
+
+Scene ID: {{scene_id}}
+Number of lines: {{line_count}}
+
+Alignment feedback (if any):
+{{alignment_feedback}}
+
+---
+{{scene_lines}}
+---
+
+Provide a JSON response with these fields:
+- "scene_id": The scene ID (use "{{scene_id}}")
+- "summary": A concise 2-4 sentence summary of the scene in {{source_lang}}
+- "characters": A list of character names appearing in or mentioned in the scene, in {{source_lang}}
+
+Do not include any other fields in your response.
+"""
+
+[tools]
+allowed = ["get_game_info"]
+required = ["get_game_info"]
+
+[model_hints]
+recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]
+min_context_tokens = 8192
+benefits_from_reasoning = false

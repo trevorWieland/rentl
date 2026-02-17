@@ -13,7 +13,7 @@ from pytest_bdd import given, scenarios, then, when
 from tests.integration.conftest import write_rentl_config
 from typer.testing import CliRunner
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 from rentl_schemas.benchmark import HeadToHeadResult
 from rentl_schemas.benchmark.report import BenchmarkReport
 from rentl_schemas.benchmark.rubric import RubricDimension
@@ -134,13 +134,13 @@ def when_run_benchmark_download_kebab_case(
     mock_slices = MagicMock()
     mock_slices.slices = {"demo": MagicMock(scripts=[])}
 
-    with patch("rentl_cli.main.EvalSetLoader") as mock_loader:
+    with patch("rentl.main.EvalSetLoader") as mock_loader:
         mock_loader.load_manifest = MagicMock(return_value=mock_manifest)
         mock_loader.load_slices = MagicMock(return_value=mock_slices)
         mock_loader.get_slice_scripts = MagicMock(return_value=["script-a1-monday.rpy"])
 
         # Mock the downloader
-        with patch("rentl_cli.main.KatawaShoujoDownloader") as mock_downloader_class:
+        with patch("rentl.main.KatawaShoujoDownloader") as mock_downloader_class:
             mock_downloader = MagicMock()
             mock_downloader.download_scripts = AsyncMock(
                 return_value={"script-a1-monday.rpy": Path("/tmp/script-a1-monday.rpy")}
@@ -148,7 +148,7 @@ def when_run_benchmark_download_kebab_case(
             mock_downloader_class.return_value = mock_downloader
 
             # Mock the parser
-            with patch("rentl_cli.main.RenpyDialogueParser") as mock_parser_class:
+            with patch("rentl.main.RenpyDialogueParser") as mock_parser_class:
                 mock_parser = MagicMock()
                 mock_parser.parse_script = MagicMock(return_value=[])
                 mock_parser_class.return_value = mock_parser
@@ -322,8 +322,8 @@ def when_run_benchmark_compare_staggered(
     mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
 
     with (
-        patch("rentl_cli.main.RubricJudge", return_value=mock_judge),
-        patch("rentl_cli.main.Progress.update", side_effect=track_progress_update),
+        patch("rentl.main.RubricJudge", return_value=mock_judge),
+        patch("rentl.main.Progress.update", side_effect=track_progress_update),
     ):
         ctx.result = cli_runner.invoke(
             cli_main.app,
@@ -423,7 +423,7 @@ def when_run_benchmark_compare_full_flow(
     mock_judge = MagicMock()
     mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
 
-    with patch("rentl_cli.main.RubricJudge", return_value=mock_judge):
+    with patch("rentl.main.RubricJudge", return_value=mock_judge):
         ctx.result = cli_runner.invoke(
             cli_main.app,
             [
@@ -616,7 +616,7 @@ def when_run_benchmark_compare_full_overrides(
     mock_judge = MagicMock()
     mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
 
-    with patch("rentl_cli.main.RubricJudge", return_value=mock_judge):
+    with patch("rentl.main.RubricJudge", return_value=mock_judge):
         ctx.result = cli_runner.invoke(
             cli_main.app,
             [
@@ -697,7 +697,7 @@ def when_run_benchmark_compare_openrouter_overrides(
         mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
         return mock_judge
 
-    with patch("rentl_cli.main.RubricJudge", side_effect=capture_judge_init):
+    with patch("rentl.main.RubricJudge", side_effect=capture_judge_init):
         ctx.result = cli_runner.invoke(
             cli_main.app,
             [

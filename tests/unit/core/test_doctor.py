@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import rentl_cli.main as cli_main
+import rentl.main as cli_main
 from rentl_core.doctor import (
     CheckStatus,
     check_api_keys,
