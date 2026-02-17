@@ -14,3 +14,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 1): PASS — `docs/data-schemas.md` covers the required schema surfaces, and documented fields/types align with `rentl-schemas` model definitions with example JSONL lines matching `samples/golden/artifacts/`.
 - **Task 6** (round 1): PASS — README now cross-links the new documentation set and documents CC BY-NC-ND benchmark licensing/non-bundling; all repository `pyproject.toml` files include `license = "MIT"`.
 - **Demo** (run 1): PASS — All 6 [RUN] steps passed: CHANGELOG covers 37 specs, CLI commands verified, architecture doc accurate at 298 lines, schema reference matches models, license compliance confirmed, README cross-links present (6 run, 0 verified)
+- **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 3/5, Completion 3/5, Security 5/5, Stability 3/5; fix-now count 2
