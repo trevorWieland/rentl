@@ -16,7 +16,7 @@ Model choices:
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Update endpoint presets in init.py
+- [x] Task 2: Update endpoint presets in init.py
   - Change OpenRouter `default_model` from `"openai/gpt-4-turbo"` to `"qwen/qwen3-30b-a3b"`
   - Change OpenAI `default_model` from `"gpt-4-turbo"` to `"gpt-5-nano"`
   - Rename `"Local (Ollama)"` to `"Local"`, set `default_model` to `None`

@@ -534,6 +534,8 @@ def test_all_endpoint_presets_produce_valid_configs(
     This is a regression guard against incomplete or misconfigured presets.
     """
     for preset in ENDPOINT_PRESETS:
+        if preset.default_model is None:
+            continue  # Local preset has no default; CLI prompts user
         # Create answers using the preset
         answers = InitAnswers(
             project_name=f"test-{preset.name.lower().replace(' ', '-')}",

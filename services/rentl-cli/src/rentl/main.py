@@ -606,8 +606,11 @@ def init() -> None:
         if 0 <= choice_idx < len(ENDPOINT_PRESETS):
             preset = ENDPOINT_PRESETS[choice_idx]
             base_url = preset.base_url
-            model_id = preset.default_model
             rprint(f"[green]Selected {preset.name}[/green]")
+            if preset.default_model is not None:
+                model_id = preset.default_model
+            else:
+                model_id = typer.prompt("Model ID")
         elif choice_idx == len(ENDPOINT_PRESETS):
             # Custom endpoint
             # Validate base_url in a loop until valid
