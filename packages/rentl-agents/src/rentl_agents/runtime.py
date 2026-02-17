@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Literal, TypeVar, cast
 from uuid import UUID, uuid7
 
+from pydantic import Field
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import ModelResponse, ToolCallPart
@@ -54,7 +55,9 @@ class ProfileAgentConfig(BaseSchema):
 
     api_key: str
     base_url: str = "https://api.openai.com/v1"
-    model_id: str
+    model_id: str = Field(
+        ..., description="Model identifier (e.g. 'gpt-5-nano', 'qwen/qwen3-30b-a3b')"
+    )
     temperature: float = 0.7
     top_p: float = 1.0
     timeout_s: float = 180.0

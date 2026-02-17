@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Callable
 from typing import Protocol, TypeVar, runtime_checkable
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -46,7 +46,9 @@ class AgentHarnessConfig(BaseSchema):
 
     api_key: str
     base_url: str = "https://api.openai.com/v1"
-    model_id: str
+    model_id: str = Field(
+        ..., description="Model identifier (e.g. 'gpt-5-nano', 'qwen/qwen3-30b-a3b')"
+    )
     temperature: float = 0.7
     top_p: float = 1.0
     timeout_s: float = 30.0
