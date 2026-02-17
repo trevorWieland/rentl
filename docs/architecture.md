@@ -6,7 +6,7 @@ This document describes rentl's internal architecture for contributors. It cover
 
 ## Package Structure
 
-rentl is a monorepo with 5 library packages and 2 service packages:
+rentl is a monorepo with 5 library packages and 3 service packages:
 
 | Package | Location | Purpose |
 |---|---|---|
@@ -16,9 +16,10 @@ rentl is a monorepo with 5 library packages and 2 service packages:
 | `rentl-llm` | `packages/rentl-llm/` | BYOK LLM integration (OpenAI-compatible endpoints) |
 | `rentl-io` | `packages/rentl-io/` | I/O adapters: ingest, export, storage, logging |
 | `rentl` (CLI) | `services/rentl-cli/` | Command-line interface (Typer + Rich) |
+| `rentl-api` | `services/rentl-api/` | REST API (FastAPI + Uvicorn) |
 | `rentl-tui` | `services/rentl-tui/` | Terminal UI (Textual) — scaffold only in v0.1 |
 
-Dependency direction flows downward: CLI depends on all library packages. Library packages depend only on `rentl-schemas` and `rentl-core` (for port protocols). `rentl-schemas` has no internal dependencies.
+Dependency direction flows downward: service packages depend on library packages. `rentl-schemas` has no internal dependencies. `rentl-core` depends on `rentl-schemas`. Other library packages depend on `rentl-schemas` and `rentl-core`; `rentl-agents` also depends on `rentl-llm`.
 
 ---
 
@@ -214,22 +215,29 @@ Core business logic defines protocol interfaces ("ports") in `rentl_core.ports`.
 
 ## Storage Model
 
-All run data is stored on the local filesystem under the workspace directory:
+Run data is split across two filesystem roots within the workspace:
+
+**`.rentl/`** — run state and artifacts (managed by `rentl-io` storage adapters):
 
 ```
 .rentl/
 ├── run_state/
 │   ├── runs/{run_id}.json         # Full run state (RunState)
 │   └── index/{run_id}.json        # Run index entry
-├── artifacts/
-│   ├── {run_id}/
-│   │   ├── artifact-{id}.json     # Phase output (single object)
-│   │   ├── artifact-{id}.jsonl    # Phase output (line-delimited)
-│   │   └── index.jsonl            # Artifact index
-├── logs/
-│   ├── {run_id}.jsonl             # Structured log entries
-│   ├── progress/{run_id}.jsonl    # ProgressUpdate stream
-│   └── reports/{run_id}.json      # Post-run summary report
+└── artifacts/
+    └── {run_id}/
+        ├── artifact-{id}.json     # Phase output (single object)
+        ├── artifact-{id}.jsonl    # Phase output (line-delimited)
+        └── index.jsonl            # Artifact index
+```
+
+**`project.paths.logs_dir`** (default `./logs`) — logs, progress, and reports:
+
+```
+{logs_dir}/
+├── {run_id}.jsonl                 # Structured log entries
+├── progress/{run_id}.jsonl        # ProgressUpdate stream
+└── reports/{run_id}.json          # Post-run summary report
 ```
 
 The `FileSystemProgressSink` appends `ProgressUpdate` JSONL records to the progress file. The CLI's `status --watch` command tail-reads this file for live updates.
@@ -263,15 +271,25 @@ The CLI assembles all dependencies — config loading, storage bundle, agent poo
 
 ## BYOK (Bring Your Own Key)
 
-rentl supports any OpenAI-compatible LLM endpoint. Configuration lives in `rentl.toml`:
+rentl supports any OpenAI-compatible LLM endpoint. Configuration in `rentl.toml` uses either a single `[endpoint]` table or a multi-endpoint `[endpoints]` table with a `default` reference and `[[endpoints.endpoints]]` entries:
 
 ```toml
-[endpoints.default]
+# Single endpoint
+[endpoint]
+provider_name = "OpenRouter"
 base_url = "https://openrouter.ai/api/v1"
 api_key_env = "RENTL_LOCAL_API_KEY"
+
+# Multi-endpoint (use instead of [endpoint], not alongside it)
+# [endpoints]
+# default = "OpenRouter"
+# [[endpoints.endpoints]]
+# provider_name = "OpenRouter"
+# base_url = "https://openrouter.ai/api/v1"
+# api_key_env = "RENTL_LOCAL_API_KEY"
 ```
 
-The `detect_provider()` function in `rentl_agents.providers` identifies the provider from the base URL and returns a `ProviderCapabilities` object describing supported features (tool calling, tool choice, etc.). This allows rentl to adapt its behavior to the provider's capabilities without provider-specific code paths.
+`detect_provider()` in `rentl_agents.providers` identifies the provider from the base URL and returns a `ProviderCapabilities` object describing supported features (tool calling, tool choice, etc.), allowing rentl to adapt without provider-specific code paths.
 
 ---
 
