@@ -62,14 +62,12 @@ my-translation/
 
 ## Step 3: Add your API key
 
-Open the `.env` file and replace the placeholder with your actual API key:
+The `init` command generates a `.env` file with a `RENTL_LOCAL_API_KEY` variable. Open it in any text editor and paste your API key:
 
-```bash
-# Example for OpenRouter
-sed -i 's/OPENROUTER_API_KEY=.*/OPENROUTER_API_KEY=sk-or-your-key-here/' .env
+```env
+# Set your API key for the LLM endpoint
+RENTL_LOCAL_API_KEY=sk-or-your-key-here
 ```
-
-Or open `.env` in any text editor and paste your key directly.
 
 > **Which provider?** [OpenRouter](https://openrouter.ai/) is the easiest option — it gives you access to many models through a single API key. For local models, use [Ollama](https://ollama.ai/) or [LM Studio](https://lmstudio.ai/) and set the API key to `placeholder`.
 
