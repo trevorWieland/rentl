@@ -113,7 +113,7 @@ def test_benchmark_report_valid() -> None:
     report = BenchmarkReport(
         eval_set="katawa-shoujo",
         slice_name="demo",
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
         candidates=["rentl", "mtl"],
         head_to_head_results=head_to_head,
         pairwise_summaries=pairwise,
@@ -122,7 +122,7 @@ def test_benchmark_report_valid() -> None:
     )
     assert report.eval_set == "katawa-shoujo"
     assert report.slice_name == "demo"
-    assert report.judge_model == "gpt-4o"
+    assert report.judge_model == "gpt-5-nano"
     assert len(report.candidates) == 2
     assert len(report.head_to_head_results) == 1
     assert len(report.pairwise_summaries) == 1
@@ -247,7 +247,7 @@ def test_benchmark_report_roundtrip() -> None:
     original = BenchmarkReport(
         eval_set="test-set",
         slice_name="test-slice",
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
         candidates=["a", "b"],
         head_to_head_results=head_to_head,
         pairwise_summaries=pairwise,
@@ -291,7 +291,7 @@ def test_benchmark_report_no_slice() -> None:
     report = BenchmarkReport(
         eval_set="full-set",
         slice_name=None,
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
         candidates=["sys1", "sys2"],
         head_to_head_results=head_to_head,
         pairwise_summaries=pairwise,
@@ -558,7 +558,7 @@ def test_build_report() -> None:
     report = BenchmarkReportBuilder.build_report(
         eval_set="test-set",
         slice_name="test-slice",
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
         candidates=["a", "b"],
         head_to_head_results=head_to_head,
         pairwise_summaries=pairwise,
@@ -567,7 +567,7 @@ def test_build_report() -> None:
 
     assert report.eval_set == "test-set"
     assert report.slice_name == "test-slice"
-    assert report.judge_model == "gpt-4o"
+    assert report.judge_model == "gpt-5-nano"
     assert report.candidates == ["a", "b"]
     assert len(report.head_to_head_results) == 1
     assert len(report.pairwise_summaries) == 1
@@ -611,7 +611,7 @@ def test_build_report_derives_ranking_from_elo() -> None:
     report = BenchmarkReportBuilder.build_report(
         eval_set="test-set",
         slice_name=None,
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
         candidates=["worst", "mid", "best"],
         head_to_head_results=head_to_head,
         pairwise_summaries=pairwise,
@@ -658,7 +658,7 @@ def test_format_report_summary_basic() -> None:
     report = BenchmarkReport(
         eval_set="katawa-shoujo",
         slice_name="demo",
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
         candidates=["rentl", "mtl"],
         head_to_head_results=head_to_head,
         pairwise_summaries=pairwise,
@@ -671,7 +671,7 @@ def test_format_report_summary_basic() -> None:
     # Check key parts are present
     assert "=== Benchmark Report: katawa-shoujo ===" in summary
     assert "Slice: demo" in summary
-    assert "Judge Model: gpt-4o" in summary
+    assert "Judge Model: gpt-5-nano" in summary
     assert "rentl" in summary
     assert "mtl" in summary
     assert "Elo 1542.3" in summary
@@ -715,7 +715,7 @@ def test_format_report_summary_no_slice() -> None:
     report = BenchmarkReport(
         eval_set="test-set",
         slice_name=None,
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
         candidates=["a", "b"],
         head_to_head_results=head_to_head,
         pairwise_summaries=pairwise,

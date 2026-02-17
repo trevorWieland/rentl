@@ -33,7 +33,7 @@ def mock_agent_result() -> AgentRunResult[JudgeOutput]:
 def test_head_to_head_prompt_construction() -> None:
     """Test head-to-head prompt labels translations A and B."""
     judge = RubricJudge(
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
         base_url="https://api.openai.com/v1",
         api_key="test-key",
     )
@@ -65,7 +65,7 @@ async def test_compare_head_to_head(
         mock_agent_class.return_value = mock_agent_instance
 
         judge = RubricJudge(
-            model_id="gpt-4o-mini",
+            model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
             api_key="test-key",
         )
@@ -110,7 +110,7 @@ async def test_compare_batch_head_to_head(
         mock_agent_class.return_value = mock_agent_instance
 
         judge = RubricJudge(
-            model_id="gpt-4o-mini",
+            model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
             api_key="test-key",
         )
@@ -144,7 +144,7 @@ async def test_compare_batch_head_to_head(
 async def test_compare_batch_mismatched_line_ids() -> None:
     """Test batch comparison fails when line IDs don't match."""
     judge = RubricJudge(
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
         base_url="https://api.openai.com/v1",
         api_key="test-key",
     )
@@ -187,7 +187,7 @@ async def test_compare_head_to_head_with_randomization() -> None:
         mock_agent_class.return_value = mock_agent_instance
 
         judge = RubricJudge(
-            model_id="gpt-4o-mini",
+            model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
             api_key="test-key",
         )
@@ -240,7 +240,7 @@ async def test_compare_head_to_head_with_tie() -> None:
         mock_agent_class.return_value = mock_agent_instance
 
         judge = RubricJudge(
-            model_id="gpt-4o-mini",
+            model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
             api_key="test-key",
         )
@@ -279,7 +279,7 @@ async def test_compare_head_to_head_with_progress_callback(
         mock_agent_class.return_value = mock_agent_instance
 
         judge = RubricJudge(
-            model_id="gpt-4o-mini",
+            model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
             api_key="test-key",
         )
@@ -310,7 +310,7 @@ def test_judge_creates_openrouter_model_when_detected() -> None:
             patch("rentl_core.benchmark.judge.OpenRouterModel") as mock_or_model,
         ):
             judge = RubricJudge(
-                model_id="anthropic/claude-3.5-sonnet",
+                model_id="anthropic/claude-4.5-sonnet",
                 base_url="https://openrouter.ai/api/v1",
                 api_key="test-key",
                 openrouter_require_parameters=True,
@@ -322,7 +322,7 @@ def test_judge_creates_openrouter_model_when_detected() -> None:
             # Verify OpenRouter model was created with model ID and provider
             mock_or_model.assert_called_once()
             assert (
-                mock_or_model.call_args[0][0] == "anthropic/claude-3.5-sonnet"
+                mock_or_model.call_args[0][0] == "anthropic/claude-4.5-sonnet"
             )  # model_id
 
             # Verify model settings include OpenRouter provider config
@@ -344,7 +344,7 @@ def test_judge_creates_openai_model_when_not_openrouter() -> None:
             patch("rentl_core.benchmark.judge.OpenAIChatModel") as mock_oa_model,
         ):
             judge = RubricJudge(
-                model_id="gpt-4o-mini",
+                model_id="gpt-5-nano",
                 base_url="https://api.openai.com/v1",
                 api_key="test-key",
             )
@@ -356,7 +356,7 @@ def test_judge_creates_openai_model_when_not_openrouter() -> None:
 
             # Verify OpenAI model was created with model ID and provider
             mock_oa_model.assert_called_once()
-            assert mock_oa_model.call_args[0][0] == "gpt-4o-mini"  # model_id
+            assert mock_oa_model.call_args[0][0] == "gpt-5-nano"  # model_id
 
             # Verify model settings do NOT include OpenRouter provider config
             assert "openrouter_provider" not in judge.model_settings

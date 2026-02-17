@@ -708,7 +708,7 @@ def when_run_benchmark_compare_openrouter_overrides(
                 "--judge-base-url",
                 "https://openrouter.ai/api/v1",
                 "--judge-model",
-                "openai/gpt-4o-mini",
+                "openai/gpt-5-nano",
                 "--judge-api-key-env",
                 "RENTL_OPENROUTER_API_KEY",
             ],

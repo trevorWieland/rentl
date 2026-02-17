@@ -147,7 +147,7 @@ user_template = "{{unknown_variable_xyz}}"
 allowed = []
 
 [model_hints]
-recommended = ["gpt-4o"]
+recommended = ["gpt-5-nano"]
 """
     profile_path = temp_path / "invalid.toml"
     profile_path.write_text(profile_content)

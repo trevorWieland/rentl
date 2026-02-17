@@ -102,7 +102,7 @@ def given_judge_with_mock(ctx: JudgeContext, monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr("pydantic_ai.Agent.run", mock_agent_run)
 
     ctx.judge = RubricJudge(
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
         base_url="https://api.openai.com/v1",
         api_key="test-key",
     )

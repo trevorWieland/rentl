@@ -190,7 +190,7 @@ api_key_env = "OPENROUTER_API_KEY"
 
 ```toml
 [pipeline.default_model]
-model_id = "anthropic/claude-3.5-sonnet"
+model_id = "qwen/qwen3-30b-a3b"
 
 [[pipeline.phases]]
 phase = "ingest"

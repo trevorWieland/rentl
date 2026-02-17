@@ -112,7 +112,7 @@ python scripts/validate_scene_summarizer.py --input scenes.jsonl
 python scripts/validate_scene_summarizer.py --input scenes.jsonl --concurrent
 
 # Override model or API settings
-python scripts/validate_scene_summarizer.py --model gpt-4o-mini --api-key "your-key"
+python scripts/validate_scene_summarizer.py --model gpt-5-nano --api-key "your-key"
 ```
 
 ### JSONL Input Format
@@ -145,7 +145,7 @@ base_url = "http://localhost:1234/v1"
 api_key_env = "RENTL_LOCAL_API_KEY"
 
 [pipeline.default_model]
-model_id = "openai/gpt-oss-20b"
+model_id = "qwen/qwen3-30b-a3b"
 ```
 
 Environment variables are loaded from `.env` file if present.

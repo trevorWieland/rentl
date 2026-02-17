@@ -35,7 +35,7 @@ class TestOpenRouterProviderSelection:
                     timeout_s=30.0,
                 ),
                 model=LlmModelSettings(
-                    model_id="anthropic/claude-3.5-sonnet",
+                    model_id="anthropic/claude-4.5-sonnet",
                     temperature=0.7,
                     top_p=1.0,
                     presence_penalty=0.0,

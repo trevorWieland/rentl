@@ -35,7 +35,7 @@ Model choices:
   - Update unit tests: `test_wiring.py`, `test_runtime_telemetry.py`, `test_profile_agent_execute.py`, `test_profile_agent_run_errors.py`, `test_alignment_retries.py`
   - Update integration tests: `test_direct_translator.py`, `test_idiom_labeler.py`, `test_profile_loading.py`, `test_style_guide_critic.py`
   - Acceptance: instantiating configs without `model_id` raises `ValidationError`; all agent tests pass with explicit model_id
-- [ ] Task 5: Update documentation, TOML model_hints, and remaining references
+- [x] Task 5: Update documentation, TOML model_hints, and remaining references
   - `packages/rentl-agents/agents/qa/style_guide_critic.toml` (both copies): update model_hints from `gpt-4o`/`claude-3.5-sonnet`/`claude-3-opus` to current models matching other TOMLs
   - `README.md`: update example config model reference
   - `packages/rentl-agents/README.md`: update documentation example

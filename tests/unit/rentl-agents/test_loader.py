@@ -49,7 +49,7 @@ content = "Scene: {{scene_id}}\\n{{scene_lines}}"
 allowed = []
 
 [model_hints]
-recommended = ["gpt-4o"]
+recommended = ["gpt-5-nano"]
 """
         profile_path = tmp_path / "test_agent.toml"
         profile_path.write_text(profile_content)

@@ -110,6 +110,6 @@ allowed = ["get_game_info"]
 required = ["get_game_info"]
 
 [model_hints]
-recommended = ["gpt-4o", "claude-3.5-sonnet", "claude-3-opus"]
+recommended = ["gpt-5.2", "claude-4.5-sonnet", "nemotron-3-nano-30b-a3b", "gpt-oss-20b"]
 min_context_tokens = 8192
 benefits_from_reasoning = true
