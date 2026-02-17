@@ -52,7 +52,7 @@ class APIResponse[T](BaseModel, Generic[T]):
     "details": {
       "field": "model",
       "provided": "gpt-5.2",
-      "valid_options": ["gpt-4", "gpt-4.1", "gpt-4o"]
+      "valid_options": ["gpt-5-nano", "gpt-5.2", "claude-4.5-sonnet"]
     }
   },
   "meta": {

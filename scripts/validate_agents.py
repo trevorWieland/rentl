@@ -15,7 +15,7 @@ Examples:
     uv run python scripts/validate_agents.py --mock
 
     # Validate with real LLM (requires API key)
-    uv run python scripts/validate_agents.py --model gpt-4o-mini
+    uv run python scripts/validate_agents.py --model gpt-5-nano
 
     # Validate with JSONL input file (full pipeline)
     uv run python scripts/validate_agents.py --config rentl.toml \

@@ -50,7 +50,7 @@ uvx rentl init
 ```
 
 This interactive command will:
-- Guide you through provider selection (OpenRouter, OpenAI, Local/Ollama, or custom)
+- Guide you through provider selection (OpenRouter, OpenAI, Local, or custom)
 - Pre-fill configuration with sensible defaults
 - Generate a valid `rentl.toml` configuration file
 - Create required directory structure (`input/`, `out/`, `logs/`)
@@ -190,7 +190,7 @@ api_key_env = "OPENROUTER_API_KEY"
 
 ```toml
 [pipeline.default_model]
-model_id = "anthropic/claude-3.5-sonnet"
+model_id = "qwen/qwen3-30b-a3b"
 
 [[pipeline.phases]]
 phase = "ingest"
@@ -308,10 +308,10 @@ RENTL_QUALITY_API_KEY=your_key_here
 RENTL_QUALITY_BASE_URL=https://api.openai.com/v1
 
 # Quality evals: model ID used for agent evaluation runs
-RENTL_QUALITY_MODEL=gpt-4
+RENTL_QUALITY_MODEL=gpt-5-nano
 
 # Quality evals: judge model ID used for LLM-as-judge evaluations
-RENTL_QUALITY_JUDGE_MODEL=gpt-4
+RENTL_QUALITY_JUDGE_MODEL=gpt-5-nano
 
 # Quality evals: base URL for the judge model provider
 RENTL_QUALITY_JUDGE_BASE_URL=https://api.openai.com/v1

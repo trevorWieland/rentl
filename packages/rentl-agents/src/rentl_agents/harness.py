@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Callable
 from typing import Protocol, TypeVar, runtime_checkable
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -44,13 +44,20 @@ class AgentHarnessProtocol(Protocol[InputT, OutputT_co]):
 class AgentHarnessConfig(BaseSchema):
     """Configuration for agent harness initialization."""
 
-    api_key: str
-    base_url: str = "https://api.openai.com/v1"
-    model_id: str = "gpt-4o-mini"
-    temperature: float = 0.7
-    top_p: float = 1.0
-    timeout_s: float = 30.0
-    max_output_tokens: int = 4096
+    api_key: str = Field(..., description="API key for the model provider")
+    base_url: str = Field(
+        "https://api.openai.com/v1",
+        description="Base URL for the model provider API",
+    )
+    model_id: str = Field(
+        ..., description="Model identifier (e.g. 'gpt-5-nano', 'qwen/qwen3-30b-a3b')"
+    )
+    temperature: float = Field(0.7, description="Sampling temperature for generation")
+    top_p: float = Field(1.0, description="Nucleus sampling probability cutoff")
+    timeout_s: float = Field(
+        30.0, description="Request timeout in seconds per API call"
+    )
+    max_output_tokens: int = Field(4096, description="Maximum tokens in model output")
 
 
 class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):

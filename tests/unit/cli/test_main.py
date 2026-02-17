@@ -1763,7 +1763,7 @@ def test_init_command_happy_path(
         "",  # provider_name (default: openrouter)
         "",  # base_url (default: https://openrouter.ai/api/v1)
         "",  # api_key_env (default: OPENROUTER_API_KEY)
-        "",  # model_id (default: openai/gpt-4-turbo)
+        "",  # model_id (default: qwen/qwen3-30b-a3b via OpenRouter preset)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1810,7 +1810,7 @@ def test_init_command_overwrite_confirmation_accept(
         "",  # provider_name (default: openrouter)
         "",  # base_url (default: https://openrouter.ai/api/v1)
         "",  # api_key_env (default: OPENROUTER_API_KEY)
-        "",  # model_id (default: openai/gpt-4-turbo)
+        "",  # model_id (default: qwen/qwen3-30b-a3b via OpenRouter preset)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1880,7 +1880,7 @@ def test_init_command_target_languages_trailing_comma(
         "",  # provider_name (default: openrouter)
         "",  # base_url (default: https://openrouter.ai/api/v1)
         "",  # api_key_env (default: OPENROUTER_API_KEY)
-        "",  # model_id (default: openai/gpt-4-turbo)
+        "",  # model_id (default: qwen/qwen3-30b-a3b via OpenRouter preset)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1918,7 +1918,7 @@ def test_init_command_target_languages_multiple_with_spaces(
         "",  # provider_name (default: openrouter)
         "",  # base_url (default: https://openrouter.ai/api/v1)
         "",  # api_key_env (default: OPENROUTER_API_KEY)
-        "",  # model_id (default: openai/gpt-4-turbo)
+        "",  # model_id (default: qwen/qwen3-30b-a3b via OpenRouter preset)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
     ]
@@ -1972,7 +1972,7 @@ def test_init_command_target_languages_blank_fails(
 def test_init_command_provider_preset_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test init command with endpoint preset selection (OpenRouter, OpenAI, Ollama)."""
+    """Test init command with endpoint preset selection (OpenRouter, OpenAI, Local)."""
     # Change to temp directory
     monkeypatch.chdir(tmp_path)
 
@@ -2003,6 +2003,38 @@ def test_init_command_provider_preset_selection(
     assert config["endpoint"]["base_url"] == "https://openrouter.ai/api/v1"
     # Env var should now be standardized
     assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
+
+
+def test_init_command_local_preset_prompts_for_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init command with Local preset prompts user for model_id."""
+    monkeypatch.chdir(tmp_path)
+
+    inputs = [
+        "",  # project_name (default)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "3",  # endpoint choice: Local
+        "my-local-model",  # model_id (prompted because Local has no default)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    assert result.exit_code == 0
+    assert "Local" in result.stdout
+
+    # Verify rentl.toml contains user-provided model
+    config_path = tmp_path / "rentl.toml"
+    assert config_path.exists()
+    with config_path.open("rb") as f:
+        config = tomllib.load(f)
+    assert config["endpoint"]["base_url"] == "http://localhost:11434/v1"
+    assert config["pipeline"]["default_model"]["model_id"] == "my-local-model"
 
 
 def test_init_command_provider_custom_option(

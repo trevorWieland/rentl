@@ -60,7 +60,7 @@ class FakeAgent:
 def _build_config(max_output_retries: int = 1) -> ProfileAgentConfig:
     return ProfileAgentConfig(
         api_key="test-key",
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
         max_output_retries=max_output_retries,
     )
 

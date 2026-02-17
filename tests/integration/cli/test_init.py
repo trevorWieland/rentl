@@ -78,7 +78,7 @@ def when_generate_project_with_defaults(ctx: InitContext) -> None:
         source_language="ja",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
         provider_name="OpenRouter",
@@ -485,7 +485,7 @@ def test_env_var_scoping_regression(
         source_language="ja",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
         provider_name="OpenRouter",
@@ -534,6 +534,8 @@ def test_all_endpoint_presets_produce_valid_configs(
     This is a regression guard against incomplete or misconfigured presets.
     """
     for preset in ENDPOINT_PRESETS:
+        if preset.default_model is None:
+            continue  # Local preset has no default; CLI prompts user
         # Create answers using the preset
         answers = InitAnswers(
             project_name=f"test-{preset.name.lower().replace(' ', '-')}",

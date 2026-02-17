@@ -126,7 +126,7 @@ def when_create_qa_agent(ctx: StyleGuideCriticContext) -> None:
 
     config = ProfileAgentConfig(
         api_key="test-key",  # Not used for this test
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
     )
 
     ctx.agent = create_qa_agent_from_profile(

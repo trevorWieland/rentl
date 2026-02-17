@@ -24,7 +24,9 @@ class EndpointPreset(BaseSchema):
 
     name: str = Field(..., description="Display name of the endpoint")
     base_url: str = Field(..., description="OpenAI-compatible endpoint base URL")
-    default_model: str = Field(..., description="Suggested default model identifier")
+    default_model: str | None = Field(
+        ..., description="Suggested default model identifier"
+    )
 
 
 # Endpoint presets for common LLM providers
@@ -32,17 +34,17 @@ ENDPOINT_PRESETS: list[EndpointPreset] = [
     EndpointPreset(
         name="OpenRouter",
         base_url="https://openrouter.ai/api/v1",
-        default_model="openai/gpt-4-turbo",
+        default_model="qwen/qwen3-30b-a3b",
     ),
     EndpointPreset(
         name="OpenAI",
         base_url="https://api.openai.com/v1",
-        default_model="gpt-4-turbo",
+        default_model="gpt-5-nano",
     ),
     EndpointPreset(
-        name="Local (Ollama)",
+        name="Local",
         base_url="http://localhost:11434/v1",
-        default_model="llama3.2",
+        default_model=None,
     ),
 ]
 
@@ -66,7 +68,7 @@ class InitAnswers(BaseSchema):
         ..., min_length=1, description="OpenAI-compatible endpoint base URL"
     )
     model_id: str = Field(
-        ..., min_length=1, description="Model identifier (e.g., 'openai/gpt-4-turbo')"
+        ..., min_length=1, description="Model identifier (e.g., 'qwen/qwen3-30b-a3b')"
     )
     input_format: FileFormat = Field(
         ...,

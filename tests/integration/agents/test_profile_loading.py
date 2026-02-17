@@ -147,7 +147,7 @@ user_template = "{{unknown_variable_xyz}}"
 allowed = []
 
 [model_hints]
-recommended = ["gpt-4o"]
+recommended = ["gpt-5-nano"]
 """
     profile_path = temp_path / "invalid.toml"
     profile_path.write_text(profile_content)
@@ -209,7 +209,7 @@ def when_create_context_agent(ctx: ProfileLoadingContext) -> None:
 
     config = ProfileAgentConfig(
         api_key="test-key",  # Not used for this test
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
     )
 
     ctx.agent = create_context_agent_from_profile(
@@ -247,7 +247,7 @@ def given_context_agent_created() -> ProfileLoadingContext:
 
     config = ProfileAgentConfig(
         api_key="test-key",
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
     )
 
     ctx.agent = create_context_agent_from_profile(

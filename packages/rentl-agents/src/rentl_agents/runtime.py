@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Literal, TypeVar, cast
 from uuid import UUID, uuid7
 
+from pydantic import Field
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import ModelResponse, ToolCallPart
@@ -52,29 +53,52 @@ class ProfileAgentConfig(BaseSchema):
     Contains the runtime settings needed to execute an agent.
     """
 
-    api_key: str
-    base_url: str = "https://api.openai.com/v1"
-    model_id: str = "gpt-4o-mini"
-    temperature: float = 0.7
-    top_p: float = 1.0
-    timeout_s: float = 180.0
-    max_output_tokens: int | None = None
-    max_retries: int = 2  # Retries for transient errors only (network, rate limits)
-    retry_base_delay: float = 2.0
-    openrouter_provider: OpenRouterProviderRoutingConfig | None = None
-    # Safeguards against infinite loops - FAIL LOUDLY when exceeded
-    # Note: pydantic-ai default is 50, but we use a moderate limit to control
-    # costs while supporting less capable models that may need more retries
-    max_requests_per_run: int = (
-        30  # Max API requests per single run - includes output validation retries
+    api_key: str = Field(..., description="API key for the model provider")
+    base_url: str = Field(
+        "https://api.openai.com/v1",
+        description="Base URL for the model provider API",
     )
-    # Output validation retries (pydantic-ai provides feedback to model)
-    # Higher limit supports models with lower structured output reliability
-    max_output_retries: int = 10
-    # Strategy for handling tool calls after an output tool is found
-    end_strategy: Literal["early", "exhaustive"] = "early"
-    # Optional list of tool names that must be called before output tools are allowed
-    required_tool_calls: list[str] | None = None
+    model_id: str = Field(
+        ..., description="Model identifier (e.g. 'gpt-5-nano', 'qwen/qwen3-30b-a3b')"
+    )
+    temperature: float = Field(0.7, description="Sampling temperature for generation")
+    top_p: float = Field(1.0, description="Nucleus sampling probability cutoff")
+    timeout_s: float = Field(
+        180.0, description="Request timeout in seconds per API call"
+    )
+    max_output_tokens: int | None = Field(
+        None, description="Maximum tokens in model output (defaults to 4096 if None)"
+    )
+    max_retries: int = Field(
+        2,
+        description="Retries for transient errors only (network, rate limits)",
+    )
+    retry_base_delay: float = Field(
+        2.0, description="Base delay in seconds for exponential backoff between retries"
+    )
+    openrouter_provider: OpenRouterProviderRoutingConfig | None = Field(
+        None, description="OpenRouter-specific provider routing configuration"
+    )
+    max_requests_per_run: int = Field(
+        30,
+        description=(
+            "Max API requests per single run, including output validation retries"
+        ),
+    )
+    max_output_retries: int = Field(
+        10,
+        description=(
+            "Output validation retries where pydantic-ai provides feedback to model"
+        ),
+    )
+    end_strategy: Literal["early", "exhaustive"] = Field(
+        "early",
+        description="Strategy for handling tool calls after an output tool is found",
+    )
+    required_tool_calls: list[str] | None = Field(
+        None,
+        description="Tool names that must be called before output tools are allowed",
+    )
 
 
 class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
@@ -252,7 +276,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                     f"Agent {self.name} FAILED: Hit request limit ({limit}). "
                     f"Model repeatedly failed to produce valid structured output. "
                     f"The model may not be capable enough for this task. "
-                    f"Try a more capable model (e.g., gpt-4o, claude-3.5-sonnet). "
+                    f"Try a more capable model (e.g., gpt-5-nano, qwen/qwen3-30b-a3b). "
                     f"Details: {e}"
                 ) from e
             except UnexpectedModelBehavior as e:

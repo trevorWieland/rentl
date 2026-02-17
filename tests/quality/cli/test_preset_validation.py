@@ -149,10 +149,10 @@ def test_all_presets_have_valid_structure(
         cli_runner: CliRunner (unused, but required for test signature consistency).
     """
     assert len(ENDPOINT_PRESETS) >= 3, (
-        "Spec requires at least 3 endpoint presets (OpenRouter, OpenAI, Local/Ollama)"
+        "Spec requires at least 3 endpoint presets (OpenRouter, OpenAI, Local)"
     )
 
-    required_preset_names = {"OpenRouter", "OpenAI", "Local (Ollama)"}
+    required_preset_names = {"OpenRouter", "OpenAI", "Local"}
     available_preset_names = {preset.name for preset in ENDPOINT_PRESETS}
 
     assert required_preset_names.issubset(available_preset_names), (
@@ -164,7 +164,15 @@ def test_all_presets_have_valid_structure(
         # Verify all fields are populated
         assert preset.name, f"Preset missing name: {preset}"
         assert preset.base_url, f"Preset {preset.name} missing base_url"
-        assert preset.default_model, f"Preset {preset.name} missing default_model"
+
+        # Local preset intentionally has no default_model (user provides their own)
+        if preset.name != "Local":
+            assert preset.default_model, f"Preset {preset.name} missing default_model"
+        else:
+            assert preset.default_model is None, (
+                f"Local preset must have default_model=None, "
+                f"got: {preset.default_model}"
+            )
 
         # Verify base_url is a valid URL format
         assert preset.base_url.startswith("http"), (

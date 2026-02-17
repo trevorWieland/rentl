@@ -33,7 +33,7 @@ async def init_command(project_dir: str) -> None:
 $ rentl init
 Detected game engine: Ren'Py
 Suggested config:
-  - Model: gpt-4o-mini (recommended for speed/cost)
+  - Model: gpt-5-nano (recommended for speed/cost)
   - Target language: English (detected from project)
   - Source files: ./src/scripts.rpy (auto-detected)
 
@@ -58,7 +58,7 @@ async def init_command(project_dir: str) -> None:
 - **Next steps:** Always tell user what to do next
 
 **Default behavior:**
-- **Model:** Recommend cost-effective default (e.g., gpt-4o-mini for translation speed)
+- **Model:** Recommend cost-effective default (e.g., gpt-5-nano for translation speed)
 - **Language:** Detect from project or files; default to English if unclear
 - **Source paths:** Auto-detect common patterns (scripts/, src/, data/)
 - **Phase selection:** Enable all phases by default; let user opt-out if needed

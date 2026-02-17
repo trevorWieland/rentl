@@ -68,8 +68,7 @@ class BenchmarkConfig(BaseModel):
     )
     judge_model: str = Field(
         description=(
-            "Model identifier for LLM judge "
-            "(e.g., 'gpt-4o', 'claude-3-5-sonnet-20241022')"
+            "Model identifier for LLM judge (e.g., 'gpt-5-nano', 'claude-4.5-sonnet')"
         )
     )
     judge_base_url: str | None = Field(

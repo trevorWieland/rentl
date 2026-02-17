@@ -104,20 +104,20 @@ def test_benchmark_config_valid() -> None:
     config = BenchmarkConfig(
         eval_set="katawa-shoujo",
         slice_name="demo",
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
         judge_base_url="https://api.openai.com/v1",
         output_path="/tmp/benchmark.json",
     )
     assert config.eval_set == "katawa-shoujo"
     assert config.slice_name == "demo"
-    assert config.judge_model == "gpt-4o"
+    assert config.judge_model == "gpt-5-nano"
 
 
 def test_benchmark_config_minimal() -> None:
     """Test BenchmarkConfig with minimal required fields."""
     config = BenchmarkConfig(
         eval_set="test-set",
-        judge_model="gpt-4o",
+        judge_model="gpt-5-nano",
     )
     assert config.slice_name is None
     assert config.judge_base_url is None

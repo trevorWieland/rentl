@@ -34,7 +34,7 @@ def default_answers() -> InitAnswers:
         source_language="ja",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
         provider_name="OpenRouter",
@@ -181,7 +181,7 @@ def test_seed_data_csv_format(tmp_path: Path) -> None:
         source_language="ja",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.CSV,
         include_seed_data=True,
     )
@@ -213,7 +213,7 @@ def test_seed_data_txt_format(tmp_path: Path) -> None:
         source_language="ja",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.TXT,
         include_seed_data=True,
     )
@@ -239,7 +239,7 @@ def test_generate_project_without_seed_data(tmp_path: Path) -> None:
         source_language="ja",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=False,
     )
@@ -265,7 +265,7 @@ def test_generate_project_with_multiple_target_languages(tmp_path: Path) -> None
         source_language="ja",
         target_languages=["en", "es", "fr"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -342,7 +342,7 @@ def test_unsupported_format_rejected() -> None:
             source_language="ja",
             target_languages=["en"],
             base_url="https://openrouter.ai/api/v1",
-            model_id="openai/gpt-4-turbo",
+            model_id="qwen/qwen3-30b-a3b",
             input_format="tsv",  # type: ignore[arg-type]
             include_seed_data=True,
         )
@@ -389,7 +389,7 @@ def test_endpoint_presets_exist() -> None:
     endpoint_names = [preset.name for preset in ENDPOINT_PRESETS]
     assert "OpenRouter" in endpoint_names
     assert "OpenAI" in endpoint_names
-    assert "Local (Ollama)" in endpoint_names
+    assert "Local" in endpoint_names
 
 
 def test_endpoint_presets_have_required_fields() -> None:
@@ -397,7 +397,6 @@ def test_endpoint_presets_have_required_fields() -> None:
     for preset in ENDPOINT_PRESETS:
         assert preset.name, f"Preset missing name: {preset}"
         assert preset.base_url, f"Preset {preset.name} missing base_url"
-        assert preset.default_model, f"Preset {preset.name} missing default_model"
 
         # Verify base_url is a valid URL
         assert preset.base_url.startswith(("http://", "https://")), (
@@ -406,8 +405,10 @@ def test_endpoint_presets_have_required_fields() -> None:
 
 
 def test_endpoint_preset_creates_valid_config(tmp_path: Path) -> None:
-    """Test that each endpoint preset produces a valid config."""
+    """Test that each endpoint preset with a default model produces a valid config."""
     for preset in ENDPOINT_PRESETS:
+        if preset.default_model is None:
+            continue  # Local preset has no default; CLI prompts user
         # Create answers using preset values
         answers = InitAnswers(
             project_name="test_project",
@@ -513,7 +514,7 @@ def test_seed_data_matches_source_language_japanese(tmp_path: Path) -> None:
         source_language="ja",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -541,7 +542,7 @@ def test_seed_data_matches_source_language_chinese(tmp_path: Path) -> None:
         source_language="zh",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -564,7 +565,7 @@ def test_seed_data_matches_source_language_korean(tmp_path: Path) -> None:
         source_language="ko",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -587,7 +588,7 @@ def test_seed_data_matches_source_language_spanish(tmp_path: Path) -> None:
         source_language="es",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -610,7 +611,7 @@ def test_seed_data_matches_source_language_french(tmp_path: Path) -> None:
         source_language="fr",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -633,7 +634,7 @@ def test_seed_data_matches_source_language_german(tmp_path: Path) -> None:
         source_language="de",
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -656,7 +657,7 @@ def test_seed_data_matches_source_language_english(tmp_path: Path) -> None:
         source_language="en",
         target_languages=["ja"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )
@@ -679,7 +680,7 @@ def test_seed_data_unsupported_language_falls_back_to_english(
         source_language="ru",  # Russian - not in supported list
         target_languages=["en"],
         base_url="https://openrouter.ai/api/v1",
-        model_id="openai/gpt-4-turbo",
+        model_id="qwen/qwen3-30b-a3b",
         input_format=FileFormat.JSONL,
         include_seed_data=True,
     )

@@ -127,7 +127,7 @@ def when_create_pretranslation_agent(ctx: IdiomLabelerContext) -> None:
 
     config = ProfileAgentConfig(
         api_key="test-key",  # Not used for this test
-        model_id="gpt-4o-mini",
+        model_id="gpt-5-nano",
     )
 
     ctx.agent = create_pretranslation_agent_from_profile(
