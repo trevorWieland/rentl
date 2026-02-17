@@ -24,4 +24,11 @@ rentl now has comprehensive documentation for its v0.1 release. In this demo, we
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Full demo (2026-02-17 20:45)
+- Step 1 [RUN]: PASS — All 37 completed v0.1 specs appear in CHANGELOG.md with accurate descriptions; 3 non-included specs (s0.1.26 deferred, s0.1.36 closed, s0.1.38 deferred) correctly documented
+- Step 2 [RUN]: PASS — All CLI commands referenced in docs/getting-started.md verified against `rentl --help`: --version, init, doctor, explain, run-pipeline, status --watch, export -i/-o/-f/--include-source-text, run-phase --phase all exist
+- Step 3 [RUN]: PASS — docs/architecture.md at 298 lines (under 300); all 8 packages match filesystem; PhaseName enum, PIPELINE_PHASE_ORDER, PipelineOrchestrator, PipelineRunContext, ProfileAgent, PromptComposer, build_agent_pools, DeterministicQaRunner, all 5 TOML profiles, all 5 wrapper classes, all 9 port protocols, detect_provider all verified against source
+- Step 4 [RUN]: PASS — All documented fields in docs/data-schemas.md match Pydantic models: 11 primitive types, 10 enums, SourceLine (7 fields), TranslatedLine (8 fields), 10 phase I/O schemas, 8 agent response schemas, 4 QA schemas, 4 supporting models — all field names, types, and required/optional status verified; no stale or invented references
+- Step 5 [RUN]: PASS — All 9 pyproject.toml files have `license = "MIT"`; no copyrighted text bundled in packages/ or services/ (Katawa Shoujo referenced only in runtime downloader); benchmark CC BY-NC-ND licensing documented in README.md
+- Step 6 [RUN]: PASS — README.md links to all 4 new docs: getting-started.md, architecture.md, data-schemas.md, CHANGELOG.md
+- **Overall: PASS**
