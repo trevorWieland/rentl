@@ -48,11 +48,11 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - Files: `docs/data-schemas.md`
   - Reference: `packages/rentl-schemas/`, `samples/golden/artifacts/`
   - Acceptance: all documented fields exist in models, all model fields documented
-- [ ] Task 6: License/legal review and README cross-links
+- [x] Task 6: License/legal review and README cross-links
   - Add `license = "MIT"` to all `pyproject.toml` files that lack it
   - Verify no copyrighted text exists in any PyPI-installable package directory
   - Document CC BY-NC-ND benchmark licensing in README or NOTICE
   - Cross-link all new docs (getting-started, architecture, data-schemas, CHANGELOG) from README.md
   - Files: `**/pyproject.toml`, `README.md`
   - Acceptance: all pyproject.toml have license field, README links to all new docs, no bundled copyrighted text
-  - [ ] Fix: Align README benchmark source citation with implementation source; `README.md` cites `FleetingRainbows/katawa-shoujo-re-engineered` but benchmark code/manifest source `fleetingheart/ksre` (`README.md:385`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json:4`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:14`) (violates `ux/stale-reference-prevention`, audit round 3)
+  - [x] Fix: Align README benchmark source citation with implementation source; `README.md` cites `FleetingRainbows/katawa-shoujo-re-engineered` but benchmark code/manifest source `fleetingheart/ksre` (`README.md:385`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json:4`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:14`) (violates `ux/stale-reference-prevention`, audit round 3)

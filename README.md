@@ -382,7 +382,7 @@ This project is licensed under the MIT License - see the [LICENSE](./LICENSE) fi
 
 ### Benchmark Data
 
-The benchmark evaluation set uses text from [Katawa Shoujo Re-Engineered (KSRE)](https://github.com/FleetingRainbows/katawa-shoujo-re-engineered), which is licensed under **CC BY-NC-ND**. This text is **not bundled** in any installable package — it is downloaded on demand via `rentl benchmark` and cached locally at `~/.cache/rentl/eval_sets/`. The sample project data (`samples/golden/`) is original content released under [CC0 1.0](./samples/golden/LICENSE).
+The benchmark evaluation set uses text from [Katawa Shoujo Re-Engineered (KSRE)](https://github.com/fleetingheart/ksre), which is licensed under **CC BY-NC-ND**. This text is **not bundled** in any installable package — it is downloaded on demand via `rentl benchmark` and cached locally at `~/.cache/rentl/eval_sets/`. The sample project data (`samples/golden/`) is original content released under [CC0 1.0](./samples/golden/LICENSE).
 
 ## Links
 
