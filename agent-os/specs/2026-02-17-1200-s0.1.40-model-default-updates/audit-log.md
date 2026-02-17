@@ -18,3 +18,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 3): PASS — Schema field annotations in runtime/harness satisfy strict typing, and focused validation tests for required `model_id` pass (2/2).
 - **Task 5** (round 3): PASS — README Local/default-model wording and quality test assertion text are updated, with no stale model strings outside historical spec docs.
 - **Demo** (run 3): PASS — All 5 [RUN] steps pass post-audit round 2 fixes: presets correct, Local prompts for model, configs reject missing model_id, zero stale strings outside spec history (5 run, 0 verified)
+- **Spec Audit** (round 3): PASS — Rubric `5/5/5/5/5`, non-negotiables 5/5 PASS, demo latest PASS (run 3), fix-now count 0
