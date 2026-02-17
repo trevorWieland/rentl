@@ -2,6 +2,7 @@
 name = "rentl-tui"
 version = "0.1.0"
 description = "TUI for rentl"
+license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
     "rentl-core",

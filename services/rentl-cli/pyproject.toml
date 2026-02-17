@@ -2,6 +2,7 @@
 name = "rentl"
 version = "0.1.8"
 description = "CLI for rentl"
+license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
     "rentl-agents>=0.1.0",

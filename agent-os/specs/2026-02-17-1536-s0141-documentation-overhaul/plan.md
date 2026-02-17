@@ -46,7 +46,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - Files: `docs/data-schemas.md`
   - Reference: `packages/rentl-schemas/`, `samples/golden/artifacts/`
   - Acceptance: all documented fields exist in models, all model fields documented
-- [ ] Task 6: License/legal review and README cross-links
+- [x] Task 6: License/legal review and README cross-links
   - Add `license = "MIT"` to all `pyproject.toml` files that lack it
   - Verify no copyrighted text exists in any PyPI-installable package directory
   - Document CC BY-NC-ND benchmark licensing in README or NOTICE

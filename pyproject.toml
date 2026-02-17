@@ -2,6 +2,7 @@
 name = "rentl-workspace"
 version = "0.1.0"
 description = "Agentic localization pipeline"
+license = "MIT"
 requires-python = ">=3.14"
 readme = "README.md"
 dependencies = [

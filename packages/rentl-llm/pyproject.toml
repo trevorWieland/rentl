@@ -2,6 +2,7 @@
 name = "rentl-llm"
 version = "0.1.8"
 description = "LLM runtime adapters for rentl"
+license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
     "rentl-core",
