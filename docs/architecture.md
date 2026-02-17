@@ -225,10 +225,10 @@ Run data is split across two filesystem roots within the workspace:
 │   ├── runs/{run_id}.json         # Full run state (RunState)
 │   └── index/{run_id}.json        # Run index entry
 └── artifacts/
+    ├── index.jsonl                # Artifact index (global, all runs)
     └── {run_id}/
-        ├── artifact-{id}.json     # Phase output (single object)
-        ├── artifact-{id}.jsonl    # Phase output (line-delimited)
-        └── index.jsonl            # Artifact index
+        ├── artifact-{id}.json    # Phase output (single object)
+        └── artifact-{id}.jsonl   # Phase output (line-delimited)
 ```
 
 **`project.paths.logs_dir`** (default `./logs`) — logs, progress, and reports:
