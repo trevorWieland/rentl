@@ -200,10 +200,12 @@ uvx rentl status
 
 Inside the run directory you'll find the final translated output as JSONL along with phase artifacts.
 
-The `export` phase runs automatically at the end of the pipeline, but you can also export into a different format manually. Use `uvx rentl status` to find the output file path, then:
+The `export` phase runs automatically at the end of the pipeline, but you can also export into a different format manually. Grab the run directory printed in the pipeline summary (or from `ls out/`), then export:
 
 ```bash
-uvx rentl export -i out/run-01936a52/en.jsonl -o translation.csv -f csv
+# Use your actual run directory from the pipeline output
+RUN_DIR=$(ls -d out/run-* | head -1)
+uvx rentl export -i "$RUN_DIR/en.jsonl" -o translation.csv -f csv
 ```
 
 The `export` command supports CSV, JSONL, and TXT output formats. Use `--include-source-text` to add the original text alongside translations in CSV exports.

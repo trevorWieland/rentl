@@ -19,7 +19,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - Include known limitations section
   - Files: `CHANGELOG.md`
   - Acceptance: all completed specs appear, format is valid Keep a Changelog
-- [ ] Task 3: Write Getting Started guide
+- [x] Task 3: Write Getting Started guide
   - Linear zero-to-playable-patch tutorial in `docs/getting-started.md`
   - Copy-pasteable commands assuming zero context, targeting the fan-translator persona
   - Steps: install → init → configure API key → doctor → prepare source → run pipeline → check output
@@ -30,7 +30,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - [x] Fix: Update Step 3 API-key instructions to use the actual init-generated env var (currently `OPENROUTER_API_KEY` in `docs/getting-started.md:69`, but generated projects use `api_key_env = "RENTL_LOCAL_API_KEY"` via `packages/rentl-core/src/rentl_core/init.py:18` and `packages/rentl-core/src/rentl_core/init.py:226`) (audit round 1)
   - [x] Fix: Replace GNU-only `sed -i` usage in `docs/getting-started.md:69` with a cross-platform copy-pasteable method that works on Linux/macOS/WSL as documented (audit round 1)
   - [x] Fix: Remove placeholder command examples that are not copy-pasteable (`uvx rentl export -i out/run-<run-id>/en.jsonl ...` and `uvx rentl run-phase --phase <phase>`) and replace with executable alternatives (`docs/getting-started.md:207`, `docs/getting-started.md:217`) (audit round 1)
-  - [ ] Fix: Replace the hardcoded export input path example with a truly copy-pasteable command that derives the real run output path (`docs/getting-started.md:206` currently uses `out/run-01936a52/en.jsonl`, which fails with `No such file or directory` in a fresh workspace) (audit round 2)
+  - [x] Fix: Replace the hardcoded export input path example with a truly copy-pasteable command that derives the real run output path (`docs/getting-started.md:206` currently uses `out/run-01936a52/en.jsonl`, which fails with `No such file or directory` in a fresh workspace) (audit round 2)
 - [x] Task 4: Write Architecture overview
   - Concise contributor-facing doc in `docs/architecture.md`
   - Cover: 7-phase pipeline diagram, 6 packages, orchestrator flow, agent architecture (TOML profiles, 3-layer prompts, pydantic-ai), data flow (SourceLine → TranslatedLine), port/adapter pattern, storage model
