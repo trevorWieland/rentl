@@ -28,13 +28,16 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - Acceptance: all commands reference valid CLI commands, guide works on a fresh machine
   - [x] Fix: Update Step 3 API-key instructions to use the actual init-generated env var (currently `OPENROUTER_API_KEY` in `docs/getting-started.md:69`, but generated projects use `api_key_env = "RENTL_LOCAL_API_KEY"` via `packages/rentl-core/src/rentl_core/init.py:18` and `packages/rentl-core/src/rentl_core/init.py:226`) (audit round 1)
   - [x] Fix: Replace GNU-only `sed -i` usage in `docs/getting-started.md:69` with a cross-platform copy-pasteable method that works on Linux/macOS/WSL as documented (audit round 1)
-- [x] Task 4: Write Architecture overview
+- [ ] Task 4: Write Architecture overview
   - Concise contributor-facing doc in `docs/architecture.md`
   - Cover: 7-phase pipeline diagram, 6 packages, orchestrator flow, agent architecture (TOML profiles, 3-layer prompts, pydantic-ai), data flow (SourceLine → TranslatedLine), port/adapter pattern, storage model
   - Under 300 lines
   - Files: `docs/architecture.md`
   - Reference: `packages/` source code, pipeline orchestrator, agent runtime
   - Acceptance: all referenced names match actual code, under 300 lines
+  - [ ] Fix: Correct package inventory and dependency-direction statements in `docs/architecture.md` (currently omits `services/rentl-api` and claims library packages depend only on `rentl-schemas`/`rentl-core`). Evidence: `docs/architecture.md:9`, `docs/architecture.md:21`, `services/rentl-api/pyproject.toml:2`, `packages/rentl-agents/pyproject.toml:9`. (audit round 1)
+  - [ ] Fix: Correct storage-path documentation in `docs/architecture.md` so logs/progress/reports reflect `project.paths.logs_dir` (default `./logs`) rather than `.rentl/logs`; keep `.rentl` scoped to run-state/artifacts paths. Evidence: `docs/architecture.md:217`, `packages/rentl-core/src/rentl_core/init.py:207`, `services/rentl-cli/src/rentl/main.py:2406`, `services/rentl-cli/src/rentl/main.py:2594`, `services/rentl-cli/src/rentl/main.py:2973`. (audit round 1)
+  - [ ] Fix: Replace invalid BYOK config snippet in `docs/architecture.md` (`[endpoints.default]`) with schema-valid examples (`[endpoint]` or `[endpoints]` + `[[endpoints.endpoints]]`). Evidence: `docs/architecture.md:269`, `packages/rentl-schemas/src/rentl_schemas/config.py:291`, `packages/rentl-schemas/src/rentl_schemas/config.py:637`. (audit round 1)
 - [ ] Task 5: Write Data Schema reference
   - Document Pydantic models from `rentl-schemas` in `docs/data-schemas.md`
   - Cover: SourceLine, TranslatedLine, per-phase I/O schemas, QA schemas, primitive types
