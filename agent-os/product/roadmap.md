@@ -22,6 +22,8 @@
 - Functional onboarding surfaces (docs + help + doctor)
 - Standards review: declarative agent configuration and conventions
 - Log redaction and error taxonomy enforcement
+- Model default freshness (no presets with announced EOL)
+- Release documentation (CHANGELOG, Getting Started, architecture, schema reference)
 
 **Spec List (Expanded):**
 - ✅ (s0.1.01) Schema Definitions & Validation — Define strict Pydantic schemas for configs, inputs, outputs, and artifacts so the pipeline is deterministic and debuggable. **Depends on:** None.
@@ -63,6 +65,8 @@
 - ✅ (s0.1.37) Benchmark Harness v0.1 — Curated small evaluation set with baseline MTL comparison; runnable outside default CI. **Depends on:** s0.1.17, s0.1.19, s0.1.20.
 - (s0.1.38) Benchmark Transparency Pack — Publish configs, prompts, rubric, and input/output hashes with a provenance and verification guide (no text release). **Depends on:** s0.1.37.
 - ✅ (s0.1.39) Install Verification (uvx/uv tool) — Validate install + `rentl init` + full run on a clean environment. **Depends on:** s0.1.29, s0.1.24.
+- (s0.1.40) Model Default Updates — Replace outdated model presets (gpt-4-turbo, gpt-4o-mini, llama3.2) with modern open-weight defaults; require explicit model_id in config. **Depends on:** s0.1.29, s0.1.13, s0.1.14.
+- (s0.1.41) Documentation Overhaul for v0.1 Release — CHANGELOG, Getting Started guide, architecture overview, data schema reference, and license/legal review. **Depends on:** s0.1.39, s0.1.30.
 
 **Success Criteria:**
 - A new user can run `rentl init` → full pipeline → export without manual edits
