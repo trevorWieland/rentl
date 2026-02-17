@@ -11,7 +11,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
 - [x] Task 1: Save Spec Documentation
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit spec artifacts to the issue branch
-- [ ] Task 2: Create CHANGELOG.md
+- [x] Task 2: Create CHANGELOG.md
   - Write v0.1 release notes in Keep a Changelog format
   - Cross-reference `agent-os/product/roadmap.md` for all completed specs
   - Group by capability: pipeline, BYOK, agents, CLI, adapters, observability, QA, config, redaction, benchmark, samples, docs
