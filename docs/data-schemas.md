@@ -222,8 +222,10 @@ internally by the orchestrator — the JSONL artifacts written to disk are the
 
 ## Agent Response Schemas
 
-These are the structured outputs that LLM agents produce. They map directly to
-the JSONL artifacts stored in `.rentl/artifacts/{run_id}/`.
+These are the structured outputs that LLM agents produce. At runtime, each
+artifact is persisted as `.rentl/artifacts/{run_id}/artifact-{artifact_id}.jsonl`
+and indexed in a global `.rentl/artifacts/index.jsonl`. The friendly names below
+(e.g., `context.jsonl`) match the golden samples in `samples/golden/artifacts/`.
 
 ### SceneSummary
 
@@ -438,15 +440,18 @@ Reviewer note attached to a line during QA or edit.
 
 ---
 
-## Artifact File Summary
+## Artifact Storage
 
-Each pipeline run writes JSONL artifacts to `.rentl/artifacts/{run_id}/`:
+At runtime, artifacts are persisted as
+`.rentl/artifacts/{run_id}/artifact-{artifact_id}.{format}` and tracked by a
+global index at `.rentl/artifacts/index.jsonl`. The table below shows the
+logical artifact per phase (friendly names match `samples/golden/artifacts/`).
 
-| File | Schema | Granularity | Phase |
-|------|--------|-------------|-------|
-| `context.jsonl` | `SceneSummary` | 1 line per scene | context |
-| `pretranslation.jsonl` | `IdiomAnnotationList` | 1 line per scene batch | pretranslation |
-| `translate.jsonl` | `TranslationResultList` | 1 line per scene batch | translate |
-| `qa.jsonl` | `StyleGuideReviewList` | 1 line per scene batch | qa |
-| `edit.jsonl` | `LineEdit` | 1 line per edit | edit |
-| `export.jsonl` | `TranslatedLine` | 1 line per script line | export |
+| Artifact | Schema | Granularity | Phase |
+|----------|--------|-------------|-------|
+| context | `SceneSummary` | 1 line per scene | context |
+| pretranslation | `IdiomAnnotationList` | 1 line per scene batch | pretranslation |
+| translate | `TranslationResultList` | 1 line per scene batch | translate |
+| qa | `StyleGuideReviewList` | 1 line per scene batch | qa |
+| edit | `LineEdit` | 1 line per edit | edit |
+| export | `TranslatedLine` | 1 line per script line | export |
