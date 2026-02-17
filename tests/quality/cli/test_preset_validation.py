@@ -149,7 +149,7 @@ def test_all_presets_have_valid_structure(
         cli_runner: CliRunner (unused, but required for test signature consistency).
     """
     assert len(ENDPOINT_PRESETS) >= 3, (
-        "Spec requires at least 3 endpoint presets (OpenRouter, OpenAI, Local/Ollama)"
+        "Spec requires at least 3 endpoint presets (OpenRouter, OpenAI, Local)"
     )
 
     required_preset_names = {"OpenRouter", "OpenAI", "Local"}

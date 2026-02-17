@@ -37,7 +37,7 @@ Model choices:
   - Acceptance: instantiating configs without `model_id` raises `ValidationError`; all agent tests pass with explicit model_id
   - [x] Fix: Add `Field(..., description="...")` schema fields for `ProfileAgentConfig` and `AgentHarnessConfig` to satisfy strict typing standard (`packages/rentl-agents/src/rentl_agents/runtime.py:55`, `packages/rentl-agents/src/rentl_agents/harness.py:47`) (audit round 1)
   - [x] Fix: Add `Field(..., description=...)` annotations for remaining schema fields in `ProfileAgentConfig` and `AgentHarnessConfig` that are still raw annotations (`packages/rentl-agents/src/rentl_agents/runtime.py:56`, `packages/rentl-agents/src/rentl_agents/harness.py:47`) (audit round 2)
-- [ ] Task 5: Update documentation, TOML model_hints, and remaining references
+- [x] Task 5: Update documentation, TOML model_hints, and remaining references
   - `packages/rentl-agents/agents/qa/style_guide_critic.toml` (both copies): update model_hints from `gpt-4o`/`claude-3.5-sonnet`/`claude-3-opus` to current models matching other TOMLs
   - `README.md`: update example config model reference
   - `packages/rentl-agents/README.md`: update documentation example
@@ -47,5 +47,5 @@ Model choices:
   - Update `tests/unit/benchmark/test_judge.py` (10 occurrences), `tests/integration/benchmark/test_cli_command.py`, `tests/integration/benchmark/test_judge_flow.py`
   - Acceptance: `grep -r` for `gpt-4-turbo`, `gpt-4o-mini`, `llama3.2` returns zero matches outside historical spec docs; all benchmark tests pass
   - [x] Fix: Remove stale model strings from roadmap spec listing to satisfy stale-reference/non-negotiable requirements (`agent-os/product/roadmap.md:68`) (audit round 1)
-  - [ ] Fix: Update README references to align with current model defaults and model-agnostic Local preset wording (`README.md:53`, `README.md:311`, `README.md:314`) (audit round 2)
-  - [ ] Fix: Update stale test assertion text that still references `Local/Ollama` instead of `Local` (`tests/quality/cli/test_preset_validation.py:152`) (audit round 2)
+  - [x] Fix: Update README references to align with current model defaults and model-agnostic Local preset wording (`README.md:53`, `README.md:311`, `README.md:314`) (audit round 2)
+  - [x] Fix: Update stale test assertion text that still references `Local/Ollama` instead of `Local` (`tests/quality/cli/test_preset_validation.py:152`) (audit round 2)
