@@ -22,4 +22,10 @@ Model defaults have been updated to current, well-supported models. Running `ren
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Post-implementation (2026-02-17 15:30)
+- Step 1 [RUN]: PASS — `rentl init` with OpenRouter preset produces `model_id = "qwen/qwen3-30b-a3b"` and `base_url = "https://openrouter.ai/api/v1"` in rentl.toml
+- Step 2 [RUN]: PASS — `rentl init` with OpenAI preset produces `model_id = "gpt-5-nano"` and `base_url = "https://api.openai.com/v1"` in rentl.toml
+- Step 3 [RUN]: PASS — Preset displayed as "Local" (not "Local (Ollama)"), user prompted for "Model ID:", rentl.toml contains `model_id = "my-custom-model-7b"` (the user-provided value)
+- Step 4 [RUN]: PASS — `ProfileAgentConfig(agent_name='test', system_prompt='test')` raises `ValidationError: model_id Field required`; `AgentHarnessConfig(agent_name='test', system_prompt='test', base_url='...', api_key='test')` raises `ValidationError: model_id Field required`
+- Step 5 [RUN]: PASS — grep for `gpt-4-turbo|gpt-4o-mini|llama3.2` returns 15 matches, all exclusively in `agent-os/specs/` (historical spec docs) and `agent-os/product/roadmap.md` (spec description). Zero matches in production code, tests, docs, or config files.
+- **Overall: PASS**
