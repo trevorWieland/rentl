@@ -39,7 +39,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - [x] Fix: Correct storage-path documentation in `docs/architecture.md` so logs/progress/reports reflect `project.paths.logs_dir` (default `./logs`) rather than `.rentl/logs`; keep `.rentl` scoped to run-state/artifacts paths. Evidence: `docs/architecture.md:217`, `packages/rentl-core/src/rentl_core/init.py:207`, `services/rentl-cli/src/rentl/main.py:2406`, `services/rentl-cli/src/rentl/main.py:2594`, `services/rentl-cli/src/rentl/main.py:2973`. (audit round 1)
   - [x] Fix: Replace invalid BYOK config snippet in `docs/architecture.md` (`[endpoints.default]`) with schema-valid examples (`[endpoint]` or `[endpoints]` + `[[endpoints.endpoints]]`). Evidence: `docs/architecture.md:269`, `packages/rentl-schemas/src/rentl_schemas/config.py:291`, `packages/rentl-schemas/src/rentl_schemas/config.py:637`. (audit round 1)
   - [x] Fix: Correct artifact-index location in the storage model; `index.jsonl` is stored at `.rentl/artifacts/index.jsonl` (global), not `.rentl/artifacts/{run_id}/index.jsonl`. Evidence: `docs/architecture.md:231`, `packages/rentl-io/src/rentl_io/storage/filesystem.py:202`, `packages/rentl-io/src/rentl_io/storage/filesystem.py:512`. (audit round 2)
-- [ ] Task 5: Write Data Schema reference
+- [x] Task 5: Write Data Schema reference
   - Document Pydantic models from `rentl-schemas` in `docs/data-schemas.md`
   - Cover: SourceLine, TranslatedLine, per-phase I/O schemas, QA schemas, primitive types
   - Include example JSONL lines from golden artifacts
