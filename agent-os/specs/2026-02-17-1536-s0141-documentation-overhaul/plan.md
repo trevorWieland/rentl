@@ -28,7 +28,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - Acceptance: all commands reference valid CLI commands, guide works on a fresh machine
   - [x] Fix: Update Step 3 API-key instructions to use the actual init-generated env var (currently `OPENROUTER_API_KEY` in `docs/getting-started.md:69`, but generated projects use `api_key_env = "RENTL_LOCAL_API_KEY"` via `packages/rentl-core/src/rentl_core/init.py:18` and `packages/rentl-core/src/rentl_core/init.py:226`) (audit round 1)
   - [x] Fix: Replace GNU-only `sed -i` usage in `docs/getting-started.md:69` with a cross-platform copy-pasteable method that works on Linux/macOS/WSL as documented (audit round 1)
-- [ ] Task 4: Write Architecture overview
+- [x] Task 4: Write Architecture overview
   - Concise contributor-facing doc in `docs/architecture.md`
   - Cover: 7-phase pipeline diagram, 6 packages, orchestrator flow, agent architecture (TOML profiles, 3-layer prompts, pydantic-ai), data flow (SourceLine → TranslatedLine), port/adapter pattern, storage model
   - Under 300 lines
