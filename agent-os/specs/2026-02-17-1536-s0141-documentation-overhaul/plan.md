@@ -19,7 +19,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - Include known limitations section
   - Files: `CHANGELOG.md`
   - Acceptance: all completed specs appear, format is valid Keep a Changelog
-- [x] Task 3: Write Getting Started guide
+- [ ] Task 3: Write Getting Started guide
   - Linear zero-to-playable-patch tutorial in `docs/getting-started.md`
   - Copy-pasteable commands assuming zero context, targeting the fan-translator persona
   - Steps: install → init → configure API key → doctor → prepare source → run pipeline → check output
@@ -30,6 +30,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - [x] Fix: Update Step 3 API-key instructions to use the actual init-generated env var (currently `OPENROUTER_API_KEY` in `docs/getting-started.md:69`, but generated projects use `api_key_env = "RENTL_LOCAL_API_KEY"` via `packages/rentl-core/src/rentl_core/init.py:18` and `packages/rentl-core/src/rentl_core/init.py:226`) (audit round 1)
   - [x] Fix: Replace GNU-only `sed -i` usage in `docs/getting-started.md:69` with a cross-platform copy-pasteable method that works on Linux/macOS/WSL as documented (audit round 1)
   - [x] Fix: Remove placeholder command examples that are not copy-pasteable (`uvx rentl export -i out/run-<run-id>/en.jsonl ...` and `uvx rentl run-phase --phase <phase>`) and replace with executable alternatives (`docs/getting-started.md:207`, `docs/getting-started.md:217`) (audit round 1)
+  - [ ] Fix: Replace the hardcoded export input path example with a truly copy-pasteable command that derives the real run output path (`docs/getting-started.md:206` currently uses `out/run-01936a52/en.jsonl`, which fails with `No such file or directory` in a fresh workspace) (audit round 2)
 - [x] Task 4: Write Architecture overview
   - Concise contributor-facing doc in `docs/architecture.md`
   - Cover: 7-phase pipeline diagram, 6 packages, orchestrator flow, agent architecture (TOML profiles, 3-layer prompts, pydantic-ai), data flow (SourceLine → TranslatedLine), port/adapter pattern, storage model
@@ -41,13 +42,14 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - [x] Fix: Correct storage-path documentation in `docs/architecture.md` so logs/progress/reports reflect `project.paths.logs_dir` (default `./logs`) rather than `.rentl/logs`; keep `.rentl` scoped to run-state/artifacts paths. Evidence: `docs/architecture.md:217`, `packages/rentl-core/src/rentl_core/init.py:207`, `services/rentl-cli/src/rentl/main.py:2406`, `services/rentl-cli/src/rentl/main.py:2594`, `services/rentl-cli/src/rentl/main.py:2973`. (audit round 1)
   - [x] Fix: Replace invalid BYOK config snippet in `docs/architecture.md` (`[endpoints.default]`) with schema-valid examples (`[endpoint]` or `[endpoints]` + `[[endpoints.endpoints]]`). Evidence: `docs/architecture.md:269`, `packages/rentl-schemas/src/rentl_schemas/config.py:291`, `packages/rentl-schemas/src/rentl_schemas/config.py:637`. (audit round 1)
   - [x] Fix: Correct artifact-index location in the storage model; `index.jsonl` is stored at `.rentl/artifacts/index.jsonl` (global), not `.rentl/artifacts/{run_id}/index.jsonl`. Evidence: `docs/architecture.md:231`, `packages/rentl-io/src/rentl_io/storage/filesystem.py:202`, `packages/rentl-io/src/rentl_io/storage/filesystem.py:512`. (audit round 2)
-- [x] Task 5: Write Data Schema reference
+- [ ] Task 5: Write Data Schema reference
   - Document Pydantic models from `rentl-schemas` in `docs/data-schemas.md`
   - Cover: SourceLine, TranslatedLine, per-phase I/O schemas, QA schemas, primitive types
   - Include example JSONL lines from golden artifacts
   - Files: `docs/data-schemas.md`
   - Reference: `packages/rentl-schemas/`, `samples/golden/artifacts/`
   - Acceptance: all documented fields exist in models, all model fields documented
+  - [ ] Fix: Correct stale artifact-storage docs that claim named phase files under `.rentl/artifacts/{run_id}/`; runtime persists `artifact-{artifact_id}.jsonl` with a global `.rentl/artifacts/index.jsonl` (`docs/data-schemas.md:226`, `docs/data-schemas.md:443`, `packages/rentl-io/src/rentl_io/storage/filesystem.py:202`, `packages/rentl-io/src/rentl_io/storage/filesystem.py:517`, `packages/rentl-core/src/rentl_core/orchestrator.py:1337`) (audit round 2)
 - [x] Task 6: License/legal review and README cross-links
   - Add `license = "MIT"` to all `pyproject.toml` files that lack it
   - Verify no copyrighted text exists in any PyPI-installable package directory
