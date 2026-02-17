@@ -16,3 +16,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 2): PASS — Task 6 commit remains compliant: README links all required new docs and documents CC BY-NC-ND benchmark licensing/non-bundling, and every repository `pyproject.toml` includes `license = "MIT"`.
 - **Demo** (run 1): PASS — All 6 [RUN] steps passed: CHANGELOG covers 37 specs, CLI commands verified, architecture doc accurate at 298 lines, schema reference matches models, license compliance confirmed, README cross-links present (6 run, 0 verified)
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 3/5, Completion 3/5, Security 5/5, Stability 3/5; fix-now count 2
+- **Task 6** (round 3): FAIL — README benchmark source citation points to `FleetingRainbows/katawa-shoujo-re-engineered`, but benchmark implementation/manifest source is `fleetingheart/ksre`; documentation is out of sync with code.
