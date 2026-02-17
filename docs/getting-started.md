@@ -200,11 +200,10 @@ uvx rentl status
 
 Inside the run directory you'll find the final translated output as JSONL along with phase artifacts.
 
-To export the translation into a different format:
+The `export` phase runs automatically at the end of the pipeline, but you can also export into a different format manually. Use `uvx rentl status` to find the output file path, then:
 
 ```bash
-# Replace <run-id> with the actual run ID from the pipeline output
-uvx rentl export -i out/run-<run-id>/en.jsonl -o translation.csv -f csv
+uvx rentl export -i out/run-01936a52/en.jsonl -o translation.csv -f csv
 ```
 
 The `export` command supports CSV, JSONL, and TXT output formats. Use `--include-source-text` to add the original text alongside translations in CSV exports.
@@ -214,7 +213,7 @@ The `export` command supports CSV, JSONL, and TXT output formats. Use `--include
 ## What's next?
 
 - **Tune your config** — Adjust `rentl.toml` to change models, concurrency, or retry settings. See the [README](../README.md) for full configuration reference.
-- **Run individual phases** — Use `uvx rentl run-phase --phase <phase>` to re-run a specific phase without starting over.
+- **Run individual phases** — Use `uvx rentl run-phase --phase translate` to re-run a specific phase (with its prerequisites) without starting from scratch. Valid phases: `ingest`, `context`, `pretranslation`, `translate`, `qa`, `edit`, `export`.
 - **Add a style guide** — Place a `style-guide.md` in your project root to guide the QA and editing phases.
 - **Check quality** — Review QA artifacts in the run output to see what the style critic flagged.
 - **Read troubleshooting** — See the [Troubleshooting Guide](./troubleshooting.md) for common issues and fixes.
