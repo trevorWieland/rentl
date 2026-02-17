@@ -14,3 +14,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 2): PASS — `model_id` is required in runtime/harness configs with strict `Field` annotations, and all scoped Task 4 unit/integration tests pass (54/54).
 - **Task 5** (round 2): PASS — Stale model names were removed from `agent-os/product/roadmap.md`, and repo scan confirms no stale model strings outside spec-history docs.
 - **Demo** (run 2): PASS — All 5 [RUN] steps pass post-audit fixes: presets correct, Local prompts for model, configs reject missing model_id, zero stale strings in project code (5 run, 0 verified)
+- **Spec Audit** (round 2): FAIL — Rubric `5/4/3/5/5`, non-negotiables 5/5 PASS, demo latest PASS (run 2), fix-now count 3

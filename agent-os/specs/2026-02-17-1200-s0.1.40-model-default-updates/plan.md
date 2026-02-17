@@ -29,14 +29,15 @@ Model choices:
   - Update `tests/unit/cli/test_main.py` (4 occurrences of old model strings)
   - Update `tests/integration/cli/test_init.py` (2 occurrences of old model strings)
   - Acceptance: selecting Local preset prompts for model; selecting OpenRouter/OpenAI presets auto-fills model; CLI tests pass
-- [x] Task 4: Remove model_id defaults from runtime configs
+- [ ] Task 4: Remove model_id defaults from runtime configs
   - `packages/rentl-agents/src/rentl_agents/runtime.py`: remove `"gpt-4o-mini"` default from `ProfileAgentConfig.model_id`, make it a required field with clear validation error
   - `packages/rentl-agents/src/rentl_agents/harness.py`: remove `"gpt-4o-mini"` default from `AgentHarnessConfig.model_id`, make it a required field with clear validation error
   - Update unit tests: `test_wiring.py`, `test_runtime_telemetry.py`, `test_profile_agent_execute.py`, `test_profile_agent_run_errors.py`, `test_alignment_retries.py`
   - Update integration tests: `test_direct_translator.py`, `test_idiom_labeler.py`, `test_profile_loading.py`, `test_style_guide_critic.py`
   - Acceptance: instantiating configs without `model_id` raises `ValidationError`; all agent tests pass with explicit model_id
   - [x] Fix: Add `Field(..., description="...")` schema fields for `ProfileAgentConfig` and `AgentHarnessConfig` to satisfy strict typing standard (`packages/rentl-agents/src/rentl_agents/runtime.py:55`, `packages/rentl-agents/src/rentl_agents/harness.py:47`) (audit round 1)
-- [x] Task 5: Update documentation, TOML model_hints, and remaining references
+  - [ ] Fix: Add `Field(..., description=...)` annotations for remaining schema fields in `ProfileAgentConfig` and `AgentHarnessConfig` that are still raw annotations (`packages/rentl-agents/src/rentl_agents/runtime.py:56`, `packages/rentl-agents/src/rentl_agents/harness.py:47`) (audit round 2)
+- [ ] Task 5: Update documentation, TOML model_hints, and remaining references
   - `packages/rentl-agents/agents/qa/style_guide_critic.toml` (both copies): update model_hints from `gpt-4o`/`claude-3.5-sonnet`/`claude-3-opus` to current models matching other TOMLs
   - `README.md`: update example config model reference
   - `packages/rentl-agents/README.md`: update documentation example
@@ -46,3 +47,5 @@ Model choices:
   - Update `tests/unit/benchmark/test_judge.py` (10 occurrences), `tests/integration/benchmark/test_cli_command.py`, `tests/integration/benchmark/test_judge_flow.py`
   - Acceptance: `grep -r` for `gpt-4-turbo`, `gpt-4o-mini`, `llama3.2` returns zero matches outside historical spec docs; all benchmark tests pass
   - [x] Fix: Remove stale model strings from roadmap spec listing to satisfy stale-reference/non-negotiable requirements (`agent-os/product/roadmap.md:68`) (audit round 1)
+  - [ ] Fix: Update README references to align with current model defaults and model-agnostic Local preset wording (`README.md:53`, `README.md:311`, `README.md:314`) (audit round 2)
+  - [ ] Fix: Update stale test assertion text that still references `Local/Ollama` instead of `Local` (`tests/quality/cli/test_preset_validation.py:152`) (audit round 2)
