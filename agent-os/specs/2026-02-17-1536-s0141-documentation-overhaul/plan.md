@@ -18,7 +18,7 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - Include known limitations section
   - Files: `CHANGELOG.md`
   - Acceptance: all completed specs appear, format is valid Keep a Changelog
-- [ ] Task 3: Write Getting Started guide
+- [x] Task 3: Write Getting Started guide
   - Linear zero-to-playable-patch tutorial in `docs/getting-started.md`
   - Copy-pasteable commands assuming zero context, targeting the fan-translator persona
   - Steps: install → init → configure API key → doctor → prepare source → run pipeline → check output
