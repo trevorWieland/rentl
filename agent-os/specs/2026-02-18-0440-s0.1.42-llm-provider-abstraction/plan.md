@@ -78,3 +78,11 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Add unit test in `tests/unit/llm/test_provider_factory.py` passing plain string `"medium"` as `reasoning_effort` to `create_model` to cover the Pydantic `use_enum_values` code path
   - Verify `rentl validate-connection` succeeds after fix (see signposts.md #1)
   - [x] Fix: Remove unused `# type: ignore[arg-type]` suppressions flagged by `ty` (`warning[unused-type-ignore-comment]`) in `tests/unit/llm/test_provider_factory.py:93` and `tests/unit/llm/test_provider_factory.py:195`; rerun `ty check packages/rentl-llm/src/rentl_llm/provider_factory.py tests/unit/llm/test_provider_factory.py` to confirm clean diagnostics (audit round 1)
+
+- [ ] Task 10: Add mock-server integration test for local model factory path (demo runs 2-27, signpost #2)
+  - Demo Step 5 requires running a BYOK prompt via the CLI with local model config (`localhost:5000`), but no local model server is available in the CI/demo environment
+  - Add an integration test in `tests/integration/byok/` that uses `respx` (already a project dependency) to mock the local OpenAI-compatible endpoint at `http://localhost:5000/v1/chat/completions`
+  - The test must exercise the full path: `create_model(base_url='http://localhost:5000/v1', ...)` → `OpenAIChatModel` → `Agent.run()` → mocked HTTP response → successful result
+  - This proves the factory correctly routes local URLs to the generic OpenAI provider and produces a working agent, without requiring a live server
+  - Verify that demo Step 5 can be satisfied by running this integration test (the mock response proves the factory-to-agent pipeline works end-to-end for local endpoints)
+  - `make all` must continue to pass after adding the test

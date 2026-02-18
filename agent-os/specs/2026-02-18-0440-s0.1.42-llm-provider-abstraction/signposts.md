@@ -31,7 +31,8 @@
   - Unit tests for OpenAI routing path pass (5/5): `test_openai_url_creates_openai_model`, `test_local_url_creates_openai_model`, `test_openai_includes_reasoning_effort`, `test_openai_reasoning_effort_plain_string`, `test_compatible_openai_endpoint_passes`
   - demo.md environment section states "local model server running" but the server is not running in the current environment
 - **Root cause:** Environment prerequisite not met — the local model server (`openai/gpt-oss-20b` at `localhost:5000`) is not running. This is an infrastructure/environment issue, not a code defect. The factory code correctly routes non-OpenRouter URLs to `OpenAIChatModel`.
-- **Files affected:** None — no code changes needed. Environment setup required.
+- **Workaround:** Task 10 added (demo run 27) — create a `respx`-mocked integration test that exercises the full `create_model` → `OpenAIChatModel` → `Agent.run()` path for local URLs without requiring a live server. This proves the factory-to-agent pipeline works end-to-end for the local model path.
+- **Files affected:** `tests/integration/byok/` — new mock-server integration test needed.
 
 ## Signpost 3: OpenRouter `require_parameters=true` rejects all models
 
