@@ -27,6 +27,7 @@ from rentl_schemas.llm import (
     LlmPromptRequest,
     LlmRuntimeSettings,
 )
+from rentl_schemas.primitives import JsonValue
 
 _LOCAL_BASE_URL = "http://localhost:5000/v1"
 _LOCAL_MODEL_ID = "openai/gpt-oss-20b"
@@ -41,7 +42,7 @@ class _Greeting(BaseModel):
 
 def _chat_completion_response(
     content: str, model: str = _LOCAL_MODEL_ID
-) -> dict[str, object]:
+) -> dict[str, JsonValue]:
     """Build a minimal OpenAI-compatible chat completion response.
 
     Args:
@@ -73,9 +74,9 @@ def _chat_completion_response(
 
 def _tool_call_response(
     tool_name: str,
-    arguments: dict[str, object],
+    arguments: dict[str, JsonValue],
     model: str = _LOCAL_MODEL_ID,
-) -> dict[str, object]:
+) -> dict[str, JsonValue]:
     """Build a chat completion response with a tool call (structured output).
 
     Args:
