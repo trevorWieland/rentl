@@ -7,8 +7,8 @@ Execute the demo plan and validate it works. If it fails, investigate and route 
 ## Important Guidelines
 
 - Execute the demo — don't just read it and say it looks good
-- **[RUN] steps MUST be executed.** You do not get to decide a [RUN] step "can't run" — that decision was made during shape-spec. If a [RUN] step fails to execute, that's a FAIL, not a SKIP.
-- **[VERIFY] steps** were pre-approved during shaping as not executable in this environment. Follow the verification method documented in the step.
+- **[RUN] steps MUST be executed.** You do not get to decide a [RUN] step "can't run" — that decision was made during shape-spec, and the environment was verified at that time. If a [RUN] step fails to execute, that's a FAIL and a blocker.
+- **[SKIP] steps** were marked during shaping because the environment couldn't support them (probe failed). Skip them entirely — do not attempt to execute, do not count toward pass or fail.
 - If a step fails, investigate the root cause before adding tasks
 - If tests pass but the demo fails, that's a test gap — identify what's missing
 - Never fix code directly — add tasks to plan.md for do-task to pick up
@@ -58,13 +58,13 @@ Process each demo step according to its classification:
 
 A [RUN] step that you cannot execute is a **FAIL**, not a skip. The environment was assessed during shape-spec — if the step is marked [RUN], the environment supports it. If something is genuinely broken (missing dependency, service down), that's a failure to investigate and route back to the task loop.
 
-#### For **[VERIFY]** steps:
+#### For **[SKIP]** steps:
 
-1. Read the step description and the documented verification method
-2. Perform the alternative verification described in the step (e.g., check test output, read logs, inspect config)
-3. Record as VERIFIED with what was checked
+1. Note the step and its reason for skipping (documented in demo.md)
+2. Record as SKIPPED in the results
+3. Do not attempt to execute — the environment was verified as unable to support this step during shaping
 
-[VERIFY] steps do not count as PASS — they are reported separately. A demo with all [RUN] steps passing and all [VERIFY] steps verified is a PASS. A demo where only [VERIFY] steps were checked is not sufficient for PASS.
+[SKIP] steps do not count toward pass or fail. A demo passes when all [RUN] steps pass and at least one [RUN] step exists.
 
 #### For steps with no tag (legacy demo.md without classifications):
 
@@ -102,13 +102,14 @@ Append results to demo.md under `## Results`:
 ### Run N — [context] (YYYY-MM-DD HH:MM)
 - Step 1 [RUN]: PASS|FAIL — [brief note]
 - Step 2 [RUN]: PASS|FAIL — [brief note]
-- Step 3 [VERIFY]: VERIFIED — [what was checked]
+- Step 3 [SKIP]: SKIPPED — [reason from demo.md]
 - **Overall: PASS|FAIL**
 ```
 
 Overall result rules:
-- **PASS** requires: all [RUN] steps PASS, all [VERIFY] steps VERIFIED, at least one [RUN] step exists
+- **PASS** requires: all [RUN] steps PASS, at least one [RUN] step exists
 - **FAIL** if: any [RUN] step fails
+- [SKIP] steps are recorded but do not affect the overall result
 
 If this is the first run, add the `## Results` header.
 
@@ -137,7 +138,7 @@ Only include files that were actually modified.
 
 Print one of these exit signals (machine-readable):
 
-- `run-demo-status: pass` — all [RUN] steps passed, all [VERIFY] steps verified
+- `run-demo-status: pass` — all [RUN] steps passed ([SKIP] steps excluded)
 - `run-demo-status: fail` — one or more [RUN] steps failed, tasks added to plan.md
 - `run-demo-status: error` — prerequisites missing or unrecoverable issue
 
@@ -148,7 +149,7 @@ Print one of these exit signals (machine-readable):
 - Push or touch GitHub
 - Score rubrics (that's audit-spec)
 - Skip investigation — every failure must be diagnosed before adding tasks
-- Reclassify [RUN] steps as skippable — that decision was made during shape-spec
+- Reclassify steps — [RUN] vs [SKIP] was decided during shape-spec and is binding
 
 ## Workflow
 

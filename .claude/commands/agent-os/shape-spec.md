@@ -140,29 +140,55 @@ and why this matters for reliability.
 
 #### 9a: Environment Assessment
 
-Before finalizing the demo steps, assess the execution environment with the user. The goal is to determine **upfront** which steps the autonomous `run-demo` agent can actually execute, so it doesn't have to guess later.
+Before finalizing the demo steps, assess and **verify** the execution environment with the user. The goal is to determine **upfront** which steps the autonomous `run-demo` agent can actually execute, so it doesn't have to guess later.
+
+**Why this matters:** The `run-demo` agent runs autonomously and cannot ask questions. If the environment section is vague (e.g., "local model server running" without a URL), the agent will guess — and guess wrong. Every detail the agent would need to connect to a service must be captured here, during shaping, while the user is present.
 
 Ask using AskUserQuestion:
 
 ```
 For the autonomous demo runner, what's available in the execution environment?
-- API keys / credentials: [e.g., OPENROUTER_API_KEY in .env, no GCP credentials]
-- External services: [e.g., OpenRouter API reachable, no GPU cluster]
+- API keys / credentials: [e.g., RENTL_OPENROUTER_API_KEY in .env]
+- External services with exact URLs: [e.g., OpenRouter at https://openrouter.ai/api/v1, LM Studio at http://192.168.1.23:1234/v1]
 - Hardware / resources: [e.g., 16GB RAM, no GPU]
 - Special setup needed: [e.g., "run make seed first", or "none"]
+```
 
-Based on this, here's how I'd classify each demo step:
-1. **[RUN]** Download eval set — no external dependencies
-2. **[RUN]** Run pipeline with model X — API key available via .env
-3. **[VERIFY]** Run on GPU cluster — no GPU available; verify via [alternative]
+##### Connection string rule
+
+For every external service the demo depends on, capture the **exact connection string** (URL, port, hostname) in the Environment section. Well-known cloud APIs with standard URLs (e.g., OpenRouter, OpenAI) can use their standard URL. Local or custom services **must** include the exact URL — never just "local model server" or "localhost".
+
+##### Probe verification rule
+
+For every service listed in the environment, **probe it during shaping** to confirm it's reachable:
+
+```bash
+# Cloud API — check auth works
+curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $API_KEY" https://openrouter.ai/api/v1/models
+
+# Local/custom service — check it responds
+curl --connect-timeout 5 http://192.168.1.23:1234/v1/models
+```
+
+Record the probe result in the Environment section. If a service is unreachable during shaping, any demo step that depends on it **must** be classified as `[SKIP]`.
+
+##### Step classification
+
+After environment assessment, classify each step and confirm with the user:
+
+```
+Based on the environment probes, here's how I'd classify each demo step:
+1. **[RUN]** Run unit tests — no external dependencies
+2. **[RUN]** Run pipeline via OpenRouter — API key verified, endpoint responds (200)
+3. **[SKIP]** Run with local model — server at 192.168.1.23:1234 not reachable (connection refused)
 
 Does this look right?
 ```
 
 Classify each step as:
 
-- **[RUN]** — The step will be executed by the autonomous demo agent. This is the default. Use this unless there's a concrete reason the step cannot run.
-- **[VERIFY]** — The step cannot be executed autonomously due to a documented environment limitation. Must include what will be verified instead and why. This is the exception — use sparingly.
+- **[RUN]** — The autonomous demo agent MUST execute this step. Only use this when the environment has been verified as supporting it during shaping (probes passed, keys present, services reachable). If a [RUN] step fails during `run-demo`, it's a **blocker** — something broke that was working during shaping.
+- **[SKIP]** — The step cannot be executed in the current environment. Skipped entirely by `run-demo` — does not count toward pass or fail. Use when a service is unreachable, hardware is unavailable, or a dependency is missing. Must include the reason (e.g., "server unreachable during shaping").
 
 The classification is written into demo.md and becomes binding for `run-demo`. The agent does not get to reclassify steps at execution time.
 
@@ -172,7 +198,7 @@ Propose the demo and confirm with AskUserQuestion:
 
 ```
 Here's my proposed demo for this feature:
-[demo plan with [RUN]/[VERIFY] tags]
+[demo plan with [RUN]/[SKIP] tags]
 Does this cover what matters, or would you adjust it?
 ```
 
@@ -183,10 +209,10 @@ Demo plan qualities:
 - **Specific** — concrete actions and observable outcomes
 - **Accessible** — someone unfamiliar with the implementation could follow it
 - **Medium-agnostic** — CLI, TUI, web UI, config changes, API calls, whatever fits
-- **Executable by default** — most steps should be [RUN]; [VERIFY] requires justification
+- **Executable by default** — most steps should be [RUN]; [SKIP] requires justification (failed probe during shaping)
 
 The demo plan is used by every subsequent command:
-- `run-demo` (via orchestrator) executes [RUN] steps and verifies [VERIFY] steps
+- `run-demo` (via orchestrator) executes [RUN] steps and skips [SKIP] steps
 - `audit-spec` verifies the demo was run and passed
 - `walk-spec` walks the user through the demo interactively
 
@@ -317,15 +343,17 @@ version: vX.Y
 
 ## Environment
 
-- API keys: [what's available, e.g., "OPENROUTER_API_KEY via .env"]
-- External services: [what's reachable, e.g., "OpenRouter API"]
+- API keys: [key name and source, e.g., "RENTL_OPENROUTER_API_KEY via .env"]
+- External services: [service name, exact URL, and probe result during shaping]
+  - OpenRouter API at https://openrouter.ai/api/v1 — verified (200)
+  - LM Studio at http://192.168.1.23:1234/v1 — verified (200) | unreachable (connection refused)
 - Setup: [any pre-demo setup, or "none"]
 
 ## Steps
 
 1. **[RUN]** [Action] — expected: [observable outcome]
 2. **[RUN]** [Action] — expected: [observable outcome]
-3. **[VERIFY]** [Action] — expected: [observable outcome] — verify: [what to check instead and why this can't be run]
+3. **[SKIP]** [Action] — reason: [why this can't run, e.g., "server unreachable during shaping"]
 
 ## Results
 
@@ -333,8 +361,8 @@ version: vX.Y
 ```
 
 Step classification rules:
-- **[RUN]** is the default. The autonomous demo agent MUST execute these steps.
-- **[VERIFY]** means the step cannot run due to a documented environment limitation. The agent verifies indirectly but cannot claim PASS for it — it reports VERIFIED with what was checked.
+- **[RUN]** is the default. The autonomous demo agent MUST execute these steps. Environment was verified during shaping — if it fails, it's a blocker.
+- **[SKIP]** means the step cannot run due to a documented environment limitation verified during shaping (probe failed, service unreachable). Skipped entirely — does not count toward pass or fail.
 - Classifications are set during shape-spec and are binding. run-demo does not reclassify.
 
 ## Workflow
