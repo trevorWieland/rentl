@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import Field, ValidationError
-from pydantic_ai import Agent
+from pydantic_ai import Agent, Tool
 
 from rentl_agents.prompts import PromptRenderer
 from rentl_core.ports.orchestrator import PhaseAgentProtocol
 from rentl_llm.provider_factory import create_model
 from rentl_schemas.base import BaseSchema
-from rentl_schemas.primitives import JsonValue
 
 InputT = TypeVar("InputT", bound=BaseSchema)
 OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
@@ -72,7 +70,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
         system_prompt: System prompt for the agent.
         user_prompt_template: User prompt template with variable substitution.
         output_type: Type hint for output schema.
-        tools: Optional list of tool callables to register.
+        tools: Optional list of pydantic_ai.Tool objects to register.
         max_retries: Maximum retry attempts for transient failures.
         retry_base_delay: Base delay for exponential backoff in seconds.
     """
@@ -82,7 +80,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
         system_prompt: str,
         user_prompt_template: str,
         output_type: type[OutputT_co],
-        tools: list[Callable[..., dict[str, JsonValue]]] | None = None,
+        tools: list[Tool] | None = None,
         max_retries: int = 3,
         retry_base_delay: float = 1.0,
     ) -> None:
@@ -92,7 +90,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
             system_prompt: System prompt for the agent.
             user_prompt_template: User prompt template with variable substitution.
             output_type: Type hint for output schema.
-            tools: Optional list of tool callables to register.
+            tools: Optional list of pydantic_ai.Tool objects to register.
             max_retries: Maximum retry attempts for transient failures.
             retry_base_delay: Base delay for exponential backoff in seconds.
 

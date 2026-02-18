@@ -46,7 +46,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Each site replaced with single `create_model()` call
   - Existing tests must continue passing without modification
 
-- [ ] Task 5: Fix agent tool registration
+- [x] Task 5: Fix agent tool registration
   - `packages/rentl-agents/src/rentl_agents/factory.py:292` — `resolve_tools` returns `list[pydantic_ai.Tool]` with explicit names instead of raw callables
   - `packages/rentl-agents/src/rentl_agents/harness.py:86` — Accept `list[pydantic_ai.Tool]` instead of `list[Callable[..., dict[str, JsonValue]]]`
   - Unit tests verify Tool objects are produced with correct names

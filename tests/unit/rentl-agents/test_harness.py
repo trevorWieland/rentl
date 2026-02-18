@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import Field, ValidationError
+from pydantic_ai import Tool
 
 from rentl_agents.harness import AgentHarness, AgentHarnessConfig
 from rentl_schemas.base import BaseSchema
@@ -201,16 +201,18 @@ class TestAgentHarness:
 
     @pytest.mark.asyncio
     async def test_tools_registered_with_harness(self) -> None:
-        """Test tools are stored in harness during initialization."""
+        """Test Tool objects are stored in harness during initialization."""
 
         def mock_tool_fn(query: str) -> dict[str, JsonValue]:
             return {"result": f"Result for {query}"}
+
+        mock_tool = Tool(mock_tool_fn, name="mock_search", takes_ctx=False)
 
         harness = AgentHarness(
             system_prompt="You are helpful.",
             user_prompt_template="Search: {{text}}",
             output_type=MockOutput,
-            tools=[mock_tool_fn],
+            tools=[mock_tool],
         )
 
         config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
@@ -218,20 +220,23 @@ class TestAgentHarness:
 
         # Verify the harness stored the tools
         assert len(harness._tools) == 1
-        assert harness._tools[0] == mock_tool_fn
+        assert isinstance(harness._tools[0], Tool)
+        assert harness._tools[0].name == "mock_search"
 
     @pytest.mark.asyncio
     async def test_run_with_tools_executes_successfully(self) -> None:
-        """Test agent run with tools registered completes successfully."""
+        """Test agent run with Tool objects registered completes successfully."""
 
         def mock_tool_fn(query: str) -> dict[str, JsonValue]:
             return {"result": f"Result for {query}"}
+
+        mock_tool = Tool(mock_tool_fn, name="mock_process", takes_ctx=False)
 
         harness = AgentHarness(
             system_prompt="You are helpful with tools.",
             user_prompt_template="Process: {{text}}",
             output_type=MockOutput,
-            tools=[mock_tool_fn],
+            tools=[mock_tool],
         )
 
         config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
@@ -351,10 +356,11 @@ class TestAgentHarnessExecuteAgent:
 
     @pytest.mark.asyncio
     async def test_execute_agent_passes_tools_to_agent(self) -> None:
-        """Verify tools list is passed to Agent constructor.
+        """Verify Tool objects are passed to Agent constructor.
 
-        This is the critical test that ensures tools registered with the harness
-        are actually passed to the underlying pydantic-ai Agent.
+        This is the critical test that ensures Tool objects registered with the
+        harness are actually passed to the underlying pydantic-ai Agent, not
+        raw callables.
         """
 
         def mock_tool_fn(query: str) -> dict[str, JsonValue]:
@@ -368,7 +374,10 @@ class TestAgentHarnessExecuteAgent:
             """
             return {"result": f"Result for {query}"}
 
-        tools_list: list[Callable[..., dict[str, JsonValue]]] = [mock_tool_fn]
+        mock_tool = Tool(
+            mock_tool_fn, name="mock_search", description="Search tool", takes_ctx=False
+        )
+        tools_list: list[Tool] = [mock_tool]
 
         harness: AgentHarness[MockInput, MockOutput] = AgentHarness(
             system_prompt="You are a helpful assistant.",
@@ -400,12 +409,13 @@ class TestAgentHarnessExecuteAgent:
             input_data = MockInput(text="Hello", target_lang="en")
             await harness.run(input_data)
 
-            # Verify Agent was called with the tools list
+            # Verify Agent was called with Tool objects, not raw callables
             mock_agent_cls.assert_called_once()
             call_kwargs = mock_agent_cls.call_args.kwargs
             assert "tools" in call_kwargs
             assert call_kwargs["tools"] == tools_list
-            assert call_kwargs["tools"][0] == mock_tool_fn
+            assert isinstance(call_kwargs["tools"][0], Tool)
+            assert call_kwargs["tools"][0].name == "mock_search"
 
     @pytest.mark.asyncio
     async def test_execute_agent_creates_agent_with_correct_params(self) -> None:
