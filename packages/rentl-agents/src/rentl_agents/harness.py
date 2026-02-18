@@ -194,6 +194,11 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
 
         last_error: Exception | None = None
 
+        # This retry loop handles transient failures (network errors, API
+        # timeouts, rate limits) with exponential backoff.  It is intentionally
+        # separate from pydantic-ai's `output_retries`, which re-prompts the
+        # LLM when its output fails schema validation.  The two mechanisms
+        # cover different failure modes and are both needed.
         for attempt in range(self._max_retries + 1):
             try:
                 result = await self._execute_agent(user_prompt)
@@ -240,7 +245,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
             max_output_tokens=self._config.max_output_tokens,
         )
 
-        output_retries = self._config.output_retries if self._config else 3
+        output_retries = self._config.output_retries
 
         agent: Agent[None, OutputT_co] = Agent[None, OutputT_co](
             model=model,
