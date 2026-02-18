@@ -14,7 +14,7 @@ from rentl_agents.pretranslation import (
     merge_idiom_annotations,
 )
 from rentl_schemas.io import SourceLine
-from rentl_schemas.phases import IdiomAnnotation, SceneSummary
+from rentl_schemas.phases import IdiomAnnotation, IdiomReviewLine, SceneSummary
 
 
 class TestChunkLines:
@@ -264,12 +264,11 @@ class TestIdiomToAnnotation:
     def test_convert_basic_idiom(self) -> None:
         """Test converting a basic idiom annotation."""
         idiom = IdiomAnnotation(
-            line_id="line_001",
             idiom_text="猫の手も借りたい",
             explanation="A phrase meaning extremely busy",
         )
 
-        result = idiom_to_annotation(idiom)
+        result = idiom_to_annotation(idiom, "line_001")
 
         assert result.line_id == "line_001"
         assert result.annotation_type == "idiom"
@@ -279,12 +278,11 @@ class TestIdiomToAnnotation:
     def test_convert_idiom_preserves_explanation(self) -> None:
         """Test converting idiom preserves explanation in notes."""
         idiom = IdiomAnnotation(
-            line_id="line_002",
             idiom_text="It's raining cats and dogs",
             explanation="Heavy rain idiom",
         )
 
-        result = idiom_to_annotation(idiom)
+        result = idiom_to_annotation(idiom, "line_002")
 
         assert result.line_id == "line_002"
         assert result.value == "It's raining cats and dogs"
@@ -293,13 +291,12 @@ class TestIdiomToAnnotation:
     def test_convert_idiom_generates_unique_id(self) -> None:
         """Test that each conversion generates unique annotation_id."""
         idiom = IdiomAnnotation(
-            line_id="line_001",
             idiom_text="Test",
             explanation="Test",
         )
 
-        result1 = idiom_to_annotation(idiom)
-        result2 = idiom_to_annotation(idiom)
+        result1 = idiom_to_annotation(idiom, "line_001")
+        result2 = idiom_to_annotation(idiom, "line_001")
 
         assert result1.annotation_id != result2.annotation_id
 
@@ -307,30 +304,28 @@ class TestIdiomToAnnotation:
 class TestMergeIdiomAnnotations:
     """Test cases for merge_idiom_annotations function."""
 
-    def test_merge_multiple_idioms(self) -> None:
-        """Test merging multiple idiom annotations."""
+    def test_merge_multiple_reviews(self) -> None:
+        """Test merging multiple per-line idiom reviews."""
         run_id = uuid7()
-        idioms = [
-            IdiomAnnotation(
+        reviews = [
+            IdiomReviewLine(
                 line_id="line_001",
-                idiom_text="Idiom 1",
-                explanation="First idiom",
+                idioms=[IdiomAnnotation(idiom_text="Idiom 1", explanation="First")],
             ),
-            IdiomAnnotation(
+            IdiomReviewLine(
                 line_id="line_002",
-                idiom_text="Idiom 2",
-                explanation="Second idiom",
+                idioms=[IdiomAnnotation(idiom_text="Idiom 2", explanation="Second")],
             ),
         ]
 
-        result = merge_idiom_annotations(run_id, idioms)
+        result = merge_idiom_annotations(run_id, reviews)
 
         assert result.run_id == run_id
         assert len(result.annotations) == 2
         assert result.term_candidates == []
 
-    def test_merge_empty_idioms(self) -> None:
-        """Test merging empty list of idioms."""
+    def test_merge_empty_reviews(self) -> None:
+        """Test merging empty list of reviews."""
         run_id = uuid7()
 
         result = merge_idiom_annotations(run_id, [])
@@ -342,17 +337,38 @@ class TestMergeIdiomAnnotations:
     def test_merge_preserves_idiom_details(self) -> None:
         """Test that merge preserves all idiom details."""
         run_id = uuid7()
-        idioms = [
-            IdiomAnnotation(
+        reviews = [
+            IdiomReviewLine(
                 line_id="line_001",
-                idiom_text="Test idiom",
-                explanation="Cultural explanation",
+                idioms=[
+                    IdiomAnnotation(
+                        idiom_text="Test idiom",
+                        explanation="Cultural explanation",
+                    )
+                ],
             ),
         ]
 
-        result = merge_idiom_annotations(run_id, idioms)
+        result = merge_idiom_annotations(run_id, reviews)
 
         annotation = result.annotations[0]
+        assert annotation.line_id == "line_001"
         assert annotation.value == "Test idiom"
         assert annotation.notes == "Cultural explanation"
-        # Simplified schema - no type categorization or hints needed
+
+    def test_merge_sparse_reviews(self) -> None:
+        """Test that reviews with empty idiom lists produce no annotations."""
+        run_id = uuid7()
+        reviews = [
+            IdiomReviewLine(line_id="line_001", idioms=[]),
+            IdiomReviewLine(
+                line_id="line_002",
+                idioms=[IdiomAnnotation(idiom_text="X", explanation="Y")],
+            ),
+            IdiomReviewLine(line_id="line_003", idioms=[]),
+        ]
+
+        result = merge_idiom_annotations(run_id, reviews)
+
+        assert len(result.annotations) == 1
+        assert result.annotations[0].line_id == "line_002"

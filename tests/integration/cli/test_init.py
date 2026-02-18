@@ -27,6 +27,7 @@ from rentl_schemas.io import SourceLine
 from rentl_schemas.phases import (
     IdiomAnnotation,
     IdiomAnnotationList,
+    IdiomReviewLine,
     SceneSummary,
     StyleGuideReviewLine,
     StyleGuideReviewList,
@@ -335,18 +336,22 @@ def then_pipeline_executes_end_to_end(
                 characters=["Character A", "Character B"],
             )
         elif output_type == IdiomAnnotationList:
-            # Pretranslation phase: return one idiom per source line
+            # Pretranslation phase: return one review per source line
             # (alignment check requires output IDs to match input IDs)
             source_lines = getattr(payload, "source_lines", [])
-            idioms = [
-                IdiomAnnotation(
+            reviews = [
+                IdiomReviewLine(
                     line_id=line.line_id,
-                    idiom_text="test idiom",
-                    explanation="Test explanation",
+                    idioms=[
+                        IdiomAnnotation(
+                            idiom_text="test idiom",
+                            explanation="Test explanation",
+                        )
+                    ],
                 )
                 for line in source_lines
             ]
-            return IdiomAnnotationList(idioms=idioms)
+            return IdiomAnnotationList(reviews=reviews)
         elif output_type == TranslationResultList:
             # Translation phase: return translation for each source line
             source_lines = getattr(payload, "source_lines", [])

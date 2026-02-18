@@ -23,6 +23,7 @@ from rentl_schemas.base import BaseSchema
 from rentl_schemas.phases import (
     IdiomAnnotation,
     IdiomAnnotationList,
+    IdiomReviewLine,
     SceneSummary,
     StyleGuideReviewList,
     StyleGuideViolation,
@@ -146,6 +147,8 @@ def _init_schema_registry() -> None:
         register_output_schema("SceneSummary", SceneSummary)
     if "IdiomAnnotation" not in SCHEMA_REGISTRY:
         register_output_schema("IdiomAnnotation", IdiomAnnotation)
+    if "IdiomReviewLine" not in SCHEMA_REGISTRY:
+        register_output_schema("IdiomReviewLine", IdiomReviewLine)
     if "IdiomAnnotationList" not in SCHEMA_REGISTRY:
         register_output_schema("IdiomAnnotationList", IdiomAnnotationList)
     if "TranslationResultList" not in SCHEMA_REGISTRY:

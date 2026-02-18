@@ -60,13 +60,17 @@ class FakeLlmRuntime:
   "characters": ["Character A", "Character B"]
 }}"""
         elif "idiom" in prompt or "pretranslation" in prompt:
-            # IdiomAnnotationList schema for idiom_labeler agent
+            # IdiomAnnotationList schema for idiom_labeler agent (per-line wrapper)
             output_text = f"""{{
-  "idioms": [
+  "reviews": [
     {{
       "line_id": "{line_id}",
-      "idiom_text": "test idiom",
-      "explanation": "Test idiom explanation for integration testing."
+      "idioms": [
+        {{
+          "idiom_text": "test idiom",
+          "explanation": "Test idiom explanation for integration testing."
+        }}
+      ]
     }}
   ]
 }}"""
