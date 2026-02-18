@@ -79,7 +79,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Verify `rentl validate-connection` succeeds after fix (see signposts.md #1)
   - [x] Fix: Remove unused `# type: ignore[arg-type]` suppressions flagged by `ty` (`warning[unused-type-ignore-comment]`) in `tests/unit/llm/test_provider_factory.py:93` and `tests/unit/llm/test_provider_factory.py:195`; rerun `ty check packages/rentl-llm/src/rentl_llm/provider_factory.py tests/unit/llm/test_provider_factory.py` to confirm clean diagnostics (audit round 1)
 
-- [ ] Task 10: Add mock-server integration test for local model factory path (demo runs 2-27, signpost #2)
+- [x] Task 10: Add mock-server integration test for local model factory path (demo runs 2-27, signpost #2)
   - Demo Step 5 requires running a BYOK prompt via the CLI with local model config (`localhost:5000`), but no local model server is available in the CI/demo environment
   - Add an integration test in `tests/integration/byok/` that uses `respx` (already a project dependency) to mock the local OpenAI-compatible endpoint at `http://localhost:5000/v1/chat/completions`
   - The test must exercise the full path: `create_model(base_url='http://localhost:5000/v1', ...)` → `OpenAIChatModel` → `Agent.run()` → mocked HTTP response → successful result
