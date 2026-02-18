@@ -5,7 +5,7 @@ This spec centralizes scattered LLM provider construction behind a single factor
 ## Environment
 
 - API keys: `RENTL_OPENROUTER_API_KEY` via `.env` (OpenRouter), `RENTL_LOCAL_API_KEY` via `.env` (local model server)
-- External services: OpenRouter API reachable, local model server running (`openai/gpt-oss-20b`)
+- External services: OpenRouter API reachable, local model server running at `http://192.168.1.23:1234/v1` (`openai/gpt-oss-20b` via LM Studio on Windows host)
 - Setup: none
 
 ## Steps

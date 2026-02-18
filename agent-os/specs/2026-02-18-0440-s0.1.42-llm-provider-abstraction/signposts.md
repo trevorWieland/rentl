@@ -22,7 +22,7 @@
 ## Signpost 2: Local model server not available for demo step 5
 
 - **Task:** Demo Step 5 — Run BYOK prompt via CLI with local model (`RENTL_LOCAL_API_KEY`, `openai/gpt-oss-20b`)
-- **Status:** `deferred`
+- **Status:** `resolved`
 - **Problem:** `httpx.ConnectError: All connection attempts failed` when connecting to `localhost:5000`
 - **Evidence:**
   - Expected: successful BYOK response from local model server at `localhost:5000`
@@ -30,9 +30,11 @@
   - Factory routing confirmed correct: `create_model()` produced `OpenAIChatModel` (not OpenRouter) for non-OpenRouter URL
   - Unit tests for OpenAI routing path pass (5/5): `test_openai_url_creates_openai_model`, `test_local_url_creates_openai_model`, `test_openai_includes_reasoning_effort`, `test_openai_reasoning_effort_plain_string`, `test_compatible_openai_endpoint_passes`
   - demo.md environment section states "local model server running" but the server is not running in the current environment
-- **Root cause:** Environment prerequisite not met — the local model server (`openai/gpt-oss-20b` at `localhost:5000`) is not running. This is an infrastructure/environment issue, not a code defect. The factory code correctly routes non-OpenRouter URLs to `OpenAIChatModel`.
-- **Workaround:** Task 10 added (demo run 27) — create a `respx`-mocked integration test that exercises the full `create_model` → `OpenAIChatModel` → `Agent.run()` path for local URLs without requiring a live server. This proves the factory-to-agent pipeline works end-to-end for the local model path.
-- **Files affected:** `tests/integration/byok/` — new mock-server integration test needed.
+- **Root cause:** WSL→Windows host networking issue. The demo agent tried `localhost:5000` but `localhost` in WSL does not reach the Windows host. The actual LM Studio server runs on the Windows host at `http://192.168.1.23:1234/v1` (`openai/gpt-oss-20b`). The demo.md environment section did not specify the URL, so the agent guessed wrong.
+- **Resolution:** Updated demo.md environment section to specify the correct URL (`http://192.168.1.23:1234/v1`). Task 10 also added a `respx`-mocked integration test as a belt-and-suspenders measure proving the factory-to-agent pipeline works end-to-end for local model paths.
+- **Files affected:**
+  - `agent-os/specs/2026-02-18-0440-s0.1.42-llm-provider-abstraction/demo.md` — environment section updated with correct URL
+  - `tests/integration/byok/` — mock-server integration test (Task 10)
 
 ## Signpost 3: OpenRouter `require_parameters=true` rejects all models
 
