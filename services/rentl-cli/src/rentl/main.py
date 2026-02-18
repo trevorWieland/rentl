@@ -2364,6 +2364,10 @@ def _build_preflight_endpoints(
 ) -> list[PreflightEndpoint]:
     """Build preflight endpoint descriptors for all LLM phases.
 
+    Deduplicates by (base_url, model_id, endpoint_ref) so that endpoints
+    sharing URL/model but using different endpoint refs or routing configs
+    are each validated independently.
+
     Args:
         config: Run configuration.
         phases: Enabled pipeline phases.
@@ -2372,7 +2376,7 @@ def _build_preflight_endpoints(
         List of PreflightEndpoint objects for validation.
     """
     endpoints: list[PreflightEndpoint] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str | None]] = set()
 
     for phase in phases:
         if phase not in _LLM_PHASES:
@@ -2388,23 +2392,29 @@ def _build_preflight_endpoints(
             if ep_config is None:
                 continue
             base_url = ep_config.base_url
+            api_key_env = ep_config.api_key_env
             openrouter_provider = ep_config.openrouter_provider
         elif config.endpoint is not None:
             base_url = config.endpoint.base_url
+            api_key_env = config.endpoint.api_key_env
             openrouter_provider = config.endpoint.openrouter_provider
         else:
             continue
 
-        key = (base_url, model.model_id)
+        key = (base_url, model.model_id, endpoint_ref)
         if key in seen:
             continue
         seen.add(key)
 
+        api_key = os.getenv(api_key_env, "")
+
         endpoints.append(
             PreflightEndpoint(
                 base_url=base_url,
+                api_key=api_key,
                 model_id=model.model_id,
                 phase_label=phase,
+                endpoint_ref=endpoint_ref,
                 openrouter_provider=openrouter_provider,
             )
         )
@@ -2876,7 +2886,7 @@ async def _run_pipeline_async(
     _ensure_api_key(config, phases)
     preflight_endpoints = _build_preflight_endpoints(config, phases)
     if preflight_endpoints:
-        assert_preflight(preflight_endpoints)
+        await assert_preflight(preflight_endpoints)
     orchestrator = _build_orchestrator(config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=None)
@@ -2926,7 +2936,7 @@ async def _run_phase_async(
     _ensure_api_key(config, phases)
     preflight_endpoints = _build_preflight_endpoints(config, phases)
     if preflight_endpoints:
-        assert_preflight(preflight_endpoints)
+        await assert_preflight(preflight_endpoints)
     orchestrator = _build_orchestrator(config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=input_path)

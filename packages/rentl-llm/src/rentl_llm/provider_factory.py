@@ -7,10 +7,12 @@ OpenAIChatModel, or OpenRouterModel directly.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Literal, cast
 
 from pydantic import Field
+from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.models.openrouter import (
@@ -26,6 +28,8 @@ from rentl_agents.providers import ProviderCapabilities, detect_provider
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import OpenRouterProviderRoutingConfig
 from rentl_schemas.primitives import ReasoningEffort
+
+_log = logging.getLogger(__name__)
 
 _OPENROUTER_MODEL_ID_RE = re.compile(r"^[^/]+/.+")
 _EffortLevel = Literal["low", "medium", "high"]
@@ -148,9 +152,13 @@ class PreflightEndpoint(BaseSchema):
     """A model/endpoint combination to validate before pipeline start."""
 
     base_url: str = Field(..., min_length=1, description="Endpoint base URL")
+    api_key: str = Field(..., min_length=1, description="API key for the provider")
     model_id: str = Field(..., min_length=1, description="Model identifier")
     phase_label: str = Field(
         ..., min_length=1, description="Pipeline phase using this endpoint"
+    )
+    endpoint_ref: str | None = Field(
+        None, description="Endpoint reference for dedup identity"
     )
     openrouter_provider: OpenRouterProviderRoutingConfig | None = Field(
         None, description="OpenRouter provider routing config"
@@ -177,13 +185,24 @@ class PreflightResult(BaseSchema):
     )
 
 
-def run_preflight_checks(
+_PROBE_PROMPT = "Respond with exactly the word 'ok'."
+_PROBE_TIMEOUT_S = 15.0
+
+
+class _ProbeResult(BaseSchema):
+    """Minimal structured output schema for provider probe requests."""
+
+    ok: bool = Field(..., description="Whether the probe succeeded")
+
+
+async def run_preflight_checks(
     endpoints: list[PreflightEndpoint],
 ) -> PreflightResult:
     """Validate model/provider compatibility before pipeline start.
 
-    Checks each endpoint for tool_choice and tool_calling support,
-    and validates OpenRouter-specific constraints like require_parameters.
+    Runs static capability checks first, then sends a lightweight probe
+    request to each endpoint to verify the provider actually supports
+    structured output and tool calling.
 
     Args:
         endpoints: Model/endpoint combinations to validate.
@@ -195,12 +214,17 @@ def run_preflight_checks(
 
     for endpoint in endpoints:
         capabilities = detect_provider(endpoint.base_url)
-        issues.extend(_check_endpoint_compatibility(endpoint, capabilities))
+        static_issues = _check_endpoint_compatibility(endpoint, capabilities)
+        issues.extend(static_issues)
+        if static_issues:
+            continue
+        probe_issues = await _probe_endpoint(endpoint, capabilities)
+        issues.extend(probe_issues)
 
     return PreflightResult(passed=len(issues) == 0, issues=issues)
 
 
-def assert_preflight(endpoints: list[PreflightEndpoint]) -> None:
+async def assert_preflight(endpoints: list[PreflightEndpoint]) -> None:
     """Run preflight checks and raise on failure.
 
     Args:
@@ -209,7 +233,7 @@ def assert_preflight(endpoints: list[PreflightEndpoint]) -> None:
     Raises:
         ProviderFactoryError: If any compatibility issues are found.
     """
-    result = run_preflight_checks(endpoints)
+    result = await run_preflight_checks(endpoints)
     if not result.passed:
         lines = ["Preflight compatibility check failed:"]
         for issue in result.issues:
@@ -218,6 +242,61 @@ def assert_preflight(endpoints: list[PreflightEndpoint]) -> None:
                 f"{issue.model_id}: {issue.message}"
             )
         raise ProviderFactoryError("\n".join(lines))
+
+
+async def _probe_endpoint(
+    endpoint: PreflightEndpoint,
+    capabilities: ProviderCapabilities,
+) -> list[PreflightIssue]:
+    """Send a lightweight probe request to verify the endpoint works.
+
+    Uses create_model() to build a model, then runs a minimal Agent call
+    with structured output to confirm the provider supports tool calling.
+
+    Args:
+        endpoint: The endpoint to probe.
+        capabilities: Detected provider capabilities.
+
+    Returns:
+        List of issues found (empty if probe succeeds).
+
+    Raises:
+        ProviderFactoryError: If model creation fails validation
+            (re-raised to caller).
+    """
+    try:
+        model, settings = create_model(
+            base_url=endpoint.base_url,
+            api_key=endpoint.api_key,
+            model_id=endpoint.model_id,
+            temperature=0.0,
+            timeout_s=_PROBE_TIMEOUT_S,
+            max_output_tokens=16,
+            openrouter_provider=endpoint.openrouter_provider,
+        )
+        agent = Agent(
+            model,
+            output_type=_ProbeResult,
+            system_prompt="You are a preflight check. Always respond positively.",
+        )
+        await agent.run(_PROBE_PROMPT, model_settings=settings)
+    except ProviderFactoryError:
+        raise
+    except Exception as exc:
+        _log.debug("Preflight probe failed for %s: %s", endpoint.model_id, exc)
+        return [
+            PreflightIssue(
+                phase_label=endpoint.phase_label,
+                model_id=endpoint.model_id,
+                provider_name=capabilities.name,
+                message=(
+                    f"Preflight probe request failed: {exc}. "
+                    "Verify the endpoint URL, API key, and model ID are correct "
+                    "and that the provider supports tool-based structured output."
+                ),
+            )
+        ]
+    return []
 
 
 def _check_endpoint_compatibility(

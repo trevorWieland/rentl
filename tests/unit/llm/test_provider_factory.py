@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import cast
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.models.openai import OpenAIChatModelSettings
@@ -12,6 +12,7 @@ from pydantic_ai.models.openrouter import OpenRouterModelSettings
 from rentl_agents.providers import ProviderCapabilities
 from rentl_llm.provider_factory import (
     PreflightEndpoint,
+    PreflightIssue,
     ProviderFactoryError,
     assert_preflight,
     create_model,
@@ -21,6 +22,8 @@ from rentl_llm.provider_factory import (
 )
 from rentl_schemas.config import OpenRouterProviderRoutingConfig
 from rentl_schemas.primitives import ReasoningEffort
+
+_TEST_API_KEY = "test-key"
 
 
 class TestCreateModelOpenRouterRouting:
@@ -243,24 +246,37 @@ class TestProviderAllowlist:
 class TestPreflightChecks:
     """Tests for preflight compatibility checks."""
 
-    def test_compatible_openai_endpoint_passes(self) -> None:
+    @patch("rentl_llm.provider_factory._probe_endpoint", new_callable=AsyncMock)
+    @pytest.mark.asyncio
+    async def test_compatible_openai_endpoint_passes(
+        self, mock_probe: AsyncMock
+    ) -> None:
         """OpenAI endpoint with tool support passes preflight."""
+        mock_probe.return_value = []
         endpoints = [
             PreflightEndpoint(
                 base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="gpt-4o",
                 phase_label="translate",
             ),
         ]
-        result = run_preflight_checks(endpoints)
+        result = await run_preflight_checks(endpoints)
         assert result.passed is True
         assert result.issues == []
+        mock_probe.assert_awaited_once()
 
-    def test_compatible_openrouter_endpoint_passes(self) -> None:
+    @patch("rentl_llm.provider_factory._probe_endpoint", new_callable=AsyncMock)
+    @pytest.mark.asyncio
+    async def test_compatible_openrouter_endpoint_passes(
+        self, mock_probe: AsyncMock
+    ) -> None:
         """OpenRouter endpoint with require_parameters passes preflight."""
+        mock_probe.return_value = []
         endpoints = [
             PreflightEndpoint(
                 base_url="https://openrouter.ai/api/v1",
+                api_key=_TEST_API_KEY,
                 model_id="openai/gpt-4o",
                 phase_label="translate",
                 openrouter_provider=OpenRouterProviderRoutingConfig(
@@ -268,13 +284,15 @@ class TestPreflightChecks:
                 ),
             ),
         ]
-        result = run_preflight_checks(endpoints)
+        result = await run_preflight_checks(endpoints)
         assert result.passed is True
         assert result.issues == []
+        mock_probe.assert_awaited_once()
 
     @patch("rentl_llm.provider_factory.detect_provider")
-    def test_no_tool_calling_fails(self, mock_detect: MagicMock) -> None:
-        """Provider without tool calling fails preflight."""
+    @pytest.mark.asyncio
+    async def test_no_tool_calling_fails(self, mock_detect: MagicMock) -> None:
+        """Provider without tool calling fails preflight (probe skipped)."""
         mock_detect.return_value = ProviderCapabilities(
             name="NoToolProvider",
             is_openrouter=False,
@@ -284,11 +302,12 @@ class TestPreflightChecks:
         endpoints = [
             PreflightEndpoint(
                 base_url="https://example.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="some-model",
                 phase_label="translate",
             ),
         ]
-        result = run_preflight_checks(endpoints)
+        result = await run_preflight_checks(endpoints)
         assert result.passed is False
         assert len(result.issues) == 2
         messages = [issue.message for issue in result.issues]
@@ -297,8 +316,9 @@ class TestPreflightChecks:
         mock_detect.assert_called_once_with("https://example.com/v1")
 
     @patch("rentl_llm.provider_factory.detect_provider")
-    def test_no_tool_choice_required_fails(self, mock_detect: MagicMock) -> None:
-        """Provider without tool_choice=required fails preflight."""
+    @pytest.mark.asyncio
+    async def test_no_tool_choice_required_fails(self, mock_detect: MagicMock) -> None:
+        """Provider without tool_choice=required fails preflight (probe skipped)."""
         mock_detect.return_value = ProviderCapabilities(
             name="LimitedProvider",
             is_openrouter=False,
@@ -308,11 +328,12 @@ class TestPreflightChecks:
         endpoints = [
             PreflightEndpoint(
                 base_url="https://example.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="some-model",
                 phase_label="qa",
             ),
         ]
-        result = run_preflight_checks(endpoints)
+        result = await run_preflight_checks(endpoints)
         assert result.passed is False
         assert len(result.issues) == 1
         assert "tool_choice=required" in result.issues[0].message
@@ -320,26 +341,29 @@ class TestPreflightChecks:
         assert result.issues[0].provider_name == "LimitedProvider"
         mock_detect.assert_called_once()
 
-    def test_openrouter_missing_provider_config_fails(self) -> None:
-        """OpenRouter endpoint without provider routing config fails."""
+    @pytest.mark.asyncio
+    async def test_openrouter_missing_provider_config_fails(self) -> None:
+        """OpenRouter endpoint without provider routing config fails (probe skipped)."""
         endpoints = [
             PreflightEndpoint(
                 base_url="https://openrouter.ai/api/v1",
+                api_key=_TEST_API_KEY,
                 model_id="openai/gpt-4o",
                 phase_label="context",
                 openrouter_provider=None,
             ),
         ]
-        result = run_preflight_checks(endpoints)
+        result = await run_preflight_checks(endpoints)
         assert result.passed is False
         assert len(result.issues) == 1
         assert "missing provider routing config" in result.issues[0].message
 
     @patch("rentl_llm.provider_factory.detect_provider")
-    def test_openrouter_require_parameters_false_fails(
+    @pytest.mark.asyncio
+    async def test_openrouter_require_parameters_false_fails(
         self, mock_detect: MagicMock
     ) -> None:
-        """OpenRouter endpoint with require_parameters=false fails."""
+        """OpenRouter endpoint with require_parameters=false fails (probe skipped)."""
         mock_detect.return_value = ProviderCapabilities(
             name="OpenRouter",
             is_openrouter=True,
@@ -349,6 +373,7 @@ class TestPreflightChecks:
         endpoints = [
             PreflightEndpoint(
                 base_url="https://openrouter.ai/api/v1",
+                api_key=_TEST_API_KEY,
                 model_id="openai/gpt-4o",
                 phase_label="edit",
                 openrouter_provider=OpenRouterProviderRoutingConfig(
@@ -356,22 +381,29 @@ class TestPreflightChecks:
                 ),
             ),
         ]
-        result = run_preflight_checks(endpoints)
+        result = await run_preflight_checks(endpoints)
         assert result.passed is False
         assert len(result.issues) == 1
         assert "require_parameters must be true" in result.issues[0].message
         mock_detect.assert_called_once()
 
-    def test_multiple_endpoints_all_compatible(self) -> None:
+    @patch("rentl_llm.provider_factory._probe_endpoint", new_callable=AsyncMock)
+    @pytest.mark.asyncio
+    async def test_multiple_endpoints_all_compatible(
+        self, mock_probe: AsyncMock
+    ) -> None:
         """Multiple compatible endpoints all pass."""
+        mock_probe.return_value = []
         endpoints = [
             PreflightEndpoint(
                 base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="gpt-4o",
                 phase_label="translate",
             ),
             PreflightEndpoint(
                 base_url="https://openrouter.ai/api/v1",
+                api_key=_TEST_API_KEY,
                 model_id="anthropic/claude-3",
                 phase_label="qa",
                 openrouter_provider=OpenRouterProviderRoutingConfig(
@@ -379,11 +411,15 @@ class TestPreflightChecks:
                 ),
             ),
         ]
-        result = run_preflight_checks(endpoints)
+        result = await run_preflight_checks(endpoints)
         assert result.passed is True
+        assert mock_probe.await_count == 2
 
     @patch("rentl_llm.provider_factory.detect_provider")
-    def test_multiple_endpoints_mixed_results(self, mock_detect: MagicMock) -> None:
+    @pytest.mark.asyncio
+    async def test_multiple_endpoints_mixed_results(
+        self, mock_detect: MagicMock
+    ) -> None:
         """Mixed compatible/incompatible endpoints report all issues."""
 
         def side_effect(base_url: str) -> ProviderCapabilities:
@@ -405,44 +441,86 @@ class TestPreflightChecks:
         endpoints = [
             PreflightEndpoint(
                 base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="gpt-4o",
                 phase_label="translate",
             ),
             PreflightEndpoint(
                 base_url="https://bad-provider.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="bad-model",
                 phase_label="qa",
             ),
         ]
-        result = run_preflight_checks(endpoints)
+        # Patch probe for OpenAI endpoint (bad one skipped by static check)
+        with patch(
+            "rentl_llm.provider_factory._probe_endpoint",
+            new_callable=AsyncMock,
+            return_value=[],
+        ) as mock_probe:
+            result = await run_preflight_checks(endpoints)
         assert result.passed is False
         assert len(result.issues) == 2
         assert all(i.phase_label == "qa" for i in result.issues)
         assert mock_detect.call_count == 2
+        mock_probe.assert_awaited_once()
 
-    def test_empty_endpoints_passes(self) -> None:
+    @pytest.mark.asyncio
+    async def test_empty_endpoints_passes(self) -> None:
         """Empty endpoint list passes preflight (no LLM phases)."""
-        result = run_preflight_checks([])
+        result = await run_preflight_checks([])
         assert result.passed is True
         assert result.issues == []
+
+    @patch("rentl_llm.provider_factory._probe_endpoint", new_callable=AsyncMock)
+    @pytest.mark.asyncio
+    async def test_probe_failure_reports_issue(self, mock_probe: AsyncMock) -> None:
+        """Probe failure is reported as a preflight issue."""
+        mock_probe.return_value = [
+            PreflightIssue(
+                phase_label="translate",
+                model_id="gpt-4o",
+                provider_name="OpenAI",
+                message="Preflight probe request failed: connection error.",
+            )
+        ]
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
+                model_id="gpt-4o",
+                phase_label="translate",
+            ),
+        ]
+        result = await run_preflight_checks(endpoints)
+        assert result.passed is False
+        assert len(result.issues) == 1
+        assert "probe request failed" in result.issues[0].message
+        mock_probe.assert_awaited_once()
 
 
 class TestAssertPreflight:
     """Tests for assert_preflight raising on failure."""
 
-    def test_assert_passes_on_compatible(self) -> None:
+    @patch("rentl_llm.provider_factory._probe_endpoint", new_callable=AsyncMock)
+    @pytest.mark.asyncio
+    async def test_assert_passes_on_compatible(self, mock_probe: AsyncMock) -> None:
         """assert_preflight does not raise for compatible endpoints."""
+        mock_probe.return_value = []
         endpoints = [
             PreflightEndpoint(
                 base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="gpt-4o",
                 phase_label="translate",
             ),
         ]
-        assert_preflight(endpoints)
+        await assert_preflight(endpoints)
+        mock_probe.assert_awaited_once()
 
     @patch("rentl_llm.provider_factory.detect_provider")
-    def test_assert_raises_on_incompatible(self, mock_detect: MagicMock) -> None:
+    @pytest.mark.asyncio
+    async def test_assert_raises_on_incompatible(self, mock_detect: MagicMock) -> None:
         """assert_preflight raises ProviderFactoryError on failure."""
         mock_detect.return_value = ProviderCapabilities(
             name="BadProvider",
@@ -453,6 +531,7 @@ class TestAssertPreflight:
         endpoints = [
             PreflightEndpoint(
                 base_url="https://bad.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="bad-model",
                 phase_label="translate",
             ),
@@ -460,11 +539,12 @@ class TestAssertPreflight:
         with pytest.raises(
             ProviderFactoryError, match="Preflight compatibility check failed"
         ):
-            assert_preflight(endpoints)
+            await assert_preflight(endpoints)
         mock_detect.assert_called_once()
 
     @patch("rentl_llm.provider_factory.detect_provider")
-    def test_assert_error_message_includes_details(
+    @pytest.mark.asyncio
+    async def test_assert_error_message_includes_details(
         self, mock_detect: MagicMock
     ) -> None:
         """Error message includes phase, provider, and model details."""
@@ -477,6 +557,7 @@ class TestAssertPreflight:
         endpoints = [
             PreflightEndpoint(
                 base_url="https://test.com/v1",
+                api_key=_TEST_API_KEY,
                 model_id="test-model",
                 phase_label="qa",
             ),
@@ -484,5 +565,5 @@ class TestAssertPreflight:
         with pytest.raises(
             ProviderFactoryError, match=r".*\[qa\] TestProvider / test-model.*"
         ):
-            assert_preflight(endpoints)
+            await assert_preflight(endpoints)
         mock_detect.assert_called_once()
