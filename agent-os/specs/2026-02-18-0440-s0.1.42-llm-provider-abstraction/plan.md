@@ -61,11 +61,20 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - [x] Fix: Document in code why harness-level retry loop (`packages/rentl-agents/src/rentl_agents/harness.py:197`) is retained alongside pydantic-ai `output_retries` (`packages/rentl-agents/src/rentl_agents/harness.py:250`) to satisfy Task 6's explicit "remove or document" requirement (audit round 1)
   - [x] Fix: Remove dead fallback branch in `output_retries = self._config.output_retries if self._config else 3` because `_config` is already guarded above (`packages/rentl-agents/src/rentl_agents/harness.py:230`, `packages/rentl-agents/src/rentl_agents/harness.py:243`) (audit round 1)
 
-- [x] Task 7: Fix pretranslation alignment
+- [ ] Task 7: Fix pretranslation alignment
   - `packages/rentl-agents/src/rentl_agents/wiring.py:425-437` — Check both extra and missing IDs
   - Structured feedback message for missing IDs: "Missing: [ids]. Return annotations for all provided line_id values."
   - Unit tests for extra-only, missing-only, and both-direction scenarios
   - Acceptance check: alignment failure on missing IDs triggers retry with feedback
+  - [ ] Fix: Restructure `IdiomAnnotationList` to use per-line wrapper pattern matching QA/translation phases (PR #135 feedback from @chatgpt-codex-connector[bot], feedback round 1)
+    - Add `IdiomReviewLine(line_id, idioms: list[IdiomAnnotation] = [])` wrapper schema to `packages/rentl-schemas/src/rentl_schemas/phases.py` following `StyleGuideReviewLine` pattern
+    - Remove `line_id` from `IdiomAnnotation` (move to wrapper), keep `idiom_text` and `explanation`
+    - Update `IdiomAnnotationList` to use `reviews: list[IdiomReviewLine]` instead of flat `idioms: list[IdiomAnnotation]`
+    - Update `PretranslationIdiomLabelerAgent.run()` in `wiring.py` to extract `line_id` from per-line wrappers for alignment check
+    - Update `idiom_labeler.toml` prompt to instruct per-line responses (one object per input line, empty `idioms` list when none found)
+    - Update `merge_idiom_annotations` and all downstream consumers of `IdiomAnnotation.line_id`
+    - Update alignment retry tests in `tests/unit/rentl-agents/test_alignment_retries.py` for per-line wrapper structure
+    - Add test case for sparse output: chunk with some lines having no idioms passes alignment
 
 - [x] Task 8: Inject HTTP client dependency in downloader
   - `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:57` — Accept optional `httpx.AsyncClient` as constructor parameter
