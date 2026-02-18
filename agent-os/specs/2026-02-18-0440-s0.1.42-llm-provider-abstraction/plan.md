@@ -60,7 +60,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - [x] Fix: Document in code why harness-level retry loop (`packages/rentl-agents/src/rentl_agents/harness.py:197`) is retained alongside pydantic-ai `output_retries` (`packages/rentl-agents/src/rentl_agents/harness.py:250`) to satisfy Task 6's explicit "remove or document" requirement (audit round 1)
   - [x] Fix: Remove dead fallback branch in `output_retries = self._config.output_retries if self._config else 3` because `_config` is already guarded above (`packages/rentl-agents/src/rentl_agents/harness.py:230`, `packages/rentl-agents/src/rentl_agents/harness.py:243`) (audit round 1)
 
-- [ ] Task 7: Fix pretranslation alignment
+- [x] Task 7: Fix pretranslation alignment
   - `packages/rentl-agents/src/rentl_agents/wiring.py:425-437` — Check both extra and missing IDs
   - Structured feedback message for missing IDs: "Missing: [ids]. Return annotations for all provided line_id values."
   - Unit tests for extra-only, missing-only, and both-direction scenarios

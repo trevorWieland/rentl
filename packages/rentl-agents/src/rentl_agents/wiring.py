@@ -393,7 +393,6 @@ class PretranslationIdiomLabelerAgent:
         max_attempts = _max_chunk_attempts(self._config)
         for chunk in chunks:
             expected_ids = [line.line_id for line in chunk]
-            expected_set = set(expected_ids)
             alignment_feedback = "None"
             for attempt in range(1, max_attempts + 1):
                 # Format lines for prompt
@@ -422,16 +421,13 @@ class PretranslationIdiomLabelerAgent:
                 # ProfileAgent returns IdiomAnnotationList with all idioms found
                 result = await self._profile_agent.run(payload)
                 actual_ids = [idiom.line_id for idiom in result.idioms]
-                extra_ids = [
-                    line_id for line_id in actual_ids if line_id not in expected_set
-                ]
-                if extra_ids:
-                    alignment_feedback = (
-                        "Alignment error: idiom line_id values must come from the "
-                        "input lines only. "
-                        f"Extra: {_format_id_list(extra_ids)}. "
-                        "Return idioms using only the provided line_id values."
-                    )
+                feedback = _alignment_feedback(
+                    expected_ids=expected_ids,
+                    actual_ids=actual_ids,
+                    label="line",
+                )
+                if feedback is not None:
+                    alignment_feedback = feedback
                     if attempt == max_attempts:
                         raise RuntimeError(alignment_feedback)
                     continue
