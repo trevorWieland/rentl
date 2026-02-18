@@ -10,3 +10,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 3** (round 1): FAIL — Preflight uses static capability detection instead of a real probe request, and CLI endpoint deduping can skip validation for distinct routing configs.
 - **Task 3** (round 2): PASS — Preflight now performs a real probe request before execution and CLI preflight dedup includes endpoint refs so distinct endpoint configurations are validated.
 - **Task 4** (round 1): PASS — All four targeted call sites now construct models via `create_model()` only, with no direct provider/model instantiation outside `provider_factory.py`; updated unit suites pass.
+- **Task 5** (round 1): PASS — AgentFactory now wraps tools as named `pydantic_ai.Tool` objects, AgentHarness accepts `list[Tool]`, and updated unit tests validate name-preserving tool registration.
