@@ -60,3 +60,8 @@ rentl is approaching v0.1 release and needs comprehensive documentation for user
   - [x] Fix: Align README benchmark source citation with implementation source; `README.md` cites `FleetingRainbows/katawa-shoujo-re-engineered` but benchmark code/manifest source `fleetingheart/ksre` (`README.md:385`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/katawa_shoujo/manifest.json:4`, `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:14`) (violates `ux/stale-reference-prevention`, audit round 3)
 - [x] Task 7: Stabilize full verification quality gate
   - [x] Fix: Eliminate intermittent timeout in `tests/quality/pipeline/test_golden_script_pipeline.py::test_translate_phase_produces_translated_output` (`tests/quality/pipeline/test_golden_script_pipeline.py:36`, `tests/quality/pipeline/test_golden_script_pipeline.py:289`, `services/rentl-cli/src/rentl/main.py:983`, `pyproject.toml:70`) so `make all` is consistently green without reruns (audit round 3)
+- [ ] Task 8: Fix data-schemas.md `phase` required/optional status and add missing `RequestId` type
+  - Change `phase` field from `yes` to `no` in the required column for all 5 PhaseOutput model tables (`docs/data-schemas.md:111,136,162,187,216`); the field has a constant default in the Pydantic model so it is optional for construction
+  - Add `RequestId` (`UUID`, UUIDv7) to the Primitive Types table in `docs/data-schemas.md` — it is exported from `rentl_schemas` and used in `MetaInfo.request_id` (`packages/rentl-schemas/src/rentl_schemas/responses.py:29`)
+  - Files: `docs/data-schemas.md`
+  - Acceptance: all PhaseOutput `phase` fields show `no` in required column; `RequestId` appears in Primitive Types table (demo run 4)
