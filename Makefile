@@ -66,7 +66,7 @@ type:
 # Run unit tests with coverage enforcement
 unit:
 	@echo "🧪 Running unit tests with coverage..."
-	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1 --cov=packages --cov=services --cov-fail-under=80, .unit.log, Unit Tests)
+	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1 --cov=packages --cov=services --cov-fail-under=80 --cov-precision=2, .unit.log, Unit Tests)
 
 # Run integration tests
 integration:
@@ -76,7 +76,7 @@ integration:
 # Run quality tests
 quality:
 	@echo "💎 Running quality tests..."
-	$(call run_test, bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=30', .quality.log, Quality Tests)
+	$(call run_test, bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=90', .quality.log, Quality Tests)
 
 # Run all tests with coverage
 test:

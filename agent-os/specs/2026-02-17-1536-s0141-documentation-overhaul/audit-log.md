@@ -1,0 +1,34 @@
+# Audit Log
+
+Running record of all task audits, demo runs, and spec audits.
+Future auditors: check this log for regressions and patterns.
+
+---
+
+- **Task 2** (round 1): PASS — CHANGELOG includes all completed v0.1 roadmap specs and satisfies task acceptance criteria.
+- **Task 3** (round 1): FAIL — `docs/getting-started.md` Step 3 uses `OPENROUTER_API_KEY` and GNU-only `sed -i`, but init-generated projects use `RENTL_LOCAL_API_KEY`; setup instructions are not copy-pasteable on a fresh machine.
+- **Task 3** (round 2): PASS — Step 3 now documents the actual init-generated `RENTL_LOCAL_API_KEY` variable and removes GNU-only `sed -i`; CLI command references in the guide match current `rentl` help output.
+- **Task 4** (round 1): FAIL — `docs/architecture.md` includes stale architecture references (package inventory/dependency statements, storage-path layout, and BYOK config snippet) that do not match current code and config schema.
+- **Task 4** (round 2): FAIL — `docs/architecture.md` still misstates artifact index location (`.rentl/artifacts/{run_id}/index.jsonl`), but code stores a global index at `.rentl/artifacts/index.jsonl`.
+- **Task 4** (round 3): PASS — `docs/architecture.md` now correctly documents the global artifact index at `.rentl/artifacts/index.jsonl`, matching `FileSystemArtifactStore` behavior.
+- **Task 5** (round 1): PASS — `docs/data-schemas.md` covers the required schema surfaces, and documented fields/types align with `rentl-schemas` model definitions with example JSONL lines matching `samples/golden/artifacts/`.
+- **Task 6** (round 1): PASS — README now cross-links the new documentation set and documents CC BY-NC-ND benchmark licensing/non-bundling; all repository `pyproject.toml` files include `license = "MIT"`.
+- **Task 6** (round 2): PASS — Task 6 commit remains compliant: README links all required new docs and documents CC BY-NC-ND benchmark licensing/non-bundling, and every repository `pyproject.toml` includes `license = "MIT"`.
+- **Demo** (run 1): PASS — All 6 [RUN] steps passed: CHANGELOG covers 37 specs, CLI commands verified, architecture doc accurate at 298 lines, schema reference matches models, license compliance confirmed, README cross-links present (6 run, 0 verified)
+- **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 3/5, Completion 3/5, Security 5/5, Stability 3/5; fix-now count 2
+- **Task 6** (round 3): FAIL — README benchmark source citation points to `FleetingRainbows/katawa-shoujo-re-engineered`, but benchmark implementation/manifest source is `fleetingheart/ksre`; documentation is out of sync with code.
+- **Task 6** (round 4): PASS — README benchmark source citation now matches implementation (`fleetingheart/ksre`), required docs remain cross-linked, benchmark CC BY-NC-ND licensing/non-bundling is documented, and all repository `pyproject.toml` files retain `license = "MIT"`.
+- **Task 6** (round 5): PASS — Task 6 remains compliant: README benchmark source citation matches implementation (`fleetingheart/ksre`), required docs are still cross-linked, benchmark CC BY-NC-ND licensing/non-bundling is documented, and all repository `pyproject.toml` files include `license = "MIT"`.
+- **Demo** (run 2): PASS — All 6 [RUN] steps passed post-audit: CHANGELOG covers 37 specs, 11 CLI commands/flags verified, architecture doc at 299 lines with 30+ names verified, 142 schema fields across 28 models match, license compliance confirmed, README cross-links present (6 run, 0 verified)
+- **Spec Audit** (round 2): FAIL — Performance 5/5, Intent 4/5, Completion 3/5, Security 5/5, Stability 4/5; fix-now count 2
+- **Task 6** (round 6): PASS — Task 6 remains compliant: README cross-links required new docs, benchmark CC BY-NC-ND source/license/non-bundling details match implementation (`fleetingheart/ksre`), and all repository `pyproject.toml` files retain `license = "MIT"`.
+- **Demo** (run 3): PASS — All 6 [RUN] steps passed: CHANGELOG covers 37 specs, 11 CLI commands/flags verified via help output, architecture doc at 298 lines with 30+ names verified, schema fields across 28+ models match, all 9 pyproject.toml files MIT-licensed, README cross-links present (6 run, 0 verified)
+- **Spec Audit** (round 3): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 1 (intermittent quality-test timeout)
+- **Task 7** (round 1): PASS — Timeout hardening is correctly applied in both the quality test module (`pytestmark = timeout(90)`) and `Makefile` quality target (`--timeout=90`), matching the task's stabilization scope.
+- **Demo** (run 4): FAIL — Step 4 failed: `phase` field required/optional mismatch in 5 PhaseOutput models + missing `RequestId` primitive type; Task 8 added to plan.md (5 run passed, 1 run failed, 0 verified)
+- **Task 8** (round 1): PASS — `docs/data-schemas.md` now marks all 5 PhaseOutput `phase` fields as optional defaults and includes `RequestId` in Primitive Types, matching `rentl_schemas` definitions (resolved signposts verified).
+- **Demo** (run 5): PASS — All 6 [RUN] steps passed post-task-8: CHANGELOG covers 37 specs, 11 CLI commands/flags verified, architecture doc at 298 lines with 30+ names verified, 14 primitive types + 28+ models all fields match source, all 9 pyproject.toml MIT-licensed, README cross-links present (6 run, 0 verified)
+- **Spec Audit** (round 4): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 1 (unit coverage gate reports fail text but exits success)
+- **Task 7** (round 2): PASS — Unit coverage gate now enforces decimal precision (`--cov-precision=2` / `precision = 2`) and fails correctly when total coverage is below 80%.
+- **Demo** (run 6): PASS — All 6 [RUN] steps passed post-coverage-gate fix: CHANGELOG covers 37 specs, 11 CLI commands/flags verified, architecture doc at 298 lines with 30+ names verified, 14 primitive types + 28+ models all fields match source, all 9 pyproject.toml MIT-licensed, README cross-links present (6 run, 0 verified)
+- **Spec Audit** (round 5): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0

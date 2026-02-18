@@ -319,6 +319,16 @@ RENTL_QUALITY_JUDGE_BASE_URL=https://api.openai.com/v1
 
 These environment variables are loaded automatically from `.env` files in your workspace directory.
 
+## Documentation
+
+- **[Getting Started](./docs/getting-started.md)** — Zero-to-playable-patch tutorial for new users
+- **[Architecture](./docs/architecture.md)** — Pipeline design, packages, and data flow for contributors
+- **[Data Schemas](./docs/data-schemas.md)** — Pydantic model reference with example JSONL
+- **[Changelog](./CHANGELOG.md)** — Release notes and version history
+- **[Troubleshooting](./docs/troubleshooting.md)** — Common issues and solutions
+- **[Quality Evals](./docs/quality-evals.md)** — Benchmark and evaluation setup
+- **[Progress Tracking](./docs/progress-tracking.md)** — Pipeline progress and status semantics
+
 ## Project Structure
 
 ```
@@ -369,6 +379,10 @@ See our [contribution guidelines](./CONTRIBUTING.md) for details on how to contr
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+### Benchmark Data
+
+The benchmark evaluation set uses text from [Katawa Shoujo Re-Engineered (KSRE)](https://github.com/fleetingheart/ksre), which is licensed under **CC BY-NC-ND**. This text is **not bundled** in any installable package — it is downloaded on demand via `rentl benchmark` and cached locally at `~/.cache/rentl/eval_sets/`. The sample project data (`samples/golden/`) is original content released under [CC0 1.0](./samples/golden/LICENSE).
 
 ## Links
 

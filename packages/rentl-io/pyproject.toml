@@ -2,6 +2,7 @@
 name = "rentl-io"
 version = "0.1.8"
 description = "IO adapters for rentl"
+license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
     "rentl-core",
