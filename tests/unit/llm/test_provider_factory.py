@@ -90,7 +90,7 @@ class TestCreateModelOpenRouterRouting:
             api_key="test-key",
             model_id="openai/gpt-4o",
             temperature=0.5,
-            reasoning_effort="medium",  # type: ignore[arg-type]
+            reasoning_effort="medium",
         )
         or_settings = cast(OpenRouterModelSettings, settings)
         assert or_settings["openrouter_reasoning"] == {"effort": "medium"}
@@ -192,7 +192,7 @@ class TestCreateModelOpenAIRouting:
             api_key="test-key",
             model_id="gpt-4o",
             temperature=0.5,
-            reasoning_effort="high",  # type: ignore[arg-type]
+            reasoning_effort="high",
         )
         oai_settings = cast(OpenAIChatModelSettings, settings)
         assert oai_settings["openai_reasoning_effort"] == "high"
