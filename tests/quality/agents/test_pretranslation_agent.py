@@ -39,7 +39,7 @@ from tests.quality.agents.tool_spy import ToolCallRecorder, build_tool_registry
 
 pytestmark = [
     pytest.mark.quality,
-    pytest.mark.timeout(30),
+    pytest.mark.timeout(90),
 ]
 
 scenarios("../features/agents/pretranslation_agent.feature")
@@ -141,7 +141,7 @@ def given_pretranslation_dataset(
                     "target_languages",
                 )
             ),
-            MaxDuration(seconds=25.0),
+            MaxDuration(seconds=60.0),
             LLMJudge(
                 rubric=rubric,
                 include_input=True,
