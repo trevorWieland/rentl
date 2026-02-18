@@ -26,3 +26,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 3): FAIL — Performance 5/5, Intent 5/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 1 (intermittent quality-test timeout)
 - **Task 7** (round 1): PASS — Timeout hardening is correctly applied in both the quality test module (`pytestmark = timeout(90)`) and `Makefile` quality target (`--timeout=90`), matching the task's stabilization scope.
 - **Demo** (run 4): FAIL — Step 4 failed: `phase` field required/optional mismatch in 5 PhaseOutput models + missing `RequestId` primitive type; Task 8 added to plan.md (5 run passed, 1 run failed, 0 verified)
+- **Task 8** (round 1): PASS — `docs/data-schemas.md` now marks all 5 PhaseOutput `phase` fields as optional defaults and includes `RequestId` in Primitive Types, matching `rentl_schemas` definitions (resolved signposts verified).
