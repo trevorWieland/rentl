@@ -148,6 +148,12 @@ def when_run_pipeline(
     assert ctx.config_path is not None
     assert ctx.project_dir is not None
 
+    # Bypass preflight probe (makes real HTTP requests to provider endpoints)
+    async def _noop_preflight(endpoints: list[object]) -> None:
+        pass
+
+    monkeypatch.setattr(cli_main, "assert_preflight", _noop_preflight)
+
     # Track mock invocations
     mock_call_count = {"count": 0}
     edit_line_index = {"index": 0}
@@ -179,6 +185,8 @@ def when_run_pipeline(
                 characters=["Character A", "Character B"],
             )
         elif output_type == IdiomAnnotationList:
+            # Return one idiom per source line
+            # (alignment check requires output IDs to match input IDs)
             source_lines = getattr(payload, "source_lines", [])
             idioms = [
                 IdiomAnnotation(
@@ -186,7 +194,7 @@ def when_run_pipeline(
                     idiom_text="test idiom",
                     explanation="Test explanation",
                 )
-                for line in source_lines[:1]
+                for line in source_lines
             ]
             return IdiomAnnotationList(idioms=idioms)
         elif output_type == TranslationResultList:

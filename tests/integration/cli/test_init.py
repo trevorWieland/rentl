@@ -254,6 +254,12 @@ def then_pipeline_executes_end_to_end(
     # This makes the test deterministic and self-contained
     monkeypatch.setenv(StandardEnvVar.API_KEY.value, "fake-api-key-for-testing")
 
+    # Bypass preflight probe (makes real HTTP requests to provider endpoints)
+    async def _noop_preflight(endpoints: list[object]) -> None:
+        pass
+
+    monkeypatch.setattr(cli_main, "assert_preflight", _noop_preflight)
+
     # Verify pipeline has required ingest and export phases
     # Without these, the pipeline will fail at runtime
     assert config.pipeline.phases is not None
@@ -329,7 +335,8 @@ def then_pipeline_executes_end_to_end(
                 characters=["Character A", "Character B"],
             )
         elif output_type == IdiomAnnotationList:
-            # Pretranslation phase: return idioms for batch of source lines
+            # Pretranslation phase: return one idiom per source line
+            # (alignment check requires output IDs to match input IDs)
             source_lines = getattr(payload, "source_lines", [])
             idioms = [
                 IdiomAnnotation(
@@ -337,7 +344,7 @@ def then_pipeline_executes_end_to_end(
                     idiom_text="test idiom",
                     explanation="Test explanation",
                 )
-                for line in source_lines[:1]  # Return at least one idiom
+                for line in source_lines
             ]
             return IdiomAnnotationList(idioms=idioms)
         elif output_type == TranslationResultList:
