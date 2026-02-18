@@ -62,3 +62,13 @@ This spec centralizes scattered LLM provider construction behind a single factor
 - Step 6 [RUN]: PASS — 12 tool-related unit tests pass; `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
 - Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 91 integration, 9 quality)
 - **Overall: FAIL**
+
+### Run 5 — Post-audit-round-2 (2026-02-18 07:00)
+- Step 1 [RUN]: PASS — All 33 factory unit tests pass (OpenRouter routing, OpenAI routing, model ID validation, allowlist enforcement, preflight checks, plain string reasoning_effort)
+- Step 2 [RUN]: PASS — `validate_openrouter_model_id('invalid-no-slash')` raises `ProviderFactoryError` with clear `provider/model-name` format message
+- Step 3 [RUN]: PASS — `enforce_provider_allowlist('google/gemma', only=['qwen'])` raises `ProviderFactoryError` listing allowed providers
+- Step 4 [RUN]: FAIL — Factory correctly creates `OpenRouterModel`; raw HTTP to OpenRouter succeeds (200, `"Hello"` response), but pydantic-ai Agent request returns 404 because OpenRouter can't handle the additional parameters pydantic-ai sends. `rentl validate-connection` runs without code errors but reports endpoint `status: failed`. Same external service issue as runs 3-4 (see signposts.md #3). Not a code defect.
+- Step 5 [RUN]: FAIL — Local model server at `localhost:5000` not running (`curl --connect-timeout 5` fails). Same as runs 2-4 (signpost #2). Factory routing confirmed correct via unit tests.
+- Step 6 [RUN]: PASS — 12 tool-related unit tests pass; `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
+- Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 91 integration, 9 quality)
+- **Overall: FAIL**
