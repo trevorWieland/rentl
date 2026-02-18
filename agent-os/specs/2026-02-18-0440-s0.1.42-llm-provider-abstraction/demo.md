@@ -32,3 +32,13 @@ This spec centralizes scattered LLM provider construction behind a single factor
 - Step 3 [RUN]: PASS — Factory rejected `google/gemma` when only `qwen` is allowed, with actionable error listing allowed providers
 - Step 4 [RUN]: FAIL — `rentl validate-connection` fails with `AttributeError: 'str' object has no attribute 'value'` in `_resolve_reasoning_effort` at `provider_factory.py:488`. Root cause: `BaseSchema` uses `use_enum_values=True` which stores `StrEnum` as plain strings, but `_resolve_reasoning_effort` assumes `ReasoningEffort` enum instances. Test gap: unit tests only pass enum instances, never plain strings.
 - **Overall: FAIL**
+
+### Run 2 — Post-Task-9-fix (2026-02-18 06:34)
+- Step 1 [RUN]: PASS — All 33 factory unit tests pass (OpenRouter routing, OpenAI routing, model ID validation, allowlist enforcement, preflight checks, plain string reasoning_effort)
+- Step 2 [RUN]: PASS — `validate_openrouter_model_id('invalid-no-slash')` raises `ProviderFactoryError` with clear `provider/model-name` format message
+- Step 3 [RUN]: PASS — `enforce_provider_allowlist('google/gemma', only=['qwen'])` raises `ProviderFactoryError` listing allowed providers
+- Step 4 [RUN]: PASS — Factory created `OpenRouterModel` from Pydantic config with plain string `reasoning_effort='medium'`; pydantic-ai Agent call to OpenRouter returned successful response (`"Hello!"`)
+- Step 5 [RUN]: FAIL — Factory routing confirmed correct (`OpenAIChatModel` created for non-OpenRouter URL), but local model server at `localhost:5000` is not running — `httpx.ConnectError: All connection attempts failed`. Environment prerequisite not met (see signposts.md #2)
+- Step 6 [RUN]: PASS — 12 tool-related unit tests pass; `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
+- Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 91 integration, 9 quality)
+- **Overall: FAIL**

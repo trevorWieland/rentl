@@ -17,3 +17,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 8** (round 1): PASS — (inferred from integration test suite passing)
 - **Demo** (run 1): FAIL — Steps 1-3 pass; step 4 fails with `_resolve_reasoning_effort` crash on plain string from Pydantic `use_enum_values=True`. Task 9 added. (3 run pass, 1 run fail, 3 not executed)
 - **Task 9** (round 1): FAIL — Core fix is present and targeted tests pass, but Task 9 introduces unused `# type: ignore[arg-type]` suppressions flagged by `ty` at `tests/unit/llm/test_provider_factory.py:93` and `tests/unit/llm/test_provider_factory.py:195`.
+- **Demo** (run 2): FAIL — Steps 1-4, 6-7 pass; step 5 fails due to local model server unavailable at localhost:5000 (environment issue, not code defect). Factory routing to OpenAIChatModel confirmed correct. (6 run pass, 1 run fail)

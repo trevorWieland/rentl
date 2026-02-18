@@ -18,3 +18,17 @@
 - **Files affected:**
   - `packages/rentl-llm/src/rentl_llm/provider_factory.py:480-494` — `_resolve_reasoning_effort` function
   - `tests/unit/llm/test_provider_factory.py` — added plain string `reasoning_effort` tests
+
+## Signpost 2: Local model server not available for demo step 5
+
+- **Task:** Demo Step 5 — Run BYOK prompt via CLI with local model (`RENTL_LOCAL_API_KEY`, `openai/gpt-oss-20b`)
+- **Status:** `deferred`
+- **Problem:** `httpx.ConnectError: All connection attempts failed` when connecting to `localhost:5000`
+- **Evidence:**
+  - Expected: successful BYOK response from local model server at `localhost:5000`
+  - Actual: connection refused — no local model server running
+  - Factory routing confirmed correct: `create_model()` produced `OpenAIChatModel` (not OpenRouter) for non-OpenRouter URL
+  - Unit tests for OpenAI routing path pass (5/5): `test_openai_url_creates_openai_model`, `test_local_url_creates_openai_model`, `test_openai_includes_reasoning_effort`, `test_openai_reasoning_effort_plain_string`, `test_compatible_openai_endpoint_passes`
+  - demo.md environment section states "local model server running" but the server is not running in the current environment
+- **Root cause:** Environment prerequisite not met — the local model server (`openai/gpt-oss-20b` at `localhost:5000`) is not running. This is an infrastructure/environment issue, not a code defect. The factory code correctly routes non-OpenRouter URLs to `OpenAIChatModel`.
+- **Files affected:** None — no code changes needed. Environment setup required.
