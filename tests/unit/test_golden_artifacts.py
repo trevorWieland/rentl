@@ -64,11 +64,14 @@ def test_golden_pretranslation_validates_as_idiom_annotations() -> None:
 
     for line_data in lines:
         annotation_list = IdiomAnnotationList.model_validate(line_data)
-        assert isinstance(annotation_list.idioms, list)
-        for idiom in annotation_list.idioms:
-            assert idiom.line_id
-            assert idiom.idiom_text
-            assert idiom.explanation
+        assert isinstance(annotation_list.reviews, list)
+        assert len(annotation_list.reviews) > 0
+        for review in annotation_list.reviews:
+            assert review.line_id
+            assert isinstance(review.idioms, list)
+            for idiom in review.idioms:
+                assert idiom.idiom_text
+                assert idiom.explanation
 
 
 def test_golden_translate_validates_as_translation_results() -> None:

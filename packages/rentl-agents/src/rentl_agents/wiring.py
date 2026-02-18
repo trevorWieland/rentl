@@ -76,8 +76,8 @@ from rentl_schemas.phases import (
     ContextPhaseOutput,
     EditPhaseInput,
     EditPhaseOutput,
-    IdiomAnnotation,
     IdiomAnnotationList,
+    IdiomReviewLine,
     PretranslationPhaseInput,
     PretranslationPhaseOutput,
     QaPhaseInput,
@@ -389,11 +389,10 @@ class PretranslationIdiomLabelerAgent:
         chunks = chunk_pretranslation_lines(payload.source_lines, self._chunk_size)
 
         # Process each chunk
-        all_idioms: list[IdiomAnnotation] = []
+        all_reviews: list[IdiomReviewLine] = []
         max_attempts = _max_chunk_attempts(self._config)
         for chunk in chunks:
             expected_ids = [line.line_id for line in chunk]
-            expected_set = set(expected_ids)
             alignment_feedback = "None"
             for attempt in range(1, max_attempts + 1):
                 # Format lines for prompt
@@ -419,26 +418,23 @@ class PretranslationIdiomLabelerAgent:
                 self._profile_agent.update_context(context)
 
                 # Run the profile agent for this chunk
-                # ProfileAgent returns IdiomAnnotationList with all idioms found
+                # ProfileAgent returns IdiomAnnotationList with per-line reviews
                 result = await self._profile_agent.run(payload)
-                actual_ids = [idiom.line_id for idiom in result.idioms]
-                extra_ids = [
-                    line_id for line_id in actual_ids if line_id not in expected_set
-                ]
-                if extra_ids:
-                    alignment_feedback = (
-                        "Alignment error: idiom line_id values must come from the "
-                        "input lines only. "
-                        f"Extra: {_format_id_list(extra_ids)}. "
-                        "Return idioms using only the provided line_id values."
-                    )
+                actual_ids = [review.line_id for review in result.reviews]
+                feedback = _alignment_feedback(
+                    expected_ids=expected_ids,
+                    actual_ids=actual_ids,
+                    label="line",
+                )
+                if feedback is not None:
+                    alignment_feedback = feedback
                     if attempt == max_attempts:
                         raise RuntimeError(alignment_feedback)
                     continue
-                all_idioms.extend(result.idioms)
+                all_reviews.extend(result.reviews)
                 break
 
-        return merge_idiom_annotations(payload.run_id, all_idioms)
+        return merge_idiom_annotations(payload.run_id, all_reviews)
 
 
 def create_pretranslation_agent_from_profile(

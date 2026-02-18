@@ -603,3 +603,95 @@ def test_run_config_accepts_none_agents_config() -> None:
         cache=CacheConfig(),
     )
     assert config.agents is None
+
+
+def test_run_config_rejects_invalid_openrouter_model_id_legacy() -> None:
+    """Ensure invalid OpenRouter model IDs are rejected with legacy endpoint."""
+    pipeline = _base_pipeline_config(ModelSettings(model_id="no-slash"))
+    with pytest.raises(ValidationError, match="Invalid OpenRouter model ID"):
+        RunConfig(
+            project=_base_project_config(),
+            logging=_base_logging_config(),
+            agents=_base_agents_config(),
+            endpoint=ModelEndpointConfig(
+                provider_name="openrouter",
+                base_url="https://openrouter.ai/api/v1",
+                api_key_env="OPENROUTER_KEY",
+            ),
+            endpoints=None,
+            pipeline=pipeline,
+            concurrency=ConcurrencyConfig(),
+            retry=RetryConfig(),
+            cache=CacheConfig(),
+        )
+
+
+def test_run_config_accepts_valid_openrouter_model_id_legacy() -> None:
+    """Ensure valid OpenRouter model IDs pass with legacy endpoint."""
+    pipeline = _base_pipeline_config(ModelSettings(model_id="openai/gpt-4o"))
+    config = RunConfig(
+        project=_base_project_config(),
+        logging=_base_logging_config(),
+        agents=_base_agents_config(),
+        endpoint=ModelEndpointConfig(
+            provider_name="openrouter",
+            base_url="https://openrouter.ai/api/v1",
+            api_key_env="OPENROUTER_KEY",
+        ),
+        endpoints=None,
+        pipeline=pipeline,
+        concurrency=ConcurrencyConfig(),
+        retry=RetryConfig(),
+        cache=CacheConfig(),
+    )
+    assert config.pipeline.default_model is not None
+    assert config.pipeline.default_model.model_id == "openai/gpt-4o"
+
+
+def test_run_config_rejects_invalid_openrouter_model_id_multi() -> None:
+    """Ensure invalid OpenRouter model IDs rejected with multi-endpoint config."""
+    endpoints = EndpointSetConfig(
+        default="openrouter",
+        endpoints=[
+            ModelEndpointConfig(
+                provider_name="openrouter",
+                base_url="https://openrouter.ai/api/v1",
+                api_key_env="OPENROUTER_KEY",
+            ),
+        ],
+    )
+    pipeline = _base_pipeline_config(ModelSettings(model_id="bad-model-id"))
+    with pytest.raises(ValidationError, match="Invalid OpenRouter model ID"):
+        RunConfig(
+            project=_base_project_config(),
+            logging=_base_logging_config(),
+            agents=_base_agents_config(),
+            endpoint=None,
+            endpoints=endpoints,
+            pipeline=pipeline,
+            concurrency=ConcurrencyConfig(),
+            retry=RetryConfig(),
+            cache=CacheConfig(),
+        )
+
+
+def test_run_config_skips_validation_for_non_openrouter_endpoint() -> None:
+    """Ensure non-OpenRouter endpoints don't require provider/model format."""
+    pipeline = _base_pipeline_config(ModelSettings(model_id="local-model"))
+    config = RunConfig(
+        project=_base_project_config(),
+        logging=_base_logging_config(),
+        agents=_base_agents_config(),
+        endpoint=ModelEndpointConfig(
+            provider_name="local",
+            base_url="http://localhost:8002/api/v1",
+            api_key_env="LOCAL_KEY",
+        ),
+        endpoints=None,
+        pipeline=pipeline,
+        concurrency=ConcurrencyConfig(),
+        retry=RetryConfig(),
+        cache=CacheConfig(),
+    )
+    assert config.pipeline.default_model is not None
+    assert config.pipeline.default_model.model_id == "local-model"

@@ -29,16 +29,12 @@ class SceneSummary(BaseSchema):
 
 
 class IdiomAnnotation(BaseSchema):
-    """Single idiom annotation produced by the Idiom Labeler agent.
+    """Single idiom found in a line.
 
-    This is the structured output from the idiom labeler, which identifies
-    idiomatic expressions requiring special translation handling.
-
-    Simplified schema: Only essential fields, no optional fields, no overlap
-    with translation phase. The pretranslation phase is target-language unaware.
+    Contains only the idiom text and explanation. The line_id is carried
+    by the parent ``IdiomReviewLine`` wrapper.
     """
 
-    line_id: LineId = Field(..., description="Line identifier for the annotation")
     idiom_text: str = Field(
         ..., min_length=1, description="The idiomatic expression found"
     )
@@ -49,16 +45,27 @@ class IdiomAnnotation(BaseSchema):
     )
 
 
-class IdiomAnnotationList(BaseSchema):
-    """List of idiom annotations from a single chunk analysis.
+class IdiomReviewLine(BaseSchema):
+    """Per-line idiom review output.
 
-    This wrapper schema allows the LLM to return multiple idioms
-    found in a batch of lines.
+    Contains the line_id and any idioms found for that line.
+    Follows the same per-line wrapper pattern as ``StyleGuideReviewLine``.
     """
 
+    line_id: LineId = Field(..., description="Line identifier matching the source")
     idioms: list[IdiomAnnotation] = Field(
         default_factory=list,
-        description="List of idioms found in the analyzed lines",
+        description="Idioms found in this line (empty list when none found)",
+    )
+
+
+class IdiomAnnotationList(BaseSchema):
+    """List of per-line idiom reviews from a single chunk analysis."""
+
+    reviews: list[IdiomReviewLine] = Field(
+        ...,
+        min_length=1,
+        description="Per-line idiom reviews for the chunk",
     )
 
 

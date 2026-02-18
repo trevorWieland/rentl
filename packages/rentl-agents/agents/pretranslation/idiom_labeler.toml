@@ -28,51 +28,60 @@ attention during translation, including:
 - Honorific nuances and politeness markers
 - Any expression that could cause translation difficulties
 
+You MUST return exactly one review object per input line, even if no idioms
+are found in that line. Use an empty `idioms` list for lines without idioms.
+
 For each idiom found, provide:
-- line_id: The line ID where the idiom appears
 - idiom_text: The exact text of the idiomatic expression
 - explanation: What it means and why it's notable for translation
 
 Alignment requirements:
+- Return EXACTLY one object per input line_id with no extras or omissions
 - Use only line_id values that appear in the input lines
 - Do not invent or modify line_id values
 
 Focus on expressions that could cause translation difficulties. Skip obvious
-or straightforward text.
+or straightforward text by returning an empty idioms list for that line.
 
 IMPORTANT: This phase is target-language unaware. Do not suggest translations
 or translation strategies. Just identify and explain challenging expressions.
 
-IMPORTANT: Before you produce the idioms list, you MUST call the get_game_info
+IMPORTANT: Before you produce the reviews list, you MUST call the get_game_info
 tool once to confirm the project context. Do not include tool output in your
 final response.
 
 ## Example Output
 
-If you find idioms, return them like this:
 {
-  "idioms": [
+  "reviews": [
+    {
+      "line_id": "line_001",
+      "idioms": []
+    },
+    {
+      "line_id": "line_002",
+      "idioms": []
+    },
     {
       "line_id": "line_003",
-      "idiom_text": "猫の手も借りたい",
-      "explanation": "Literally 'want to borrow even a cat's paws' - expresses being extremely busy and needing any help available"
+      "idioms": [
+        {
+          "idiom_text": "猫の手も借りたい",
+          "explanation": "Literally 'want to borrow even a cat's paws' - expresses being extremely busy and needing any help available"
+        }
+      ]
     }
   ]
 }
 
-If no idioms are found, return:
-{
-  "idioms": []
-}
-
-IMPORTANT: Return ONLY the idioms object with the idioms field containing a list. Do not include any other fields in your response.
+IMPORTANT: Return ONLY the object with the "reviews" field. Each review must have "line_id" and "idioms". Do not include any other fields.
 """
 
 [prompts.user_template]
 content = """
 Before you analyze the lines, call the get_game_info tool once.
 
-Analyze the following lines for idiomatic expressions and translation challenges.
+Analyze the following {{line_count}} lines for idiomatic expressions and translation challenges.
 
 Lines to analyze:
 ---
@@ -85,18 +94,20 @@ Scene context (if available):
 Alignment feedback (if any):
 {{alignment_feedback}}
 
-Return a JSON response with an "idioms" field containing a list of idiom objects. Each idiom must include:
-- line_id: The ID of the line containing the idiom (from the bracketed ID at the start)
-- idiom_text: The exact idiomatic expression as it appears in the text
-- explanation: What the expression means and why it's notable for translation, written in {{source_lang}}
+Return a JSON response with a "reviews" field containing one object per input line. Each review must include:
+- line_id: The ID of the line (from the bracketed ID at the start)
+- idioms: A list of idiom objects found in that line. Each idiom must include:
+  - idiom_text: The exact idiomatic expression as it appears in the text
+  - explanation: What the expression means and why it's notable for translation, written in {{source_lang}}
 
-If no idioms are found, return {"idioms": []}.
+If a line has no idioms, include it with an empty idioms list.
 
 IMPORTANT:
 - Write all explanations in {{source_lang}}, not the target language
 - Do NOT suggest translations - this phase is target-language unaware
 - Just identify and explain challenging expressions
-- Return ONLY the idioms wrapper object, do not include any other fields
+- Return EXACTLY one review per input line with no extras or omissions
+- Return ONLY the reviews wrapper object, do not include any other fields
 """
 
 [tools]

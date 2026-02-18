@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import pytest
-from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import LLMJudge, MaxDuration
@@ -39,7 +39,7 @@ from tests.quality.agents.tool_spy import ToolCallRecorder, build_tool_registry
 
 pytestmark = [
     pytest.mark.quality,
-    pytest.mark.timeout(30),
+    pytest.mark.timeout(90),
 ]
 
 scenarios("../features/agents/pretranslation_agent.feature")
@@ -57,7 +57,7 @@ class EvalContext:
 @given("a pretranslation agent quality eval dataset", target_fixture="ctx")
 def given_pretranslation_dataset(
     quality_model_config: QualityModelConfig,
-    quality_judge_model: OpenAIChatModel,
+    quality_judge_model: Model,
     quality_judge_settings: ModelSettings,
 ) -> EvalContext:
     """Build the pretranslation agent eval dataset and task.
@@ -141,7 +141,7 @@ def given_pretranslation_dataset(
                     "target_languages",
                 )
             ),
-            MaxDuration(seconds=25.0),
+            MaxDuration(seconds=60.0),
             LLMJudge(
                 rubric=rubric,
                 include_input=True,

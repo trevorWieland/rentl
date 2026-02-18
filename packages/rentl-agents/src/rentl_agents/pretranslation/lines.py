@@ -14,6 +14,7 @@ from uuid import uuid7
 from rentl_schemas.io import SourceLine
 from rentl_schemas.phases import (
     IdiomAnnotation,
+    IdiomReviewLine,
     PretranslationAnnotation,
     PretranslationPhaseOutput,
     SceneSummary,
@@ -110,7 +111,9 @@ def get_scene_summary_for_lines(
     return "\n".join(relevant_summaries)
 
 
-def idiom_to_annotation(idiom: IdiomAnnotation) -> PretranslationAnnotation:
+def idiom_to_annotation(
+    idiom: IdiomAnnotation, line_id: str
+) -> PretranslationAnnotation:
     """Convert an IdiomAnnotation to a PretranslationAnnotation.
 
     Creates a standardized annotation with the idiom details stored
@@ -118,13 +121,14 @@ def idiom_to_annotation(idiom: IdiomAnnotation) -> PretranslationAnnotation:
 
     Args:
         idiom: Idiom annotation from the idiom labeler.
+        line_id: Line identifier from the parent IdiomReviewLine wrapper.
 
     Returns:
         PretranslationAnnotation with annotation_type="idiom".
     """
     return PretranslationAnnotation(
         annotation_id=uuid7(),
-        line_id=idiom.line_id,
+        line_id=line_id,
         annotation_type="idiom",
         value=idiom.idiom_text,
         notes=idiom.explanation,
@@ -134,21 +138,24 @@ def idiom_to_annotation(idiom: IdiomAnnotation) -> PretranslationAnnotation:
 
 def merge_idiom_annotations(
     run_id: RunId,
-    idiom_annotations: list[IdiomAnnotation],
+    reviews: list[IdiomReviewLine],
 ) -> PretranslationPhaseOutput:
-    """Merge idiom annotations into a pretranslation phase output.
+    """Merge per-line idiom reviews into a pretranslation phase output.
 
-    Converts all IdiomAnnotation records to PretranslationAnnotation
-    and packages them in a phase output.
+    Converts all IdiomAnnotation records from IdiomReviewLine wrappers
+    to PretranslationAnnotation and packages them in a phase output.
 
     Args:
         run_id: Run identifier.
-        idiom_annotations: List of idiom annotations from all chunks.
+        reviews: Per-line idiom reviews from all chunks.
 
     Returns:
         Complete pretranslation phase output.
     """
-    annotations = [idiom_to_annotation(idiom) for idiom in idiom_annotations]
+    annotations: list[PretranslationAnnotation] = []
+    for review in reviews:
+        for idiom in review.idioms:
+            annotations.append(idiom_to_annotation(idiom, review.line_id))
 
     return PretranslationPhaseOutput(
         run_id=run_id,

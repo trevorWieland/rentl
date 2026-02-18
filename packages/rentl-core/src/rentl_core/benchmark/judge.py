@@ -11,17 +11,13 @@ from typing import Literal, cast
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.models.openrouter import OpenRouterModel
-from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.providers.openrouter import OpenRouterProvider
-from pydantic_ai.settings import ModelSettings
 
-from rentl_agents.providers import detect_provider
+from rentl_llm.provider_factory import create_model
 from rentl_schemas.benchmark.rubric import (
     HeadToHeadResult,
     RubricDimension,
 )
+from rentl_schemas.config import OpenRouterProviderRoutingConfig
 from rentl_schemas.io import TranslatedLine
 
 
@@ -80,29 +76,18 @@ class RubricJudge:
         self.concurrency_limit = concurrency_limit
         self._semaphore = asyncio.Semaphore(concurrency_limit)
 
-        # Detect provider and create model/provider
-        capabilities = detect_provider(base_url)
-        if capabilities.is_openrouter:
-            provider = OpenRouterProvider(api_key=api_key)
-            self.model = OpenRouterModel(model_id, provider=provider)
-            # Build model settings with OpenRouter provider config
-            self.model_settings = cast(
-                ModelSettings,
-                {
-                    "temperature": temperature,
-                    "max_tokens": max_output_tokens,
-                    "openrouter_provider": {
-                        "require_parameters": openrouter_require_parameters
-                    },
-                },
-            )
-        else:
-            provider = OpenAIProvider(base_url=base_url, api_key=api_key)
-            self.model = OpenAIChatModel(model_id, provider=provider)
-            self.model_settings = cast(
-                ModelSettings,
-                {"temperature": temperature, "max_tokens": max_output_tokens},
-            )
+        # Create model/provider via centralized factory
+        openrouter_config = OpenRouterProviderRoutingConfig(
+            require_parameters=openrouter_require_parameters,
+        )
+        self.model, self.model_settings = create_model(
+            base_url=base_url,
+            api_key=api_key,
+            model_id=model_id,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            openrouter_provider=openrouter_config,
+        )
 
     def _build_head_to_head_prompt(
         self, source_text: str, translation_a: str, translation_b: str

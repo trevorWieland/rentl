@@ -22,6 +22,7 @@ from rentl_agents.runtime import ProfileAgent
 from rentl_schemas.phases import (
     IdiomAnnotation,
     IdiomAnnotationList,
+    IdiomReviewLine,
     SceneSummary,
     StyleGuideReviewLine,
     StyleGuideReviewList,
@@ -148,6 +149,12 @@ def when_run_pipeline(
     assert ctx.config_path is not None
     assert ctx.project_dir is not None
 
+    # Bypass preflight probe (makes real HTTP requests to provider endpoints)
+    async def _noop_preflight(endpoints: list[object]) -> None:
+        pass
+
+    monkeypatch.setattr(cli_main, "assert_preflight", _noop_preflight)
+
     # Track mock invocations
     mock_call_count = {"count": 0}
     edit_line_index = {"index": 0}
@@ -179,16 +186,22 @@ def when_run_pipeline(
                 characters=["Character A", "Character B"],
             )
         elif output_type == IdiomAnnotationList:
+            # Return one review per source line (per-line wrapper pattern)
+            # (alignment check requires output IDs to match input IDs)
             source_lines = getattr(payload, "source_lines", [])
-            idioms = [
-                IdiomAnnotation(
+            reviews = [
+                IdiomReviewLine(
                     line_id=line.line_id,
-                    idiom_text="test idiom",
-                    explanation="Test explanation",
+                    idioms=[
+                        IdiomAnnotation(
+                            idiom_text="test idiom",
+                            explanation="Test explanation",
+                        )
+                    ],
                 )
-                for line in source_lines[:1]
+                for line in source_lines
             ]
-            return IdiomAnnotationList(idioms=idioms)
+            return IdiomAnnotationList(reviews=reviews)
         elif output_type == TranslationResultList:
             source_lines = getattr(payload, "source_lines", [])
             if not source_lines:

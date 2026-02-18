@@ -32,6 +32,7 @@
 #     ORCH_AGENT_TIMEOUT - Per-agent invocation timeout in seconds (default: 1800)
 #     ORCH_MAX_TASK_RETRIES - Max attempts for a single task before aborting (default: 3)
 #     ORCH_STALE_LIMIT   - Cycles with unchanged plan.md before aborting (default: 3)
+#     ORCH_MAX_DEMO_RETRIES - Retries when run-demo/audit-spec fail without adding tasks (default: 3)
 
 set -euo pipefail
 
@@ -200,6 +201,7 @@ COMMANDS_DIR="${ORCH_COMMANDS_DIR:-.claude/commands/agent-os}"
 AGENT_TIMEOUT="${ORCH_AGENT_TIMEOUT:-1800}"
 MAX_TASK_RETRIES="${ORCH_MAX_TASK_RETRIES:-5}"
 STALE_LIMIT="${ORCH_STALE_LIMIT:-3}"
+MAX_DEMO_RETRIES="${ORCH_MAX_DEMO_RETRIES:-3}"
 
 # Load config file if provided
 while [[ $# -gt 0 ]]; do
@@ -474,12 +476,11 @@ tput "  ${DIM}Spec:${NC}    %s\n" "$SPEC_FOLDER"
 tput "  ${DIM}Impl:${NC}    %s ${DIM}(%s)${NC}\n" "$DO_MODEL" "${DO_CLI%% *}"
 tput "  ${DIM}Audit:${NC}   %s ${DIM}(%s)${NC}\n" "$AUDIT_MODEL" "${AUDIT_CLI%% *}"
 tput "  ${DIM}Gates:${NC}   %s │ %s\n" "$TASK_GATE" "$SPEC_GATE"
-tput "  ${DIM}Limits:${NC}  %ss timeout │ %d task retries │ %d stale cycles\n" "$AGENT_TIMEOUT" "$MAX_TASK_RETRIES" "$STALE_LIMIT"
+tput "  ${DIM}Limits:${NC}  %ss timeout │ %d task retries │ %d stale cycles │ %d demo retries\n" "$AGENT_TIMEOUT" "$MAX_TASK_RETRIES" "$STALE_LIMIT" "$MAX_DEMO_RETRIES"
 
 cycle=0
 prev_snapshot=""
 stale_count=0
-had_tasks=false  # tracks whether there were ever tasks to implement
 
 while true; do
     cycle=$((cycle + 1))
@@ -489,11 +490,10 @@ while true; do
         exit 1
     fi
 
-    # Staleness detection — only applies when there were tasks to work on.
-    # When all tasks were already done at startup, plan.md won't change and
-    # that's expected, not stale.
+    # Staleness detection — tracks plan.md changes across cycles.
+    # Skip the check on cycle 1 (no previous snapshot to compare against).
     current_snapshot=$(plan_snapshot)
-    if [[ "$had_tasks" == "true" && -n "$prev_snapshot" && "$current_snapshot" == "$prev_snapshot" ]]; then
+    if [[ -n "$prev_snapshot" && "$current_snapshot" == "$prev_snapshot" ]]; then
         stale_count=$((stale_count + 1))
         if [[ $stale_count -ge $STALE_LIMIT ]]; then
             fail "Stale — plan.md unchanged for $stale_count cycles. See signposts.md / audit-log.md."
@@ -522,7 +522,6 @@ while true; do
         if [[ "$unchecked" -eq 0 ]]; then
             break
         fi
-        had_tasks=true
 
         task_label=$(next_task_label)
 
@@ -694,6 +693,7 @@ $LAST_GATE_OUTPUT
 
     # ─── Phase 3: Demo ───
 
+    pre_demo_tasks=$(count_unchecked)
     begin_phase "run-demo" "$DEMO_MODEL"
     invoke_agent "run-demo" "$DEMO_CLI" "$DEMO_MODEL"
     output="$AGENT_OUTPUT"
@@ -721,8 +721,65 @@ $LAST_GATE_OUTPUT
             fi
             ;;
         fail)
-            end_phase "ok" "failed — fix tasks added"
-            continue
+            # Check whether run-demo actually added new tasks.
+            new_unchecked=$(count_unchecked)
+            if [[ "$new_unchecked" -gt "$pre_demo_tasks" ]]; then
+                end_phase "ok" "failed — $new_unchecked fix tasks added"
+                continue
+            fi
+
+            # No tasks added — retry with forceful context demanding tasks.
+            end_phase "fail" "failed — no tasks added, retrying"
+            demo_retry=0
+            demo_resolved=false
+            while [[ $demo_retry -lt $MAX_DEMO_RETRIES ]]; do
+                demo_retry=$((demo_retry + 1))
+                tput "  ${YELLOW}↳ run-demo retry %d/%d — demanding fix tasks${NC}\n" "$demo_retry" "$MAX_DEMO_RETRIES"
+
+                begin_phase "run-demo" "$DEMO_MODEL"
+                invoke_agent "run-demo" "$DEMO_CLI" "$DEMO_MODEL" \
+                    "CRITICAL: You signalled run-demo-status: fail but added NO new tasks to plan.md.
+This causes the orchestrator to loop infinitely. You MUST do one of the following:
+
+1. Add concrete fix tasks to plan.md as \`- [ ] Task N: <description>\` (use the next sequential task number).
+2. If the demo actually passes on re-examination, signal run-demo-status: pass instead.
+
+Do NOT dismiss failures as 'not a code defect' or 'environmental' without thorough investigation.
+If the issue is truly environmental (e.g. wrong URL, missing service), add a task for a workaround,
+mock, or graceful degradation so the demo can pass.
+
+Previously unchecked tasks: $pre_demo_tasks. Current unchecked: $(count_unchecked).
+You must increase the task count or change your signal to pass."
+                output="$AGENT_OUTPUT"
+                guard_spec_md
+                signal=$(extract_signal "$output" "run-demo-status")
+
+                if [[ "$signal" == "pass" ]]; then
+                    end_phase "ok" "passed on retry $demo_retry"
+                    demo_resolved=true
+                    break
+                fi
+
+                new_unchecked=$(count_unchecked)
+                if [[ "$new_unchecked" -gt "$pre_demo_tasks" ]]; then
+                    end_phase "ok" "retry $demo_retry — $new_unchecked fix tasks added"
+                    demo_resolved=true
+                    break
+                fi
+
+                end_phase "fail" "retry $demo_retry — still no tasks"
+            done
+
+            if [[ "$demo_resolved" == "true" && "$signal" == "pass" ]]; then
+                # Fall through to audit-spec (don't continue)
+                :
+            elif [[ "$demo_resolved" == "true" ]]; then
+                continue
+            else
+                # Retries exhausted — let staleness detection catch it next cycle
+                tput "  ${YELLOW}⚠ run-demo retries exhausted — deferring to staleness detection${NC}\n"
+                continue
+            fi
             ;;
         error)
             end_phase "fail" "error"
@@ -749,6 +806,7 @@ $LAST_GATE_OUTPUT
         audit_md_before=$(stat -c %Y "$SPEC_FOLDER/audit.md" 2>/dev/null) || true
     fi
 
+    pre_audit_tasks=$(count_unchecked)
     begin_phase "audit-spec" "$SPEC_MODEL"
     invoke_agent "audit-spec" "$SPEC_CLI" "$SPEC_MODEL"
     output="$AGENT_OUTPUT"
@@ -780,8 +838,62 @@ $LAST_GATE_OUTPUT
             end_phase "ok" "PASS"
             ;;
         fail)
-            end_phase "ok" "FAIL — fix items added"
-            continue
+            new_unchecked=$(count_unchecked)
+            if [[ "$new_unchecked" -gt "$pre_audit_tasks" ]]; then
+                end_phase "ok" "FAIL — $new_unchecked fix items added"
+                continue
+            fi
+
+            # No tasks added — retry with forceful context demanding fix items.
+            end_phase "fail" "FAIL — no tasks added, retrying"
+            audit_retry=0
+            audit_resolved=false
+            while [[ $audit_retry -lt $MAX_DEMO_RETRIES ]]; do
+                audit_retry=$((audit_retry + 1))
+                tput "  ${YELLOW}↳ audit-spec retry %d/%d — demanding fix items${NC}\n" "$audit_retry" "$MAX_DEMO_RETRIES"
+
+                begin_phase "audit-spec" "$SPEC_MODEL"
+                invoke_agent "audit-spec" "$SPEC_CLI" "$SPEC_MODEL" \
+                    "CRITICAL: You wrote audit.md with status: fail but added NO new unchecked tasks to plan.md.
+This causes the orchestrator to loop infinitely. You MUST do one of the following:
+
+1. Uncheck existing tasks that need rework and add \`- [ ] Fix: <description>\` sub-items under them.
+2. Add new \`- [ ] Task N: <description>\` entries for issues not covered by existing tasks.
+3. If the implementation actually passes on re-examination, update audit.md to \`status: pass\`.
+
+Previously unchecked tasks: $pre_audit_tasks. Current unchecked: $(count_unchecked).
+You must increase the task count or change audit.md status to pass."
+                output="$AGENT_OUTPUT"
+                guard_spec_md
+
+                status=$(audit_status)
+
+                if [[ "$status" == "pass" ]]; then
+                    end_phase "ok" "PASS on retry $audit_retry"
+                    audit_resolved=true
+                    break
+                fi
+
+                new_unchecked=$(count_unchecked)
+                if [[ "$new_unchecked" -gt "$pre_audit_tasks" ]]; then
+                    end_phase "ok" "retry $audit_retry — $new_unchecked fix items added"
+                    audit_resolved=true
+                    break
+                fi
+
+                end_phase "fail" "retry $audit_retry — still no tasks"
+            done
+
+            if [[ "$audit_resolved" == "true" && "$status" == "pass" ]]; then
+                # Fall through to break (spec passed)
+                :
+            elif [[ "$audit_resolved" == "true" ]]; then
+                continue
+            else
+                # Retries exhausted — let staleness detection catch it next cycle
+                tput "  ${YELLOW}⚠ audit-spec retries exhausted — deferring to staleness detection${NC}\n"
+                continue
+            fi
             ;;
         *)
             end_phase "fail" "unknown status: $status"

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import pytest
-from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import LLMJudge, MaxDuration
@@ -55,7 +55,7 @@ class EvalContext:
 @given("a translate agent quality eval dataset", target_fixture="ctx")
 def given_translate_dataset(
     quality_model_config: QualityModelConfig,
-    quality_judge_model: OpenAIChatModel,
+    quality_judge_model: Model,
     quality_judge_settings: ModelSettings,
 ) -> EvalContext:
     """Build the translate agent eval dataset and task.

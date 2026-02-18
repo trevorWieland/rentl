@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from rentl_agents.providers import (
@@ -9,6 +11,7 @@ from rentl_agents.providers import (
     LOCAL_CAPABILITIES,
     OPENAI_CAPABILITIES,
     OPENROUTER_CAPABILITIES,
+    ProviderCapabilities,
     assert_tool_compatibility,
     build_provider_error_message,
     check_tool_compatibility,
@@ -71,6 +74,11 @@ class TestDetectProvider:
         assert detect_provider("http://10.0.0.5:1234/v1") == LOCAL_CAPABILITIES
         assert detect_provider("http://192.168.1.100:8000/v1") == LOCAL_CAPABILITIES
 
+    def test_detects_local_domain_suffix(self) -> None:
+        """Hosts ending in .local or .localhost map to local capabilities."""
+        assert detect_provider("http://myhost.local:8080/v1") == LOCAL_CAPABILITIES
+        assert detect_provider("http://dev.localhost:3000/v1") == LOCAL_CAPABILITIES
+
     def test_detects_generic(self) -> None:
         """Unknown hosts map to generic OpenAI-compatible capabilities."""
         caps = detect_provider("https://unknown.api.com/v1")
@@ -91,6 +99,19 @@ class TestToolCompatibility:
         compatible, guidance = check_tool_compatibility("https://api.openai.com/v1")
         assert compatible is True
         assert "supported" in guidance
+
+    def test_no_tool_calling_support_is_rejected(self) -> None:
+        """Providers without tool calling support are rejected."""
+        no_tools = ProviderCapabilities(
+            name="NoTools",
+            is_openrouter=False,
+            supports_tool_calling=False,
+            supports_tool_choice_required=False,
+        )
+        with patch("rentl_agents.providers.detect_provider", return_value=no_tools):
+            compatible, guidance = check_tool_compatibility("https://notool.api.com/v1")
+        assert compatible is False
+        assert "does not support tool calling" in guidance
 
     def test_unknown_generic_provider_is_not_tool_compatible(self) -> None:
         """Unknown providers fail strict tool-choice compatibility checks."""
@@ -134,3 +155,12 @@ class TestBuildProviderErrorMessage:
         )
         assert "OpenRouter" in msg
         assert "OpenRouter=True" in msg
+
+    def test_unknown_error_type_message(self) -> None:
+        """Unknown error types produce a generic fallback message."""
+        msg = build_provider_error_message(
+            "unknown_error",
+            "https://api.openai.com/v1",
+        )
+        assert "Provider issue" in msg
+        assert "api.openai.com" in msg

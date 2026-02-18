@@ -299,64 +299,56 @@ async def test_compare_head_to_head_with_progress_callback(
 
 
 def test_judge_creates_openrouter_model_when_detected() -> None:
-    """Test judge creates OpenRouterModel when base_url is OpenRouter."""
-    with patch("rentl_core.benchmark.judge.detect_provider") as mock_detect:
-        mock_capabilities = MagicMock()
-        mock_capabilities.is_openrouter = True
-        mock_detect.return_value = mock_capabilities
+    """Test judge uses create_model factory with OpenRouter config."""
+    mock_model = MagicMock()
+    mock_settings = MagicMock()
 
-        with (
-            patch("rentl_core.benchmark.judge.OpenRouterProvider") as mock_or_provider,
-            patch("rentl_core.benchmark.judge.OpenRouterModel") as mock_or_model,
-        ):
-            judge = RubricJudge(
-                model_id="anthropic/claude-4.5-sonnet",
-                base_url="https://openrouter.ai/api/v1",
-                api_key="test-key",
-                openrouter_require_parameters=True,
-            )
+    with patch(
+        "rentl_core.benchmark.judge.create_model",
+        return_value=(mock_model, mock_settings),
+    ) as mock_factory:
+        judge = RubricJudge(
+            model_id="anthropic/claude-4.5-sonnet",
+            base_url="https://openrouter.ai/api/v1",
+            api_key="test-key",
+            openrouter_require_parameters=True,
+        )
 
-            # Verify OpenRouter provider was created with API key
-            mock_or_provider.assert_called_once_with(api_key="test-key")
+        # Verify factory was called with correct parameters
+        mock_factory.assert_called_once()
+        call_kwargs = mock_factory.call_args.kwargs
+        assert call_kwargs["base_url"] == "https://openrouter.ai/api/v1"
+        assert call_kwargs["api_key"] == "test-key"
+        assert call_kwargs["model_id"] == "anthropic/claude-4.5-sonnet"
+        assert call_kwargs["openrouter_provider"].require_parameters is True
 
-            # Verify OpenRouter model was created with model ID and provider
-            mock_or_model.assert_called_once()
-            assert (
-                mock_or_model.call_args[0][0] == "anthropic/claude-4.5-sonnet"
-            )  # model_id
-
-            # Verify model settings include OpenRouter provider config
-            assert "openrouter_provider" in judge.model_settings
-            openrouter_config = judge.model_settings.get("openrouter_provider")
-            assert openrouter_config is not None
-            assert openrouter_config.get("require_parameters") is True
+        # Verify model and settings from factory are stored
+        assert judge.model is mock_model
+        assert judge.model_settings is mock_settings
 
 
 def test_judge_creates_openai_model_when_not_openrouter() -> None:
-    """Test judge creates OpenAIChatModel for non-OpenRouter endpoints."""
-    with patch("rentl_core.benchmark.judge.detect_provider") as mock_detect:
-        mock_capabilities = MagicMock()
-        mock_capabilities.is_openrouter = False
-        mock_detect.return_value = mock_capabilities
+    """Test judge uses create_model factory for non-OpenRouter endpoints."""
+    mock_model = MagicMock()
+    mock_settings = MagicMock()
 
-        with (
-            patch("rentl_core.benchmark.judge.OpenAIProvider") as mock_oa_provider,
-            patch("rentl_core.benchmark.judge.OpenAIChatModel") as mock_oa_model,
-        ):
-            judge = RubricJudge(
-                model_id="gpt-5-nano",
-                base_url="https://api.openai.com/v1",
-                api_key="test-key",
-            )
+    with patch(
+        "rentl_core.benchmark.judge.create_model",
+        return_value=(mock_model, mock_settings),
+    ) as mock_factory:
+        judge = RubricJudge(
+            model_id="gpt-5-nano",
+            base_url="https://api.openai.com/v1",
+            api_key="test-key",
+        )
 
-            # Verify OpenAI provider was created with base_url and API key
-            mock_oa_provider.assert_called_once_with(
-                base_url="https://api.openai.com/v1", api_key="test-key"
-            )
+        # Verify factory was called with correct parameters
+        mock_factory.assert_called_once()
+        call_kwargs = mock_factory.call_args.kwargs
+        assert call_kwargs["base_url"] == "https://api.openai.com/v1"
+        assert call_kwargs["api_key"] == "test-key"
+        assert call_kwargs["model_id"] == "gpt-5-nano"
 
-            # Verify OpenAI model was created with model ID and provider
-            mock_oa_model.assert_called_once()
-            assert mock_oa_model.call_args[0][0] == "gpt-5-nano"  # model_id
-
-            # Verify model settings do NOT include OpenRouter provider config
-            assert "openrouter_provider" not in judge.model_settings
+        # Verify model and settings from factory are stored
+        assert judge.model is mock_model
+        assert judge.model_settings is mock_settings

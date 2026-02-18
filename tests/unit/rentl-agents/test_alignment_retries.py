@@ -22,6 +22,7 @@ from rentl_schemas.phases import (
     EditPhaseInput,
     IdiomAnnotation,
     IdiomAnnotationList,
+    IdiomReviewLine,
     PretranslationPhaseInput,
     QaPhaseInput,
     SceneSummary,
@@ -283,8 +284,8 @@ async def test_context_retries_on_alignment_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_pretranslation_retries_on_invalid_line_id() -> None:
-    """Pretranslation agent retries when idiom line_id is not in input."""
+async def test_pretranslation_retries_on_extra_ids() -> None:
+    """Pretranslation agent retries when review line_id is not in input (extra IDs)."""
     config = _build_config(max_output_retries=1)
     source_lines = [SourceLine(line_id="line_1", text="A", scene_id="scene_1")]
     payload = PretranslationPhaseInput(
@@ -295,13 +296,16 @@ async def test_pretranslation_retries_on_invalid_line_id() -> None:
         project_context=None,
         glossary=None,
     )
-    bad_idiom = IdiomAnnotation(
-        line_id="line_999",
-        idiom_text="X",
-        explanation="Y",
+    idiom = IdiomAnnotation(idiom_text="X", explanation="Y")
+    bad_result = IdiomAnnotationList(
+        reviews=[
+            IdiomReviewLine(line_id="line_999", idioms=[idiom]),
+            IdiomReviewLine(line_id="line_1", idioms=[idiom]),
+        ]
     )
-    bad_result = IdiomAnnotationList(idioms=[bad_idiom])
-    good_result = IdiomAnnotationList(idioms=[])
+    good_result = IdiomAnnotationList(
+        reviews=[IdiomReviewLine(line_id="line_1", idioms=[idiom])]
+    )
     agent = PretranslationIdiomLabelerAgent(
         profile_agent=cast(
             ProfileAgent[PretranslationPhaseInput, IdiomAnnotationList],
@@ -315,4 +319,197 @@ async def test_pretranslation_retries_on_invalid_line_id() -> None:
 
     output = await agent.run(payload)
 
-    assert output.annotations == []
+    assert len(output.annotations) == 1
+    assert output.annotations[0].line_id == "line_1"
+
+
+@pytest.mark.asyncio
+async def test_pretranslation_retries_on_missing_ids() -> None:
+    """Pretranslation agent retries when output is missing input line_ids."""
+    config = _build_config(max_output_retries=1)
+    source_lines = [
+        SourceLine(line_id="line_1", text="A", scene_id="scene_1"),
+        SourceLine(line_id="line_2", text="B", scene_id="scene_1"),
+    ]
+    payload = PretranslationPhaseInput(
+        run_id=UUID("00000000-0000-7000-8000-000000000017"),
+        source_lines=source_lines,
+        scene_summaries=None,
+        context_notes=None,
+        project_context=None,
+        glossary=None,
+    )
+    # Only has line_1 review, missing line_2
+    missing_result = IdiomAnnotationList(
+        reviews=[
+            IdiomReviewLine(
+                line_id="line_1",
+                idioms=[IdiomAnnotation(idiom_text="X", explanation="Y")],
+            )
+        ]
+    )
+    # Complete review set
+    good_result = IdiomAnnotationList(
+        reviews=[
+            IdiomReviewLine(
+                line_id="line_1",
+                idioms=[IdiomAnnotation(idiom_text="X", explanation="Y")],
+            ),
+            IdiomReviewLine(
+                line_id="line_2",
+                idioms=[IdiomAnnotation(idiom_text="Z", explanation="W")],
+            ),
+        ]
+    )
+    agent = PretranslationIdiomLabelerAgent(
+        profile_agent=cast(
+            ProfileAgent[PretranslationPhaseInput, IdiomAnnotationList],
+            FakeAgent(outputs=[missing_result, good_result]),
+        ),
+        config=config,
+        chunk_size=10,
+        source_lang="ja",
+        target_lang="en",
+    )
+
+    output = await agent.run(payload)
+
+    assert len(output.annotations) == 2
+    annotation_ids = {a.line_id for a in output.annotations}
+    assert annotation_ids == {"line_1", "line_2"}
+
+
+@pytest.mark.asyncio
+async def test_pretranslation_retries_on_extra_and_missing_ids() -> None:
+    """Pretranslation agent retries when output has both extra and missing IDs."""
+    config = _build_config(max_output_retries=1)
+    source_lines = [
+        SourceLine(line_id="line_1", text="A", scene_id="scene_1"),
+        SourceLine(line_id="line_2", text="B", scene_id="scene_1"),
+    ]
+    payload = PretranslationPhaseInput(
+        run_id=UUID("00000000-0000-7000-8000-000000000018"),
+        source_lines=source_lines,
+        scene_summaries=None,
+        context_notes=None,
+        project_context=None,
+        glossary=None,
+    )
+    idiom = IdiomAnnotation(idiom_text="X", explanation="Y")
+    # Has extra line_999, missing line_2
+    bad_result = IdiomAnnotationList(
+        reviews=[
+            IdiomReviewLine(line_id="line_1", idioms=[idiom]),
+            IdiomReviewLine(line_id="line_999", idioms=[idiom]),
+        ]
+    )
+    good_result = IdiomAnnotationList(
+        reviews=[
+            IdiomReviewLine(line_id="line_1", idioms=[idiom]),
+            IdiomReviewLine(
+                line_id="line_2",
+                idioms=[IdiomAnnotation(idiom_text="Z", explanation="W")],
+            ),
+        ]
+    )
+    agent = PretranslationIdiomLabelerAgent(
+        profile_agent=cast(
+            ProfileAgent[PretranslationPhaseInput, IdiomAnnotationList],
+            FakeAgent(outputs=[bad_result, good_result]),
+        ),
+        config=config,
+        chunk_size=10,
+        source_lang="ja",
+        target_lang="en",
+    )
+
+    output = await agent.run(payload)
+
+    assert len(output.annotations) == 2
+    annotation_ids = {a.line_id for a in output.annotations}
+    assert annotation_ids == {"line_1", "line_2"}
+
+
+@pytest.mark.asyncio
+async def test_pretranslation_sparse_output_passes_alignment() -> None:
+    """Pretranslation agent accepts sparse output where some lines have no idioms."""
+    config = _build_config(max_output_retries=0)
+    source_lines = [
+        SourceLine(line_id="line_1", text="A", scene_id="scene_1"),
+        SourceLine(line_id="line_2", text="B", scene_id="scene_1"),
+        SourceLine(line_id="line_3", text="C", scene_id="scene_1"),
+    ]
+    payload = PretranslationPhaseInput(
+        run_id=UUID("00000000-0000-7000-8000-000000000020"),
+        source_lines=source_lines,
+        scene_summaries=None,
+        context_notes=None,
+        project_context=None,
+        glossary=None,
+    )
+    # Only line_2 has an idiom, others have empty lists
+    result = IdiomAnnotationList(
+        reviews=[
+            IdiomReviewLine(line_id="line_1", idioms=[]),
+            IdiomReviewLine(
+                line_id="line_2",
+                idioms=[IdiomAnnotation(idiom_text="X", explanation="Y")],
+            ),
+            IdiomReviewLine(line_id="line_3", idioms=[]),
+        ]
+    )
+    agent = PretranslationIdiomLabelerAgent(
+        profile_agent=cast(
+            ProfileAgent[PretranslationPhaseInput, IdiomAnnotationList],
+            FakeAgent(outputs=[result]),
+        ),
+        config=config,
+        chunk_size=10,
+        source_lang="ja",
+        target_lang="en",
+    )
+
+    output = await agent.run(payload)
+
+    # Only 1 annotation from line_2 (the others had empty idiom lists)
+    assert len(output.annotations) == 1
+    assert output.annotations[0].line_id == "line_2"
+
+
+@pytest.mark.asyncio
+async def test_pretranslation_raises_after_retry_exhausted() -> None:
+    """Pretranslation agent raises after alignment retries are exhausted."""
+    config = _build_config(max_output_retries=0)
+    source_lines = [
+        SourceLine(line_id="line_1", text="A", scene_id="scene_1"),
+        SourceLine(line_id="line_2", text="B", scene_id="scene_1"),
+    ]
+    payload = PretranslationPhaseInput(
+        run_id=UUID("00000000-0000-7000-8000-000000000019"),
+        source_lines=source_lines,
+        scene_summaries=None,
+        context_notes=None,
+        project_context=None,
+        glossary=None,
+    )
+    bad_result = IdiomAnnotationList(
+        reviews=[
+            IdiomReviewLine(
+                line_id="line_999",
+                idioms=[IdiomAnnotation(idiom_text="X", explanation="Y")],
+            )
+        ]
+    )
+    agent = PretranslationIdiomLabelerAgent(
+        profile_agent=cast(
+            ProfileAgent[PretranslationPhaseInput, IdiomAnnotationList],
+            FakeAgent(outputs=[bad_result]),
+        ),
+        config=config,
+        chunk_size=10,
+        source_lang="ja",
+        target_lang="en",
+    )
+
+    with pytest.raises(RuntimeError, match="Alignment error"):
+        await agent.run(payload)

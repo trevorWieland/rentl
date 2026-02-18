@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import TypeGuard
 
 from pydantic import Field, field_validator, model_validator
+from pydantic_ai import Tool
 
 from rentl_agents.harness import AgentHarness
 from rentl_agents.tools import AgentTool
@@ -17,7 +18,6 @@ from rentl_core.ports.orchestrator import (
     PhaseAgentPoolProtocol,
 )
 from rentl_schemas.base import BaseSchema
-from rentl_schemas.primitives import JsonValue
 
 
 class AgentConfig(BaseSchema):
@@ -268,27 +268,38 @@ class AgentFactory:
     def _build_tool_list(
         self,
         tool_names: list[str],
-    ) -> list[Callable[..., dict[str, JsonValue]]]:
+    ) -> list[Tool]:
         """Build tool list from tool names.
+
+        Each tool is wrapped in a ``pydantic_ai.Tool`` with an explicit
+        ``name`` and ``description`` so the model sees a stable identifier
+        instead of the raw function name (e.g. ``execute``).
 
         Args:
             tool_names: List of tool names.
 
         Returns:
-            List of tool callables.
+            List of pydantic_ai Tool objects with explicit names.
 
         Raises:
             ValueError: If tool name is not registered.
         """
-        tool_list: list[Callable[..., dict[str, JsonValue]]] = []
+        tool_list: list[Tool] = []
 
         for tool_name in tool_names:
             if tool_name not in self._tool_registry:
                 raise ValueError(f"Tool {tool_name} is not registered")
 
             tool_factory = self._tool_registry[tool_name]
-            tool = tool_factory()
+            agent_tool = tool_factory()
 
-            tool_list.append(tool.execute)
+            tool_list.append(
+                Tool(
+                    agent_tool.execute,
+                    name=agent_tool.name,
+                    description=agent_tool.description,
+                    takes_ctx=False,
+                )
+            )
 
         return tool_list

@@ -1,0 +1,99 @@
+spec_id: s0.1.42
+issue: https://github.com/trevorWieland/rentl/issues/129
+version: v0.1
+
+# Plan: LLM Provider Abstraction & Agent Wiring
+
+## Decision Record
+
+This work was driven by the 2026-02-17 standards audit which identified 13 violations across 5 standards in the LLM provider and agent wiring code. The core problem is duplicated provider construction logic across 4 call sites, with no validation or enforcement of OpenRouter-specific constraints. The fix centralizes construction behind a factory, adds validation at config boundaries, and fixes several secondary issues (tool registration, structured output, alignment checks).
+
+## Tasks
+
+- [x] Task 1: Save Spec Documentation
+  - Write spec.md, plan.md, demo.md, standards.md, references.md
+  - Commit on issue branch
+
+- [x] Task 2: Create LLM provider factory with validation
+  - New module `packages/rentl-llm/src/rentl_llm/provider_factory.py`
+  - `create_model()` function: takes endpoint config + model config, returns `(Model, ModelSettings)` tuple
+  - Routes OpenRouter vs generic OpenAI based on `detect_provider()`
+  - Model ID validation: regex `^[^/]+/.+` enforced when provider is OpenRouter
+  - Provider allowlist: checks `only` field against model ID prefix when configured
+  - Unit tests: `packages/rentl-llm/tests/unit/test_provider_factory.py`
+    - Test OpenRouter routing path
+    - Test generic OpenAI routing path
+    - Test model ID validation (valid, invalid formats)
+    - Test allowlist enforcement (allowed, blocked, unconfigured)
+  - [x] Fix: Move OpenRouter model ID validation to config parse/load boundary (Pydantic validator) instead of runtime-only factory checks to satisfy spec non-negotiable #2 (`packages/rentl-llm/src/rentl_llm/provider_factory.py:99`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:162`) (audit round 1)
+  - [x] Fix: Remove `Any`/`object` typing in new factory and tests to comply with `strict-typing-enforcement` (`packages/rentl-llm/src/rentl_llm/provider_factory.py:11`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:218`, `tests/unit/llm/test_provider_factory.py:5`, `tests/unit/llm/test_provider_factory.py:47`) (audit round 1)
+  - [x] Fix: In patched unit tests, assert patched execution-boundary mocks were invoked (or explicitly not invoked) per `mock-execution-boundary` verification rule (`tests/unit/llm/test_provider_factory.py:45`, `tests/unit/llm/test_provider_factory.py:71`, `tests/unit/llm/test_provider_factory.py:131`, `tests/unit/llm/test_provider_factory.py:212`) (audit round 1)
+
+- [x] Task 3: Add preflight compatibility check
+  - New function in `packages/rentl-llm/src/rentl_llm/provider_factory.py` or separate module
+  - Validates tool_choice/response_format compatibility for the configured provider
+  - Called from CLI pipeline entry point (`services/rentl-cli/src/rentl/main.py` ~line 915)
+  - Fails fast with actionable error messages listing unsupported features
+  - Unit tests for preflight pass/fail scenarios
+  - [x] Fix: Replace static capability-only checks with an actual lightweight provider/model probe request before pipeline execution to satisfy `openrouter-provider-routing` rule 3 ("Validate before running") (`packages/rentl-llm/src/rentl_llm/provider_factory.py:196`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:197`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:223`) (audit round 1)
+  - [x] Fix: Remove lossy deduping by `(base_url, model_id)` so endpoints sharing URL/model but using different endpoint refs or routing config are each validated (`services/rentl-cli/src/rentl/main.py:2375`, `services/rentl-cli/src/rentl/main.py:2398`) (audit round 1)
+
+- [x] Task 4: Migrate all call sites to use factory
+  - `packages/rentl-agents/src/rentl_agents/runtime.py:436-464` — ProfileAgent runtime
+  - `packages/rentl-llm/src/rentl_llm/openai_runtime.py:53-109` — BYOK runtime
+  - `packages/rentl-core/src/rentl_core/benchmark/judge.py:83-104` — Rubric judge
+  - `packages/rentl-agents/src/rentl_agents/harness.py:229-240` — AgentHarness
+  - Each site replaced with single `create_model()` call
+  - Existing tests must continue passing without modification
+  - [x] Fix: Route quality harness judge construction through `create_model()`; remove direct `OpenRouterProvider`/`OpenAIProvider`/`OpenAIChatModel` instantiation outside the centralized factory (`tests/quality/agents/quality_harness.py:96`, `tests/quality/agents/quality_harness.py:98`, `tests/quality/agents/quality_harness.py:102`) (audit round 2)
+
+- [x] Task 5: Fix agent tool registration
+  - `packages/rentl-agents/src/rentl_agents/factory.py:292` — `resolve_tools` returns `list[pydantic_ai.Tool]` with explicit names instead of raw callables
+  - `packages/rentl-agents/src/rentl_agents/harness.py:86` — Accept `list[pydantic_ai.Tool]` instead of `list[Callable[..., dict[str, JsonValue]]]`
+  - Unit tests verify Tool objects are produced with correct names
+  - Acceptance check: no raw callables in tool passing path
+
+- [x] Task 6: Add output_type/output_retries to BYOK runtime
+  - `packages/rentl-llm/src/rentl_llm/openai_runtime.py:74-87` — Always pass `output_type` when `result_schema` provided
+  - Add `output_retries` parameter to Agent construction
+  - Evaluate manual retry loop in harness (`harness.py:193-208`) — either remove if output_retries handles it, or document why both are needed
+  - Unit tests for structured output path with output_retries
+  - [x] Fix: Document in code why harness-level retry loop (`packages/rentl-agents/src/rentl_agents/harness.py:197`) is retained alongside pydantic-ai `output_retries` (`packages/rentl-agents/src/rentl_agents/harness.py:250`) to satisfy Task 6's explicit "remove or document" requirement (audit round 1)
+  - [x] Fix: Remove dead fallback branch in `output_retries = self._config.output_retries if self._config else 3` because `_config` is already guarded above (`packages/rentl-agents/src/rentl_agents/harness.py:230`, `packages/rentl-agents/src/rentl_agents/harness.py:243`) (audit round 1)
+
+- [x] Task 7: Fix pretranslation alignment
+  - `packages/rentl-agents/src/rentl_agents/wiring.py:425-437` — Check both extra and missing IDs
+  - Structured feedback message for missing IDs: "Missing: [ids]. Return annotations for all provided line_id values."
+  - Unit tests for extra-only, missing-only, and both-direction scenarios
+  - Acceptance check: alignment failure on missing IDs triggers retry with feedback
+  - [x] Fix: Restructure `IdiomAnnotationList` to use per-line wrapper pattern matching QA/translation phases (PR #135 feedback from @chatgpt-codex-connector[bot], feedback round 1)
+    - Add `IdiomReviewLine(line_id, idioms: list[IdiomAnnotation] = [])` wrapper schema to `packages/rentl-schemas/src/rentl_schemas/phases.py` following `StyleGuideReviewLine` pattern
+    - Remove `line_id` from `IdiomAnnotation` (move to wrapper), keep `idiom_text` and `explanation`
+    - Update `IdiomAnnotationList` to use `reviews: list[IdiomReviewLine]` instead of flat `idioms: list[IdiomAnnotation]`
+    - Update `PretranslationIdiomLabelerAgent.run()` in `wiring.py` to extract `line_id` from per-line wrappers for alignment check
+    - Update `idiom_labeler.toml` prompt to instruct per-line responses (one object per input line, empty `idioms` list when none found)
+    - Update `merge_idiom_annotations` and all downstream consumers of `IdiomAnnotation.line_id`
+    - Update alignment retry tests in `tests/unit/rentl-agents/test_alignment_retries.py` for per-line wrapper structure
+    - Add test case for sparse output: chunk with some lines having no idioms passes alignment
+
+- [x] Task 8: Inject HTTP client dependency in downloader
+  - `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:57` — Accept optional `httpx.AsyncClient` as constructor parameter
+  - Default to creating client internally if none provided (backwards compatible)
+  - Use injected client when provided (enables testing without network)
+  - Update existing tests to use injected client where appropriate
+
+- [x] Task 9: Fix `_resolve_reasoning_effort` to handle plain string input (demo run 1)
+  - `_resolve_reasoning_effort` at `packages/rentl-llm/src/rentl_llm/provider_factory.py:480-488` calls `effort.value` assuming a `ReasoningEffort` enum, but `BaseSchema` uses `use_enum_values=True` which stores `StrEnum` members as plain strings
+  - Fix: accept `ReasoningEffort | str | None` and handle both cases — if `str`, cast directly; if `ReasoningEffort`, use `.value`
+  - Add unit test in `tests/unit/llm/test_provider_factory.py` passing plain string `"medium"` as `reasoning_effort` to `create_model` to cover the Pydantic `use_enum_values` code path
+  - Verify `rentl validate-connection` succeeds after fix (see signposts.md #1)
+  - [x] Fix: Remove unused `# type: ignore[arg-type]` suppressions flagged by `ty` (`warning[unused-type-ignore-comment]`) in `tests/unit/llm/test_provider_factory.py:93` and `tests/unit/llm/test_provider_factory.py:195`; rerun `ty check packages/rentl-llm/src/rentl_llm/provider_factory.py tests/unit/llm/test_provider_factory.py` to confirm clean diagnostics (audit round 1)
+
+- [x] Task 10: Add mock-server integration test for local model factory path (demo runs 2-27, signpost #2)
+  - Demo Step 5 requires running a BYOK prompt via the CLI with local model config (`localhost:5000`), but no local model server is available in the CI/demo environment
+  - Add an integration test in `tests/integration/byok/` that uses `respx` (already a project dependency) to mock the local OpenAI-compatible endpoint at `http://localhost:5000/v1/chat/completions`
+  - The test must exercise the full path: `create_model(base_url='http://localhost:5000/v1', ...)` → `OpenAIChatModel` → `Agent.run()` → mocked HTTP response → successful result
+  - This proves the factory correctly routes local URLs to the generic OpenAI provider and produces a working agent, without requiring a live server
+  - Verify that demo Step 5 can be satisfied by running this integration test (the mock response proves the factory-to-agent pipeline works end-to-end for local endpoints)
+  - `make all` must continue to pass after adding the test
+  - [x] Fix: Replace `object` in helper type annotations with explicit JSON/value types to satisfy `strict-typing-enforcement` (`tests/integration/byok/test_local_model_factory.py:44`, `tests/integration/byok/test_local_model_factory.py:76`, `tests/integration/byok/test_local_model_factory.py:78`) (audit round 1)

@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import Field, ValidationError
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
-from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai import Agent, Tool
 
 from rentl_agents.prompts import PromptRenderer
 from rentl_core.ports.orchestrator import PhaseAgentProtocol
+from rentl_llm.provider_factory import create_model
 from rentl_schemas.base import BaseSchema
-from rentl_schemas.primitives import JsonValue
 
 InputT = TypeVar("InputT", bound=BaseSchema)
 OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
@@ -58,6 +55,13 @@ class AgentHarnessConfig(BaseSchema):
         30.0, description="Request timeout in seconds per API call"
     )
     max_output_tokens: int = Field(4096, description="Maximum tokens in model output")
+    output_retries: int = Field(
+        3,
+        ge=0,
+        description=(
+            "Retries for output validation failures (pydantic-ai feedback loop)"
+        ),
+    )
 
 
 class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
@@ -73,7 +77,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
         system_prompt: System prompt for the agent.
         user_prompt_template: User prompt template with variable substitution.
         output_type: Type hint for output schema.
-        tools: Optional list of tool callables to register.
+        tools: Optional list of pydantic_ai.Tool objects to register.
         max_retries: Maximum retry attempts for transient failures.
         retry_base_delay: Base delay for exponential backoff in seconds.
     """
@@ -83,7 +87,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
         system_prompt: str,
         user_prompt_template: str,
         output_type: type[OutputT_co],
-        tools: list[Callable[..., dict[str, JsonValue]]] | None = None,
+        tools: list[Tool] | None = None,
         max_retries: int = 3,
         retry_base_delay: float = 1.0,
     ) -> None:
@@ -93,7 +97,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
             system_prompt: System prompt for the agent.
             user_prompt_template: User prompt template with variable substitution.
             output_type: Type hint for output schema.
-            tools: Optional list of tool callables to register.
+            tools: Optional list of pydantic_ai.Tool objects to register.
             max_retries: Maximum retry attempts for transient failures.
             retry_base_delay: Base delay for exponential backoff in seconds.
 
@@ -190,6 +194,11 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
 
         last_error: Exception | None = None
 
+        # This retry loop handles transient failures (network errors, API
+        # timeouts, rate limits) with exponential backoff.  It is intentionally
+        # separate from pydantic-ai's `output_retries`, which re-prompts the
+        # LLM when its output fails schema validation.  The two mechanisms
+        # cover different failure modes and are both needed.
         for attempt in range(self._max_retries + 1):
             try:
                 result = await self._execute_agent(user_prompt)
@@ -226,24 +235,24 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
         if self._config is None:
             raise RuntimeError("Agent not initialized")
 
-        provider = OpenAIProvider(
+        model, model_settings = create_model(
             base_url=self._config.base_url,
             api_key=self._config.api_key,
+            model_id=self._config.model_id,
+            temperature=self._config.temperature,
+            top_p=self._config.top_p,
+            timeout_s=self._config.timeout_s,
+            max_output_tokens=self._config.max_output_tokens,
         )
-        model = OpenAIChatModel(self._config.model_id, provider=provider)
 
-        model_settings: OpenAIChatModelSettings = {
-            "temperature": self._config.temperature,
-            "top_p": self._config.top_p,
-            "timeout": self._config.timeout_s,
-            "max_tokens": self._config.max_output_tokens,
-        }
+        output_retries = self._config.output_retries
 
         agent: Agent[None, OutputT_co] = Agent[None, OutputT_co](
             model=model,
             instructions=self._system_prompt,
             output_type=self._output_type,
             tools=self._tools,
+            output_retries=output_retries,
         )
 
         result = await agent.run(user_prompt, model_settings=model_settings)

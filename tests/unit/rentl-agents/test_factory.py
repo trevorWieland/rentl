@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai import Tool
 
 from rentl_agents.factory import AgentConfig, AgentFactory
 from rentl_agents.harness import AgentHarness
@@ -339,7 +340,7 @@ class TestAgentFactory:
         assert key1 != key2
 
     def test_build_tool_list(self) -> None:
-        """Test building tool list from tool names."""
+        """Test building tool list produces Tool objects with explicit names."""
         factory = AgentFactory()
 
         factory.register_tool("mock_tool", lambda: MockTool())
@@ -347,8 +348,32 @@ class TestAgentFactory:
         tool_list = factory._build_tool_list(["mock_tool"])
 
         assert len(tool_list) == 1
-        # The tool list contains the execute method callable
-        assert callable(tool_list[0])
+        assert isinstance(tool_list[0], Tool)
+        assert tool_list[0].name == "mock_tool"
+
+    def test_build_tool_list_preserves_description(self) -> None:
+        """Test Tool objects carry the original tool description."""
+        factory = AgentFactory()
+
+        factory.register_tool("mock_tool", lambda: MockTool())
+
+        tool_list = factory._build_tool_list(["mock_tool"])
+
+        assert tool_list[0].description == "Mock tool for testing"
+
+    def test_build_tool_list_multiple_tools(self) -> None:
+        """Test building tool list with multiple tools produces named Tool objects."""
+        factory = AgentFactory()
+
+        factory.register_tool("mock_tool", lambda: MockTool())
+        factory.register_tool("context_lookup", lambda: ContextLookupTool())
+
+        tool_list = factory._build_tool_list(["mock_tool", "context_lookup"])
+
+        assert len(tool_list) == 2
+        assert all(isinstance(t, Tool) for t in tool_list)
+        names = [t.name for t in tool_list]
+        assert names == ["mock_tool", "context_lookup"]
 
     def test_build_tool_list_with_unregistered_tool(self) -> None:
         """Test building tool list raises error for unregistered tool."""

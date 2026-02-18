@@ -7,13 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.providers.openrouter import OpenRouterProvider
+from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
 from rentl_agents.providers import detect_provider
 from rentl_agents.runtime import ProfileAgentConfig
+from rentl_llm.provider_factory import create_model
 
 
 @dataclass
@@ -78,37 +77,28 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         temperature=0.2,
         timeout_s=15.0,  # Cap per-request to stay within 30s test budget
         max_retries=0,  # No retries — single attempt to avoid timeout amplification
+        max_output_retries=1,  # Cap alignment/output retries to stay within 30s budget
         retry_base_delay=1.0,
         end_strategy="exhaustive",
         required_tool_calls=["get_game_info"],
     )
 
 
-def build_judge_model(config: QualityModelConfig) -> OpenAIChatModel:
-    """Build a judge model instance for LLM-as-judge evaluators.
+def build_judge_model_and_settings(
+    config: QualityModelConfig,
+) -> tuple[Model, ModelSettings]:
+    """Build a judge model and settings via the centralized factory.
 
     Returns:
-        Judge model instance.
+        Tuple of (Model, ModelSettings) for LLM-as-judge evaluators.
     """
-    capabilities = detect_provider(config.judge_base_url)
-
-    if capabilities.name == "OpenRouter":
-        provider = OpenRouterProvider(api_key=config.api_key)
-    else:
-        provider = OpenAIProvider(
-            base_url=config.judge_base_url,
-            api_key=config.api_key,
-        )
-    return OpenAIChatModel(config.judge_model_id, provider=provider)
-
-
-def build_judge_settings() -> ModelSettings:
-    """Build model settings for LLM-as-judge evaluators.
-
-    Returns:
-        Judge model settings.
-    """
-    return ModelSettings(temperature=0.0, max_tokens=200)
+    return create_model(
+        base_url=config.judge_base_url,
+        api_key=config.api_key,
+        model_id=config.judge_model_id,
+        temperature=0.0,
+        max_output_tokens=200,
+    )
 
 
 def verify_openrouter_tool_calling(config: QualityModelConfig) -> tuple[bool, str]:
