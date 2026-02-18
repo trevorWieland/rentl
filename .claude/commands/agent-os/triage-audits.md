@@ -139,13 +139,23 @@ Use AskUserQuestion to let the user:
 
 ### Step 6: Create GitHub Issues
 
-For each approved group, create an issue:
+For each approved group:
+
+1. Determine the next available `spec_id` (see `agent-os/product/github-conventions.md` → Resolving spec_id).
+2. Create an issue with YAML frontmatter body (Format A):
 
 ```
 gh issue create \
-  --title "{title}" \
-  --label "type:spec" --label "status:planned" --label "{version}" \
+  --title "{spec_id} {title}" \
+  --label "type:spec" --label "status:planned" --label "version:{version}" \
   --body "$(cat <<'EOF'
+---
+spec_id: sX.Y.ZZ
+version: vX.Y
+status: planned
+depends_on: []
+---
+
 ## Standards Compliance: {title}
 
 **Source:** Standards audit ({date})
@@ -170,7 +180,8 @@ EOF
 )"
 ```
 
-Record each created issue number.
+3. If the issue has dependencies on other specs, add `blockedBy` relationships via GraphQL (see `agent-os/product/github-conventions.md` → Dependency Relationships).
+4. Record each created issue number.
 
 ### Step 7: Write Triage Summary
 

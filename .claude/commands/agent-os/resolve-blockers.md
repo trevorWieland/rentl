@@ -121,13 +121,35 @@ Based on the user's decisions, update the spec artifacts:
 
 #### For deferred blockers:
 
-1. Create a GitHub issue with `gh issue create`:
-   - Title: `{next_spec_id} {short description of deferred work}`
-   - Labels: `type:spec`, `status:planned`
-   - Body: context, link to current spec issue, the architectural constraint
-2. Update signpost `Status` to `deferred`
-3. Remove any fix items in plan.md that depend on the deferred work
-4. Record the issue URL in the signpost
+1. Determine the next available `spec_id` (see `agent-os/product/github-conventions.md` → Resolving spec_id).
+2. Create a GitHub issue with YAML frontmatter body (Format A):
+   ```bash
+   gh issue create \
+     --title "{spec_id} {short description of deferred work}" \
+     --label "type:spec" --label "status:planned" --label "version:{version}" \
+     --body-file /tmp/issue_body.md
+   ```
+   Where `/tmp/issue_body.md` contains:
+   ```markdown
+   ---
+   spec_id: sX.Y.ZZ
+   version: vX.Y
+   status: planned
+   depends_on: [{current_spec_id}]
+   ---
+
+   Deferred from {current_spec_id} during blocker resolution.
+
+   {context and architectural constraint}
+
+   ## References
+
+   - Source spec: {current_issue_url}
+   ```
+3. Add `blockedBy` relationship linking the new issue to the current spec issue via GraphQL (see `agent-os/product/github-conventions.md` → Dependency Relationships).
+4. Update signpost `Status` to `deferred`
+5. Remove any fix items in plan.md that depend on the deferred work
+6. Record the issue URL in the signpost
 
 ### Step 5: Verify Consistency
 

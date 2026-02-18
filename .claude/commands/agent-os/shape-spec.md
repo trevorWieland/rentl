@@ -49,12 +49,37 @@ python3 agent-os/scripts/list-candidates.py
 If using an existing issue:
 
 1. Ask for the issue number or URL.
+2. Fetch the issue body and parse YAML frontmatter (between `---` delimiters) to extract `spec_id`, `version`, `status`, and `depends_on`. If no frontmatter exists, extract `spec_id` from the title and note that the body will need frontmatter added in Step 12.
+3. Query existing `blockedBy` relationships via GraphQL (see `agent-os/product/github-conventions.md` → Querying blockedBy) to confirm dependency data.
 
 If creating a new issue:
 
-1. Determine the next available `spec_id` by scanning GitHub issues for the target version.
-2. Create the issue with labels `type:spec`, `status:planned`, `version:vX.Y` and set the milestone.
-3. Use the new issue as the shaping context.
+1. Determine the next available `spec_id` by scanning GitHub issues for the target version (see `agent-os/product/github-conventions.md` → Resolving spec_id).
+2. Create the issue with YAML frontmatter body (Format A):
+   ```bash
+   gh issue create \
+     --title "{spec_id} {title}" \
+     --label "type:spec" --label "status:planned" --label "version:vX.Y" \
+     --milestone "{version}" \
+     --body-file /tmp/issue_body.md
+   ```
+   Where `/tmp/issue_body.md` contains:
+   ```markdown
+   ---
+   spec_id: sX.Y.ZZ
+   version: vX.Y
+   status: planned
+   depends_on: []
+   ---
+
+   {brief description from user}
+
+   ## Acceptance Criteria
+
+   - [ ] TBD — flesh out during shaping
+   ```
+3. If the spec has dependencies, add `blockedBy` relationships via GraphQL (see `agent-os/product/github-conventions.md` → Dependency Relationships).
+4. Use the new issue as the shaping context.
 
 ### Step 2: Clarify Scope
 
@@ -252,11 +277,13 @@ YYYY-MM-DD-HHMM-{spec_id}-{feature-slug}/
    - Any visuals in `visuals/`
 3. Check off Task 1 in plan.md: `[ ]` → `[x]` for "Save Spec Documentation" — this task is now complete.
 4. Commit **only** the spec docs on the issue branch.
-5. Update the **issue body** (do not post a new comment) with a "Spec Summary" section that includes:
+5. Update the **issue body** (do not post a new comment). Preserve the existing YAML frontmatter — update `status` to `in-progress` in the frontmatter, then append a "Spec Summary" section below the frontmatter that includes:
    - Spec folder path
    - Plan summary (tasks and acceptance checks)
    - Non-negotiables
    - References and standards applied
+
+   If the issue body has no YAML frontmatter yet, prepend one (see `agent-os/product/github-conventions.md` → Issue Body Format). Use the spec's metadata for `spec_id`, `version`, `depends_on`, and set `status: in-progress`.
 6. Push the branch with `-u` to publish it.
 
 ### Step 13: Stop and Handoff

@@ -200,11 +200,33 @@ After user approval, execute each action:
 
 #### For out-of-scope items:
 
-1. Create a GitHub issue with `gh issue create`:
-   - Title: `{next_spec_id} {short description}`
-   - Labels: `type:spec`, `status:planned`
-   - Body: context from the review comment, link to PR
-2. Post a reply comment referencing the new issue:
+1. Determine the next available `spec_id` (see `agent-os/product/github-conventions.md` → Resolving spec_id).
+2. Create a GitHub issue with YAML frontmatter body (Format A):
+   ```bash
+   gh issue create \
+     --title "{spec_id} {short description}" \
+     --label "type:spec" --label "status:planned" --label "version:{version}" \
+     --body-file /tmp/issue_body.md
+   ```
+   Where `/tmp/issue_body.md` contains:
+   ```markdown
+   ---
+   spec_id: sX.Y.ZZ
+   version: vX.Y
+   status: planned
+   depends_on: []
+   ---
+
+   Identified during PR #{pr_number} review (feedback from @{author}).
+
+   {context from the review comment}
+
+   ## References
+
+   - Source PR: #{pr_number}
+   ```
+3. If the new issue depends on the current spec, add a `blockedBy` relationship via GraphQL (see `agent-os/product/github-conventions.md` → Dependency Relationships).
+4. Post a reply comment referencing the new issue:
    ```
    Thanks for flagging this! It's outside the scope of this PR but I've tracked it
    as #{issue_number} for a future spec.

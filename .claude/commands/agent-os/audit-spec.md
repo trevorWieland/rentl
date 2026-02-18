@@ -150,13 +150,34 @@ file — they become orphaned and the task loop cannot track them.
    ```
 
 **Deferred items:**
-1. Determine the next available `spec_id` from GitHub issues for the target version.
-2. Create a GitHub issue with:
-   - Title: `{spec_id} {short title}`
-   - Labels: `type:spec`, `status:planned`, `version:vX.Y`
-   - Milestone: target version
-   - Body: context and link to the current spec issue
-3. Record the new issue URL in audit.md.
+1. Determine the next available `spec_id` (see `agent-os/product/github-conventions.md` → Resolving spec_id).
+2. Create a GitHub issue with YAML frontmatter body (Format A):
+   ```bash
+   gh issue create \
+     --title "{spec_id} {short title}" \
+     --label "type:spec" --label "status:planned" --label "version:vX.Y" \
+     --milestone "{version}" \
+     --body-file /tmp/issue_body.md
+   ```
+   Where `/tmp/issue_body.md` contains:
+   ```markdown
+   ---
+   spec_id: sX.Y.ZZ
+   version: vX.Y
+   status: planned
+   depends_on: [{current_spec_id}]
+   ---
+
+   Deferred from {current_spec_id} audit (round N).
+
+   {context and description of deferred work}
+
+   ## References
+
+   - Source spec: {current_issue_url}
+   ```
+3. Add `blockedBy` relationship linking the new issue to the current spec issue via GraphQL (see `agent-os/product/github-conventions.md` → Dependency Relationships).
+4. Record the new issue URL in audit.md.
 
 Do **not** edit roadmap.md during audit.
 
