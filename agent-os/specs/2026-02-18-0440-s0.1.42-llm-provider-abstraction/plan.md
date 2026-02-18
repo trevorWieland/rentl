@@ -14,7 +14,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch
 
-- [ ] Task 2: Create LLM provider factory with validation
+- [x] Task 2: Create LLM provider factory with validation
   - New module `packages/rentl-llm/src/rentl_llm/provider_factory.py`
   - `create_model()` function: takes endpoint config + model config, returns `(Model, ModelSettings)` tuple
   - Routes OpenRouter vs generic OpenAI based on `detect_provider()`
