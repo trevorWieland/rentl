@@ -262,3 +262,13 @@ This spec centralizes scattered LLM provider construction behind a single factor
 - Step 6 [RUN]: PASS — 66 tool-related unit tests pass (6 factory + 3 harness + 19 tool registry + 20 tools + 18 other); `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
 - Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 91 integration, 9 quality)
 - **Overall: FAIL**
+
+### Run 25 — Post-audit-round-3-continued (2026-02-18 22:15)
+- Step 1 [RUN]: PASS — All 33 factory unit tests pass (OpenRouter routing, OpenAI routing, model ID validation, allowlist enforcement, preflight checks, plain string reasoning_effort)
+- Step 2 [RUN]: PASS — `validate_openrouter_model_id('invalid-no-slash')` raises `ProviderFactoryError` with clear `provider/model-name` format message
+- Step 3 [RUN]: PASS — `enforce_provider_allowlist('google/gemma', OpenRouterProviderRoutingConfig(only=['qwen']))` raises `ProviderFactoryError` listing allowed providers
+- Step 4 [RUN]: PASS — Factory created `OpenRouterModel` with correct settings; pydantic-ai Agent call to OpenRouter succeeded with `require_parameters=False` (Agent returned `"Hello"` response). Factory code is correct and end-to-end prompt works.
+- Step 5 [RUN]: FAIL — Local model server at `localhost:5000` not running (curl connection refused, exit code 7). Factory routing confirmed correct: `detect_provider('http://localhost:5000/v1')` returns `is_openrouter=False` (`Local/OpenResponses`). Same as runs 2-24 (signpost #2). Environment prerequisite not met, not a code defect.
+- Step 6 [RUN]: PASS — 58 tool-related unit tests pass (4 build_tool_list + 14 preflight + 19 tool_registry + 21 tools); `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
+- Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 91 integration, 9 quality)
+- **Overall: FAIL**
