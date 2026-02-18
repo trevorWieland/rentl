@@ -5,7 +5,8 @@
 ## Signpost 1: PhaseOutput `phase` field documented as required but has default value
 
 - **Task:** Task 5 (Data Schema reference) / Demo Step 4
-- **Status:** unresolved
+- **Status:** resolved
+- **Resolution:** do-task Task 8, 2026-02-17
 - **Problem:** All 5 PhaseOutput models (`ContextPhaseOutput`, `PretranslationPhaseOutput`, `TranslatePhaseOutput`, `QaPhaseOutput`, `EditPhaseOutput`) document the `phase` field as `required: yes`, but in the actual Pydantic models the field has a constant default (e.g., `Field(PhaseName.CONTEXT, ...)`), making it optional in construction terms.
 - **Evidence:**
   - `docs/data-schemas.md:111` — `| phase | PhaseName | yes | Always "context" |`
@@ -26,7 +27,8 @@
 ## Signpost 2: `RequestId` primitive type not documented
 
 - **Task:** Task 5 (Data Schema reference) / Demo Step 4
-- **Status:** unresolved
+- **Status:** resolved
+- **Resolution:** do-task Task 8, 2026-02-17
 - **Problem:** The `RequestId` type alias (`Uuid7`) is exported from `rentl_schemas.__init__.py` and used in `MetaInfo.request_id` (responses.py), but it is not listed in the Primitive Types table in `docs/data-schemas.md`.
 - **Evidence:**
   - `packages/rentl-schemas/src/rentl_schemas/primitives.py:47` — `type RequestId = Uuid7`
