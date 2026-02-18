@@ -51,3 +51,21 @@
   - `rentl validate-connection` CLI command runs without crash (no code error), but reports endpoint `status: failed` due to 404
 - **Root cause:** External service degradation — OpenRouter changed their provider routing such that `require_parameters=true` (which instructs OpenRouter to only route to providers supporting all sent parameters) now fails because the structured output / tool_choice parameters pydantic-ai sends are not supported by available endpoints. The `qwen` first-party provider has been removed from the available backends. This is not a code defect.
 - **Files affected:** None — no code changes needed. OpenRouter API availability change.
+
+## Signpost 4: Factory sends extra parameters that trigger OpenRouter `require_parameters` filtering
+
+- **Task:** Post-completion gate fix — `make all` quality test failures
+- **Status:** `resolved`
+- **Problem:** Quality tests (`test_edit_agent`, `test_pretranslation_agent`, `test_qa_agent`) intermittently fail with `UsageLimitExceeded: The next request would exceed the request_limit of 30` or OpenRouter 400 errors (`tool_choice required not supported`)
+- **Evidence:**
+  - `make all` quality gate fails with rotating agent test failures (edit, pretranslation, or QA agent)
+  - Error: `RuntimeError: Agent basic_editor FAILED: Hit request limit (30). Model repeatedly failed to produce valid structured output.`
+  - Error: `openai.BadRequestError: Error code: 400 - Provider returned error ... "The required option for tool_choice is not yet supported." provider_name: SiliconFlow`
+  - Old code (before factory migration) only sent `temperature`, `top_p`, `timeout`, `openrouter_provider` in model settings
+  - New factory code also sent `presence_penalty: 0.0` and `frequency_penalty: 0.0` — unnecessary default values that expand the parameter surface area
+  - With `require_parameters=true`, OpenRouter filters providers by ALL sent parameters; extra parameters reduce the eligible provider pool, increasing the chance of routing to providers that don't support `tool_choice=required`
+- **Root cause:** `_create_openrouter_model` unconditionally included `presence_penalty` and `frequency_penalty` in model settings even at their default values (0.0). Combined with OpenRouter's `require_parameters=true` filtering, these extra parameters narrowed the eligible provider pool, causing intermittent routing to incompatible providers.
+- **Solution:** Only include `presence_penalty` and `frequency_penalty` in model settings when non-zero. This matches the old behavior where these parameters were never sent.
+- **Resolution:** do-task gate fix (2026-02-18)
+- **Files affected:**
+  - `packages/rentl-llm/src/rentl_llm/provider_factory.py` — `_create_openrouter_model` and `_create_openai_model`

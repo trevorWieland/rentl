@@ -422,11 +422,16 @@ def _create_openrouter_model(
     settings: OpenRouterModelSettings = {
         "temperature": temperature,
         "top_p": top_p,
-        "presence_penalty": presence_penalty,
-        "frequency_penalty": frequency_penalty,
         "timeout": timeout_s,
         "openrouter_provider": _build_openrouter_provider_settings(openrouter_provider),
     }
+
+    # Only include penalty parameters when non-default to avoid sending
+    # extra parameters that trigger require_parameters filtering on OpenRouter
+    if presence_penalty != 0.0:
+        settings["presence_penalty"] = presence_penalty
+    if frequency_penalty != 0.0:
+        settings["frequency_penalty"] = frequency_penalty
 
     effort_value = _resolve_reasoning_effort(reasoning_effort)
     if effort_value is not None:
@@ -462,10 +467,15 @@ def _create_openai_model(
     settings: OpenAIChatModelSettings = {
         "temperature": temperature,
         "top_p": top_p,
-        "presence_penalty": presence_penalty,
-        "frequency_penalty": frequency_penalty,
         "timeout": timeout_s,
     }
+
+    # Only include penalty parameters when non-default to avoid unnecessary
+    # parameters in API requests
+    if presence_penalty != 0.0:
+        settings["presence_penalty"] = presence_penalty
+    if frequency_penalty != 0.0:
+        settings["frequency_penalty"] = frequency_penalty
 
     effort_value = _resolve_reasoning_effort(reasoning_effort)
     if effort_value is not None:
