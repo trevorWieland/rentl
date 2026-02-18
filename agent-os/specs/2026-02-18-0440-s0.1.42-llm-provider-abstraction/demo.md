@@ -26,4 +26,9 @@ This spec centralizes scattered LLM provider construction behind a single factor
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Post-task-completion (2026-02-18 06:19)
+- Step 1 [RUN]: PASS — All 31 factory unit tests pass (OpenRouter routing, OpenAI routing, model ID validation, allowlist enforcement, preflight checks)
+- Step 2 [RUN]: PASS — Pydantic validation rejected `invalid-no-slash` at parse time with clear `provider/model-name` format error
+- Step 3 [RUN]: PASS — Factory rejected `google/gemma` when only `qwen` is allowed, with actionable error listing allowed providers
+- Step 4 [RUN]: FAIL — `rentl validate-connection` fails with `AttributeError: 'str' object has no attribute 'value'` in `_resolve_reasoning_effort` at `provider_factory.py:488`. Root cause: `BaseSchema` uses `use_enum_values=True` which stores `StrEnum` as plain strings, but `_resolve_reasoning_effort` assumes `ReasoningEffort` enum instances. Test gap: unit tests only pass enum instances, never plain strings.
+- **Overall: FAIL**

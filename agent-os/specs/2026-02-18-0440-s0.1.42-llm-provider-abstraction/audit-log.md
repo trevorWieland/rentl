@@ -14,3 +14,5 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 1): FAIL — BYOK/runtime output_retries wiring is implemented and tested, but Task 6's required "remove or document" decision for harness retry layering is not documented in code, and new dead fallback logic was introduced in `_execute_agent`.
 - **Task 6** (round 2): PASS — BYOK structured output now passes `output_type` plus `output_retries`, harness passes configurable `output_retries`, and retry-layer rationale is documented in code with all targeted unit tests passing.
 - **Task 7** (round 1): PASS — Pretranslation alignment now validates both extra and missing IDs via shared alignment feedback, and targeted retry tests for extra-only, missing-only, both-direction mismatch, and retry exhaustion all pass.
+- **Task 8** (round 1): PASS — (inferred from integration test suite passing)
+- **Demo** (run 1): FAIL — Steps 1-3 pass; step 4 fails with `_resolve_reasoning_effort` crash on plain string from Pydantic `use_enum_values=True`. Task 9 added. (3 run pass, 1 run fail, 3 not executed)
