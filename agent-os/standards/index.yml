@@ -41,6 +41,8 @@ python:
     description: Design all APIs around async/await for parallel agent execution and efficient LLM network IO
   cli-help-docstring-gating:
     description: Use form-feed to hide internal docstring sections from Typer help output
+  enum-field-runtime-types:
+    description: Never call .value on enum fields from Pydantic models; use_enum_values=True stores primitives not enum instances
   llm-output-tolerance:
     description: LLM-output schemas use extra=ignore to tolerate extra fields; config schemas may be strict
   modern-python-314:
