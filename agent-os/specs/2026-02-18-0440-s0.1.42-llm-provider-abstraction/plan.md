@@ -38,13 +38,14 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - [x] Fix: Replace static capability-only checks with an actual lightweight provider/model probe request before pipeline execution to satisfy `openrouter-provider-routing` rule 3 ("Validate before running") (`packages/rentl-llm/src/rentl_llm/provider_factory.py:196`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:197`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:223`) (audit round 1)
   - [x] Fix: Remove lossy deduping by `(base_url, model_id)` so endpoints sharing URL/model but using different endpoint refs or routing config are each validated (`services/rentl-cli/src/rentl/main.py:2375`, `services/rentl-cli/src/rentl/main.py:2398`) (audit round 1)
 
-- [x] Task 4: Migrate all call sites to use factory
+- [ ] Task 4: Migrate all call sites to use factory
   - `packages/rentl-agents/src/rentl_agents/runtime.py:436-464` — ProfileAgent runtime
   - `packages/rentl-llm/src/rentl_llm/openai_runtime.py:53-109` — BYOK runtime
   - `packages/rentl-core/src/rentl_core/benchmark/judge.py:83-104` — Rubric judge
   - `packages/rentl-agents/src/rentl_agents/harness.py:229-240` — AgentHarness
   - Each site replaced with single `create_model()` call
   - Existing tests must continue passing without modification
+  - [ ] Fix: Route quality harness judge construction through `create_model()`; remove direct `OpenRouterProvider`/`OpenAIProvider`/`OpenAIChatModel` instantiation outside the centralized factory (`tests/quality/agents/quality_harness.py:96`, `tests/quality/agents/quality_harness.py:98`, `tests/quality/agents/quality_harness.py:102`) (audit round 2)
 
 - [x] Task 5: Fix agent tool registration
   - `packages/rentl-agents/src/rentl_agents/factory.py:292` — `resolve_tools` returns `list[pydantic_ai.Tool]` with explicit names instead of raw callables
