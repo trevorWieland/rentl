@@ -67,6 +67,12 @@
 - ✅ (s0.1.39) Install Verification (uvx/uv tool) — Validate install + `rentl init` + full run on a clean environment. **Depends on:** s0.1.29, s0.1.24.
 - ✅ (s0.1.40) Model Default Updates — Replace outdated model presets with modern open-weight defaults; require explicit model_id in config. **Depends on:** s0.1.29, s0.1.13, s0.1.14.
 - ✅ (s0.1.41) Documentation Overhaul for v0.1 Release — CHANGELOG, Getting Started guide, architecture overview, data schema reference, and license/legal review. **Depends on:** s0.1.39, s0.1.30.
+- (s0.1.42) LLM Provider Abstraction & Agent Wiring — Centralize LLM provider construction, add OpenRouter validation/preflight, fix agent tool registration and structured output. **Depends on:** s0.1.12, s0.1.13, s0.1.14, s0.1.28.
+- (s0.1.43) Documentation Placeholders, CLI Surface & UX Polish — Replace doc placeholders, fix stale refs, extract CLI domain logic to core, improve init UX and progress reporting. **Depends on:** s0.1.29, s0.1.30, s0.1.31, s0.1.41.
+- (s0.1.44) Pipeline Validation, Async Correctness & Config Paths — Add edit pipeline quality gates, schema-based test assertions, async I/O correctness, and config path resolution fixes. **Depends on:** s0.1.07, s0.1.08, s0.1.12, s0.1.13.
+- (s0.1.45) Test Infrastructure Overhaul — Fix mock boundaries, extend coverage enforcement, fix timing limits, consolidate test tree, adopt BDD style. **Depends on:** s0.1.23, s0.1.24, s0.1.25.
+- (s0.1.46) Codebase Modernization & CI Enforcement — Migrate dataclasses to Pydantic, adopt match/case, enable strict typing, create CI gate, fix minor compliance gaps. **Depends on:** s0.1.01, s0.1.23.
+- (s0.1.47) Recalibrate Naming Conventions Standard — Update naming-conventions standard to allow SCREAMING_SNAKE_CASE for module-level constants per PEP 8. **Depends on:** None.
 
 **Success Criteria:**
 - A new user can run `rentl init` → full pipeline → export without manual edits
