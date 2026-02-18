@@ -147,6 +147,8 @@ async def test_run_prompt_openai(
     assert response.model_id == "gpt-4"
     assert response.output_text == "Test response"
     mock_create_model.assert_called_once()
+    # Plain text path should not set output_retries
+    assert "output_retries" not in mock_agent.call_args.kwargs
 
 
 @pytest.mark.asyncio
@@ -310,9 +312,11 @@ async def test_run_prompt_with_structured_output(
         assert response.structured_output.winner == "A"
         assert response.structured_output.score == 10
 
-        # Verify Agent was called with output_type parameter
+        # Verify Agent was called with output_type and output_retries
         mock_agent_cls.assert_called_once()
         call_kwargs = mock_agent_cls.call_args[1]
         assert "output_type" in call_kwargs
         assert call_kwargs["output_type"] == TestOutput
+        assert "output_retries" in call_kwargs
+        assert call_kwargs["output_retries"] == 3
         mock_create_model.assert_called_once()

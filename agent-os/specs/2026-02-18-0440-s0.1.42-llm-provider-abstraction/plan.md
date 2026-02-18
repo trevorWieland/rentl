@@ -52,7 +52,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Unit tests verify Tool objects are produced with correct names
   - Acceptance check: no raw callables in tool passing path
 
-- [ ] Task 6: Add output_type/output_retries to BYOK runtime
+- [x] Task 6: Add output_type/output_retries to BYOK runtime
   - `packages/rentl-llm/src/rentl_llm/openai_runtime.py:74-87` — Always pass `output_type` when `result_schema` provided
   - Add `output_retries` parameter to Agent construction
   - Evaluate manual retry loop in harness (`harness.py:193-208`) — either remove if output_retries handles it, or document why both are needed

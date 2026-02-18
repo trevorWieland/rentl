@@ -454,6 +454,7 @@ class TestAgentHarnessExecuteAgent:
                 instructions="You are a translation assistant.",
                 output_type=MockOutput,
                 tools=[],
+                output_retries=3,
             )
 
     @pytest.mark.asyncio
@@ -555,6 +556,82 @@ class TestAgentHarnessExecuteAgent:
         # Call _execute_agent directly without initializing
         with pytest.raises(RuntimeError, match="Agent not initialized"):
             await harness._execute_agent("test prompt")
+
+    @pytest.mark.asyncio
+    async def test_execute_agent_passes_output_retries_from_config(self) -> None:
+        """Verify output_retries from config is passed to Agent constructor."""
+        harness: AgentHarness[MockInput, MockOutput] = AgentHarness(
+            system_prompt="You are helpful.",
+            user_prompt_template="Translate: {{text}}",
+            output_type=MockOutput,
+        )
+
+        config = AgentHarnessConfig(
+            api_key="test-key",
+            model_id="gpt-5-nano",
+            output_retries=5,
+        )
+        await harness.initialize(config)
+
+        mock_result = MagicMock()
+        mock_result.output = MockOutput(result="translated", confidence=0.9)
+
+        mock_agent_instance = MagicMock()
+        mock_agent_instance.run = AsyncMock(return_value=mock_result)
+
+        mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+        mock_model = MagicMock()
+        mock_settings = {"temperature": 0.7}
+
+        with (
+            patch(
+                "rentl_agents.harness.create_model",
+                return_value=(mock_model, mock_settings),
+            ),
+            patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
+        ):
+            input_data = MockInput(text="Hello", target_lang="ja")
+            await harness.run(input_data)
+
+            mock_agent_cls.assert_called_once()
+            call_kwargs = mock_agent_cls.call_args.kwargs
+            assert call_kwargs["output_retries"] == 5
+
+    @pytest.mark.asyncio
+    async def test_execute_agent_default_output_retries(self) -> None:
+        """Verify default output_retries is 3 when not specified in config."""
+        harness: AgentHarness[MockInput, MockOutput] = AgentHarness(
+            system_prompt="You are helpful.",
+            user_prompt_template="Translate: {{text}}",
+            output_type=MockOutput,
+        )
+
+        config = AgentHarnessConfig(api_key="test-key", model_id="gpt-5-nano")
+        await harness.initialize(config)
+
+        mock_result = MagicMock()
+        mock_result.output = MockOutput(result="translated", confidence=0.9)
+
+        mock_agent_instance = MagicMock()
+        mock_agent_instance.run = AsyncMock(return_value=mock_result)
+
+        mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+        mock_model = MagicMock()
+        mock_settings = {"temperature": 0.7}
+
+        with (
+            patch(
+                "rentl_agents.harness.create_model",
+                return_value=(mock_model, mock_settings),
+            ),
+            patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
+        ):
+            input_data = MockInput(text="Hello", target_lang="ja")
+            await harness.run(input_data)
+
+            mock_agent_cls.assert_called_once()
+            call_kwargs = mock_agent_cls.call_args.kwargs
+            assert call_kwargs["output_retries"] == 3
 
 
 class TestAgentHarnessConfigValidation:

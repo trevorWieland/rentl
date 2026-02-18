@@ -9,6 +9,7 @@ from rentl_llm.provider_factory import create_model
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 
 DEFAULT_MAX_OUTPUT_TOKENS = 4096
+DEFAULT_OUTPUT_RETRIES = 3
 
 
 class OpenAICompatibleRuntime(LlmRuntimeProtocol):
@@ -44,7 +45,10 @@ class OpenAICompatibleRuntime(LlmRuntimeProtocol):
         # Use structured output if result_schema is provided
         if request.result_schema is not None:
             agent = Agent(
-                model, output_type=request.result_schema, instructions=instructions
+                model,
+                output_type=request.result_schema,
+                instructions=instructions,
+                output_retries=DEFAULT_OUTPUT_RETRIES,
             )
             result = await agent.run(
                 request.prompt,

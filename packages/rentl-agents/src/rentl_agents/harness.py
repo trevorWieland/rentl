@@ -55,6 +55,13 @@ class AgentHarnessConfig(BaseSchema):
         30.0, description="Request timeout in seconds per API call"
     )
     max_output_tokens: int = Field(4096, description="Maximum tokens in model output")
+    output_retries: int = Field(
+        3,
+        ge=0,
+        description=(
+            "Retries for output validation failures (pydantic-ai feedback loop)"
+        ),
+    )
 
 
 class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
@@ -233,11 +240,14 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
             max_output_tokens=self._config.max_output_tokens,
         )
 
+        output_retries = self._config.output_retries if self._config else 3
+
         agent: Agent[None, OutputT_co] = Agent[None, OutputT_co](
             model=model,
             instructions=self._system_prompt,
             output_type=self._output_type,
             tools=self._tools,
+            output_retries=output_retries,
         )
 
         result = await agent.run(user_prompt, model_settings=model_settings)
