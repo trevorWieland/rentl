@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic_ai.models.openai import OpenAIChatModelSettings
+from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
 from rentl_llm.provider_factory import (
     ProviderFactoryError,
@@ -44,8 +46,8 @@ class TestCreateModelOpenRouterRouting:
     @patch("rentl_llm.provider_factory.OpenRouterModel")
     def test_openrouter_includes_reasoning_effort(
         self,
-        mock_model_cls: object,
-        mock_provider_cls: object,
+        mock_model_cls: MagicMock,
+        mock_provider_cls: MagicMock,
     ) -> None:
         """OpenRouter path includes reasoning effort when set."""
         _, settings = create_model(
@@ -63,15 +65,17 @@ class TestCreateModelOpenRouterRouting:
             temperature=0.5,
             reasoning_effort=ReasoningEffort.HIGH,
         )
-        raw = cast("dict[str, Any]", settings)
-        assert raw["openrouter_reasoning"] == {"effort": "high"}
+        or_settings = cast(OpenRouterModelSettings, settings)
+        assert or_settings["openrouter_reasoning"] == {"effort": "high"}
+        mock_model_cls.assert_called()
+        mock_provider_cls.assert_called()
 
     @patch("rentl_llm.provider_factory.OpenRouterProvider")
     @patch("rentl_llm.provider_factory.OpenRouterModel")
     def test_openrouter_includes_max_tokens(
         self,
-        mock_model_cls: object,
-        mock_provider_cls: object,
+        mock_model_cls: MagicMock,
+        mock_provider_cls: MagicMock,
     ) -> None:
         """OpenRouter path includes max_tokens when set."""
         _, settings = create_model(
@@ -82,6 +86,8 @@ class TestCreateModelOpenRouterRouting:
             max_output_tokens=2048,
         )
         assert settings["max_tokens"] == 2048
+        mock_model_cls.assert_called_once()
+        mock_provider_cls.assert_called_once()
 
 
 class TestCreateModelOpenAIRouting:
@@ -130,8 +136,8 @@ class TestCreateModelOpenAIRouting:
     @patch("rentl_llm.provider_factory.OpenAIChatModel")
     def test_openai_includes_reasoning_effort(
         self,
-        mock_model_cls: object,
-        mock_provider_cls: object,
+        mock_model_cls: MagicMock,
+        mock_provider_cls: MagicMock,
     ) -> None:
         """OpenAI path includes reasoning effort when set."""
         _, settings = create_model(
@@ -141,8 +147,10 @@ class TestCreateModelOpenAIRouting:
             temperature=0.5,
             reasoning_effort=ReasoningEffort.MEDIUM,
         )
-        raw = cast("dict[str, Any]", settings)
-        assert raw["openai_reasoning_effort"] == "medium"
+        oai_settings = cast(OpenAIChatModelSettings, settings)
+        assert oai_settings["openai_reasoning_effort"] == "medium"
+        mock_model_cls.assert_called_once()
+        mock_provider_cls.assert_called_once()
 
 
 class TestModelIdValidation:
@@ -211,8 +219,8 @@ class TestProviderAllowlist:
     @patch("rentl_llm.provider_factory.OpenRouterModel")
     def test_create_model_enforces_allowlist(
         self,
-        mock_model_cls: object,
-        mock_provider_cls: object,
+        mock_model_cls: MagicMock,
+        mock_provider_cls: MagicMock,
     ) -> None:
         """create_model enforces the provider allowlist end-to-end."""
         config = OpenRouterProviderRoutingConfig(only=["openai"])
@@ -224,3 +232,5 @@ class TestProviderAllowlist:
                 temperature=0.5,
                 openrouter_provider=config,
             )
+        mock_model_cls.assert_not_called()
+        mock_provider_cls.assert_not_called()

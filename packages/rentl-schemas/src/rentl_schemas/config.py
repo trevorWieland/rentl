@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -20,6 +21,8 @@ from rentl_schemas.primitives import (
     ReasoningEffort,
 )
 from rentl_schemas.version import VersionInfo
+
+_OPENROUTER_MODEL_ID_RE = re.compile(r"^[^/]+/.+")
 
 
 class ProjectPaths(BaseSchema):
@@ -692,6 +695,85 @@ class RunConfig(BaseSchema):
                 continue
             DeterministicQaConfig.model_validate(deterministic, strict=True)
         return self
+
+    @model_validator(mode="after")
+    def validate_openrouter_model_ids(self) -> RunConfig:
+        """Validate OpenRouter model IDs at config parse time.
+
+        When an endpoint is detected as OpenRouter, all model IDs targeting
+        that endpoint must match the 'provider/model-name' format.
+
+        Returns:
+            RunConfig: Validated configuration.
+
+        Raises:
+            ValueError: If an OpenRouter model ID is invalid.
+        """
+        openrouter_refs = self._collect_openrouter_endpoint_refs()
+        models = self._collect_model_settings_with_endpoints()
+        for model_settings, resolved_ref in models:
+            if self._is_openrouter_target(
+                resolved_ref, openrouter_refs
+            ) and not _OPENROUTER_MODEL_ID_RE.match(model_settings.model_id):
+                raise ValueError(
+                    f"Invalid OpenRouter model ID '{model_settings.model_id}': "
+                    "must match format 'provider/model-name' "
+                    "(e.g. 'openai/gpt-4o')"
+                )
+        return self
+
+    def _collect_openrouter_endpoint_refs(self) -> set[str]:
+        """Collect provider_name values for OpenRouter endpoints.
+
+        Returns:
+            set[str]: Provider names of OpenRouter endpoints.
+        """
+        if self.endpoints is None:
+            return set()
+        return {
+            ep.provider_name
+            for ep in self.endpoints.endpoints
+            if "openrouter.ai" in ep.base_url.lower()
+        }
+
+    def _collect_model_settings_with_endpoints(
+        self,
+    ) -> list[tuple[ModelSettings, str | None]]:
+        """Collect all model settings paired with their resolved endpoint ref.
+
+        Returns:
+            list[tuple[ModelSettings, str | None]]: Model/endpoint-ref pairs.
+        """
+        results: list[tuple[ModelSettings, str | None]] = []
+        default_model = self.pipeline.default_model
+        if default_model is not None:
+            ref = default_model.endpoint_ref
+            if ref is None and self.endpoints is not None:
+                ref = self.endpoints.default
+            results.append((default_model, ref))
+        for phase in self.pipeline.phases:
+            if phase.model is not None:
+                ref = phase.model.endpoint_ref
+                if ref is None and self.endpoints is not None:
+                    ref = self.endpoints.default
+                results.append((phase.model, ref))
+        return results
+
+    def _is_openrouter_target(
+        self,
+        resolved_ref: str | None,
+        openrouter_refs: set[str],
+    ) -> bool:
+        """Check if a resolved endpoint ref targets an OpenRouter endpoint.
+
+        Returns:
+            bool: True if the target endpoint is OpenRouter.
+        """
+        if self.endpoint is not None:
+            return "openrouter.ai" in self.endpoint.base_url.lower()
+        if resolved_ref is not None:
+            return resolved_ref in openrouter_refs
+        return False
 
     def resolve_endpoint_ref(
         self,

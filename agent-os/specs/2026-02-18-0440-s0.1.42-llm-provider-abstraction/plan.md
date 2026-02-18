@@ -14,7 +14,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch
 
-- [ ] Task 2: Create LLM provider factory with validation
+- [x] Task 2: Create LLM provider factory with validation
   - New module `packages/rentl-llm/src/rentl_llm/provider_factory.py`
   - `create_model()` function: takes endpoint config + model config, returns `(Model, ModelSettings)` tuple
   - Routes OpenRouter vs generic OpenAI based on `detect_provider()`
@@ -25,9 +25,9 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
     - Test generic OpenAI routing path
     - Test model ID validation (valid, invalid formats)
     - Test allowlist enforcement (allowed, blocked, unconfigured)
-  - [ ] Fix: Move OpenRouter model ID validation to config parse/load boundary (Pydantic validator) instead of runtime-only factory checks to satisfy spec non-negotiable #2 (`packages/rentl-llm/src/rentl_llm/provider_factory.py:99`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:162`) (audit round 1)
-  - [ ] Fix: Remove `Any`/`object` typing in new factory and tests to comply with `strict-typing-enforcement` (`packages/rentl-llm/src/rentl_llm/provider_factory.py:11`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:218`, `tests/unit/llm/test_provider_factory.py:5`, `tests/unit/llm/test_provider_factory.py:47`) (audit round 1)
-  - [ ] Fix: In patched unit tests, assert patched execution-boundary mocks were invoked (or explicitly not invoked) per `mock-execution-boundary` verification rule (`tests/unit/llm/test_provider_factory.py:45`, `tests/unit/llm/test_provider_factory.py:71`, `tests/unit/llm/test_provider_factory.py:131`, `tests/unit/llm/test_provider_factory.py:212`) (audit round 1)
+  - [x] Fix: Move OpenRouter model ID validation to config parse/load boundary (Pydantic validator) instead of runtime-only factory checks to satisfy spec non-negotiable #2 (`packages/rentl-llm/src/rentl_llm/provider_factory.py:99`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:162`) (audit round 1)
+  - [x] Fix: Remove `Any`/`object` typing in new factory and tests to comply with `strict-typing-enforcement` (`packages/rentl-llm/src/rentl_llm/provider_factory.py:11`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:218`, `tests/unit/llm/test_provider_factory.py:5`, `tests/unit/llm/test_provider_factory.py:47`) (audit round 1)
+  - [x] Fix: In patched unit tests, assert patched execution-boundary mocks were invoked (or explicitly not invoked) per `mock-execution-boundary` verification rule (`tests/unit/llm/test_provider_factory.py:45`, `tests/unit/llm/test_provider_factory.py:71`, `tests/unit/llm/test_provider_factory.py:131`, `tests/unit/llm/test_provider_factory.py:212`) (audit round 1)
 
 - [ ] Task 3: Add preflight compatibility check
   - New function in `packages/rentl-llm/src/rentl_llm/provider_factory.py` or separate module

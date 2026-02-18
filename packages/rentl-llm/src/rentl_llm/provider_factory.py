@@ -8,7 +8,7 @@ OpenAIChatModel, or OpenRouterModel directly.
 from __future__ import annotations
 
 import re
-from typing import Any, cast
+from typing import Literal, cast
 
 from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
@@ -26,6 +26,7 @@ from rentl_schemas.config import OpenRouterProviderRoutingConfig
 from rentl_schemas.primitives import ReasoningEffort
 
 _OPENROUTER_MODEL_ID_RE = re.compile(r"^[^/]+/.+")
+_EffortLevel = Literal["low", "medium", "high"]
 
 
 class ProviderFactoryError(Exception):
@@ -215,7 +216,7 @@ def _create_openai_model(
 
     effort_value = _resolve_reasoning_effort(reasoning_effort)
     if effort_value is not None:
-        settings["openai_reasoning_effort"] = cast(Any, effort_value)
+        settings["openai_reasoning_effort"] = effort_value
 
     if max_output_tokens is not None:
         settings["max_tokens"] = max_output_tokens
@@ -223,17 +224,15 @@ def _create_openai_model(
     return model, cast(ModelSettings, settings)
 
 
-def _resolve_reasoning_effort(effort: ReasoningEffort | None) -> str | None:
-    """Resolve reasoning effort to a string value.
+def _resolve_reasoning_effort(effort: ReasoningEffort | None) -> _EffortLevel | None:
+    """Resolve reasoning effort to a typed literal value.
 
     Returns:
-        String value of the reasoning effort or None.
+        Effort level literal or None.
     """
     if effort is None:
         return None
-    if isinstance(effort, ReasoningEffort):
-        return effort.value
-    return str(effort)
+    return cast(_EffortLevel, effort.value)
 
 
 def _build_openrouter_provider_settings(
