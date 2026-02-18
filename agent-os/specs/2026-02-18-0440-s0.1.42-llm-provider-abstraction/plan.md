@@ -52,11 +52,13 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Unit tests verify Tool objects are produced with correct names
   - Acceptance check: no raw callables in tool passing path
 
-- [x] Task 6: Add output_type/output_retries to BYOK runtime
+- [ ] Task 6: Add output_type/output_retries to BYOK runtime
   - `packages/rentl-llm/src/rentl_llm/openai_runtime.py:74-87` — Always pass `output_type` when `result_schema` provided
   - Add `output_retries` parameter to Agent construction
   - Evaluate manual retry loop in harness (`harness.py:193-208`) — either remove if output_retries handles it, or document why both are needed
   - Unit tests for structured output path with output_retries
+  - [ ] Fix: Document in code why harness-level retry loop (`packages/rentl-agents/src/rentl_agents/harness.py:197`) is retained alongside pydantic-ai `output_retries` (`packages/rentl-agents/src/rentl_agents/harness.py:250`) to satisfy Task 6's explicit "remove or document" requirement (audit round 1)
+  - [ ] Fix: Remove dead fallback branch in `output_retries = self._config.output_retries if self._config else 3` because `_config` is already guarded above (`packages/rentl-agents/src/rentl_agents/harness.py:230`, `packages/rentl-agents/src/rentl_agents/harness.py:243`) (audit round 1)
 
 - [ ] Task 7: Fix pretranslation alignment
   - `packages/rentl-agents/src/rentl_agents/wiring.py:425-437` — Check both extra and missing IDs
