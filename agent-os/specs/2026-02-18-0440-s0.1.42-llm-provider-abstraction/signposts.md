@@ -32,3 +32,19 @@
   - demo.md environment section states "local model server running" but the server is not running in the current environment
 - **Root cause:** Environment prerequisite not met — the local model server (`openai/gpt-oss-20b` at `localhost:5000`) is not running. This is an infrastructure/environment issue, not a code defect. The factory code correctly routes non-OpenRouter URLs to `OpenAIChatModel`.
 - **Files affected:** None — no code changes needed. Environment setup required.
+
+## Signpost 3: OpenRouter `require_parameters=true` rejects all models
+
+- **Task:** Demo Step 4 — Run a single BYOK prompt via CLI with OpenRouter
+- **Status:** `deferred`
+- **Problem:** OpenRouter API returns 404 "No endpoints found that can handle the requested parameters" for all models when `require_parameters=true` is set. Additionally, the `qwen` provider is no longer listed as available for qwen models.
+- **Evidence:**
+  - Expected: successful BYOK response from OpenRouter with `require_parameters=true`
+  - Actual: 404 from OpenRouter for `openai/gpt-4.1-nano`, `qwen/qwen3-30b-a3b`, `qwen/qwen3-vl-30b-a3b-instruct` — all fail with `require_parameters=true`
+  - Same models succeed with `require_parameters=false`: factory created `OpenRouterModel`, pydantic-ai Agent returned `"Hello"` response
+  - `qwen` provider availability: `available_providers: ['alibaba', 'deepinfra', 'novita', 'phala', 'siliconflow']`, `requested_providers: ['qwen']` — `qwen` provider no longer available on OpenRouter
+  - Factory code confirmed correct: `create_model()` produces `OpenRouterModel` with correct settings dict including `openrouter_provider` config
+  - Run 2 (2026-02-18 06:34) step 4 PASSED with the same factory code — indicates this is a transient OpenRouter service change
+  - `rentl validate-connection` CLI command runs without crash (no code error), but reports endpoint `status: failed` due to 404
+- **Root cause:** External service degradation — OpenRouter changed their provider routing such that `require_parameters=true` (which instructs OpenRouter to only route to providers supporting all sent parameters) now fails because the structured output / tool_choice parameters pydantic-ai sends are not supported by available endpoints. The `qwen` first-party provider has been removed from the available backends. This is not a code defect.
+- **Files affected:** None — no code changes needed. OpenRouter API availability change.
