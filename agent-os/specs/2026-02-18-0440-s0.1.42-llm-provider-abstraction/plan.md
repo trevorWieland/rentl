@@ -66,7 +66,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Unit tests for extra-only, missing-only, and both-direction scenarios
   - Acceptance check: alignment failure on missing IDs triggers retry with feedback
 
-- [ ] Task 8: Inject HTTP client dependency in downloader
+- [x] Task 8: Inject HTTP client dependency in downloader
   - `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:57` — Accept optional `httpx.AsyncClient` as constructor parameter
   - Default to creating client internally if none provided (backwards compatible)
   - Use injected client when provided (enables testing without network)

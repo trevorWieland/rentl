@@ -4,7 +4,9 @@ import hashlib
 from collections.abc import Generator
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 
 from rentl_core.benchmark.eval_sets.downloader import KatawaShoujoDownloader
@@ -81,3 +83,62 @@ class TestKatawaShoujoDownloader:
         # Ensure it does NOT point to the English originals at /game/
         assert not downloader.KSRE_RAW_BASE.endswith("/game")
         assert downloader.KSRE_RAW_BASE.count("/game") == 1  # Only once (before /tl/jp)
+
+    def test_http_client_stored_when_provided(self, temp_cache: Path) -> None:
+        """Downloader stores injected HTTP client."""
+        client = httpx.AsyncClient()
+        downloader = KatawaShoujoDownloader(cache_dir=temp_cache, http_client=client)
+        assert downloader._http_client is client
+
+    def test_http_client_none_by_default(self, temp_cache: Path) -> None:
+        """Downloader has no HTTP client by default."""
+        downloader = KatawaShoujoDownloader(cache_dir=temp_cache)
+        assert downloader._http_client is None
+
+    @pytest.mark.asyncio
+    async def test_download_uses_injected_client(self, temp_cache: Path) -> None:
+        """Downloader uses injected HTTP client instead of creating its own."""
+        content = b"translate python\n"
+        mock_response = httpx.Response(
+            200,
+            content=content,
+            request=httpx.Request("GET", "https://example.com"),
+        )
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        downloader = KatawaShoujoDownloader(
+            cache_dir=temp_cache, http_client=mock_client
+        )
+        results = await downloader.download_scripts(["script-test.rpy"])
+
+        mock_client.get.assert_called_once()
+        assert "script-test.rpy" in results
+        assert results["script-test.rpy"].read_bytes() == content
+
+    @pytest.mark.asyncio
+    async def test_download_with_injected_client_and_hash_manifest(
+        self, temp_cache: Path
+    ) -> None:
+        """Injected client works with hash manifest validation."""
+        content = b"translate python\n"
+        expected_hash = hashlib.sha256(content).hexdigest()
+        mock_response = httpx.Response(
+            200,
+            content=content,
+            request=httpx.Request("GET", "https://example.com"),
+        )
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        downloader = KatawaShoujoDownloader(
+            cache_dir=temp_cache, http_client=mock_client
+        )
+        results = await downloader.download_scripts(
+            ["script-test.rpy"],
+            hash_manifest={"script-test.rpy": expected_hash},
+        )
+
+        mock_client.get.assert_called_once()
+        assert "script-test.rpy" in results
+        assert results["script-test.rpy"].read_bytes() == content
