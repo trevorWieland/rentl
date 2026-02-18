@@ -72,7 +72,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - Use injected client when provided (enables testing without network)
   - Update existing tests to use injected client where appropriate
 
-- [ ] Task 9: Fix `_resolve_reasoning_effort` to handle plain string input (demo run 1)
+- [x] Task 9: Fix `_resolve_reasoning_effort` to handle plain string input (demo run 1)
   - `_resolve_reasoning_effort` at `packages/rentl-llm/src/rentl_llm/provider_factory.py:480-488` calls `effort.value` assuming a `ReasoningEffort` enum, but `BaseSchema` uses `use_enum_values=True` which stores `StrEnum` members as plain strings
   - Fix: accept `ReasoningEffort | str | None` and handle both cases — if `str`, cast directly; if `ReasoningEffort`, use `.value`
   - Add unit test in `tests/unit/llm/test_provider_factory.py` passing plain string `"medium"` as `reasoning_effort` to `create_model` to cover the Pydantic `use_enum_values` code path

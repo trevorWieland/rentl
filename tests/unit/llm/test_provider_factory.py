@@ -79,6 +79,26 @@ class TestCreateModelOpenRouterRouting:
 
     @patch("rentl_llm.provider_factory.OpenRouterProvider")
     @patch("rentl_llm.provider_factory.OpenRouterModel")
+    def test_openrouter_reasoning_effort_plain_string(
+        self,
+        mock_model_cls: MagicMock,
+        mock_provider_cls: MagicMock,
+    ) -> None:
+        """OpenRouter path handles plain string reasoning_effort (use_enum_values)."""
+        _, settings = create_model(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="test-key",
+            model_id="openai/gpt-4o",
+            temperature=0.5,
+            reasoning_effort="medium",  # type: ignore[arg-type]
+        )
+        or_settings = cast(OpenRouterModelSettings, settings)
+        assert or_settings["openrouter_reasoning"] == {"effort": "medium"}
+        mock_model_cls.assert_called_once()
+        mock_provider_cls.assert_called_once()
+
+    @patch("rentl_llm.provider_factory.OpenRouterProvider")
+    @patch("rentl_llm.provider_factory.OpenRouterModel")
     def test_openrouter_includes_max_tokens(
         self,
         mock_model_cls: MagicMock,
@@ -156,6 +176,26 @@ class TestCreateModelOpenAIRouting:
         )
         oai_settings = cast(OpenAIChatModelSettings, settings)
         assert oai_settings["openai_reasoning_effort"] == "medium"
+        mock_model_cls.assert_called_once()
+        mock_provider_cls.assert_called_once()
+
+    @patch("rentl_llm.provider_factory.OpenAIProvider")
+    @patch("rentl_llm.provider_factory.OpenAIChatModel")
+    def test_openai_reasoning_effort_plain_string(
+        self,
+        mock_model_cls: MagicMock,
+        mock_provider_cls: MagicMock,
+    ) -> None:
+        """OpenAI path handles plain string reasoning_effort (use_enum_values)."""
+        _, settings = create_model(
+            base_url="https://api.openai.com/v1",
+            api_key="test-key",
+            model_id="gpt-4o",
+            temperature=0.5,
+            reasoning_effort="high",  # type: ignore[arg-type]
+        )
+        oai_settings = cast(OpenAIChatModelSettings, settings)
+        assert oai_settings["openai_reasoning_effort"] == "high"
         mock_model_cls.assert_called_once()
         mock_provider_cls.assert_called_once()
 

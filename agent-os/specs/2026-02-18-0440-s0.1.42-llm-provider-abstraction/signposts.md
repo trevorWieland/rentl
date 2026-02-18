@@ -2,8 +2,8 @@
 
 ## Signpost 1: `_resolve_reasoning_effort` crashes on plain string input
 
-- **Task:** Demo Step 4 — Run a single BYOK prompt via the CLI with OpenRouter
-- **Status:** `unresolved`
+- **Task:** Demo Step 4 — Run a single BYOK prompt via the CLI with OpenRouter (Task 9)
+- **Status:** `resolved`
 - **Problem:** `AttributeError: 'str' object has no attribute 'value'` in `_resolve_reasoning_effort` at `packages/rentl-llm/src/rentl_llm/provider_factory.py:488`
 - **Evidence:**
   - Expected: successful BYOK prompt response from OpenRouter
@@ -13,6 +13,8 @@
   - `_resolve_reasoning_effort` at line 488 calls `effort.value`, assuming `effort` is a `ReasoningEffort` enum instance
   - Unit tests only pass `ReasoningEffort` enum instances, never plain strings — test gap
 - **Root cause:** `_resolve_reasoning_effort` does not handle the case where `reasoning_effort` arrives as a plain string due to Pydantic's `use_enum_values=True` setting. The function signature says `ReasoningEffort | None` but the actual runtime type from Pydantic models is `str | None`.
+- **Solution:** Updated `_resolve_reasoning_effort` to accept `ReasoningEffort | str | None`, using `isinstance` check to handle both enum and plain string inputs. Updated type annotations on `create_model`, `_create_openrouter_model`, and `_create_openai_model` accordingly. Added two unit tests covering plain string input for both OpenRouter and OpenAI paths.
+- **Resolution:** do-task Task 9 (2026-02-18)
 - **Files affected:**
-  - `packages/rentl-llm/src/rentl_llm/provider_factory.py:480-488` — `_resolve_reasoning_effort` function
-  - `tests/unit/llm/test_provider_factory.py` — missing test for plain string `reasoning_effort`
+  - `packages/rentl-llm/src/rentl_llm/provider_factory.py:480-494` — `_resolve_reasoning_effort` function
+  - `tests/unit/llm/test_provider_factory.py` — added plain string `reasoning_effort` tests

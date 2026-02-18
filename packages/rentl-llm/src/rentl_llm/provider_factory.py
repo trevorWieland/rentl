@@ -50,7 +50,7 @@ def create_model(
     max_output_tokens: int | None = None,
     presence_penalty: float = 0.0,
     frequency_penalty: float = 0.0,
-    reasoning_effort: ReasoningEffort | None = None,
+    reasoning_effort: ReasoningEffort | str | None = None,
     openrouter_provider: OpenRouterProviderRoutingConfig | None = None,
 ) -> tuple[Model, ModelSettings]:
     """Create the correct provider/model pair from configuration.
@@ -405,7 +405,7 @@ def _create_openrouter_model(
     max_output_tokens: int | None,
     presence_penalty: float,
     frequency_penalty: float,
-    reasoning_effort: ReasoningEffort | None,
+    reasoning_effort: ReasoningEffort | str | None,
     openrouter_provider: OpenRouterProviderRoutingConfig | None,
 ) -> tuple[Model, ModelSettings]:
     """Create an OpenRouter model and settings.
@@ -449,7 +449,7 @@ def _create_openai_model(
     max_output_tokens: int | None,
     presence_penalty: float,
     frequency_penalty: float,
-    reasoning_effort: ReasoningEffort | None,
+    reasoning_effort: ReasoningEffort | str | None,
 ) -> tuple[Model, ModelSettings]:
     """Create a generic OpenAI-compatible model and settings.
 
@@ -477,15 +477,21 @@ def _create_openai_model(
     return model, cast(ModelSettings, settings)
 
 
-def _resolve_reasoning_effort(effort: ReasoningEffort | None) -> _EffortLevel | None:
+def _resolve_reasoning_effort(
+    effort: ReasoningEffort | str | None,
+) -> _EffortLevel | None:
     """Resolve reasoning effort to a typed literal value.
+
+    Accepts both ``ReasoningEffort`` enum instances and plain strings
+    (Pydantic ``use_enum_values=True`` stores StrEnum members as ``str``).
 
     Returns:
         Effort level literal or None.
     """
     if effort is None:
         return None
-    return cast(_EffortLevel, effort.value)
+    raw = effort.value if isinstance(effort, ReasoningEffort) else effort
+    return cast(_EffortLevel, raw)
 
 
 def _build_openrouter_provider_settings(
