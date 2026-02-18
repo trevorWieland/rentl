@@ -72,3 +72,13 @@ This spec centralizes scattered LLM provider construction behind a single factor
 - Step 6 [RUN]: PASS — 12 tool-related unit tests pass; `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
 - Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 91 integration, 9 quality)
 - **Overall: FAIL**
+
+### Run 6 — Post-audit-round-3 (2026-02-18 08:28)
+- Step 1 [RUN]: PASS — All 33 factory unit tests pass (OpenRouter routing, OpenAI routing, model ID validation, allowlist enforcement, preflight checks, plain string reasoning_effort)
+- Step 2 [RUN]: PASS — `validate_openrouter_model_id('invalid-no-slash')` raises `ProviderFactoryError` with clear `provider/model-name` format message
+- Step 3 [RUN]: PASS — `enforce_provider_allowlist('google/gemma', only=['qwen'])` raises `ProviderFactoryError` listing allowed providers
+- Step 4 [RUN]: FAIL — Factory correctly creates `OpenRouterModel`; direct factory call with `require_parameters=False` succeeds (Agent returned `"Hello"` via OpenRouter), but `require_parameters=True` still returns 404 from OpenRouter. `rentl validate-connection` runs without code errors but reports endpoint `status: failed`. Same external service issue as runs 3-5 (signpost #3). Not a code defect.
+- Step 5 [RUN]: FAIL — Factory correctly routes to `OpenAIChatModel` for non-OpenRouter URL (confirmed). Local model server at `localhost:5000` still not running. Same as runs 2-5 (signpost #2). Environment prerequisite not met, not a code defect.
+- Step 6 [RUN]: PASS — 15 tool-related unit tests pass; `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
+- Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 91 integration, 9 quality)
+- **Overall: FAIL**
