@@ -302,3 +302,13 @@ This spec centralizes scattered LLM provider construction behind a single factor
 - Step 6 [RUN]: PASS — 54 tool-related unit tests pass (12 factory + 3 harness + 19 tool registry + 20 tools); `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
 - Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 95 integration, 9 quality)
 - **Overall: PASS**
+
+### Run 29 — Post-spec-audit-pass (2026-02-18 18:54)
+- Step 1 [RUN]: PASS — All 33 factory unit tests pass (OpenRouter routing, OpenAI routing, model ID validation, allowlist enforcement, preflight checks, plain string reasoning_effort)
+- Step 2 [RUN]: PASS — `validate_openrouter_model_id('invalid-no-slash')` raises `ProviderFactoryError` with clear `provider/model-name` format message
+- Step 3 [RUN]: PASS — `enforce_provider_allowlist('google/gemma', OpenRouterProviderRoutingConfig(only=['qwen']))` raises `ProviderFactoryError` listing allowed providers
+- Step 4 [RUN]: PASS — Factory created `OpenRouterModel` with correct settings; pydantic-ai Agent call to OpenRouter succeeded with `require_parameters=False` (Agent returned `"Hello."` response via `openai/gpt-4.1-mini`). With `require_parameters=True`, OpenRouter still returns 404 (signpost #3). Factory code is correct and end-to-end prompt works.
+- Step 5 [RUN]: PASS — 4 mock-server integration tests pass (`test_factory_routes_local_url_to_openai_model`, `test_factory_to_agent_plain_text`, `test_factory_to_agent_structured_output`, `test_runtime_with_local_model`). Full pipeline exercised: `create_model(base_url='http://localhost:5000/v1')` → `OpenAIChatModel` → `Agent.run()` → `respx`-mocked HTTP response → successful result. Factory correctly routes local URLs to generic OpenAI provider.
+- Step 6 [RUN]: PASS — 68 tool-related unit tests pass (14 factory + 54 agents: tool_registry + tools + harness); `_build_tool_list` returns `list[Tool]` with explicit names and descriptions preserved
+- Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 910 unit, 95 integration, 9 quality)
+- **Overall: PASS**
