@@ -66,7 +66,7 @@ type:
 # Run unit tests with coverage enforcement
 unit:
 	@echo "🧪 Running unit tests with coverage..."
-	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1 --cov=packages --cov=services --cov-fail-under=80, .unit.log, Unit Tests)
+	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1 --cov=packages --cov=services --cov-fail-under=80 --cov-precision=2, .unit.log, Unit Tests)
 
 # Run integration tests
 integration:
