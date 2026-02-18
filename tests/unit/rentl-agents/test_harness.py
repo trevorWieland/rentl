@@ -254,9 +254,8 @@ class TestAgentHarness:
 class TestAgentHarnessExecuteAgent:
     """Test cases for _execute_agent integration with pydantic-ai.
 
-    These tests mock the external pydantic-ai dependencies (Agent, OpenAIProvider,
-    OpenAIChatModel) instead of the internal _execute_agent method, ensuring the
-    core execution logic is properly tested.
+    These tests mock the centralized create_model factory and Agent class,
+    ensuring the core execution logic is properly tested.
     """
 
     @staticmethod
@@ -273,7 +272,7 @@ class TestAgentHarnessExecuteAgent:
 
     @pytest.mark.asyncio
     async def test_execute_agent_creates_provider_with_config(self) -> None:
-        """Verify OpenAIProvider is created with correct base_url and api_key."""
+        """Verify create_model factory is called with correct config."""
         harness: AgentHarness[MockInput, MockOutput] = AgentHarness(
             system_prompt="You are helpful.",
             user_prompt_template="Translate: {{text}}",
@@ -294,29 +293,27 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
         mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+        mock_model = MagicMock()
+        mock_settings = {"temperature": 0.7}
 
         with (
-            patch("rentl_agents.harness.OpenAIProvider") as mock_provider_cls,
-            patch("rentl_agents.harness.OpenAIChatModel") as mock_model_cls,
+            patch(
+                "rentl_agents.harness.create_model",
+                return_value=(mock_model, mock_settings),
+            ) as mock_factory,
             patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
-            mock_provider = MagicMock()
-            mock_provider_cls.return_value = mock_provider
-
-            mock_model = MagicMock()
-            mock_model_cls.return_value = mock_model
-
             input_data = MockInput(text="Hello", target_lang="ja")
             await harness.run(input_data)
 
-            mock_provider_cls.assert_called_once_with(
-                base_url="https://custom.api.com/v1",
-                api_key="test-api-key",
-            )
+            mock_factory.assert_called_once()
+            call_kwargs = mock_factory.call_args.kwargs
+            assert call_kwargs["base_url"] == "https://custom.api.com/v1"
+            assert call_kwargs["api_key"] == "test-api-key"
 
     @pytest.mark.asyncio
     async def test_execute_agent_creates_model_with_config(self) -> None:
-        """Verify OpenAIChatModel is created with correct model_id and provider."""
+        """Verify create_model factory is called with correct model_id."""
         harness: AgentHarness[MockInput, MockOutput] = AgentHarness(
             system_prompt="You are helpful.",
             user_prompt_template="Translate: {{text}}",
@@ -336,19 +333,21 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
         mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+        mock_model = MagicMock()
+        mock_settings = {"temperature": 0.7}
 
         with (
-            patch("rentl_agents.harness.OpenAIProvider") as mock_provider_cls,
-            patch("rentl_agents.harness.OpenAIChatModel") as mock_model_cls,
+            patch(
+                "rentl_agents.harness.create_model",
+                return_value=(mock_model, mock_settings),
+            ) as mock_factory,
             patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
-            mock_provider = MagicMock()
-            mock_provider_cls.return_value = mock_provider
-
             input_data = MockInput(text="Hello", target_lang="ja")
             await harness.run(input_data)
 
-            mock_model_cls.assert_called_once_with("gpt-5-nano", provider=mock_provider)
+            mock_factory.assert_called_once()
+            assert mock_factory.call_args.kwargs["model_id"] == "gpt-5-nano"
 
     @pytest.mark.asyncio
     async def test_execute_agent_passes_tools_to_agent(self) -> None:
@@ -388,15 +387,16 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
         mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+        mock_model = MagicMock()
+        mock_settings = {"temperature": 0.7}
 
         with (
-            patch("rentl_agents.harness.OpenAIProvider"),
-            patch("rentl_agents.harness.OpenAIChatModel") as mock_model_cls,
+            patch(
+                "rentl_agents.harness.create_model",
+                return_value=(mock_model, mock_settings),
+            ),
             patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
-            mock_model = MagicMock()
-            mock_model_cls.return_value = mock_model
-
             input_data = MockInput(text="Hello", target_lang="en")
             await harness.run(input_data)
 
@@ -426,15 +426,16 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
         mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+        mock_model = MagicMock()
+        mock_settings = {"temperature": 0.7}
 
         with (
-            patch("rentl_agents.harness.OpenAIProvider"),
-            patch("rentl_agents.harness.OpenAIChatModel") as mock_model_cls,
+            patch(
+                "rentl_agents.harness.create_model",
+                return_value=(mock_model, mock_settings),
+            ),
             patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
-            mock_model = MagicMock()
-            mock_model_cls.return_value = mock_model
-
             input_data = MockInput(text="Hello", target_lang="ja")
             await harness.run(input_data)
 
@@ -470,10 +471,14 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
         mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+        mock_model = MagicMock()
+        mock_settings = {"temperature": 0.5, "top_p": 0.9, "timeout": 60.0}
 
         with (
-            patch("rentl_agents.harness.OpenAIProvider"),
-            patch("rentl_agents.harness.OpenAIChatModel"),
+            patch(
+                "rentl_agents.harness.create_model",
+                return_value=(mock_model, mock_settings),
+            ),
             patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
             input_data = MockInput(text="Hello", target_lang="ja")
@@ -485,7 +490,7 @@ class TestAgentHarnessExecuteAgent:
             # Verify user prompt was rendered correctly
             assert call_args.args[0] == "Translate: Hello to ja"
 
-            # Verify model settings
+            # Verify model settings from factory are passed through
             model_settings = call_args.kwargs["model_settings"]
             assert model_settings["temperature"] == 0.5
             assert model_settings["top_p"] == 0.9
@@ -511,10 +516,14 @@ class TestAgentHarnessExecuteAgent:
         mock_agent_instance.run = AsyncMock(return_value=mock_result)
 
         mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+        mock_model = MagicMock()
+        mock_settings = {"temperature": 0.7}
 
         with (
-            patch("rentl_agents.harness.OpenAIProvider"),
-            patch("rentl_agents.harness.OpenAIChatModel"),
+            patch(
+                "rentl_agents.harness.create_model",
+                return_value=(mock_model, mock_settings),
+            ),
             patch("rentl_agents.harness.Agent", self._agent_shim(mock_agent_cls)),
         ):
             input_data = MockInput(text="hello", target_lang="en")

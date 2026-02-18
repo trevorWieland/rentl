@@ -60,6 +60,22 @@ def mock_agent(mock_agent_result: MagicMock) -> Generator[MagicMock]:
 
 
 @pytest.fixture
+def mock_create_model() -> Generator[MagicMock]:
+    """Mock create_model factory.
+
+    Yields:
+        MagicMock: Mocked create_model function.
+    """
+    mock_model = MagicMock()
+    mock_settings = {"temperature": 0.7, "timeout": 30.0}
+    with patch(
+        "rentl_llm.openai_runtime.create_model",
+        return_value=(mock_model, mock_settings),
+    ) as mock:
+        yield mock
+
+
+@pytest.fixture
 def runtime() -> OpenAICompatibleRuntime:
     """Create runtime instance.
 
@@ -115,176 +131,169 @@ def _build_request(
 
 @pytest.mark.asyncio
 async def test_run_prompt_openai(
-    runtime: OpenAICompatibleRuntime, mock_agent: MagicMock
+    runtime: OpenAICompatibleRuntime,
+    mock_agent: MagicMock,
+    mock_create_model: MagicMock,
 ) -> None:
     """Test running prompt with OpenAI provider.
 
     Args:
         runtime: Runtime instance.
         mock_agent: Mocked Agent class.
+        mock_create_model: Mocked create_model factory.
     """
-    with (
-        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
-        patch("rentl_llm.openai_runtime.OpenAIProvider"),
-        patch("rentl_llm.openai_runtime.OpenAIChatModel"),
-    ):
-        mock_detect.return_value = MagicMock(is_openrouter=False)
-        request = _build_request()
-        response = await runtime.run_prompt(request, api_key="test-key")
-        assert response.model_id == "gpt-4"
-        assert response.output_text == "Test response"
+    request = _build_request()
+    response = await runtime.run_prompt(request, api_key="test-key")
+    assert response.model_id == "gpt-4"
+    assert response.output_text == "Test response"
+    mock_create_model.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_run_prompt_openrouter(
-    runtime: OpenAICompatibleRuntime, mock_agent: MagicMock
+    runtime: OpenAICompatibleRuntime,
+    mock_agent: MagicMock,
+    mock_create_model: MagicMock,
 ) -> None:
     """Test running prompt with OpenRouter provider.
 
     Args:
         runtime: Runtime instance.
         mock_agent: Mocked Agent class.
+        mock_create_model: Mocked create_model factory.
     """
-    with (
-        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
-        patch("rentl_llm.openai_runtime.OpenRouterProvider"),
-        patch("rentl_llm.openai_runtime.OpenRouterModel"),
-    ):
-        mock_detect.return_value = MagicMock(is_openrouter=True)
-        request = _build_request(base_url="https://openrouter.ai/api/v1")
-        response = await runtime.run_prompt(request, api_key="test-key")
-        assert response.model_id == "gpt-4"
-        assert response.output_text == "Test response"
+    request = _build_request(base_url="https://openrouter.ai/api/v1")
+    response = await runtime.run_prompt(request, api_key="test-key")
+    assert response.model_id == "gpt-4"
+    assert response.output_text == "Test response"
+    mock_create_model.assert_called_once()
+    assert (
+        mock_create_model.call_args.kwargs["base_url"] == "https://openrouter.ai/api/v1"
+    )
 
 
 @pytest.mark.asyncio
 async def test_run_prompt_with_reasoning_effort(
-    runtime: OpenAICompatibleRuntime, mock_agent: MagicMock
+    runtime: OpenAICompatibleRuntime,
+    mock_agent: MagicMock,
+    mock_create_model: MagicMock,
 ) -> None:
     """Test reasoning effort parameter.
 
     Args:
         runtime: Runtime instance.
         mock_agent: Mocked Agent class.
+        mock_create_model: Mocked create_model factory.
     """
-    with (
-        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
-        patch("rentl_llm.openai_runtime.OpenAIProvider"),
-        patch("rentl_llm.openai_runtime.OpenAIChatModel"),
-    ):
-        mock_detect.return_value = MagicMock(is_openrouter=False)
-        request = _build_request(reasoning_effort=ReasoningEffort.MEDIUM)
-        response = await runtime.run_prompt(request, api_key="test-key")
-        assert response.model_id == "gpt-4"
+    request = _build_request(reasoning_effort=ReasoningEffort.MEDIUM)
+    response = await runtime.run_prompt(request, api_key="test-key")
+    assert response.model_id == "gpt-4"
+    mock_create_model.assert_called_once()
+    assert (
+        mock_create_model.call_args.kwargs["reasoning_effort"] == ReasoningEffort.MEDIUM
+    )
 
 
 @pytest.mark.asyncio
 async def test_run_prompt_without_system_prompt(
-    runtime: OpenAICompatibleRuntime, mock_agent: MagicMock
+    runtime: OpenAICompatibleRuntime,
+    mock_agent: MagicMock,
+    mock_create_model: MagicMock,
 ) -> None:
     """Test prompt without system instructions.
 
     Args:
         runtime: Runtime instance.
         mock_agent: Mocked Agent class.
+        mock_create_model: Mocked create_model factory.
     """
-    with (
-        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
-        patch("rentl_llm.openai_runtime.OpenAIProvider"),
-        patch("rentl_llm.openai_runtime.OpenAIChatModel"),
-    ):
-        mock_detect.return_value = MagicMock(is_openrouter=False)
-        request = _build_request()
-        request.system_prompt = None
-        response = await runtime.run_prompt(request, api_key="test-key")
-        assert response.model_id == "gpt-4"
+    request = _build_request()
+    request.system_prompt = None
+    response = await runtime.run_prompt(request, api_key="test-key")
+    assert response.model_id == "gpt-4"
+    mock_create_model.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_run_prompt_default_max_tokens(
-    runtime: OpenAICompatibleRuntime, mock_agent: MagicMock
+    runtime: OpenAICompatibleRuntime,
+    mock_agent: MagicMock,
+    mock_create_model: MagicMock,
 ) -> None:
     """Test default max output tokens.
 
     Args:
         runtime: Runtime instance.
         mock_agent: Mocked Agent class.
+        mock_create_model: Mocked create_model factory.
     """
-    with (
-        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
-        patch("rentl_llm.openai_runtime.OpenAIProvider"),
-        patch("rentl_llm.openai_runtime.OpenAIChatModel"),
-    ):
-        mock_detect.return_value = MagicMock(is_openrouter=False)
-        request = _build_request(max_output_tokens=None)
-        response = await runtime.run_prompt(request, api_key="test-key")
-        assert response.model_id == "gpt-4"
+    request = _build_request(max_output_tokens=None)
+    response = await runtime.run_prompt(request, api_key="test-key")
+    assert response.model_id == "gpt-4"
+    mock_create_model.assert_called_once()
+    assert mock_create_model.call_args.kwargs["max_output_tokens"] == 4096
 
 
 @pytest.mark.asyncio
 async def test_run_prompt_custom_max_tokens(
-    runtime: OpenAICompatibleRuntime, mock_agent: MagicMock
+    runtime: OpenAICompatibleRuntime,
+    mock_agent: MagicMock,
+    mock_create_model: MagicMock,
 ) -> None:
     """Test custom max output tokens.
 
     Args:
         runtime: Runtime instance.
         mock_agent: Mocked Agent class.
+        mock_create_model: Mocked create_model factory.
     """
-    with (
-        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
-        patch("rentl_llm.openai_runtime.OpenAIProvider"),
-        patch("rentl_llm.openai_runtime.OpenAIChatModel"),
-    ):
-        mock_detect.return_value = MagicMock(is_openrouter=False)
-        request = _build_request(max_output_tokens=8192)
-        response = await runtime.run_prompt(request, api_key="test-key")
-        assert response.model_id == "gpt-4"
+    request = _build_request(max_output_tokens=8192)
+    response = await runtime.run_prompt(request, api_key="test-key")
+    assert response.model_id == "gpt-4"
+    mock_create_model.assert_called_once()
+    assert mock_create_model.call_args.kwargs["max_output_tokens"] == 8192
 
 
 @pytest.mark.asyncio
 async def test_run_prompt_openrouter_with_reasoning(
-    runtime: OpenAICompatibleRuntime, mock_agent: MagicMock
+    runtime: OpenAICompatibleRuntime,
+    mock_agent: MagicMock,
+    mock_create_model: MagicMock,
 ) -> None:
     """Test OpenRouter with reasoning effort.
 
     Args:
         runtime: Runtime instance.
         mock_agent: Mocked Agent class.
+        mock_create_model: Mocked create_model factory.
     """
-    with (
-        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
-        patch("rentl_llm.openai_runtime.OpenRouterProvider"),
-        patch("rentl_llm.openai_runtime.OpenRouterModel"),
-    ):
-        mock_detect.return_value = MagicMock(is_openrouter=True)
-        request = _build_request(
-            base_url="https://openrouter.ai/api/v1",
-            reasoning_effort=ReasoningEffort.HIGH,
-        )
-        response = await runtime.run_prompt(request, api_key="test-key")
-        assert response.model_id == "gpt-4"
+    request = _build_request(
+        base_url="https://openrouter.ai/api/v1",
+        reasoning_effort=ReasoningEffort.HIGH,
+    )
+    response = await runtime.run_prompt(request, api_key="test-key")
+    assert response.model_id == "gpt-4"
+    mock_create_model.assert_called_once()
+    assert (
+        mock_create_model.call_args.kwargs["reasoning_effort"] == ReasoningEffort.HIGH
+    )
 
 
 @pytest.mark.asyncio
 async def test_run_prompt_with_structured_output(
     runtime: OpenAICompatibleRuntime,
+    mock_create_model: MagicMock,
 ) -> None:
     """Test structured output with result_schema.
 
     Args:
         runtime: Runtime instance.
+        mock_create_model: Mocked create_model factory.
     """
     mock_structured_result = MagicMock()
     mock_structured_result.output = TestOutput(winner="A", score=10)
 
-    with (
-        patch("rentl_llm.openai_runtime.detect_provider") as mock_detect,
-        patch("rentl_llm.openai_runtime.OpenAIProvider"),
-        patch("rentl_llm.openai_runtime.OpenAIChatModel"),
-        patch("rentl_llm.openai_runtime.Agent") as mock_agent_cls,
-    ):
-        mock_detect.return_value = MagicMock(is_openrouter=False)
+    with patch("rentl_llm.openai_runtime.Agent") as mock_agent_cls:
         agent_instance = MagicMock()
         agent_instance.run = AsyncMock(return_value=mock_structured_result)
         mock_agent_cls.return_value = agent_instance
@@ -306,3 +315,4 @@ async def test_run_prompt_with_structured_output(
         call_kwargs = mock_agent_cls.call_args[1]
         assert "output_type" in call_kwargs
         assert call_kwargs["output_type"] == TestOutput
+        mock_create_model.assert_called_once()

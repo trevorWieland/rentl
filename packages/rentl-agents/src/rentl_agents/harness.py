@@ -8,11 +8,10 @@ from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import Field, ValidationError
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
-from pydantic_ai.providers.openai import OpenAIProvider
 
 from rentl_agents.prompts import PromptRenderer
 from rentl_core.ports.orchestrator import PhaseAgentProtocol
+from rentl_llm.provider_factory import create_model
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import JsonValue
 
@@ -226,18 +225,15 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
         if self._config is None:
             raise RuntimeError("Agent not initialized")
 
-        provider = OpenAIProvider(
+        model, model_settings = create_model(
             base_url=self._config.base_url,
             api_key=self._config.api_key,
+            model_id=self._config.model_id,
+            temperature=self._config.temperature,
+            top_p=self._config.top_p,
+            timeout_s=self._config.timeout_s,
+            max_output_tokens=self._config.max_output_tokens,
         )
-        model = OpenAIChatModel(self._config.model_id, provider=provider)
-
-        model_settings: OpenAIChatModelSettings = {
-            "temperature": self._config.temperature,
-            "top_p": self._config.top_p,
-            "timeout": self._config.timeout_s,
-            "max_tokens": self._config.max_output_tokens,
-        }
 
         agent: Agent[None, OutputT_co] = Agent[None, OutputT_co](
             model=model,

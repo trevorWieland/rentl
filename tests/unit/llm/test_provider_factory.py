@@ -567,3 +567,59 @@ class TestAssertPreflight:
         ):
             await assert_preflight(endpoints)
         mock_detect.assert_called_once()
+
+
+class TestProbeEndpointIntegration:
+    """Tests exercising _probe_endpoint through run_preflight_checks."""
+
+    @patch("rentl_llm.provider_factory.Agent")
+    @patch("rentl_llm.provider_factory.create_model")
+    @pytest.mark.asyncio
+    async def test_successful_probe_passes_preflight(
+        self, mock_create: MagicMock, mock_agent_cls: MagicMock
+    ) -> None:
+        """Successful probe request results in passing preflight."""
+        mock_create.return_value = (MagicMock(), {"temperature": 0.0})
+        mock_agent_cls.return_value.run = AsyncMock(return_value=MagicMock())
+
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
+                model_id="gpt-4o",
+                phase_label="translate",
+            ),
+        ]
+        result = await run_preflight_checks(endpoints)
+        assert result.passed is True
+        assert result.issues == []
+        mock_create.assert_called_once()
+        mock_agent_cls.return_value.run.assert_awaited_once()
+
+    @patch("rentl_llm.provider_factory.Agent")
+    @patch("rentl_llm.provider_factory.create_model")
+    @pytest.mark.asyncio
+    async def test_probe_network_error_reports_issue(
+        self, mock_create: MagicMock, mock_agent_cls: MagicMock
+    ) -> None:
+        """Network error during probe is reported as preflight issue."""
+        mock_create.return_value = (MagicMock(), {"temperature": 0.0})
+        mock_agent_cls.return_value.run = AsyncMock(
+            side_effect=ConnectionError("refused")
+        )
+
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
+                model_id="gpt-4o",
+                phase_label="translate",
+            ),
+        ]
+        result = await run_preflight_checks(endpoints)
+        assert result.passed is False
+        assert len(result.issues) == 1
+        assert "Preflight probe request failed" in result.issues[0].message
+        assert "refused" in result.issues[0].message
+        assert result.issues[0].phase_label == "translate"
+        assert result.issues[0].provider_name == "OpenAI"

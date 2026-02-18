@@ -90,7 +90,7 @@ def _agent_shim(mock_agent_cls: MagicMock) -> type:
 
 
 def test_profile_agent_execute_openrouter_uses_openrouter_model() -> None:
-    """OpenRouter endpoints should use OpenRouterModel with provider settings."""
+    """OpenRouter endpoints should use create_model factory with correct params."""
     profile = _build_profile()
     registry = _build_registry()
     config = ProfileAgentConfig(
@@ -120,18 +120,22 @@ def test_profile_agent_execute_openrouter_uses_openrouter_model() -> None:
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = AsyncMock(return_value=mock_result)
     mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+    mock_model = MagicMock()
+    mock_settings = {"openrouter_provider": {"require_parameters": True}}
 
     with (
-        patch("rentl_agents.runtime.OpenRouterProvider") as mock_provider,
-        patch("rentl_agents.runtime.OpenRouterModel") as mock_model,
+        patch(
+            "rentl_agents.runtime.create_model",
+            return_value=(mock_model, mock_settings),
+        ) as mock_factory,
         patch("rentl_agents.runtime.Agent", _agent_shim(mock_agent_cls)),
     ):
         result, usage = asyncio.run(agent._execute(payload))
 
     assert result.scene_id == "scene_1"
     assert usage is not None
-    assert mock_provider.called
-    assert mock_model.called
+    mock_factory.assert_called_once()
+    assert mock_factory.call_args.kwargs["base_url"] == "https://openrouter.ai/api/v1"
 
     call_kwargs = mock_agent_cls.call_args.kwargs
     assert call_kwargs["output_type"] is SceneSummary
@@ -142,7 +146,7 @@ def test_profile_agent_execute_openrouter_uses_openrouter_model() -> None:
 
 
 def test_profile_agent_execute_non_openrouter_uses_openai_model() -> None:
-    """Non-OpenRouter endpoints should use OpenAIChatModel."""
+    """Non-OpenRouter endpoints should use create_model factory."""
     profile = _build_profile()
     registry = _build_registry()
     config = ProfileAgentConfig(
@@ -170,18 +174,22 @@ def test_profile_agent_execute_non_openrouter_uses_openai_model() -> None:
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = AsyncMock(return_value=mock_result)
     mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+    mock_model = MagicMock()
+    mock_settings = {"temperature": 0.7}
 
     with (
-        patch("rentl_agents.runtime.OpenAIProvider") as mock_provider,
-        patch("rentl_agents.runtime.OpenAIChatModel") as mock_model,
+        patch(
+            "rentl_agents.runtime.create_model",
+            return_value=(mock_model, mock_settings),
+        ) as mock_factory,
         patch("rentl_agents.runtime.Agent", _agent_shim(mock_agent_cls)),
     ):
         result, usage = asyncio.run(agent._execute(payload))
 
     assert result.scene_id == "scene_2"
     assert usage is not None
-    assert mock_provider.called
-    assert mock_model.called
+    mock_factory.assert_called_once()
+    assert mock_factory.call_args.kwargs["base_url"] == "http://localhost:8000/v1"
     call_kwargs = mock_agent_cls.call_args.kwargs
     assert call_kwargs["output_type"] is SceneSummary
 
@@ -216,10 +224,14 @@ def test_profile_agent_execute_sets_prepare_output_tools_when_required() -> None
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = AsyncMock(return_value=mock_result)
     mock_agent_cls = MagicMock(return_value=mock_agent_instance)
+    mock_model = MagicMock()
+    mock_settings = {"temperature": 0.7}
 
     with (
-        patch("rentl_agents.runtime.OpenAIProvider"),
-        patch("rentl_agents.runtime.OpenAIChatModel"),
+        patch(
+            "rentl_agents.runtime.create_model",
+            return_value=(mock_model, mock_settings),
+        ),
         patch("rentl_agents.runtime.Agent", _agent_shim(mock_agent_cls)),
     ):
         result, usage = asyncio.run(agent._execute(payload))

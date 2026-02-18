@@ -24,7 +24,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.settings import ModelSettings
 
-from rentl_agents.providers import ProviderCapabilities, detect_provider
+from rentl_llm.providers import ProviderCapabilities, detect_provider
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import OpenRouterProviderRoutingConfig
 from rentl_schemas.primitives import ReasoningEffort

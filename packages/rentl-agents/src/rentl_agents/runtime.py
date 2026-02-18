@@ -8,18 +8,13 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import Literal, TypeVar, cast
+from typing import Literal, TypeVar
 from uuid import UUID, uuid7
 
 from pydantic import Field
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import ModelResponse, ToolCallPart
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterProviderConfig
-from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.providers.openrouter import OpenRouterProvider
-from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.usage import RunUsage, UsageLimits
 
@@ -34,6 +29,7 @@ from rentl_agents.templates import TemplateContext
 from rentl_agents.tools.registry import ToolRegistry
 from rentl_core import AgentTelemetryEmitter
 from rentl_core.ports.orchestrator import PhaseAgentProtocol
+from rentl_llm.provider_factory import create_model
 from rentl_schemas.agents import AgentProfileConfig
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import OpenRouterProviderRoutingConfig
@@ -425,7 +421,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
         # Detect provider and enforce tool-only compatibility
         base_url = self._config.base_url
         try:
-            capabilities = assert_tool_compatibility(base_url)
+            assert_tool_compatibility(base_url)
         except ValueError as e:
             error_msg = build_provider_error_message(
                 "tool_incompatible",
@@ -433,40 +429,20 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             )
             raise RuntimeError(error_msg) from e
 
-        # Create provider/model with OpenRouter-specific settings when applicable
-        if capabilities.is_openrouter:
-            provider = OpenRouterProvider(api_key=self._config.api_key)
-            model = OpenRouterModel(self._config.model_id, provider=provider)
-            model_settings = cast(
-                ModelSettings,
-                {
-                    "temperature": self._config.temperature,
-                    "top_p": self._config.top_p,
-                    "timeout": self._config.timeout_s,
-                    "openrouter_provider": _build_openrouter_provider_settings(
-                        self._config.openrouter_provider
-                    ),
-                },
-            )
-        else:
-            provider = OpenAIProvider(
-                base_url=base_url,
-                api_key=self._config.api_key,
-            )
-            model = OpenAIChatModel(self._config.model_id, provider=provider)
-            model_settings = cast(
-                ModelSettings,
-                {
-                    "temperature": self._config.temperature,
-                    "top_p": self._config.top_p,
-                    "timeout": self._config.timeout_s,
-                },
-            )
-
+        # Create provider/model via centralized factory
         max_output_tokens = self._config.max_output_tokens
         if max_output_tokens is None:
             max_output_tokens = DEFAULT_MAX_OUTPUT_TOKENS
-        model_settings["max_tokens"] = max_output_tokens
+        model, model_settings = create_model(
+            base_url=base_url,
+            api_key=self._config.api_key,
+            model_id=self._config.model_id,
+            temperature=self._config.temperature,
+            top_p=self._config.top_p,
+            timeout_s=self._config.timeout_s,
+            max_output_tokens=max_output_tokens,
+            openrouter_provider=self._config.openrouter_provider,
+        )
 
         prepare_output_tools = None
         end_strategy: Literal["early", "exhaustive"] = self._config.end_strategy
@@ -522,19 +498,6 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
         )
         usage = _build_usage_totals(result.usage())
         return result.output, usage
-
-
-def _build_openrouter_provider_settings(
-    config: OpenRouterProviderRoutingConfig | None,
-) -> OpenRouterProviderConfig:
-    """Build OpenRouter provider routing settings with safe defaults.
-
-    Returns:
-        OpenRouterProviderConfig: Provider routing payload.
-    """
-    resolved = config or OpenRouterProviderRoutingConfig(require_parameters=True)
-    payload = resolved.model_dump(mode="python", exclude_none=True)
-    return cast(OpenRouterProviderConfig, payload)
 
 
 def _build_usage_totals(usage: RunUsage | None) -> AgentUsageTotals | None:
