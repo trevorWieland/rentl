@@ -9,10 +9,14 @@ import pytest
 from pydantic_ai.models.openai import OpenAIChatModelSettings
 from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
+from rentl_agents.providers import ProviderCapabilities
 from rentl_llm.provider_factory import (
+    PreflightEndpoint,
     ProviderFactoryError,
+    assert_preflight,
     create_model,
     enforce_provider_allowlist,
+    run_preflight_checks,
     validate_openrouter_model_id,
 )
 from rentl_schemas.config import OpenRouterProviderRoutingConfig
@@ -234,3 +238,251 @@ class TestProviderAllowlist:
             )
         mock_model_cls.assert_not_called()
         mock_provider_cls.assert_not_called()
+
+
+class TestPreflightChecks:
+    """Tests for preflight compatibility checks."""
+
+    def test_compatible_openai_endpoint_passes(self) -> None:
+        """OpenAI endpoint with tool support passes preflight."""
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                model_id="gpt-4o",
+                phase_label="translate",
+            ),
+        ]
+        result = run_preflight_checks(endpoints)
+        assert result.passed is True
+        assert result.issues == []
+
+    def test_compatible_openrouter_endpoint_passes(self) -> None:
+        """OpenRouter endpoint with require_parameters passes preflight."""
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://openrouter.ai/api/v1",
+                model_id="openai/gpt-4o",
+                phase_label="translate",
+                openrouter_provider=OpenRouterProviderRoutingConfig(
+                    require_parameters=True,
+                ),
+            ),
+        ]
+        result = run_preflight_checks(endpoints)
+        assert result.passed is True
+        assert result.issues == []
+
+    @patch("rentl_llm.provider_factory.detect_provider")
+    def test_no_tool_calling_fails(self, mock_detect: MagicMock) -> None:
+        """Provider without tool calling fails preflight."""
+        mock_detect.return_value = ProviderCapabilities(
+            name="NoToolProvider",
+            is_openrouter=False,
+            supports_tool_calling=False,
+            supports_tool_choice_required=False,
+        )
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://example.com/v1",
+                model_id="some-model",
+                phase_label="translate",
+            ),
+        ]
+        result = run_preflight_checks(endpoints)
+        assert result.passed is False
+        assert len(result.issues) == 2
+        messages = [issue.message for issue in result.issues]
+        assert any("tool calling" in m for m in messages)
+        assert any("tool_choice=required" in m for m in messages)
+        mock_detect.assert_called_once_with("https://example.com/v1")
+
+    @patch("rentl_llm.provider_factory.detect_provider")
+    def test_no_tool_choice_required_fails(self, mock_detect: MagicMock) -> None:
+        """Provider without tool_choice=required fails preflight."""
+        mock_detect.return_value = ProviderCapabilities(
+            name="LimitedProvider",
+            is_openrouter=False,
+            supports_tool_calling=True,
+            supports_tool_choice_required=False,
+        )
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://example.com/v1",
+                model_id="some-model",
+                phase_label="qa",
+            ),
+        ]
+        result = run_preflight_checks(endpoints)
+        assert result.passed is False
+        assert len(result.issues) == 1
+        assert "tool_choice=required" in result.issues[0].message
+        assert result.issues[0].phase_label == "qa"
+        assert result.issues[0].provider_name == "LimitedProvider"
+        mock_detect.assert_called_once()
+
+    def test_openrouter_missing_provider_config_fails(self) -> None:
+        """OpenRouter endpoint without provider routing config fails."""
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://openrouter.ai/api/v1",
+                model_id="openai/gpt-4o",
+                phase_label="context",
+                openrouter_provider=None,
+            ),
+        ]
+        result = run_preflight_checks(endpoints)
+        assert result.passed is False
+        assert len(result.issues) == 1
+        assert "missing provider routing config" in result.issues[0].message
+
+    @patch("rentl_llm.provider_factory.detect_provider")
+    def test_openrouter_require_parameters_false_fails(
+        self, mock_detect: MagicMock
+    ) -> None:
+        """OpenRouter endpoint with require_parameters=false fails."""
+        mock_detect.return_value = ProviderCapabilities(
+            name="OpenRouter",
+            is_openrouter=True,
+            supports_tool_calling=True,
+            supports_tool_choice_required=True,
+        )
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://openrouter.ai/api/v1",
+                model_id="openai/gpt-4o",
+                phase_label="edit",
+                openrouter_provider=OpenRouterProviderRoutingConfig(
+                    require_parameters=False,
+                ),
+            ),
+        ]
+        result = run_preflight_checks(endpoints)
+        assert result.passed is False
+        assert len(result.issues) == 1
+        assert "require_parameters must be true" in result.issues[0].message
+        mock_detect.assert_called_once()
+
+    def test_multiple_endpoints_all_compatible(self) -> None:
+        """Multiple compatible endpoints all pass."""
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                model_id="gpt-4o",
+                phase_label="translate",
+            ),
+            PreflightEndpoint(
+                base_url="https://openrouter.ai/api/v1",
+                model_id="anthropic/claude-3",
+                phase_label="qa",
+                openrouter_provider=OpenRouterProviderRoutingConfig(
+                    require_parameters=True,
+                ),
+            ),
+        ]
+        result = run_preflight_checks(endpoints)
+        assert result.passed is True
+
+    @patch("rentl_llm.provider_factory.detect_provider")
+    def test_multiple_endpoints_mixed_results(self, mock_detect: MagicMock) -> None:
+        """Mixed compatible/incompatible endpoints report all issues."""
+
+        def side_effect(base_url: str) -> ProviderCapabilities:
+            if "openai.com" in base_url:
+                return ProviderCapabilities(
+                    name="OpenAI",
+                    is_openrouter=False,
+                    supports_tool_calling=True,
+                    supports_tool_choice_required=True,
+                )
+            return ProviderCapabilities(
+                name="BadProvider",
+                is_openrouter=False,
+                supports_tool_calling=False,
+                supports_tool_choice_required=False,
+            )
+
+        mock_detect.side_effect = side_effect
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                model_id="gpt-4o",
+                phase_label="translate",
+            ),
+            PreflightEndpoint(
+                base_url="https://bad-provider.com/v1",
+                model_id="bad-model",
+                phase_label="qa",
+            ),
+        ]
+        result = run_preflight_checks(endpoints)
+        assert result.passed is False
+        assert len(result.issues) == 2
+        assert all(i.phase_label == "qa" for i in result.issues)
+        assert mock_detect.call_count == 2
+
+    def test_empty_endpoints_passes(self) -> None:
+        """Empty endpoint list passes preflight (no LLM phases)."""
+        result = run_preflight_checks([])
+        assert result.passed is True
+        assert result.issues == []
+
+
+class TestAssertPreflight:
+    """Tests for assert_preflight raising on failure."""
+
+    def test_assert_passes_on_compatible(self) -> None:
+        """assert_preflight does not raise for compatible endpoints."""
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                model_id="gpt-4o",
+                phase_label="translate",
+            ),
+        ]
+        assert_preflight(endpoints)
+
+    @patch("rentl_llm.provider_factory.detect_provider")
+    def test_assert_raises_on_incompatible(self, mock_detect: MagicMock) -> None:
+        """assert_preflight raises ProviderFactoryError on failure."""
+        mock_detect.return_value = ProviderCapabilities(
+            name="BadProvider",
+            is_openrouter=False,
+            supports_tool_calling=False,
+            supports_tool_choice_required=False,
+        )
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://bad.com/v1",
+                model_id="bad-model",
+                phase_label="translate",
+            ),
+        ]
+        with pytest.raises(
+            ProviderFactoryError, match="Preflight compatibility check failed"
+        ):
+            assert_preflight(endpoints)
+        mock_detect.assert_called_once()
+
+    @patch("rentl_llm.provider_factory.detect_provider")
+    def test_assert_error_message_includes_details(
+        self, mock_detect: MagicMock
+    ) -> None:
+        """Error message includes phase, provider, and model details."""
+        mock_detect.return_value = ProviderCapabilities(
+            name="TestProvider",
+            is_openrouter=False,
+            supports_tool_calling=True,
+            supports_tool_choice_required=False,
+        )
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://test.com/v1",
+                model_id="test-model",
+                phase_label="qa",
+            ),
+        ]
+        with pytest.raises(
+            ProviderFactoryError, match=r".*\[qa\] TestProvider / test-model.*"
+        ):
+            assert_preflight(endpoints)
+        mock_detect.assert_called_once()

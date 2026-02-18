@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Literal, cast
 
+from pydantic import Field
 from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.models.openrouter import (
@@ -21,7 +22,8 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.settings import ModelSettings
 
-from rentl_agents.providers import detect_provider
+from rentl_agents.providers import ProviderCapabilities, detect_provider
+from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import OpenRouterProviderRoutingConfig
 from rentl_schemas.primitives import ReasoningEffort
 
@@ -140,6 +142,178 @@ def enforce_provider_allowlist(
             f"Model provider '{provider_prefix}' is not in the allowlist. "
             f"Allowed providers: {allowed}"
         )
+
+
+class PreflightEndpoint(BaseSchema):
+    """A model/endpoint combination to validate before pipeline start."""
+
+    base_url: str = Field(..., min_length=1, description="Endpoint base URL")
+    model_id: str = Field(..., min_length=1, description="Model identifier")
+    phase_label: str = Field(
+        ..., min_length=1, description="Pipeline phase using this endpoint"
+    )
+    openrouter_provider: OpenRouterProviderRoutingConfig | None = Field(
+        None, description="OpenRouter provider routing config"
+    )
+
+
+class PreflightIssue(BaseSchema):
+    """A single compatibility issue found during preflight."""
+
+    phase_label: str = Field(
+        ..., min_length=1, description="Phase where the issue was found"
+    )
+    model_id: str = Field(..., min_length=1, description="Model identifier")
+    provider_name: str = Field(..., min_length=1, description="Detected provider name")
+    message: str = Field(..., min_length=1, description="Actionable error description")
+
+
+class PreflightResult(BaseSchema):
+    """Result of preflight compatibility checks."""
+
+    passed: bool = Field(..., description="Whether all checks passed")
+    issues: list[PreflightIssue] = Field(
+        default_factory=list, description="List of compatibility issues found"
+    )
+
+
+def run_preflight_checks(
+    endpoints: list[PreflightEndpoint],
+) -> PreflightResult:
+    """Validate model/provider compatibility before pipeline start.
+
+    Checks each endpoint for tool_choice and tool_calling support,
+    and validates OpenRouter-specific constraints like require_parameters.
+
+    Args:
+        endpoints: Model/endpoint combinations to validate.
+
+    Returns:
+        PreflightResult with pass/fail status and any issues found.
+    """
+    issues: list[PreflightIssue] = []
+
+    for endpoint in endpoints:
+        capabilities = detect_provider(endpoint.base_url)
+        issues.extend(_check_endpoint_compatibility(endpoint, capabilities))
+
+    return PreflightResult(passed=len(issues) == 0, issues=issues)
+
+
+def assert_preflight(endpoints: list[PreflightEndpoint]) -> None:
+    """Run preflight checks and raise on failure.
+
+    Args:
+        endpoints: Model/endpoint combinations to validate.
+
+    Raises:
+        ProviderFactoryError: If any compatibility issues are found.
+    """
+    result = run_preflight_checks(endpoints)
+    if not result.passed:
+        lines = ["Preflight compatibility check failed:"]
+        for issue in result.issues:
+            lines.append(
+                f"  - [{issue.phase_label}] {issue.provider_name} / "
+                f"{issue.model_id}: {issue.message}"
+            )
+        raise ProviderFactoryError("\n".join(lines))
+
+
+def _check_endpoint_compatibility(
+    endpoint: PreflightEndpoint,
+    capabilities: ProviderCapabilities,
+) -> list[PreflightIssue]:
+    """Check a single endpoint for compatibility issues.
+
+    Args:
+        endpoint: The endpoint to check.
+        capabilities: Detected provider capabilities.
+
+    Returns:
+        List of issues found (empty if compatible).
+    """
+    issues: list[PreflightIssue] = []
+
+    if not capabilities.supports_tool_calling:
+        issues.append(
+            PreflightIssue(
+                phase_label=endpoint.phase_label,
+                model_id=endpoint.model_id,
+                provider_name=capabilities.name,
+                message=(
+                    f"{capabilities.name} does not support tool calling. "
+                    "Rentl requires tool-based structured output. "
+                    "Use an endpoint that supports tool calling."
+                ),
+            )
+        )
+
+    if not capabilities.supports_tool_choice_required:
+        issues.append(
+            PreflightIssue(
+                phase_label=endpoint.phase_label,
+                model_id=endpoint.model_id,
+                provider_name=capabilities.name,
+                message=(
+                    f"{capabilities.name} does not support tool_choice=required. "
+                    "Rentl requires required tool calling for structured output. "
+                    "Use an endpoint/provider that supports tool_choice=required."
+                ),
+            )
+        )
+
+    if capabilities.is_openrouter:
+        issues.extend(_check_openrouter_constraints(endpoint, capabilities))
+
+    return issues
+
+
+def _check_openrouter_constraints(
+    endpoint: PreflightEndpoint,
+    capabilities: ProviderCapabilities,
+) -> list[PreflightIssue]:
+    """Check OpenRouter-specific constraints.
+
+    Args:
+        endpoint: The endpoint to check.
+        capabilities: Detected provider capabilities.
+
+    Returns:
+        List of OpenRouter-specific issues found.
+    """
+    issues: list[PreflightIssue] = []
+
+    if endpoint.openrouter_provider is None:
+        issues.append(
+            PreflightIssue(
+                phase_label=endpoint.phase_label,
+                model_id=endpoint.model_id,
+                provider_name=capabilities.name,
+                message=(
+                    "OpenRouter endpoint missing provider routing config. "
+                    "Set openrouter_provider with require_parameters=true "
+                    "to ensure routed providers support all request parameters."
+                ),
+            )
+        )
+        return issues
+
+    if not endpoint.openrouter_provider.require_parameters:
+        issues.append(
+            PreflightIssue(
+                phase_label=endpoint.phase_label,
+                model_id=endpoint.model_id,
+                provider_name=capabilities.name,
+                message=(
+                    "OpenRouter require_parameters must be true. "
+                    "Without this, OpenRouter may route to providers that "
+                    "don't support tool_choice or response_format."
+                ),
+            )
+        )
+
+    return issues
 
 
 def _create_openrouter_model(

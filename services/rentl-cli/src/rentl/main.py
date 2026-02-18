@@ -94,6 +94,7 @@ from rentl_io.storage.filesystem import (
 from rentl_io.storage.log_sink import build_log_sink
 from rentl_io.storage.progress_sink import FileSystemProgressSink
 from rentl_llm.openai_runtime import OpenAICompatibleRuntime
+from rentl_llm.provider_factory import PreflightEndpoint, assert_preflight
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.benchmark.report import PairwiseSummary
 from rentl_schemas.benchmark.rubric import HeadToHeadResult
@@ -2358,6 +2359,59 @@ def _ensure_api_key(config: RunConfig, phases: list[PhaseName]) -> None:
             )
 
 
+def _build_preflight_endpoints(
+    config: RunConfig, phases: list[PhaseName]
+) -> list[PreflightEndpoint]:
+    """Build preflight endpoint descriptors for all LLM phases.
+
+    Args:
+        config: Run configuration.
+        phases: Enabled pipeline phases.
+
+    Returns:
+        List of PreflightEndpoint objects for validation.
+    """
+    endpoints: list[PreflightEndpoint] = []
+    seen: set[tuple[str, str]] = set()
+
+    for phase in phases:
+        if phase not in _LLM_PHASES:
+            continue
+        model = _resolve_phase_model(config, phase)
+        if model is None:
+            continue
+        endpoint_ref = config.resolve_endpoint_ref(model=model)
+
+        if config.endpoints is not None and endpoint_ref is not None:
+            lookup = {ep.provider_name: ep for ep in config.endpoints.endpoints}
+            ep_config = lookup.get(endpoint_ref)
+            if ep_config is None:
+                continue
+            base_url = ep_config.base_url
+            openrouter_provider = ep_config.openrouter_provider
+        elif config.endpoint is not None:
+            base_url = config.endpoint.base_url
+            openrouter_provider = config.endpoint.openrouter_provider
+        else:
+            continue
+
+        key = (base_url, model.model_id)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        endpoints.append(
+            PreflightEndpoint(
+                base_url=base_url,
+                model_id=model.model_id,
+                phase_label=phase,
+                openrouter_provider=openrouter_provider,
+            )
+        )
+
+    return endpoints
+
+
 def _build_redactor(config: RunConfig) -> Redactor:
     """Build a redactor from config and resolved env var values.
 
@@ -2820,6 +2874,9 @@ async def _run_pipeline_async(
         raise ValueError("No enabled phases configured")
     languages = _resolve_target_languages(config, target_languages)
     _ensure_api_key(config, phases)
+    preflight_endpoints = _build_preflight_endpoints(config, phases)
+    if preflight_endpoints:
+        assert_preflight(preflight_endpoints)
     orchestrator = _build_orchestrator(config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=None)
@@ -2867,6 +2924,9 @@ async def _run_phase_async(
     phases = _resolve_phase_plan(config, phase)
     languages = _resolve_phase_languages(config, phase, target_language)
     _ensure_api_key(config, phases)
+    preflight_endpoints = _build_preflight_endpoints(config, phases)
+    if preflight_endpoints:
+        assert_preflight(preflight_endpoints)
     orchestrator = _build_orchestrator(config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=input_path)

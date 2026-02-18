@@ -29,7 +29,7 @@ This work was driven by the 2026-02-17 standards audit which identified 13 viola
   - [x] Fix: Remove `Any`/`object` typing in new factory and tests to comply with `strict-typing-enforcement` (`packages/rentl-llm/src/rentl_llm/provider_factory.py:11`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:218`, `tests/unit/llm/test_provider_factory.py:5`, `tests/unit/llm/test_provider_factory.py:47`) (audit round 1)
   - [x] Fix: In patched unit tests, assert patched execution-boundary mocks were invoked (or explicitly not invoked) per `mock-execution-boundary` verification rule (`tests/unit/llm/test_provider_factory.py:45`, `tests/unit/llm/test_provider_factory.py:71`, `tests/unit/llm/test_provider_factory.py:131`, `tests/unit/llm/test_provider_factory.py:212`) (audit round 1)
 
-- [ ] Task 3: Add preflight compatibility check
+- [x] Task 3: Add preflight compatibility check
   - New function in `packages/rentl-llm/src/rentl_llm/provider_factory.py` or separate module
   - Validates tool_choice/response_format compatibility for the configured provider
   - Called from CLI pipeline entry point (`services/rentl-cli/src/rentl/main.py` ~line 915)
