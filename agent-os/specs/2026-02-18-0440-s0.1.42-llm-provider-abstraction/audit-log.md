@@ -16,3 +16,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 1): PASS — Pretranslation alignment now validates both extra and missing IDs via shared alignment feedback, and targeted retry tests for extra-only, missing-only, both-direction mismatch, and retry exhaustion all pass.
 - **Task 8** (round 1): PASS — (inferred from integration test suite passing)
 - **Demo** (run 1): FAIL — Steps 1-3 pass; step 4 fails with `_resolve_reasoning_effort` crash on plain string from Pydantic `use_enum_values=True`. Task 9 added. (3 run pass, 1 run fail, 3 not executed)
+- **Task 9** (round 1): FAIL — Core fix is present and targeted tests pass, but Task 9 introduces unused `# type: ignore[arg-type]` suppressions flagged by `ty` at `tests/unit/llm/test_provider_factory.py:93` and `tests/unit/llm/test_provider_factory.py:195`.
