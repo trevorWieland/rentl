@@ -10,7 +10,7 @@ from __future__ import annotations
 import ipaddress
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProviderCapabilities(BaseModel):
@@ -25,10 +25,12 @@ class ProviderCapabilities(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    name: str
-    is_openrouter: bool
-    supports_tool_calling: bool
-    supports_tool_choice_required: bool
+    name: str = Field(description="Human-readable provider name")
+    is_openrouter: bool = Field(description="Whether the provider is OpenRouter")
+    supports_tool_calling: bool = Field(description="Whether tool calling is supported")
+    supports_tool_choice_required: bool = Field(
+        description="Whether tool_choice:required is supported"
+    )
 
 
 # Provider capability definitions

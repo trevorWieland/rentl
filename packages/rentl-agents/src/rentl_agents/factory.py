@@ -105,8 +105,12 @@ class _AgentCacheEntry[OutputT: BaseSchema](BaseSchema):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    agent: AgentHarness[BaseSchema, OutputT]
-    output_type: type[OutputT]
+    agent: AgentHarness[BaseSchema, OutputT] = Field(
+        description="Cached agent harness instance"
+    )
+    output_type: type[OutputT] = Field(
+        description="Runtime output type for safe retrieval"
+    )
 
 
 def _entry_matches_output_type[OutputT: BaseSchema](

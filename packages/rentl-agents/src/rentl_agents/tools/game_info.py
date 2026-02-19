@@ -16,10 +16,16 @@ class ProjectContext(BaseModel):
     This is populated from the run configuration and passed to tools.
     """
 
-    game_name: str = "Unknown Game"
-    synopsis: str | None = None
-    source_language: str = "ja"
-    target_languages: list[str] = Field(default_factory=list)
+    game_name: str = Field(
+        default="Unknown Game", description="Name of the game being localized"
+    )
+    synopsis: str | None = Field(default=None, description="Brief synopsis of the game")
+    source_language: str = Field(
+        default="ja", description="ISO language code for the source language"
+    )
+    target_languages: list[str] = Field(
+        default_factory=list, description="ISO language codes for target languages"
+    )
 
 
 class GameInfoTool:

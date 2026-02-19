@@ -11,7 +11,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Migrate rentl-agents dataclasses to Pydantic (9 classes, 6 files)
+- [x] Task 2: Migrate rentl-agents dataclasses to Pydantic (9 classes, 6 files)
   - `ProviderCapabilities` — `packages/rentl-llm/src/rentl_llm/providers.py:15` (note: issue lists wrong path)
   - `ProjectContext` — `packages/rentl-agents/src/rentl_agents/tools/game_info.py:13`
   - `ToolRegistry` — `packages/rentl-agents/src/rentl_agents/tools/registry.py:67`
@@ -25,8 +25,8 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Preserve public API — field names, types, and defaults must not change
   - Remove `from dataclasses import dataclass` imports when no longer needed
   - Run `make check` to verify
-  - [ ] Fix: `ProviderCapabilities` uses raw schema annotations instead of `Field(..., description=...)`, violating `pydantic-only-schemas` and `strict-typing-enforcement` (`packages/rentl-llm/src/rentl_llm/providers.py:28`, `packages/rentl-llm/src/rentl_llm/providers.py:29`, `packages/rentl-llm/src/rentl_llm/providers.py:30`, `packages/rentl-llm/src/rentl_llm/providers.py:31`) (audit round 1)
-  - [ ] Fix: Add `Field(..., description=...)` (and validators where applicable) for migrated schema fields in `ProjectContext`, `_AgentCacheEntry`, `PromptLayerRegistry`, `PromptComposer`, `TemplateContext`, `AgentPoolBundle`, and `_AgentProfileSpec` to satisfy `pydantic-only-schemas` and `strict-typing-enforcement` (`packages/rentl-agents/src/rentl_agents/tools/game_info.py:19`, `packages/rentl-agents/src/rentl_agents/factory.py:108`, `packages/rentl-agents/src/rentl_agents/layers.py:64`, `packages/rentl-agents/src/rentl_agents/layers.py:467`, `packages/rentl-agents/src/rentl_agents/templates.py:274`, `packages/rentl-agents/src/rentl_agents/wiring.py:1107`, `packages/rentl-agents/src/rentl_agents/wiring.py:1117`) (audit round 1; see signposts.md: Task 2, migrated models missing Field metadata)
+  - [x] Fix: `ProviderCapabilities` uses raw schema annotations instead of `Field(..., description=...)`, violating `pydantic-only-schemas` and `strict-typing-enforcement` (`packages/rentl-llm/src/rentl_llm/providers.py:28`, `packages/rentl-llm/src/rentl_llm/providers.py:29`, `packages/rentl-llm/src/rentl_llm/providers.py:30`, `packages/rentl-llm/src/rentl_llm/providers.py:31`) (audit round 1)
+  - [x] Fix: Add `Field(..., description=...)` (and validators where applicable) for migrated schema fields in `ProjectContext`, `_AgentCacheEntry`, `PromptLayerRegistry`, `PromptComposer`, `TemplateContext`, `AgentPoolBundle`, and `_AgentProfileSpec` to satisfy `pydantic-only-schemas` and `strict-typing-enforcement` (`packages/rentl-agents/src/rentl_agents/tools/game_info.py:19`, `packages/rentl-agents/src/rentl_agents/factory.py:108`, `packages/rentl-agents/src/rentl_agents/layers.py:64`, `packages/rentl-agents/src/rentl_agents/layers.py:467`, `packages/rentl-agents/src/rentl_agents/templates.py:274`, `packages/rentl-agents/src/rentl_agents/wiring.py:1107`, `packages/rentl-agents/src/rentl_agents/wiring.py:1117`) (audit round 1; see signposts.md: Task 2, migrated models missing Field metadata)
 - [ ] Task 3: Migrate rentl-core + scripts dataclasses to Pydantic (6 classes, 5 files)
   - **`PipelineRunContext`** — `packages/rentl-core/src/rentl_core/orchestrator.py:238` (high-impact: core run state)
   - Unlisted dataclass — `packages/rentl-core/src/rentl_core/orchestrator.py:2006`

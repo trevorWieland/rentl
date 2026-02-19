@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_agents.context.scene import (
     format_scene_lines,
@@ -1104,19 +1104,31 @@ class AgentPoolBundle(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    context_agents: list[tuple[str, ContextAgentPoolProtocol]]
-    pretranslation_agents: list[tuple[str, PretranslationAgentPoolProtocol]]
-    translate_agents: list[tuple[str, TranslateAgentPoolProtocol]]
-    qa_agents: list[tuple[str, QaAgentPoolProtocol]]
-    edit_agents: list[tuple[str, EditAgentPoolProtocol]]
+    context_agents: list[tuple[str, ContextAgentPoolProtocol]] = Field(
+        description="Named context-phase agent pools"
+    )
+    pretranslation_agents: list[tuple[str, PretranslationAgentPoolProtocol]] = Field(
+        description="Named pretranslation-phase agent pools"
+    )
+    translate_agents: list[tuple[str, TranslateAgentPoolProtocol]] = Field(
+        description="Named translate-phase agent pools"
+    )
+    qa_agents: list[tuple[str, QaAgentPoolProtocol]] = Field(
+        description="Named QA-phase agent pools"
+    )
+    edit_agents: list[tuple[str, EditAgentPoolProtocol]] = Field(
+        description="Named edit-phase agent pools"
+    )
 
 
 class _AgentProfileSpec(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    name: str
-    profile: AgentProfileConfig
-    path: Path
+    name: str = Field(description="Agent profile identifier")
+    profile: AgentProfileConfig = Field(
+        description="Parsed agent profile configuration"
+    )
+    path: Path = Field(description="Filesystem path to the profile TOML file")
 
 
 def build_agent_pools(

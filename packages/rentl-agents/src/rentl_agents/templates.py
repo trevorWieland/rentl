@@ -271,9 +271,15 @@ class TemplateContext(BaseModel):
     Combines variables from root, phase, and agent layers.
     """
 
-    root_variables: dict[str, str] = Field(default_factory=dict)
-    phase_variables: dict[str, str] = Field(default_factory=dict)
-    agent_variables: dict[str, str] = Field(default_factory=dict)
+    root_variables: dict[str, str] = Field(
+        default_factory=dict, description="Project-level template variables"
+    )
+    phase_variables: dict[str, str] = Field(
+        default_factory=dict, description="Phase-level template variables"
+    )
+    agent_variables: dict[str, str] = Field(
+        default_factory=dict, description="Agent-level template variables"
+    )
 
     def get_all_variables(self) -> dict[str, str]:
         """Get all variables combined (root → phase → agent precedence).

@@ -61,8 +61,13 @@ class PromptLayerRegistry(BaseModel):
     Stores root and phase layer prompts for composition.
     """
 
-    root: RootPromptConfig | None = None
-    phases: dict[PhaseName, PhasePromptConfig] = Field(default_factory=dict)
+    root: RootPromptConfig | None = Field(
+        default=None, description="Root layer prompt configuration"
+    )
+    phases: dict[PhaseName, PhasePromptConfig] = Field(
+        default_factory=dict,
+        description="Phase layer prompt configurations keyed by phase name",
+    )
 
     def set_root(self, config: RootPromptConfig) -> None:
         """Set the root layer configuration.
@@ -464,8 +469,12 @@ class PromptComposer(BaseModel):
     system prompt used for LLM calls.
     """
 
-    registry: PromptLayerRegistry
-    separator: str = "\n\n---\n\n"
+    registry: PromptLayerRegistry = Field(
+        description="Prompt layer registry with root and phase configurations"
+    )
+    separator: str = Field(
+        default="\n\n---\n\n", description="Separator inserted between prompt layers"
+    )
 
     def compose_system_prompt(
         self,
