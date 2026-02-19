@@ -358,20 +358,21 @@ def _build_rows(
     for line, base_metadata, extra, _row_number in prepared_rows:
         row: dict[str, str] = {}
         for column in column_order:
-            if column == "line_id":
-                row[column] = line.line_id
-            elif column == "text":
-                row[column] = line.text
-            elif column == "scene_id":
-                row[column] = line.scene_id or ""
-            elif column == "speaker":
-                row[column] = line.speaker or ""
-            elif column == "source_text":
-                row[column] = line.source_text or ""
-            elif column == "metadata":
-                row[column] = _format_metadata(base_metadata)
-            else:
-                row[column] = _format_csv_value(extra.get(column))
+            match column:
+                case "line_id":
+                    row[column] = line.line_id
+                case "text":
+                    row[column] = line.text
+                case "scene_id":
+                    row[column] = line.scene_id or ""
+                case "speaker":
+                    row[column] = line.speaker or ""
+                case "source_text":
+                    row[column] = line.source_text or ""
+                case "metadata":
+                    row[column] = _format_metadata(base_metadata)
+                case _:
+                    row[column] = _format_csv_value(extra.get(column))
         rows.append(row)
     return rows
 

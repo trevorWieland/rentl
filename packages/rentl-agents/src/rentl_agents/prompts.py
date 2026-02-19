@@ -180,7 +180,7 @@ class PromptRenderer:
         Returns:
             Rendered template string.
         """
-        merged_context = {**prompt_template.default_values, **context}
+        merged_context = prompt_template.default_values | context
         return self.render_template(
             prompt_template.template,
             merged_context,

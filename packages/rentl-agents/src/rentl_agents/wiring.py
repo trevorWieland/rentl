@@ -1333,81 +1333,84 @@ def _build_phase_agent_entries(
     entries: list[tuple[str, PhaseAgentPoolProtocol]] = []
     for spec in resolved:
         pool: PhaseAgentPoolProtocol
-        if phase == PhaseName.CONTEXT:
-            pool = PhaseAgentPool.from_factory(
-                factory=lambda path=spec.path: create_context_agent_from_profile(
-                    profile_path=path,
-                    prompts_dir=prompts_dir,
-                    config=agent_config,
-                    tool_registry=tool_registry,
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                    telemetry_emitter=telemetry_emitter,
-                ),
-                count=_resolve_agent_pool_size(execution),
-                max_parallel=_resolve_agent_pool_max_parallel(execution),
-            )
-        elif phase == PhaseName.PRETRANSLATION:
-            pool = PhaseAgentPool.from_factory(
-                factory=lambda path=spec.path: create_pretranslation_agent_from_profile(
-                    profile_path=path,
-                    prompts_dir=prompts_dir,
-                    config=agent_config,
-                    tool_registry=tool_registry,
-                    chunk_size=_resolve_chunk_size(execution),
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                    telemetry_emitter=telemetry_emitter,
-                ),
-                count=_resolve_agent_pool_size(execution),
-                max_parallel=_resolve_agent_pool_max_parallel(execution),
-            )
-        elif phase == PhaseName.TRANSLATE:
-            pool = PhaseAgentPool.from_factory(
-                factory=lambda path=spec.path: create_translate_agent_from_profile(
-                    profile_path=path,
-                    prompts_dir=prompts_dir,
-                    config=agent_config,
-                    tool_registry=tool_registry,
-                    chunk_size=_resolve_chunk_size(execution),
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                    telemetry_emitter=telemetry_emitter,
-                ),
-                count=_resolve_agent_pool_size(execution),
-                max_parallel=_resolve_agent_pool_max_parallel(execution),
-            )
-        elif phase == PhaseName.QA:
-            pool = PhaseAgentPool.from_factory(
-                factory=lambda path=spec.path: create_qa_agent_from_profile(
-                    profile_path=path,
-                    prompts_dir=prompts_dir,
-                    config=agent_config,
-                    tool_registry=tool_registry,
-                    chunk_size=_resolve_chunk_size(execution),
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                    telemetry_emitter=telemetry_emitter,
-                ),
-                count=_resolve_agent_pool_size(execution),
-                max_parallel=_resolve_agent_pool_max_parallel(execution),
-            )
-        elif phase == PhaseName.EDIT:
-            pool = PhaseAgentPool.from_factory(
-                factory=lambda path=spec.path: create_edit_agent_from_profile(
-                    profile_path=path,
-                    prompts_dir=prompts_dir,
-                    config=agent_config,
-                    tool_registry=tool_registry,
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                    telemetry_emitter=telemetry_emitter,
-                ),
-                count=_resolve_agent_pool_size(execution),
-                max_parallel=_resolve_agent_pool_max_parallel(execution),
-            )
-        else:
-            raise ValueError(f"Unsupported phase: {phase.value}")
+        match phase:
+            case PhaseName.CONTEXT:
+                pool = PhaseAgentPool.from_factory(
+                    factory=lambda path=spec.path: create_context_agent_from_profile(
+                        profile_path=path,
+                        prompts_dir=prompts_dir,
+                        config=agent_config,
+                        tool_registry=tool_registry,
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        telemetry_emitter=telemetry_emitter,
+                    ),
+                    count=_resolve_agent_pool_size(execution),
+                    max_parallel=_resolve_agent_pool_max_parallel(execution),
+                )
+            case PhaseName.PRETRANSLATION:
+                pool = PhaseAgentPool.from_factory(
+                    factory=lambda path=spec.path: (
+                        create_pretranslation_agent_from_profile(
+                            profile_path=path,
+                            prompts_dir=prompts_dir,
+                            config=agent_config,
+                            tool_registry=tool_registry,
+                            chunk_size=_resolve_chunk_size(execution),
+                            source_lang=source_lang,
+                            target_lang=target_lang,
+                            telemetry_emitter=telemetry_emitter,
+                        )
+                    ),
+                    count=_resolve_agent_pool_size(execution),
+                    max_parallel=_resolve_agent_pool_max_parallel(execution),
+                )
+            case PhaseName.TRANSLATE:
+                pool = PhaseAgentPool.from_factory(
+                    factory=lambda path=spec.path: create_translate_agent_from_profile(
+                        profile_path=path,
+                        prompts_dir=prompts_dir,
+                        config=agent_config,
+                        tool_registry=tool_registry,
+                        chunk_size=_resolve_chunk_size(execution),
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        telemetry_emitter=telemetry_emitter,
+                    ),
+                    count=_resolve_agent_pool_size(execution),
+                    max_parallel=_resolve_agent_pool_max_parallel(execution),
+                )
+            case PhaseName.QA:
+                pool = PhaseAgentPool.from_factory(
+                    factory=lambda path=spec.path: create_qa_agent_from_profile(
+                        profile_path=path,
+                        prompts_dir=prompts_dir,
+                        config=agent_config,
+                        tool_registry=tool_registry,
+                        chunk_size=_resolve_chunk_size(execution),
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        telemetry_emitter=telemetry_emitter,
+                    ),
+                    count=_resolve_agent_pool_size(execution),
+                    max_parallel=_resolve_agent_pool_max_parallel(execution),
+                )
+            case PhaseName.EDIT:
+                pool = PhaseAgentPool.from_factory(
+                    factory=lambda path=spec.path: create_edit_agent_from_profile(
+                        profile_path=path,
+                        prompts_dir=prompts_dir,
+                        config=agent_config,
+                        tool_registry=tool_registry,
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        telemetry_emitter=telemetry_emitter,
+                    ),
+                    count=_resolve_agent_pool_size(execution),
+                    max_parallel=_resolve_agent_pool_max_parallel(execution),
+                )
+            case _:
+                raise ValueError(f"Unsupported phase: {phase.value}")
         entries.append((spec.name, pool))
     return entries
 

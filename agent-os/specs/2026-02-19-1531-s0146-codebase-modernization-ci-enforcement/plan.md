@@ -50,7 +50,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - `tests/unit/rentl-agents/test_alignment_retries.py:40`
   - Run `make check` to verify
   - [x] Fix: Replace `object` annotations in `FakeAgent` with concrete types for `outputs`, `contexts`, `update_context`, and `run` to satisfy `strict-typing-enforcement` (`tests/unit/rentl-agents/test_alignment_retries.py:45`, `tests/unit/rentl-agents/test_alignment_retries.py:48`, `tests/unit/rentl-agents/test_alignment_retries.py:54`, `tests/unit/rentl-agents/test_alignment_retries.py:58`) (audit round 1)
-- [ ] Task 5: Convert if/elif to match/case + modern Python cleanup (8+ violations, 5+ files)
+- [x] Task 5: Convert if/elif to match/case + modern Python cleanup (8+ violations, 5+ files)
   - `packages/rentl-core/src/rentl_core/orchestrator.py:499` — 7-branch if/elif phase dispatch
   - `packages/rentl-core/src/rentl_core/orchestrator.py:1776` — phase-guard chains
   - `packages/rentl-agents/src/rentl_agents/wiring.py:1288` — 5-branch if/elif

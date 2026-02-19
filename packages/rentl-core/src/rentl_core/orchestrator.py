@@ -526,36 +526,37 @@ class PipelineOrchestrator:
         )
 
         try:
-            if phase == PhaseName.INGEST:
-                record = await self._run_ingest(run, ingest_source)
-            elif phase == PhaseName.CONTEXT:
-                record = await self._run_context(run, execution)
-            elif phase == PhaseName.PRETRANSLATION:
-                record = await self._run_pretranslation(run, execution)
-            elif phase == PhaseName.TRANSLATE:
-                record = await self._run_translate(
-                    run, _require_language(language, phase), execution
-                )
-            elif phase == PhaseName.QA:
-                record = await self._run_qa(
-                    run, _require_language(language, phase), execution
-                )
-            elif phase == PhaseName.EDIT:
-                record = await self._run_edit(
-                    run, _require_language(language, phase), execution
-                )
-            elif phase == PhaseName.EXPORT:
-                record = await self._run_export(
-                    run, _require_language(language, phase), export_target
-                )
-            else:
-                raise OrchestrationError(
-                    OrchestrationErrorInfo(
-                        code=OrchestrationErrorCode.INVALID_STATE,
-                        message=f"Unsupported phase {phase.value}",
-                        details=OrchestrationErrorDetails(phase=phase),
+            match phase:
+                case PhaseName.INGEST:
+                    record = await self._run_ingest(run, ingest_source)
+                case PhaseName.CONTEXT:
+                    record = await self._run_context(run, execution)
+                case PhaseName.PRETRANSLATION:
+                    record = await self._run_pretranslation(run, execution)
+                case PhaseName.TRANSLATE:
+                    record = await self._run_translate(
+                        run, _require_language(language, phase), execution
                     )
-                )
+                case PhaseName.QA:
+                    record = await self._run_qa(
+                        run, _require_language(language, phase), execution
+                    )
+                case PhaseName.EDIT:
+                    record = await self._run_edit(
+                        run, _require_language(language, phase), execution
+                    )
+                case PhaseName.EXPORT:
+                    record = await self._run_export(
+                        run, _require_language(language, phase), export_target
+                    )
+                case _:
+                    raise OrchestrationError(
+                        OrchestrationErrorInfo(
+                            code=OrchestrationErrorCode.INVALID_STATE,
+                            message=f"Unsupported phase {phase.value}",
+                            details=OrchestrationErrorDetails(phase=phase),
+                        )
+                    )
         except OrchestrationError as exc:
             await self._emit_phase_failure(
                 run,
@@ -1799,32 +1800,9 @@ def _is_phase_enabled(config: RunConfig, phase: PhaseName) -> bool:
     return bool(phase_config and phase_config.enabled)
 
 
-def _validate_phase_prereqs(
-    run: PipelineRunContext,
-    phase: PhaseName,
-    target_language: LanguageCode | None,
-) -> None:
-    if phase == PhaseName.INGEST:
-        return
-    _require_source_lines(run, phase)
-
-    if phase == PhaseName.CONTEXT:
-        return
-
-    if _is_phase_enabled(run.config, PhaseName.CONTEXT):
-        _require_context_output(run, phase)
-
-    if phase == PhaseName.PRETRANSLATION:
-        return
-
-    if phase in {PhaseName.TRANSLATE, PhaseName.EDIT} and _is_phase_enabled(
-        run.config, PhaseName.PRETRANSLATION
-    ):
-        _require_pretranslation_output(run, phase)
-
-    if phase == PhaseName.TRANSLATE:
-        return
-
+def _require_target_language(
+    target_language: LanguageCode | None, phase: PhaseName
+) -> LanguageCode:
     if target_language is None:
         raise OrchestrationError(
             OrchestrationErrorInfo(
@@ -1833,18 +1811,53 @@ def _validate_phase_prereqs(
                 details=OrchestrationErrorDetails(phase=phase),
             )
         )
+    return target_language
 
-    if phase in {PhaseName.QA, PhaseName.EDIT, PhaseName.EXPORT}:
-        _require_translation(run, target_language, phase)
 
-    if phase == PhaseName.QA:
-        return
-
-    if phase == PhaseName.EDIT and _is_phase_enabled(run.config, PhaseName.QA):
-        _require_qa_output(run, target_language, phase)
-
-    if phase == PhaseName.EXPORT and _is_phase_enabled(run.config, PhaseName.EDIT):
-        _require_edit_output(run, target_language, phase)
+def _validate_phase_prereqs(
+    run: PipelineRunContext,
+    phase: PhaseName,
+    target_language: LanguageCode | None,
+) -> None:
+    match phase:
+        case PhaseName.INGEST:
+            pass
+        case PhaseName.CONTEXT:
+            _require_source_lines(run, phase)
+        case PhaseName.PRETRANSLATION:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+        case PhaseName.TRANSLATE:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.PRETRANSLATION):
+                _require_pretranslation_output(run, phase)
+        case PhaseName.QA:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+            lang = _require_target_language(target_language, phase)
+            _require_translation(run, lang, phase)
+        case PhaseName.EDIT:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.PRETRANSLATION):
+                _require_pretranslation_output(run, phase)
+            lang = _require_target_language(target_language, phase)
+            _require_translation(run, lang, phase)
+            if _is_phase_enabled(run.config, PhaseName.QA):
+                _require_qa_output(run, lang, phase)
+        case PhaseName.EXPORT:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+            lang = _require_target_language(target_language, phase)
+            _require_translation(run, lang, phase)
+            if _is_phase_enabled(run.config, PhaseName.EDIT):
+                _require_edit_output(run, lang, phase)
 
 
 def _latest_completed_record(
@@ -1869,21 +1882,25 @@ def _has_phase_output(
     phase: PhaseName,
     target_language: LanguageCode | None,
 ) -> bool:
-    if phase == PhaseName.INGEST:
-        return bool(run.source_lines)
-    if phase == PhaseName.CONTEXT:
-        return run.context_output is not None
-    if phase == PhaseName.PRETRANSLATION:
-        return run.pretranslation_output is not None
-    if phase == PhaseName.TRANSLATE:
-        return target_language is not None and target_language in run.translate_outputs
-    if phase == PhaseName.QA:
-        return target_language is not None and target_language in run.qa_outputs
-    if phase == PhaseName.EDIT:
-        return target_language is not None and target_language in run.edit_outputs
-    if phase == PhaseName.EXPORT:
-        return target_language is not None and target_language in run.export_results
-    return False
+    match phase:
+        case PhaseName.INGEST:
+            return bool(run.source_lines)
+        case PhaseName.CONTEXT:
+            return run.context_output is not None
+        case PhaseName.PRETRANSLATION:
+            return run.pretranslation_output is not None
+        case PhaseName.TRANSLATE:
+            return (
+                target_language is not None and target_language in run.translate_outputs
+            )
+        case PhaseName.QA:
+            return target_language is not None and target_language in run.qa_outputs
+        case PhaseName.EDIT:
+            return target_language is not None and target_language in run.edit_outputs
+        case PhaseName.EXPORT:
+            return target_language is not None and target_language in run.export_results
+        case _:
+            return False
 
 
 def _should_skip_phase(
