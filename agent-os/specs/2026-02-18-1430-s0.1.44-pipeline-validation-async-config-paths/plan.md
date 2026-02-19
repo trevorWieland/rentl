@@ -36,16 +36,16 @@ The 2026-02-17 standards audit flagged 17 violations across 4 standards (speed-w
   - [x] Fix: Replace backup schema-version dict drilling with `RunConfig.model_validate` + attribute assertions in `tests/integration/cli/test_migrate.py:225` (audit round 1)
   - [x] Fix: Replace backup schema-version dict drilling with `RunConfig.model_validate` + attribute assertions in `tests/integration/core/test_doctor.py:118` (audit round 1)
   - Acceptance: no config fixture writers without schema validation; no file-existence-only assertions for generated configs
-- [ ] Task 5: Wrap sync I/O in async contexts
+- [x] Task 5: Wrap sync I/O in async contexts
   - `services/rentl-cli/src/rentl/main.py:2811` — Wrap sync progress/report I/O in `asyncio.to_thread` (violation #10)
   - `services/rentl-cli/src/rentl/main.py:2609` — Wrap sync agent/prompt loaders in `asyncio.to_thread` (violation #11, critical)
   - `services/rentl-cli/src/rentl/main.py:1208` — Wrap sync manifest/slice loading in `asyncio.to_thread` (violation #12)
   - `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:35` — Wrap mkdir, sha256, write_bytes, unlink with `asyncio.to_thread` (violation #13)
   - `packages/rentl-core/src/rentl_core/doctor.py:423` — Wrap `_load_config_sync` call with `asyncio.to_thread` (violation #14)
   - Acceptance: no direct `open()`/`read()`/`write()`/`Path.mkdir()`/`Path.write_bytes()` calls inside async functions; all wrapped with `asyncio.to_thread`
-  - [ ] Fix: `run_doctor()` directly calls sync `check_config_valid()` in async context even though `check_config_valid()` performs sync file I/O (`packages/rentl-core/src/rentl_core/doctor.py:448`, `packages/rentl-core/src/rentl_core/doctor.py:194`, `packages/rentl-core/src/rentl_core/doctor.py:225`, `packages/rentl-core/src/rentl_core/doctor.py:229`); run this validation path via `asyncio.to_thread` (audit round 2)
-  - [ ] Fix: `_benchmark_compare_async()` calls sync config/.env loaders directly in async context (`services/rentl-cli/src/rentl/main.py:1447`, `services/rentl-cli/src/rentl/main.py:1494`, `services/rentl-cli/src/rentl/main.py:2205`, `services/rentl-cli/src/rentl/main.py:2227`); move these calls behind `asyncio.to_thread` or async equivalents (audit round 2)
-  - [ ] Fix: `_run_pipeline_async()` and `_run_phase_async()` call `_build_export_targets()`, which runs sync `Path.mkdir()` in async paths (`services/rentl-cli/src/rentl/main.py:2902`, `services/rentl-cli/src/rentl/main.py:2956`, `services/rentl-cli/src/rentl/main.py:2861`); eliminate blocking mkdir in async paths (audit round 2)
+  - [x] Fix: `run_doctor()` directly calls sync `check_config_valid()` in async context even though `check_config_valid()` performs sync file I/O (`packages/rentl-core/src/rentl_core/doctor.py:448`, `packages/rentl-core/src/rentl_core/doctor.py:194`, `packages/rentl-core/src/rentl_core/doctor.py:225`, `packages/rentl-core/src/rentl_core/doctor.py:229`); run this validation path via `asyncio.to_thread` (audit round 2)
+  - [x] Fix: `_benchmark_compare_async()` calls sync config/.env loaders directly in async context (`services/rentl-cli/src/rentl/main.py:1447`, `services/rentl-cli/src/rentl/main.py:1494`, `services/rentl-cli/src/rentl/main.py:2205`, `services/rentl-cli/src/rentl/main.py:2227`); move these calls behind `asyncio.to_thread` or async equivalents (audit round 2)
+  - [x] Fix: `_run_pipeline_async()` and `_run_phase_async()` call `_build_export_targets()`, which runs sync `Path.mkdir()` in async paths (`services/rentl-cli/src/rentl/main.py:2902`, `services/rentl-cli/src/rentl/main.py:2956`, `services/rentl-cli/src/rentl/main.py:2861`); eliminate blocking mkdir in async paths (audit round 2)
 - [x] Task 6: Fix config path resolution
   - `packages/rentl-core/src/rentl_core/doctor.py:264` — Resolve workspace paths from `workspace_dir` instead of `config_dir` (violation #15)
   - `scripts/validate_agents.py:406` — Load `.env` from config file parent, not CWD (violation #16)

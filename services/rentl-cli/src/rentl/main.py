@@ -1444,7 +1444,7 @@ async def _benchmark_compare_async(
             # CLI override mode - config loading is optional
             with contextlib.suppress(Exception):
                 # Config not available, use explicit env vars only
-                _load_dotenv(config_path)
+                await asyncio.to_thread(_load_dotenv, config_path)
             base_url = judge_base_url
             # Detect provider from URL
             provider_caps = detect_provider(base_url)
@@ -1490,8 +1490,8 @@ async def _benchmark_compare_async(
             max_output_tokens = 4096
         else:
             # Config-based mode - load config for judge endpoint
-            _load_dotenv(config_path)
-            config = _load_resolved_config(config_path)
+            await asyncio.to_thread(_load_dotenv, config_path)
+            config = await asyncio.to_thread(_load_resolved_config, config_path)
 
             # Use config endpoint (legacy single endpoint or multi-endpoint default)
             if config.endpoint is not None:
@@ -2899,8 +2899,8 @@ async def _run_pipeline_async(
     orchestrator = await asyncio.to_thread(_build_orchestrator, config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=None)
-    export_targets = _build_export_targets(
-        config, phases, run.run_id, languages, output_path=None
+    export_targets = await asyncio.to_thread(
+        _build_export_targets, config, phases, run.run_id, languages, None
     )
     await orchestrator.run_plan(
         run,
@@ -2953,12 +2953,13 @@ async def _run_phase_async(
     orchestrator = await asyncio.to_thread(_build_orchestrator, config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=input_path)
-    export_targets = _build_export_targets(
+    export_targets = await asyncio.to_thread(
+        _build_export_targets,
         config,
         phases,
         run.run_id,
         languages or None,
-        output_path=output_path,
+        output_path,
     )
     await orchestrator.run_plan(
         run,

@@ -441,11 +441,11 @@ async def run_doctor(
     checks.append(check_python_version())
 
     # Check 2: Config file exists
-    config_file_check = check_config_file(config_path)
+    config_file_check = await asyncio.to_thread(check_config_file, config_path)
     checks.append(config_file_check)
 
     # Check 3: Config file is valid (depends on Check 2)
-    config_valid_check = check_config_valid(config_path)
+    config_valid_check = await asyncio.to_thread(check_config_valid, config_path)
     checks.append(config_valid_check)
 
     # Load config for remaining checks (if valid)
