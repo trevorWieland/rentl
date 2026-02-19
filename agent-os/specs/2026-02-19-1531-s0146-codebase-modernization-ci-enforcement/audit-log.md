@@ -11,3 +11,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 3** (round 2): PASS — Added and verified `extra="forbid"` across all six Task 3 migrated models; targeted Task 3 tests pass (`tests/unit/core/test_llm_connection.py`, `tests/unit/core/qa/test_runner.py`, `tests/unit/core/test_orchestrator.py`).
 - **Task 4** (round 1): FAIL — `FakeAgent` retains `object` type annotations after migration to `BaseModel`, violating `strict-typing-enforcement` in changed code.
 - **Task 4** (round 2): PASS — `FakeAgent` now uses concrete `BaseModel` types for outputs/contexts and method signatures; targeted checks pass (`pytest -q tests/unit/rentl-agents/test_alignment_retries.py`, `ruff check` on Task 4 changed files).
+- **Task 5** (round 1): PASS — Legacy phase dispatch and related modern-Python cleanup were implemented with `match/case` and dict union updates across changed files, with no Task 5 regressions or standards violations in audit scope.
