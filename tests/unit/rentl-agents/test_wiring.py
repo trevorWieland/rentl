@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import AsyncMock
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
@@ -22,6 +24,7 @@ from rentl_agents.wiring import (
     create_translate_agent_from_profile,
     get_default_agents_dir,
     get_default_prompts_dir,
+    resolve_agent_path,
 )
 from rentl_core.orchestrator import PhaseAgentPool
 from rentl_schemas.config import (
@@ -43,6 +46,8 @@ from rentl_schemas.config import (
     RetryConfig,
     RunConfig,
 )
+from rentl_schemas.io import TranslatedLine
+from rentl_schemas.phases import EditPhaseInput, TranslationResultLine
 from rentl_schemas.primitives import (
     FileFormat,
     LogSinkType,
@@ -370,3 +375,132 @@ def test_profile_agent_config_requires_model_id() -> None:
     """Omitting model_id raises ValidationError."""
     with pytest.raises(ValidationError, match="model_id"):
         ProfileAgentConfig(api_key="test-key")  # type: ignore[call-arg]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_edit_agent_aggregate_validation_rejects_mismatched_lines() -> None:
+    """EditBasicEditorAgent raises when output line IDs don't match input."""
+    # Build a mock profile agent that returns wrong line_id
+    mock_profile = AsyncMock()
+    mock_profile.run = AsyncMock(
+        side_effect=lambda _payload: TranslationResultLine(
+            line_id="line_999", text="edited"
+        )
+    )
+    mock_profile.update_context = lambda _ctx: None
+
+    config = _build_config()
+    agent = EditBasicEditorAgent(
+        profile_agent=mock_profile,
+        config=config,
+        source_lang="ja",
+        target_lang="en",
+    )
+    payload = EditPhaseInput(
+        run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f0"),
+        target_language="en",
+        translated_lines=[
+            TranslatedLine(
+                line_id="line_1",
+                scene_id="scene_1",
+                speaker=None,
+                source_text="Hi",
+                text="Hello",
+                metadata=None,
+                source_columns=None,
+            ),
+        ],
+        qa_issues=None,
+        reviewer_notes=None,
+        scene_summaries=None,
+        context_notes=None,
+        project_context=None,
+        pretranslation_annotations=None,
+        term_candidates=None,
+        glossary=None,
+        style_guide=None,
+    )
+
+    # The alignment retry logic will exhaust retries and raise RuntimeError
+    with pytest.raises(RuntimeError, match="line_id must match"):
+        await agent.run(payload)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_edit_agent_aggregate_validation_passes_on_matching_lines() -> None:
+    """EditBasicEditorAgent succeeds when output lines match input."""
+    mock_profile = AsyncMock()
+    mock_profile.run = AsyncMock(
+        return_value=TranslationResultLine(line_id="line_1", text="edited")
+    )
+    mock_profile.update_context = lambda _ctx: None
+
+    config = _build_config()
+    agent = EditBasicEditorAgent(
+        profile_agent=mock_profile,
+        config=config,
+        source_lang="ja",
+        target_lang="en",
+    )
+    payload = EditPhaseInput(
+        run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f0"),
+        target_language="en",
+        translated_lines=[
+            TranslatedLine(
+                line_id="line_1",
+                scene_id="scene_1",
+                speaker=None,
+                source_text="Hi",
+                text="Hello",
+                metadata=None,
+                source_columns=None,
+            ),
+        ],
+        qa_issues=None,
+        reviewer_notes=None,
+        scene_summaries=None,
+        context_notes=None,
+        project_context=None,
+        pretranslation_annotations=None,
+        term_candidates=None,
+        glossary=None,
+        style_guide=None,
+    )
+
+    result = await agent.run(payload)
+    assert len(result.edited_lines) == 1
+    assert result.edited_lines[0].line_id == "line_1"
+
+
+class TestResolveAgentPath:
+    """Tests for resolve_agent_path workspace containment."""
+
+    def test_relative_path_resolves_within_workspace(self, tmp_path: Path) -> None:
+        """Relative paths resolve against workspace_dir."""
+        result = resolve_agent_path("agents/translate", tmp_path)
+        assert result == (tmp_path / "agents" / "translate").resolve()
+
+    def test_absolute_path_within_workspace_allowed(self, tmp_path: Path) -> None:
+        """Absolute paths inside workspace are accepted."""
+        inner = tmp_path / "agents"
+        inner.mkdir()
+        result = resolve_agent_path(str(inner), tmp_path)
+        assert result == inner.resolve()
+
+    def test_absolute_path_escaping_workspace_raises(self, tmp_path: Path) -> None:
+        """Absolute paths outside workspace are rejected."""
+        workspace = tmp_path / "project"
+        workspace.mkdir()
+        outside = tmp_path / "elsewhere"
+        outside.mkdir()
+        with pytest.raises(ValueError, match="escapes workspace"):
+            resolve_agent_path(str(outside), workspace)
+
+    def test_relative_path_with_dotdot_escaping_raises(self, tmp_path: Path) -> None:
+        """Relative paths that escape workspace via '..' are rejected."""
+        workspace = tmp_path / "project"
+        workspace.mkdir()
+        with pytest.raises(ValueError, match="escapes workspace"):
+            resolve_agent_path("../../etc/passwd", workspace)

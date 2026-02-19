@@ -12,6 +12,7 @@ are not available in the environment.
 from __future__ import annotations
 
 import os
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ from typer.testing import CliRunner
 
 import rentl.main as cli_main
 from rentl_core.init import ENDPOINT_PRESETS, StandardEnvVar
+from rentl_schemas.config import RunConfig
 
 if TYPE_CHECKING:
     pass
@@ -90,8 +92,10 @@ def test_openrouter_preset_validates_against_live_api(
         f"Error: {init_result.stderr}"
     )
 
-    # Verify config was created
+    # Verify config was created and validates as RunConfig
     assert config_path.exists(), f"Config file not created: {config_path}"
+    with config_path.open("rb") as f:
+        RunConfig.model_validate(tomllib.load(f))
 
     # Verify .env was created by init
     env_path = project_dir / ".env"

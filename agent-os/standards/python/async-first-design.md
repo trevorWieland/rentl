@@ -45,3 +45,29 @@ def translate_scenes(request: TranslationRequest) -> list[str]:
 - Never block inside async functions
 
 **Why async-first:** Enables parallel execution of agents/scenes, handles network IO to LLMs efficiently, and scales without blocking on slow external services.
+
+**Call-chain tracing for sync boundaries:**
+
+Don't just check the immediate async function body — trace through every sync callee to its leaf I/O. Wrap at the highest sync boundary.
+
+```python
+# ✗ Bad: Only checked run_doctor(), missed sync callee
+async def run_doctor(config_path: Path) -> Report:
+    result = check_config_valid(config_path)  # Looks innocent
+    # But check_config_valid() calls open(), toml.load() internally
+
+# ✓ Good: Traced the chain, wrapped at boundary
+async def run_doctor(config_path: Path) -> Report:
+    result = await asyncio.to_thread(check_config_valid, config_path)
+```
+
+This applies to **all filesystem calls**, including cheap ones:
+- `Path.exists()`, `Path.stat()`, `Path.is_file()` — can block on network mounts
+- `Path.mkdir()`, `Path.unlink()`, `Path.write_bytes()`
+- `open()`, `toml.load()`, `.read()`, `.write()`
+
+**Audit procedure:**
+1. For each `async def`, list every non-awaited function call
+2. For each sync callee, trace to leaf — does it touch the filesystem or network?
+3. If yes, wrap the call in `asyncio.to_thread()` at the async boundary
+4. If the callee is only ever used from async contexts, consider making it async

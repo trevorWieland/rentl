@@ -1999,10 +1999,11 @@ def test_init_command_provider_preset_selection(
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
-        config = tomllib.load(f)
-    assert config["endpoint"]["base_url"] == "https://openrouter.ai/api/v1"
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.endpoint.base_url == "https://openrouter.ai/api/v1"
     # Env var should now be standardized
-    assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
+    assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
 
 
 def test_init_command_local_preset_prompts_for_model(
@@ -2028,13 +2029,14 @@ def test_init_command_local_preset_prompts_for_model(
     assert result.exit_code == 0
     assert "Local" in result.stdout
 
-    # Verify rentl.toml contains user-provided model
+    # Verify rentl.toml contains user-provided model — validate with schema
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
-        config = tomllib.load(f)
-    assert config["endpoint"]["base_url"] == "http://localhost:11434/v1"
-    assert config["pipeline"]["default_model"]["model_id"] == "my-local-model"
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.endpoint.base_url == "http://localhost:11434/v1"
+    assert config.pipeline.default_model.model_id == "my-local-model"
 
 
 def test_init_command_provider_custom_option(
@@ -2063,15 +2065,16 @@ def test_init_command_provider_custom_option(
     # Assert successful exit
     assert result.exit_code == 0
 
-    # Verify rentl.toml contains custom endpoint settings with standardized env var
+    # Verify rentl.toml contains custom endpoint settings — validate with schema
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
-        config = tomllib.load(f)
-    assert config["endpoint"]["base_url"] == "https://api.example.com/v1"
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.endpoint.base_url == "https://api.example.com/v1"
     # Env var should be standardized (not custom)
-    assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
-    assert config["pipeline"]["default_model"]["model_id"] == "my-model-v1"
+    assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
+    assert config.pipeline.default_model.model_id == "my-model-v1"
 
 
 def test_init_command_provider_out_of_range_fails(
@@ -2134,12 +2137,13 @@ def test_init_command_custom_url_validation_loop(
     # Verify error message appeared for invalid URL
     assert "error" in result.stdout.lower()
 
-    # Verify rentl.toml was created with valid URL
+    # Verify rentl.toml was created with valid URL — validate with schema
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
-        config = tomllib.load(f)
-    assert config["endpoint"]["base_url"] == "https://api.example.com/v1"
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.endpoint.base_url == "https://api.example.com/v1"
 
 
 def test_help_command_no_args() -> None:
@@ -2658,7 +2662,7 @@ def test_auto_migrate_if_needed_outdated(tmp_path: Path) -> None:
     """Test auto-migrate upgrades outdated config and creates backup."""
     config_path = tmp_path / "rentl.toml"
 
-    # Write an old config
+    # Write an old config — full RunConfig payload so we can validate the whole result
     old_config_content = """[project]
 schema_version = { major = 0, minor = 0, patch = 1 }
 project_name = "test-project"
@@ -2687,6 +2691,33 @@ provider_name = "test"
 base_url = "http://localhost"
 api_key_env = "TEST_API_KEY"
 model_id = "test-model"
+
+[pipeline]
+
+[pipeline.default_model]
+model_id = "test-model"
+
+[[pipeline.phases]]
+phase = "ingest"
+
+[[pipeline.phases]]
+phase = "translate"
+agents = ["direct_translator"]
+
+[[pipeline.phases]]
+phase = "export"
+
+[concurrency]
+max_parallel_requests = 8
+max_parallel_scenes = 4
+
+[retry]
+max_retries = 3
+backoff_s = 1.0
+max_backoff_s = 30.0
+
+[cache]
+enabled = false
 """
     config_path.write_text(old_config_content, encoding="utf-8")
 
@@ -2697,12 +2728,11 @@ model_id = "test-model"
     # Run auto-migrate
     result = cli_main._auto_migrate_if_needed(config_path, payload)
 
-    # Should have upgraded the schema version
-    project = cast(dict, result["project"])
-    schema_version = cast(dict, project["schema_version"])
-    assert schema_version["major"] == 0
-    assert schema_version["minor"] == 1
-    assert schema_version["patch"] == 0
+    # Should have upgraded the schema version — validate full config with schema
+    migrated_config = RunConfig.model_validate(result)
+    assert migrated_config.project.schema_version.major == 0
+    assert migrated_config.project.schema_version.minor == 1
+    assert migrated_config.project.schema_version.patch == 0
 
     # Should have created a backup
     backup_path = config_path.with_suffix(".toml.bak")
@@ -2710,21 +2740,19 @@ model_id = "test-model"
 
     # Backup should contain the original version
     with backup_path.open("rb") as f:
-        backup = tomllib.load(f)
-    backup_project = cast(dict, backup["project"])
-    backup_schema_version = cast(dict, backup_project["schema_version"])
-    assert backup_schema_version["major"] == 0
-    assert backup_schema_version["minor"] == 0
-    assert backup_schema_version["patch"] == 1
+        backup_dict = tomllib.load(f)
+    backup_config = RunConfig.model_validate(backup_dict)
+    assert backup_config.project.schema_version.major == 0
+    assert backup_config.project.schema_version.minor == 0
+    assert backup_config.project.schema_version.patch == 1
 
     # Config file should have been updated
     with config_path.open("rb") as f:
-        updated = tomllib.load(f)
-    updated_project = cast(dict, updated["project"])
-    updated_schema_version = cast(dict, updated_project["schema_version"])
-    assert updated_schema_version["major"] == 0
-    assert updated_schema_version["minor"] == 1
-    assert updated_schema_version["patch"] == 0
+        updated_dict = tomllib.load(f)
+    updated_config = RunConfig.model_validate(updated_dict)
+    assert updated_config.project.schema_version.major == 0
+    assert updated_config.project.schema_version.minor == 1
+    assert updated_config.project.schema_version.patch == 0
 
 
 def test_auto_migrate_if_needed_no_schema_version(tmp_path: Path) -> None:

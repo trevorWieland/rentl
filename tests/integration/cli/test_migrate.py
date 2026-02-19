@@ -11,6 +11,7 @@ from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl.main as cli_main
+from rentl_schemas.config import RunConfig
 
 if TYPE_CHECKING:
     pass
@@ -41,7 +42,7 @@ def given_old_config(tmp_path: Path) -> MigrateContext:
     ctx.config_path = tmp_path / "rentl.toml"
     ctx.original_version = "0.0.1"
 
-    # Write a minimal config with old schema version
+    # Write a config with old schema version including all required RunConfig fields
     config_content = """[project]
 schema_version = { major = 0, minor = 0, patch = 1 }
 project_name = "test-project"
@@ -70,6 +71,27 @@ provider_name = "test"
 base_url = "http://localhost"
 api_key_env = "TEST_API_KEY"
 model_id = "test-model"
+
+[pipeline.default_model]
+model_id = "test-model"
+
+[[pipeline.phases]]
+phase = "ingest"
+
+[[pipeline.phases]]
+phase = "export"
+
+[concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[cache]
+enabled = false
 """
     ctx.config_path.write_text(config_content, encoding="utf-8")
     return ctx
@@ -87,7 +109,7 @@ def given_current_config(tmp_path: Path) -> MigrateContext:
     ctx.config_path = tmp_path / "rentl.toml"
     ctx.original_version = "0.1.0"
 
-    # Write a minimal config with current schema version
+    # Write a config with current schema version including all required RunConfig fields
     config_content = """[project]
 schema_version = { major = 0, minor = 1, patch = 0 }
 project_name = "test-project"
@@ -116,6 +138,27 @@ provider_name = "test"
 base_url = "http://localhost"
 api_key_env = "TEST_API_KEY"
 model_id = "test-model"
+
+[pipeline.default_model]
+model_id = "test-model"
+
+[[pipeline.phases]]
+phase = "ingest"
+
+[[pipeline.phases]]
+phase = "export"
+
+[concurrency]
+max_parallel_requests = 1
+max_parallel_scenes = 1
+
+[retry]
+max_retries = 1
+backoff_s = 1.0
+max_backoff_s = 2.0
+
+[cache]
+enabled = false
 """
     ctx.config_path.write_text(config_content, encoding="utf-8")
     return ctx
@@ -157,15 +200,15 @@ def then_config_migrated(ctx: MigrateContext) -> None:
     assert ctx.config_path is not None
     assert ctx.config_path.exists()
 
-    # Parse the migrated config
+    # Parse and validate the migrated config
     with ctx.config_path.open("rb") as f:
-        migrated_config = tomllib.load(f)
+        migrated_dict = tomllib.load(f)
+    config = RunConfig.model_validate(migrated_dict)
 
     # Check schema version was updated
-    schema_version = migrated_config["project"]["schema_version"]
-    assert schema_version["major"] == 0
-    assert schema_version["minor"] == 1
-    assert schema_version["patch"] == 0
+    assert config.project.schema_version.major == 0
+    assert config.project.schema_version.minor == 1
+    assert config.project.schema_version.patch == 0
 
 
 @then("a backup file is created")
@@ -175,14 +218,12 @@ def then_backup_created(ctx: MigrateContext) -> None:
     backup_path = ctx.config_path.with_suffix(".toml.bak")
     assert backup_path.exists()
 
-    # Verify backup contains original version
+    # Verify backup contains original version via schema validation
     with backup_path.open("rb") as f:
-        backup_config = tomllib.load(f)
+        backup_dict = tomllib.load(f)
+    backup_config = RunConfig.model_validate(backup_dict)
 
-    schema_version = backup_config["project"]["schema_version"]
-    version_str = (
-        f"{schema_version['major']}.{schema_version['minor']}.{schema_version['patch']}"
-    )
+    version_str = str(backup_config.project.schema_version)
     assert version_str == ctx.original_version
 
 
@@ -200,15 +241,13 @@ def then_config_unchanged(ctx: MigrateContext) -> None:
     assert ctx.config_path is not None
     assert ctx.config_path.exists()
 
-    # Parse the config
+    # Parse and validate the config
     with ctx.config_path.open("rb") as f:
-        config = tomllib.load(f)
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
 
     # Check schema version is still original
-    schema_version = config["project"]["schema_version"]
-    version_str = (
-        f"{schema_version['major']}.{schema_version['minor']}.{schema_version['patch']}"
-    )
+    version_str = str(config.project.schema_version)
     assert version_str == ctx.original_version
 
 
@@ -251,15 +290,15 @@ def then_config_auto_migrated(ctx: MigrateContext) -> None:
     assert ctx.config_path is not None
     assert ctx.config_path.exists()
 
-    # Parse the migrated config
+    # Parse and validate the migrated config
     with ctx.config_path.open("rb") as f:
-        migrated_config = tomllib.load(f)
+        migrated_dict = tomllib.load(f)
+    config = RunConfig.model_validate(migrated_dict)
 
     # Check schema version was updated
-    schema_version = migrated_config["project"]["schema_version"]
-    assert schema_version["major"] == 0
-    assert schema_version["minor"] == 1
-    assert schema_version["patch"] == 0
+    assert config.project.schema_version.major == 0
+    assert config.project.schema_version.minor == 1
+    assert config.project.schema_version.patch == 0
 
 
 @then("the output shows auto-migration occurred")

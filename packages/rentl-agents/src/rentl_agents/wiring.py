@@ -970,6 +970,25 @@ class EditBasicEditorAgent:
                     )
                 break
 
+        # Aggregate validation: edited output must match input lines exactly
+        input_ids = {line.line_id for line in payload.translated_lines}
+        output_ids = {line.line_id for line in edited_lines}
+        if len(edited_lines) != len(payload.translated_lines):
+            raise RuntimeError(
+                f"Edit output line count mismatch: "
+                f"expected {len(payload.translated_lines)}, "
+                f"got {len(edited_lines)}"
+            )
+        if output_ids != input_ids:
+            missing = input_ids - output_ids
+            extra = output_ids - input_ids
+            parts = []
+            if missing:
+                parts.append(f"missing={sorted(missing)}")
+            if extra:
+                parts.append(f"extra={sorted(extra)}")
+            raise RuntimeError(f"Edit output line ID mismatch: {', '.join(parts)}")
+
         return EditPhaseOutput(
             run_id=payload.run_id,
             phase=PhaseName.EDIT,
@@ -1119,8 +1138,8 @@ def build_agent_pools(
     else:
         agents_config = config.agents
         workspace_dir = Path(config.project.paths.workspace_dir)
-        prompts_dir = _resolve_agent_path(agents_config.prompts_dir, workspace_dir)
-        agents_dir = _resolve_agent_path(agents_config.agents_dir, workspace_dir)
+        prompts_dir = resolve_agent_path(agents_config.prompts_dir, workspace_dir)
+        agents_dir = resolve_agent_path(agents_config.agents_dir, workspace_dir)
     source_lang = config.project.languages.source_language
     target_lang = _resolve_primary_target_language(config)
     tool_registry = get_default_registry()
@@ -1196,11 +1215,29 @@ def build_agent_pools(
     )
 
 
-def _resolve_agent_path(value: str, workspace_dir: Path) -> Path:
+def resolve_agent_path(value: str, workspace_dir: Path) -> Path:
+    """Resolve an agent path and enforce workspace containment.
+
+    Returns:
+        Resolved absolute path within the workspace.
+
+    Raises:
+        ValueError: If the resolved path escapes the workspace directory.
+    """
+    resolved_workspace = workspace_dir.resolve()
     path = Path(value)
     if path.is_absolute():
-        return path
-    return (workspace_dir / path).resolve()
+        resolved = path.resolve()
+    else:
+        resolved = (resolved_workspace / path).resolve()
+    try:
+        resolved.relative_to(resolved_workspace)
+    except ValueError as exc:
+        raise ValueError(
+            f"Agent path escapes workspace: {value!r} resolves to "
+            f"{resolved}, which is outside {resolved_workspace}"
+        ) from exc
+    return resolved
 
 
 def _discover_agent_profile_specs(agents_dir: Path) -> dict[str, _AgentProfileSpec]:

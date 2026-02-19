@@ -1222,17 +1222,20 @@ async def _benchmark_download_async(
 
         # Load manifest and slices config
         rprint(f"[cyan]Loading eval set:[/cyan] {eval_set}")
-        manifest = EvalSetLoader.load_manifest(normalized_eval_set)
-        slices_config = EvalSetLoader.load_slices(normalized_eval_set)
+        manifest = await asyncio.to_thread(
+            EvalSetLoader.load_manifest, normalized_eval_set
+        )
+        slices_config = await asyncio.to_thread(
+            EvalSetLoader.load_slices, normalized_eval_set
+        )
 
         # Determine which scripts to download
         if slice_name:
             if slice_name not in slices_config.slices:
                 rprint(f"[red]Error:[/red] Slice '{slice_name}' not found")
                 raise typer.Exit(code=1)
-            script_files = EvalSetLoader.get_slice_scripts(
-                normalized_eval_set, slice_name
-            )
+            slice_def = slices_config.slices[slice_name]
+            script_files = [script.file for script in slice_def.scripts]
             rprint(f"[cyan]Using slice:[/cyan] {slice_name}")
         else:
             script_files = list(manifest.scripts.keys())
@@ -1266,20 +1269,25 @@ async def _benchmark_download_async(
                 )
                 if script_config:
                     # Read and slice the file content
-                    content_lines = script_path.read_text(encoding="utf-8").splitlines()
+                    raw_text = await asyncio.to_thread(
+                        script_path.read_text, encoding="utf-8"
+                    )
+                    content_lines = raw_text.splitlines()
                     start_line, end_line = script_config.line_range
                     sliced_content = "\n".join(content_lines[start_line - 1 : end_line])
 
                     # Write temporary sliced file for parser
                     temp_path = script_path.parent / f"_temp_{script_file}"
-                    temp_path.write_text(sliced_content, encoding="utf-8")
+                    await asyncio.to_thread(
+                        temp_path.write_text, sliced_content, "utf-8"
+                    )
 
-                    parsed = parser.parse_script(temp_path)
-                    temp_path.unlink()  # Clean up temp file
+                    parsed = await asyncio.to_thread(parser.parse_script, temp_path)
+                    await asyncio.to_thread(temp_path.unlink)
                 else:
-                    parsed = parser.parse_script(script_path)
+                    parsed = await asyncio.to_thread(parser.parse_script, script_path)
             else:
-                parsed = parser.parse_script(script_path)
+                parsed = await asyncio.to_thread(parser.parse_script, script_path)
 
             all_lines.extend(parsed)
             rprint(f"  {script_file}: {len(parsed)} lines")
@@ -1435,7 +1443,7 @@ async def _benchmark_compare_async(
             # CLI override mode - config loading is optional
             with contextlib.suppress(Exception):
                 # Config not available, use explicit env vars only
-                _load_dotenv(config_path)
+                await asyncio.to_thread(_load_dotenv, config_path)
             base_url = judge_base_url
             # Detect provider from URL
             provider_caps = detect_provider(base_url)
@@ -1481,8 +1489,8 @@ async def _benchmark_compare_async(
             max_output_tokens = 4096
         else:
             # Config-based mode - load config for judge endpoint
-            _load_dotenv(config_path)
-            config = _load_resolved_config(config_path)
+            await asyncio.to_thread(_load_dotenv, config_path)
+            config = await asyncio.to_thread(_load_resolved_config, config_path)
 
             # Use config endpoint (legacy single endpoint or multi-endpoint default)
             if config.endpoint is not None:
@@ -2887,11 +2895,11 @@ async def _run_pipeline_async(
     preflight_endpoints = _build_preflight_endpoints(config, phases)
     if preflight_endpoints:
         await assert_preflight(preflight_endpoints)
-    orchestrator = _build_orchestrator(config, bundle, phases)
+    orchestrator = await asyncio.to_thread(_build_orchestrator, config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=None)
-    export_targets = _build_export_targets(
-        config, phases, run.run_id, languages, output_path=None
+    export_targets = await asyncio.to_thread(
+        _build_export_targets, config, phases, run.run_id, languages, None
     )
     await orchestrator.run_plan(
         run,
@@ -2903,14 +2911,18 @@ async def _run_pipeline_async(
     run_state = await _load_run_state(bundle, run.run_id)
     log_reference = await bundle.log_store.get_log_reference(run.run_id)
     progress_file = _build_progress_reference(bundle.progress_path)
-    progress_updates = _read_progress_updates(bundle.progress_path)
+    progress_updates = await asyncio.to_thread(
+        _read_progress_updates, bundle.progress_path
+    )
     report_data = _build_run_report_data(
         run_id=run.run_id,
         run_state=run_state,
         progress_updates=progress_updates,
     )
-    _write_run_report(
-        _report_path(config.project.paths.logs_dir, run.run_id), report_data
+    await asyncio.to_thread(
+        _write_run_report,
+        _report_path(config.project.paths.logs_dir, run.run_id),
+        report_data,
     )
     return _build_run_execution_result(
         run=run,
@@ -2937,15 +2949,16 @@ async def _run_phase_async(
     preflight_endpoints = _build_preflight_endpoints(config, phases)
     if preflight_endpoints:
         await assert_preflight(preflight_endpoints)
-    orchestrator = _build_orchestrator(config, bundle, phases)
+    orchestrator = await asyncio.to_thread(_build_orchestrator, config, bundle, phases)
     run = await _load_or_create_run_context(orchestrator, bundle, run_id, config)
     ingest_source = _build_ingest_source(config, phases, input_path=input_path)
-    export_targets = _build_export_targets(
+    export_targets = await asyncio.to_thread(
+        _build_export_targets,
         config,
         phases,
         run.run_id,
         languages or None,
-        output_path=output_path,
+        output_path,
     )
     await orchestrator.run_plan(
         run,
@@ -2957,14 +2970,18 @@ async def _run_phase_async(
     run_state = await _load_run_state(bundle, run.run_id)
     log_reference = await bundle.log_store.get_log_reference(run.run_id)
     progress_file = _build_progress_reference(bundle.progress_path)
-    progress_updates = _read_progress_updates(bundle.progress_path)
+    progress_updates = await asyncio.to_thread(
+        _read_progress_updates, bundle.progress_path
+    )
     report_data = _build_run_report_data(
         run_id=run.run_id,
         run_state=run_state,
         progress_updates=progress_updates,
     )
-    _write_run_report(
-        _report_path(config.project.paths.logs_dir, run.run_id), report_data
+    await asyncio.to_thread(
+        _write_run_report,
+        _report_path(config.project.paths.logs_dir, run.run_id),
+        report_data,
     )
     phase_record = _find_phase_record(run.phase_history, phase, languages)
     return _build_run_execution_result(

@@ -7,6 +7,7 @@ fix suggestions.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import tomllib
@@ -260,10 +261,11 @@ def check_workspace_dirs(config: RunConfig, config_dir: Path) -> CheckResult:
     Returns:
         CheckResult: Check result for workspace directory structure.
     """
-    # Resolve paths relative to config directory (not CWD)
+    # Resolve workspace_dir from config_dir, then output/logs from workspace_dir
+    # (matches the resolution chain in config-path-resolution standard)
     workspace_dir = config_dir / config.project.paths.workspace_dir
-    output_dir = config_dir / config.project.paths.output_dir
-    logs_dir = config_dir / config.project.paths.logs_dir
+    output_dir = workspace_dir / config.project.paths.output_dir
+    logs_dir = workspace_dir / config.project.paths.logs_dir
 
     missing: list[str] = []
     if not workspace_dir.exists():
@@ -439,21 +441,23 @@ async def run_doctor(
     checks.append(check_python_version())
 
     # Check 2: Config file exists
-    config_file_check = check_config_file(config_path)
+    config_file_check = await asyncio.to_thread(check_config_file, config_path)
     checks.append(config_file_check)
 
     # Check 3: Config file is valid (depends on Check 2)
-    config_valid_check = check_config_valid(config_path)
+    config_valid_check = await asyncio.to_thread(check_config_valid, config_path)
     checks.append(config_valid_check)
 
     # Load config for remaining checks (if valid)
     config: RunConfig | None = None
     if config_valid_check.status == CheckStatus.PASS:
-        config = _load_config_sync(config_path)
+        config = await asyncio.to_thread(_load_config_sync, config_path)
 
     # Check 4: Workspace directories (depends on valid config)
     if config is not None:
-        checks.append(check_workspace_dirs(config, config_path.parent))
+        checks.append(
+            await asyncio.to_thread(check_workspace_dirs, config, config_path.parent)
+        )
     else:
         checks.append(
             CheckResult(

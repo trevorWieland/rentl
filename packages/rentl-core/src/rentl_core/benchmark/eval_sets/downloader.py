@@ -1,5 +1,6 @@
 """Evaluation set downloader for Katawa Shoujo KSRE scripts."""
 
+import asyncio
 import hashlib
 from collections.abc import Callable
 from pathlib import Path
@@ -52,7 +53,7 @@ class KatawaShoujoDownloader:
         Returns:
             Dict mapping filename to local cached path
         """
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(self.cache_dir.mkdir, parents=True, exist_ok=True)
         results: dict[str, Path] = {}
 
         if self._http_client is not None:
@@ -103,8 +104,10 @@ class KatawaShoujoDownloader:
                 )
 
             # Check if file exists and hash matches (skip download if cached)
-            if cached_path.exists() and hash_manifest:
-                existing_hash = self._compute_sha256(cached_path)
+            if await asyncio.to_thread(cached_path.exists) and hash_manifest:
+                existing_hash = await asyncio.to_thread(
+                    self._compute_sha256, cached_path
+                )
                 expected_hash = hash_manifest.get(script_file)
                 if expected_hash and existing_hash == expected_hash:
                     results[script_file] = cached_path
@@ -116,14 +119,14 @@ class KatawaShoujoDownloader:
             response.raise_for_status()
 
             # Write to cache
-            cached_path.write_bytes(response.content)
+            await asyncio.to_thread(cached_path.write_bytes, response.content)
 
             # Validate hash if manifest provided
             if hash_manifest:
-                actual_hash = self._compute_sha256(cached_path)
+                actual_hash = await asyncio.to_thread(self._compute_sha256, cached_path)
                 expected_hash = hash_manifest[script_file]  # Already validated above
                 if actual_hash != expected_hash:
-                    cached_path.unlink()  # Remove invalid file
+                    await asyncio.to_thread(cached_path.unlink)
                     raise ValueError(
                         f"Hash validation failed for {script_file}: "
                         f"expected {expected_hash}, got {actual_hash}"
