@@ -10,7 +10,8 @@
 - **Solution:** For each migrated schema field, replace raw annotations with `Field` declarations that include clear `description` metadata and validators where constraints are known.
 
 - **Task:** Task 3 (audit round 1)
-- **Status:** unresolved
+- **Status:** resolved
+- **Resolution:** do-task round 2 (2026-02-19) — added `extra="forbid"` to all 6 Task 3 migrated models
 - **Problem:** Migrated BaseModels silently ignore unknown constructor kwargs, which changes dataclass constructor behavior and can hide bad call-site inputs.
 - **Evidence:** `DeterministicCheckResult` currently uses `ConfigDict(frozen=True)` without `extra="forbid"` at `packages/rentl-core/src/rentl_core/qa/protocol.py:30`.
 - **Evidence:** Audit command output shows unknown kwargs are accepted and dropped: `DeterministicCheckResult(..., unexpected='extra')` constructs successfully and `model_extra= None`.

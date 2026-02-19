@@ -27,7 +27,7 @@ class DeterministicCheckResult(BaseModel):
         metadata: Optional structured metadata about the issue.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     line_id: LineId = Field(description="Identifier of the checked line")
     category: QaCategory = Field(description="QA category for this issue")

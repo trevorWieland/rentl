@@ -239,7 +239,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
 class PipelineRunContext(BaseModel):
     """In-memory run context for orchestration."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     run_id: RunId = Field(description="Unique identifier for this pipeline run")
     config: RunConfig = Field(description="Run configuration")
@@ -2034,6 +2034,8 @@ def _group_by_route(source_lines: list[SourceLine]) -> list[list[SourceLine]]:
 
 
 class _WorkChunk(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source_lines: list[SourceLine] = Field(
         description="Source lines in this work chunk"
     )

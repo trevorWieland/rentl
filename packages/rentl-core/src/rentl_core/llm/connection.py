@@ -41,7 +41,7 @@ _LLM_PHASES = {
 class LlmConnectionTarget(BaseModel):
     """Resolved runtime target for connectivity checks."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     runtime: LlmRuntimeSettings = Field(
         description="Resolved LLM runtime settings for this target"

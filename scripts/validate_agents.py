@@ -114,7 +114,7 @@ class ConfigError(Exception):
 
 
 class _ResolvedConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     config: RunConfig = Field(description="Parsed run configuration")
     config_path: Path = Field(description="Path to the configuration file")
@@ -124,7 +124,7 @@ class _ResolvedConfig(BaseModel):
 
 
 class _AgentProfileSpec(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str = Field(description="Agent profile identifier")
     phase: PhaseName = Field(description="Pipeline phase for this agent")
