@@ -45,3 +45,12 @@ This spec hardens the pipeline with four categories of fixes: edit output valida
 - Step 5 [RUN]: PASS — 33/33 doctor tests pass including `test_paths_resolve_relative_to_config_dir_not_cwd` and `test_output_logs_resolve_from_workspace_dir_not_config_dir`
 - Step 6 [RUN]: PASS — `resolve_agent_path` (wiring.py:1218-1240) uses `Path.relative_to()` for containment; raises `ValueError` for paths escaping workspace. 4 tests in `TestResolveAgentPath` cover relative, absolute-within, absolute-escaping, and dotdot-escaping scenarios
 - **Overall: PASS**
+
+### Run 4 — Post-audit verification (2026-02-19 05:15)
+- Step 1 [RUN]: PASS — `make all` passes: format, lint, type, 921 unit, 95 integration, 9 quality tests all green (note: non-deterministic LLM quality tests showed transient failures in initial attempts — `test_edit_agent` and `test_pretranslation_agent` — both unrelated to spec changes, passed on successful run)
+- Step 2 [RUN]: PASS — `_validate_edit_output` (orchestrator.py:2461-2523) validates line count and ID set between merge and persistence (line 1057); rollback via `OrchestrationError` halts persistence. `wiring.py:973-990` adds per-agent aggregate validation (line count + ID set match)
+- Step 3 [RUN]: PASS — `tests/unit/core/test_init.py` uses `model_validate` in 7 assertions (lines 93, 114, 144, 171, 279, 362, 437); no raw dict bracket access for generated config assertions remains
+- Step 4 [RUN]: PASS — All async functions in `main.py` use `AsyncPath` or `asyncio.to_thread` for I/O; `downloader.py` wraps `mkdir`, `exists`, `write_bytes`, `compute_sha256`, `unlink` with `asyncio.to_thread`. No direct sync I/O in async contexts
+- Step 5 [RUN]: PASS — 33/33 doctor tests pass including `test_paths_resolve_relative_to_config_dir_not_cwd` and `test_output_logs_resolve_from_workspace_dir_not_config_dir`
+- Step 6 [RUN]: PASS — `resolve_agent_path` (wiring.py:1218-1240) uses `Path.relative_to()` for containment; raises `ValueError` for paths escaping workspace. 4 tests in `TestResolveAgentPath` cover relative, absolute-within, absolute-escaping, and dotdot-escaping scenarios
+- **Overall: PASS**

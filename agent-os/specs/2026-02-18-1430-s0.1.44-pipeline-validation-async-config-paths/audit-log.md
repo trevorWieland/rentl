@@ -20,3 +20,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 3): PASS — Post-audit verification; all 6 [RUN] steps pass (6 run, 6 verified)
 - **Spec Audit** (round 3): FAIL — Performance 4/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 2
 - **Task 5** (round 2): PASS — Commit `d396622` removes remaining async-path sync file I/O in `_benchmark_download_async()` and `run_doctor()`, with targeted test evidence (`tests/unit/core/test_doctor.py`, `tests/integration/benchmark/test_cli_command.py`) both passing.
+- **Demo** (run 4): PASS — All 6 [RUN] steps pass (6 run, 6 verified)
