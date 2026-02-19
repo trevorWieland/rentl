@@ -38,7 +38,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Preserve public API and any `slots=True`, `frozen=True` behavior
   - Run `make check` to verify
   - [x] Fix: Configure all Task 3 migrated BaseModels to reject unknown input fields (e.g., `model_config = ConfigDict(extra="forbid", ...)`) so constructor behavior matches prior dataclasses and unknown kwargs do not get silently dropped (`packages/rentl-core/src/rentl_core/llm/connection.py:44`, `packages/rentl-core/src/rentl_core/orchestrator.py:242`, `packages/rentl-core/src/rentl_core/orchestrator.py:2036`, `packages/rentl-core/src/rentl_core/qa/protocol.py:30`, `scripts/validate_agents.py:117`, `scripts/validate_agents.py:127`) (audit round 1; see signposts.md: Task 3, unknown kwargs silently ignored after dataclass migration)
-- [x] Task 4: Migrate test code dataclasses to Pydantic (16 occurrences, 8 files)
+- [ ] Task 4: Migrate test code dataclasses to Pydantic (16 occurrences, 8 files)
   - `tests/quality/agents/evaluators.py` — 8 dataclasses
   - `tests/quality/agents/quality_harness.py:18`
   - `tests/quality/agents/tool_spy.py:19`
@@ -49,6 +49,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - `tests/quality/agents/test_qa_agent.py:45`
   - `tests/unit/rentl-agents/test_alignment_retries.py:40`
   - Run `make check` to verify
+  - [ ] Fix: Replace `object` annotations in `FakeAgent` with concrete types for `outputs`, `contexts`, `update_context`, and `run` to satisfy `strict-typing-enforcement` (`tests/unit/rentl-agents/test_alignment_retries.py:45`, `tests/unit/rentl-agents/test_alignment_retries.py:48`, `tests/unit/rentl-agents/test_alignment_retries.py:54`, `tests/unit/rentl-agents/test_alignment_retries.py:58`) (audit round 1)
 - [ ] Task 5: Convert if/elif to match/case + modern Python cleanup (8+ violations, 5+ files)
   - `packages/rentl-core/src/rentl_core/orchestrator.py:499` — 7-branch if/elif phase dispatch
   - `packages/rentl-core/src/rentl_core/orchestrator.py:1776` — phase-guard chains
