@@ -2029,13 +2029,14 @@ def test_init_command_local_preset_prompts_for_model(
     assert result.exit_code == 0
     assert "Local" in result.stdout
 
-    # Verify rentl.toml contains user-provided model
+    # Verify rentl.toml contains user-provided model — validate with schema
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
-        config = tomllib.load(f)
-    assert config["endpoint"]["base_url"] == "http://localhost:11434/v1"
-    assert config["pipeline"]["default_model"]["model_id"] == "my-local-model"
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.endpoint.base_url == "http://localhost:11434/v1"
+    assert config.pipeline.default_model.model_id == "my-local-model"
 
 
 def test_init_command_provider_custom_option(
@@ -2064,15 +2065,16 @@ def test_init_command_provider_custom_option(
     # Assert successful exit
     assert result.exit_code == 0
 
-    # Verify rentl.toml contains custom endpoint settings with standardized env var
+    # Verify rentl.toml contains custom endpoint settings — validate with schema
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
-        config = tomllib.load(f)
-    assert config["endpoint"]["base_url"] == "https://api.example.com/v1"
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.endpoint.base_url == "https://api.example.com/v1"
     # Env var should be standardized (not custom)
-    assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
-    assert config["pipeline"]["default_model"]["model_id"] == "my-model-v1"
+    assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
+    assert config.pipeline.default_model.model_id == "my-model-v1"
 
 
 def test_init_command_provider_out_of_range_fails(
@@ -2135,12 +2137,13 @@ def test_init_command_custom_url_validation_loop(
     # Verify error message appeared for invalid URL
     assert "error" in result.stdout.lower()
 
-    # Verify rentl.toml was created with valid URL
+    # Verify rentl.toml was created with valid URL — validate with schema
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
-        config = tomllib.load(f)
-    assert config["endpoint"]["base_url"] == "https://api.example.com/v1"
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.endpoint.base_url == "https://api.example.com/v1"
 
 
 def test_help_command_no_args() -> None:
