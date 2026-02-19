@@ -16,7 +16,7 @@ The 2026-02-17 standards audit flagged 17 violations across 4 standards (speed-w
   - Add post-edit aggregate validation in `wiring.py`: assert `len(edited_lines) == len(translated_lines)` and output line ID set matches input (violation #2)
   - Add unit tests for the new validation gates
   - Acceptance: edit outputs are never persisted without passing validation; aggregate mismatch raises
-- [ ] Task 3: Convert unit test assertions to schema validation
+- [x] Task 3: Convert unit test assertions to schema validation
   - `tests/unit/core/test_init.py:80` — Replace raw key-in-dict checks with `RunConfig.model_validate` (or delete redundant test since next test already validates) (violation #4)
   - `tests/unit/core/test_init.py:160` — Replace 5 raw key checks with `SourceLine.model_validate` (violation #5)
   - `tests/unit/cli/test_main.py:1998` — Add `RunConfig.model_validate`, switch to attribute access (violation #6)

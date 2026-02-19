@@ -371,13 +371,14 @@ enabled = false
         backup_path = config_path.with_suffix(".toml.bak")
         assert backup_path.exists()
 
-        # Verify migrated config has updated schema version
+        # Verify migrated config has updated schema version — validate with schema
         with open(config_path, "rb") as f:
             migrated_data = tomllib.load(f)
 
-        assert migrated_data["project"]["schema_version"]["major"] == 0
-        assert migrated_data["project"]["schema_version"]["minor"] == 1
-        assert migrated_data["project"]["schema_version"]["patch"] == 0
+        migrated_config = RunConfig.model_validate(migrated_data)
+        assert migrated_config.project.schema_version.major == 0
+        assert migrated_config.project.schema_version.minor == 1
+        assert migrated_config.project.schema_version.patch == 0
 
 
 class TestCheckWorkspaceDirs:

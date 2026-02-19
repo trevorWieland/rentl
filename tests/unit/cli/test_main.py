@@ -24,7 +24,7 @@ from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
 from rentl_io.storage import FileSystemLogStore
 from rentl_io.storage.log_sink import RedactingLogSink, StorageLogSink
-from rentl_schemas.config import RunConfig
+from rentl_schemas.config import ProjectConfig, RunConfig
 from rentl_schemas.events import CommandEvent, ProgressEvent
 from rentl_schemas.exit_codes import ExitCode
 from rentl_schemas.io import SourceLine
@@ -1999,10 +1999,11 @@ def test_init_command_provider_preset_selection(
     config_path = tmp_path / "rentl.toml"
     assert config_path.exists()
     with config_path.open("rb") as f:
-        config = tomllib.load(f)
-    assert config["endpoint"]["base_url"] == "https://openrouter.ai/api/v1"
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.endpoint.base_url == "https://openrouter.ai/api/v1"
     # Env var should now be standardized
-    assert config["endpoint"]["api_key_env"] == StandardEnvVar.API_KEY.value
+    assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
 
 
 def test_init_command_local_preset_prompts_for_model(
@@ -2697,12 +2698,11 @@ model_id = "test-model"
     # Run auto-migrate
     result = cli_main._auto_migrate_if_needed(config_path, payload)
 
-    # Should have upgraded the schema version
-    project = cast(dict, result["project"])
-    schema_version = cast(dict, project["schema_version"])
-    assert schema_version["major"] == 0
-    assert schema_version["minor"] == 1
-    assert schema_version["patch"] == 0
+    # Should have upgraded the schema version — validate project section with schema
+    migrated_project = ProjectConfig.model_validate(result["project"])
+    assert migrated_project.schema_version.major == 0
+    assert migrated_project.schema_version.minor == 1
+    assert migrated_project.schema_version.patch == 0
 
     # Should have created a backup
     backup_path = config_path.with_suffix(".toml.bak")
@@ -2710,21 +2710,19 @@ model_id = "test-model"
 
     # Backup should contain the original version
     with backup_path.open("rb") as f:
-        backup = tomllib.load(f)
-    backup_project = cast(dict, backup["project"])
-    backup_schema_version = cast(dict, backup_project["schema_version"])
-    assert backup_schema_version["major"] == 0
-    assert backup_schema_version["minor"] == 0
-    assert backup_schema_version["patch"] == 1
+        backup_dict = tomllib.load(f)
+    backup_project = ProjectConfig.model_validate(backup_dict["project"])
+    assert backup_project.schema_version.major == 0
+    assert backup_project.schema_version.minor == 0
+    assert backup_project.schema_version.patch == 1
 
     # Config file should have been updated
     with config_path.open("rb") as f:
-        updated = tomllib.load(f)
-    updated_project = cast(dict, updated["project"])
-    updated_schema_version = cast(dict, updated_project["schema_version"])
-    assert updated_schema_version["major"] == 0
-    assert updated_schema_version["minor"] == 1
-    assert updated_schema_version["patch"] == 0
+        updated_dict = tomllib.load(f)
+    updated_project = ProjectConfig.model_validate(updated_dict["project"])
+    assert updated_project.schema_version.major == 0
+    assert updated_project.schema_version.minor == 1
+    assert updated_project.schema_version.patch == 0
 
 
 def test_auto_migrate_if_needed_no_schema_version(tmp_path: Path) -> None:

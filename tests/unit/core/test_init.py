@@ -18,6 +18,7 @@ from rentl_core.init import (
     generate_project,
 )
 from rentl_schemas.config import RunConfig
+from rentl_schemas.io import SourceLine
 from rentl_schemas.primitives import FileFormat
 
 
@@ -80,7 +81,7 @@ def test_generate_project_produces_next_steps(
 def test_generated_config_is_valid_toml(
     tmp_path: Path, default_answers: InitAnswers
 ) -> None:
-    """Test that the generated rentl.toml parses as valid TOML."""
+    """Test that the generated rentl.toml parses as valid TOML and schema."""
     generate_project(default_answers, tmp_path)
     config_path = tmp_path / "rentl.toml"
 
@@ -88,14 +89,15 @@ def test_generated_config_is_valid_toml(
     with config_path.open("rb") as f:
         config_dict = tomllib.load(f)
 
-    # Basic structure checks
-    assert "project" in config_dict
-    assert "logging" in config_dict
-    assert "endpoint" in config_dict
-    assert "pipeline" in config_dict
-    assert "concurrency" in config_dict
-    assert "retry" in config_dict
-    assert "cache" in config_dict
+    # Validate against schema — replaces raw key-in-dict checks
+    config = RunConfig.model_validate(config_dict)
+    assert config.project is not None
+    assert config.logging is not None
+    assert config.endpoint is not None
+    assert config.pipeline is not None
+    assert config.concurrency is not None
+    assert config.retry is not None
+    assert config.cache is not None
 
 
 def test_generated_config_validates_against_schema(
@@ -166,11 +168,9 @@ def test_seed_data_jsonl_format(tmp_path: Path, default_answers: InitAnswers) ->
 
     for line in lines:
         data = json.loads(line)
-        assert "scene_id" in data
-        assert "route_id" in data
-        assert "line_id" in data
-        assert "speaker" in data
-        assert "text" in data
+        source_line = SourceLine.model_validate(data)
+        assert source_line.line_id
+        assert source_line.text
 
 
 def test_seed_data_csv_format(tmp_path: Path) -> None:
