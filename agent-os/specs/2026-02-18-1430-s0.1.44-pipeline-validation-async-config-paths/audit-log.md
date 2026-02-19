@@ -16,3 +16,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 2
 - **Demo** (run 2): PASS — All 6 [RUN] steps pass post-audit fixes (6 run, 6 verified)
 - **Spec Audit** (round 2): FAIL — Performance 3/5, Intent 4/5, Completion 3/5, Security 5/5, Stability 3/5; fix-now count 3
+- **Task 6** (round 2): PASS — Task 6 path-resolution behaviors remain compliant: doctor resolves output/logs from workspace, `validate_agents.py` loads `.env` from config parent, and agent path containment enforcement tests pass.
