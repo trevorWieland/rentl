@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import textwrap
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,7 @@ from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl.main as cli_main
+from rentl_schemas.config import RunConfig
 from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
@@ -110,6 +112,11 @@ def _write_phase_config(config_path: Path, workspace_dir: Path) -> Path:
     )
     file_path = config_path / "rentl.toml"
     file_path.write_text(content, encoding="utf-8")
+
+    # Round-trip schema validation: ensure written config is a valid RunConfig
+    with file_path.open("rb") as f:
+        RunConfig.model_validate(tomllib.load(f))
+
     return file_path
 
 

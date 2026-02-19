@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from rentl_core.doctor import CheckStatus, check_config_valid
+from rentl_schemas.config import RunConfig
 
 # Apply integration marker
 pytestmark = pytest.mark.integration
@@ -118,12 +119,13 @@ enabled = false
         assert backup_data["project"]["schema_version"]["minor"] == 0
         assert backup_data["project"]["schema_version"]["patch"] == 1
 
-        # And: Migrated config has updated schema version
+        # And: Migrated config validates as RunConfig with updated schema version
         with open(config_path, "rb") as f:
-            migrated_data = tomllib.load(f)
-        assert migrated_data["project"]["schema_version"]["major"] == 0
-        assert migrated_data["project"]["schema_version"]["minor"] == 1
-        assert migrated_data["project"]["schema_version"]["patch"] == 0
+            migrated_dict = tomllib.load(f)
+        migrated = RunConfig.model_validate(migrated_dict)
+        assert migrated.project.schema_version.major == 0
+        assert migrated.project.schema_version.minor == 1
+        assert migrated.project.schema_version.patch == 0
 
     def test_given_current_config_when_checking_validity_then_no_migration(
         self, tmp_path: Path
@@ -218,9 +220,10 @@ enabled = false
         backup_path = config_path.with_suffix(".toml.bak")
         assert not backup_path.exists()
 
-        # And: Config version remains unchanged
+        # And: Config validates as RunConfig with version unchanged
         with open(config_path, "rb") as f:
-            config_data = tomllib.load(f)
-        assert config_data["project"]["schema_version"]["major"] == 0
-        assert config_data["project"]["schema_version"]["minor"] == 1
-        assert config_data["project"]["schema_version"]["patch"] == 0
+            config_dict = tomllib.load(f)
+        config = RunConfig.model_validate(config_dict)
+        assert config.project.schema_version.major == 0
+        assert config.project.schema_version.minor == 1
+        assert config.project.schema_version.patch == 0

@@ -25,7 +25,7 @@ The 2026-02-17 standards audit flagged 17 violations across 4 standards (speed-w
   - `tests/unit/cli/test_main.py:2701` — Replace 3 blocks of migration dict drilling with `RunConfig.model_validate` + attribute access (violation #7)
   - `tests/unit/core/test_doctor.py:375` — Replace migration dict drilling with `RunConfig.model_validate` (violation #7 cont.)
   - Acceptance: no raw dict bracket access for generated config assertions in unit tests; all use `model_validate`
-- [ ] Task 4: Convert integration/quality test assertions to schema validation
+- [x] Task 4: Convert integration/quality test assertions to schema validation
   - `tests/integration/cli/test_migrate.py:160` — Replace 2 BDD step dict drilling with `RunConfig.model_validate` (violation #8)
   - `tests/integration/core/test_doctor.py:123` — Replace 2 blocks of dict drilling with `RunConfig.model_validate` (violation #8 cont.)
   - `tests/integration/cli/test_run_pipeline.py:25` — Add round-trip `RunConfig.model_validate` guard to `_write_pipeline_config` (violation #8)
