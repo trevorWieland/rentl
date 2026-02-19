@@ -25,8 +25,11 @@ class VersionInfo(BaseSchema):
         """Return version as tuple for comparison."""
         return (self.major, self.minor, self.patch)
 
-    def __lt__(self, other: object) -> bool:
+    def __lt__(self, other: VersionInfo) -> bool:
         """Compare if this version is less than another.
+
+        Args:
+            other: Version to compare against.
 
         Returns:
             True if this version is less than other, False otherwise.
@@ -35,8 +38,11 @@ class VersionInfo(BaseSchema):
             return NotImplemented
         return self._as_tuple() < other._as_tuple()
 
-    def __le__(self, other: object) -> bool:
+    def __le__(self, other: VersionInfo) -> bool:
         """Compare if this version is less than or equal to another.
+
+        Args:
+            other: Version to compare against.
 
         Returns:
             True if this version is less than or equal to other, False otherwise.
@@ -45,8 +51,11 @@ class VersionInfo(BaseSchema):
             return NotImplemented
         return self._as_tuple() <= other._as_tuple()
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: VersionInfo) -> bool:  # type: ignore[override]
         """Compare if this version equals another.
+
+        Args:
+            other: Version to compare against.
 
         Returns:
             True if versions are equal, False otherwise.
@@ -55,8 +64,11 @@ class VersionInfo(BaseSchema):
             return NotImplemented
         return self._as_tuple() == other._as_tuple()
 
-    def __gt__(self, other: object) -> bool:
+    def __gt__(self, other: VersionInfo) -> bool:
         """Compare if this version is greater than another.
+
+        Args:
+            other: Version to compare against.
 
         Returns:
             True if this version is greater than other, False otherwise.
@@ -65,8 +77,11 @@ class VersionInfo(BaseSchema):
             return NotImplemented
         return self._as_tuple() > other._as_tuple()
 
-    def __ge__(self, other: object) -> bool:
+    def __ge__(self, other: VersionInfo) -> bool:
         """Compare if this version is greater than or equal to another.
+
+        Args:
+            other: Version to compare against.
 
         Returns:
             True if this version is greater than or equal to other, False otherwise.

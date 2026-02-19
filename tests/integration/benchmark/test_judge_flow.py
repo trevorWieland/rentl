@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic_ai import AgentRunResult
+from pydantic_ai import Agent, AgentRunResult
 from pytest_bdd import given, parsers, scenario, then, when
 
 from rentl_core.benchmark.judge import JudgeOutput, RubricJudge
@@ -60,7 +60,7 @@ def given_judge_with_mock(ctx: JudgeContext, monkeypatch: pytest.MonkeyPatch) ->
     """Set up judge with mocked pydantic-ai Agent."""
 
     async def mock_agent_run(
-        self: object, prompt: str, **kwargs: object
+        self: Agent[str, JudgeOutput], prompt: str, **kwargs: str | int | bool | None
     ) -> AgentRunResult[JudgeOutput]:
         """Mock pydantic-ai Agent.run that returns canned responses.
 

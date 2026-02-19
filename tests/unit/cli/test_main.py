@@ -2001,6 +2001,7 @@ def test_init_command_provider_preset_selection(
     with config_path.open("rb") as f:
         config_dict = tomllib.load(f)
     config = RunConfig.model_validate(config_dict)
+    assert config.endpoint is not None
     assert config.endpoint.base_url == "https://openrouter.ai/api/v1"
     # Env var should now be standardized
     assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
@@ -2035,7 +2036,9 @@ def test_init_command_local_preset_prompts_for_model(
     with config_path.open("rb") as f:
         config_dict = tomllib.load(f)
     config = RunConfig.model_validate(config_dict)
+    assert config.endpoint is not None
     assert config.endpoint.base_url == "http://localhost:11434/v1"
+    assert config.pipeline.default_model is not None
     assert config.pipeline.default_model.model_id == "my-local-model"
 
 
@@ -2071,9 +2074,11 @@ def test_init_command_provider_custom_option(
     with config_path.open("rb") as f:
         config_dict = tomllib.load(f)
     config = RunConfig.model_validate(config_dict)
+    assert config.endpoint is not None
     assert config.endpoint.base_url == "https://api.example.com/v1"
     # Env var should be standardized (not custom)
     assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value
+    assert config.pipeline.default_model is not None
     assert config.pipeline.default_model.model_id == "my-model-v1"
 
 
@@ -2143,6 +2148,7 @@ def test_init_command_custom_url_validation_loop(
     with config_path.open("rb") as f:
         config_dict = tomllib.load(f)
     config = RunConfig.model_validate(config_dict)
+    assert config.endpoint is not None
     assert config.endpoint.base_url == "https://api.example.com/v1"
 
 

@@ -14,7 +14,7 @@ import rentl.main as cli_main
 from tests.integration.conftest import write_rentl_config
 
 if TYPE_CHECKING:
-    pass
+    from tests.integration.conftest import FakeLlmRuntime
 
 # Link feature file
 scenarios("../features/cli/doctor.feature")
@@ -30,7 +30,7 @@ class DoctorContext:
 
 @given("a valid rentl configuration exists", target_fixture="ctx")
 def given_valid_config(
-    tmp_workspace: Path, set_api_keys: None, mock_llm_runtime: object
+    tmp_workspace: Path, set_api_keys: None, mock_llm_runtime: FakeLlmRuntime
 ) -> DoctorContext:
     """Create a valid rentl configuration.
 

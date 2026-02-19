@@ -62,6 +62,7 @@ from rentl_core.init import (
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.migrate import (
     ConfigDict,
+    ConfigValue,
     apply_migrations,
     get_registry,
     plan_migrations,
@@ -927,6 +928,7 @@ def run_pipeline(
     log_sink: LogSinkProtocol | None = None
     progress: Progress | None = None
     console: Console | None = None
+    config: RunConfig | None = None
     try:
         config = _load_resolved_config(config_path)
         resolved_run_id = _resolve_run_id(run_id)
@@ -1041,6 +1043,7 @@ def run_phase(
     """  # noqa: D301, D415
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
+    config: RunConfig | None = None
     try:
         config = _load_resolved_config(config_path)
         resolved_run_id = _resolve_run_id(run_id)
@@ -1175,6 +1178,7 @@ def status(
         if json_output:
             response = _error_response(error)
             print(response.model_dump_json())
+            assert response.error is not None
             raise typer.Exit(code=response.error.exit_code) from None
         rprint(f"[red]Error:[/red] {error.message}")
         exit_code = resolve_exit_code(error.code)
@@ -4009,7 +4013,7 @@ def _dict_to_toml(data: dict) -> str:
     """
     lines: list[str] = []
 
-    def _write_value(value: object) -> str:
+    def _write_value(value: ConfigValue) -> str:
         """Serialize a single value to TOML format.
 
         Args:

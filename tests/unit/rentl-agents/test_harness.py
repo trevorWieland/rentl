@@ -267,10 +267,12 @@ class TestAgentHarnessExecuteAgent:
     def _agent_shim(mock_agent_cls: MagicMock) -> type:
         class AgentShim:
             @classmethod
-            def __class_getitem__(cls, _params: object) -> type:
+            def __class_getitem__(cls, _params: tuple[type, ...]) -> type:
                 return cls
 
-            def __new__(cls, *args: object, **kwargs: object) -> MagicMock:
+            def __new__(
+                cls, *args: str, **kwargs: str | int | float | bool
+            ) -> MagicMock:
                 return mock_agent_cls(*args, **kwargs)
 
         return AgentShim
@@ -640,4 +642,4 @@ class TestAgentHarnessConfigValidation:
     def test_model_id_required(self) -> None:
         """Omitting model_id raises ValidationError."""
         with pytest.raises(ValidationError, match="model_id"):
-            AgentHarnessConfig(api_key="test-key")  # type: ignore[call-arg]
+            AgentHarnessConfig(api_key="test-key")

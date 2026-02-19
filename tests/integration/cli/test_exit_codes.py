@@ -267,7 +267,9 @@ def when_trigger_runtime_error(
 
     # Monkeypatch _export_async to raise an unexpected KeyError
     # This will bypass all the normal error handling paths and trigger exit 99
-    async def raise_runtime_error(*args: object, **kwargs: object) -> None:  # noqa: RUF029
+    async def raise_runtime_error(  # noqa: RUF029
+        *args: str | Path, **kwargs: str | int | bool
+    ) -> None:
         raise KeyError("Simulated runtime error for testing exit code 99")
 
     monkeypatch.setattr(cli_main, "_export_async", raise_runtime_error)

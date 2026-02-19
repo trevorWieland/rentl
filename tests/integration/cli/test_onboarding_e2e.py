@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from click.testing import Result
+from pydantic import BaseModel
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
@@ -160,7 +161,7 @@ def when_run_pipeline(
     edit_line_index = {"index": 0}
 
     # Mock ProfileAgent.run() to return deterministic schema-valid outputs
-    async def mock_agent_run(self: ProfileAgent, payload: object) -> object:
+    async def mock_agent_run(self: ProfileAgent, payload: BaseModel) -> BaseModel:
         """Return schema-valid output based on agent's output_type.
 
         Args:

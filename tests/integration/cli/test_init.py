@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from pydantic import BaseModel
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
@@ -302,7 +303,7 @@ def then_pipeline_executes_end_to_end(
     # schema-valid outputs. This is the execution boundary actually
     # used by run-pipeline via build_agent_pools()
 
-    async def mock_agent_run(self: ProfileAgent, payload: object) -> object:
+    async def mock_agent_run(self: ProfileAgent, payload: BaseModel) -> BaseModel:
         """Return schema-valid output based on agent's output_type.
 
         For batch operations, returns outputs matching all input IDs to satisfy

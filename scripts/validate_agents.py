@@ -143,6 +143,7 @@ def load_config(config_path: Path) -> _ResolvedConfig:
 
     Raises:
         ConfigError: If rentl.toml is missing or cannot be parsed.
+        ValueError: If agents configuration is missing.
     """
     if not config_path.exists():
         raise ConfigError(
@@ -166,6 +167,8 @@ def load_config(config_path: Path) -> _ResolvedConfig:
     config = _resolve_agent_paths(config)
 
     workspace_dir = Path(config.project.paths.workspace_dir)
+    if config.agents is None:
+        raise ValueError("agents configuration is required")
     return _ResolvedConfig(
         config=config,
         config_path=config_path,
@@ -198,6 +201,8 @@ def _resolve_project_paths(config: RunConfig, config_path: Path) -> RunConfig:
 def _resolve_agent_paths(config: RunConfig) -> RunConfig:
     workspace_dir = Path(config.project.paths.workspace_dir)
     agents_config = config.agents
+    if agents_config is None:
+        raise ValueError("agents configuration is required")
     updated_agents = agents_config.model_copy(
         update={
             "prompts_dir": str(

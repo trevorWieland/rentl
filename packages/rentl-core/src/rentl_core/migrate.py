@@ -224,7 +224,7 @@ def dict_to_toml(data: ConfigDict) -> str:
     """
     lines: list[str] = []
 
-    def _write_value(value: object) -> str:
+    def _write_value(value: ConfigValue) -> str:
         """Serialize a single value to TOML format.
 
         Returns:

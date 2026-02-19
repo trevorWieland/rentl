@@ -45,12 +45,10 @@ class LogSinkConfig(BaseSchema):
 
     @field_validator("type", mode="before")
     @classmethod
-    def _coerce_type(cls, value: object) -> LogSinkType:
+    def _coerce_type(cls, value: str | LogSinkType) -> LogSinkType:
         if isinstance(value, LogSinkType):
             return value
-        if isinstance(value, str):
-            return LogSinkType(value)
-        return value  # type: ignore[return-value]
+        return LogSinkType(value)
 
 
 class LoggingConfig(BaseSchema):
@@ -84,12 +82,10 @@ class FormatConfig(BaseSchema):
 
     @field_validator("input_format", "output_format", mode="before")
     @classmethod
-    def _coerce_format(cls, value: object) -> FileFormat:
+    def _coerce_format(cls, value: str | FileFormat) -> FileFormat:
         if isinstance(value, FileFormat):
             return value
-        if isinstance(value, str):
-            return FileFormat(value)
-        return value  # type: ignore[return-value]
+        return FileFormat(value)
 
 
 class LanguageConfig(BaseSchema):
@@ -339,14 +335,14 @@ class ModelSettings(BaseSchema):
 
     @field_validator("reasoning_effort", mode="before")
     @classmethod
-    def _coerce_reasoning_effort(cls, value: object) -> ReasoningEffort | None:
+    def _coerce_reasoning_effort(
+        cls, value: str | ReasoningEffort | None
+    ) -> ReasoningEffort | None:
         if value is None:
             return None
         if isinstance(value, ReasoningEffort):
             return value
-        if isinstance(value, str):
-            return ReasoningEffort(value)
-        return value  # type: ignore[return-value]
+        return ReasoningEffort(value)
 
 
 class RetryConfig(BaseSchema):
@@ -416,12 +412,10 @@ class PhaseConfig(BaseSchema):
 
     @field_validator("phase", mode="before")
     @classmethod
-    def _coerce_phase(cls, value: object) -> PhaseName:
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
         if isinstance(value, PhaseName):
             return value
-        if isinstance(value, str):
-            return PhaseName(value)
-        return value  # type: ignore[return-value]
+        return PhaseName(value)
 
 
 class PhaseExecutionConfig(BaseSchema):
@@ -445,12 +439,10 @@ class PhaseExecutionConfig(BaseSchema):
 
     @field_validator("strategy", mode="before")
     @classmethod
-    def _coerce_strategy(cls, value: object) -> PhaseWorkStrategy:
+    def _coerce_strategy(cls, value: str | PhaseWorkStrategy) -> PhaseWorkStrategy:
         if isinstance(value, PhaseWorkStrategy):
             return value
-        if isinstance(value, str):
-            return PhaseWorkStrategy(value)
-        return value  # type: ignore[return-value]
+        return PhaseWorkStrategy(value)
 
     @model_validator(mode="after")
     def validate_strategy(self) -> PhaseExecutionConfig:
@@ -504,12 +496,10 @@ class DeterministicQaCheckConfig(BaseSchema):
 
     @field_validator("severity", mode="before")
     @classmethod
-    def _coerce_severity(cls, value: object) -> QaSeverity:
+    def _coerce_severity(cls, value: str | QaSeverity) -> QaSeverity:
         if isinstance(value, QaSeverity):
             return value
-        if isinstance(value, str):
-            return QaSeverity(value)
-        return value  # type: ignore[return-value]
+        return QaSeverity(value)
 
     @model_validator(mode="after")
     def _validate_parameters(self) -> DeterministicQaCheckConfig:

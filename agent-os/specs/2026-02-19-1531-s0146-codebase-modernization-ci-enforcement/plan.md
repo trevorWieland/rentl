@@ -59,7 +59,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - `services/rentl-cli/src/rentl/main.py:2335` — isinstance chain to match/case
   - Sweep for any additional legacy if/elif or dict merge patterns
   - Run `make check` to verify
-- [ ] Task 6: Enable ty strict mode + fix type annotations
+- [x] Task 6: Enable ty strict mode + fix type annotations
   - Enable ty strict mode in `pyproject.toml:61`
   - Replace `object` annotations in `packages/rentl-schemas/src/rentl_schemas/version.py` (5 comparison methods)
   - Replace `object` annotations in `packages/rentl-schemas/src/rentl_schemas/config.py` (6 coerce validators)
