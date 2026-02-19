@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+
+from pydantic import BaseModel, Field
 
 # Template variable pattern: {{variable_name}}
 TEMPLATE_VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\}\}")
@@ -264,16 +265,15 @@ def render_template(
     return TEMPLATE_VARIABLE_PATTERN.sub(replace_variable, template)
 
 
-@dataclass
-class TemplateContext:
+class TemplateContext(BaseModel):
     """Context for template rendering with layered variables.
 
     Combines variables from root, phase, and agent layers.
     """
 
-    root_variables: dict[str, str] = field(default_factory=dict)
-    phase_variables: dict[str, str] = field(default_factory=dict)
-    agent_variables: dict[str, str] = field(default_factory=dict)
+    root_variables: dict[str, str] = Field(default_factory=dict)
+    phase_variables: dict[str, str] = Field(default_factory=dict)
+    agent_variables: dict[str, str] = Field(default_factory=dict)
 
     def get_all_variables(self) -> dict[str, str]:
         """Get all variables combined (root → phase → agent precedence).

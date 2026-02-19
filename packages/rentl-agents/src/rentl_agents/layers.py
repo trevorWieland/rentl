@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import tomllib
-from dataclasses import dataclass, field
 from pathlib import Path
 
 import aiofiles
+from pydantic import BaseModel, Field
 
 from rentl_agents.templates import (
     TemplateContext,
@@ -55,15 +55,14 @@ class LayerLoadError(Exception):
         self.source_path = source_path
 
 
-@dataclass
-class PromptLayerRegistry:
+class PromptLayerRegistry(BaseModel):
     """Registry for prompt layer configurations.
 
     Stores root and phase layer prompts for composition.
     """
 
     root: RootPromptConfig | None = None
-    phases: dict[PhaseName, PhasePromptConfig] = field(default_factory=dict)
+    phases: dict[PhaseName, PhasePromptConfig] = Field(default_factory=dict)
 
     def set_root(self, config: RootPromptConfig) -> None:
         """Set the root layer configuration.
@@ -458,8 +457,7 @@ def load_layer_registry(prompts_dir: Path) -> PromptLayerRegistry:
     return registry
 
 
-@dataclass
-class PromptComposer:
+class PromptComposer(BaseModel):
     """Composes final prompts from three layers.
 
     Combines root, phase, and agent layer prompts into the final

@@ -8,12 +8,12 @@ remain in rentl_agents.providers.
 from __future__ import annotations
 
 import ipaddress
-from dataclasses import dataclass
 from urllib.parse import urlparse
 
+from pydantic import BaseModel, ConfigDict
 
-@dataclass(frozen=True)
-class ProviderCapabilities:
+
+class ProviderCapabilities(BaseModel):
     """Tool-related capabilities for a specific provider.
 
     Attributes:
@@ -22,6 +22,8 @@ class ProviderCapabilities:
         supports_tool_calling: Whether tool calling is supported.
         supports_tool_choice_required: Whether tool_choice:required is supported.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     name: str
     is_openrouter: bool

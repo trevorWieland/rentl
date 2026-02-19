@@ -9,9 +9,10 @@ from __future__ import annotations
 import os
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, ConfigDict
 
 from rentl_agents.context.scene import (
     format_scene_lines,
@@ -1098,9 +1099,10 @@ def create_edit_agent_from_profile(
     )
 
 
-@dataclass(slots=True)
-class AgentPoolBundle:
+class AgentPoolBundle(BaseModel):
     """Agent pools wired for pipeline execution."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     context_agents: list[tuple[str, ContextAgentPoolProtocol]]
     pretranslation_agents: list[tuple[str, PretranslationAgentPoolProtocol]]
@@ -1109,8 +1111,9 @@ class AgentPoolBundle:
     edit_agents: list[tuple[str, EditAgentPoolProtocol]]
 
 
-@dataclass(frozen=True, slots=True)
-class _AgentProfileSpec:
+class _AgentProfileSpec(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     name: str
     profile: AgentProfileConfig
     path: Path

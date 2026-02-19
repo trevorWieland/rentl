@@ -11,7 +11,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Migrate rentl-agents dataclasses to Pydantic (9 classes, 6 files)
+- [x] Task 2: Migrate rentl-agents dataclasses to Pydantic (9 classes, 6 files)
   - `ProviderCapabilities` — `packages/rentl-llm/src/rentl_llm/providers.py:15` (note: issue lists wrong path)
   - `ProjectContext` — `packages/rentl-agents/src/rentl_agents/tools/game_info.py:13`
   - `ToolRegistry` — `packages/rentl-agents/src/rentl_agents/tools/registry.py:67`

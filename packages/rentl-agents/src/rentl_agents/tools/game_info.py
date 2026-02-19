@@ -5,13 +5,12 @@ Provides project/game information to agents during execution.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 
 from rentl_schemas.primitives import JsonValue
 
 
-@dataclass
-class ProjectContext:
+class ProjectContext(BaseModel):
     """Context about the project being localized.
 
     This is populated from the run configuration and passed to tools.
@@ -20,7 +19,7 @@ class ProjectContext:
     game_name: str = "Unknown Game"
     synopsis: str | None = None
     source_language: str = "ja"
-    target_languages: list[str] = field(default_factory=list)
+    target_languages: list[str] = Field(default_factory=list)
 
 
 class GameInfoTool:
