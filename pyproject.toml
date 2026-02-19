@@ -74,7 +74,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 timeout = 30
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -W error::DeprecationWarning"
 markers = [
     "unit: Unit tests (<250ms, mocks allowed)",
     "integration: Integration tests (<5s, real services, no LLMs)",

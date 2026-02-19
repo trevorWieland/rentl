@@ -68,7 +68,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Replace `object` annotations in test files where applicable
   - Resolve any new ty errors introduced by strict mode
   - Run `make check` to verify
-- [ ] Task 7: Create CI workflow + deprecation warnings enforcement
+- [x] Task 7: Create CI workflow + deprecation warnings enforcement
   - Create `.github/workflows/ci.yml` that runs `make all` on pull requests to main
   - Configure as required status check for merge blocking
   - Add `-W error::DeprecationWarning` to pytest `addopts` in `pyproject.toml:71`
