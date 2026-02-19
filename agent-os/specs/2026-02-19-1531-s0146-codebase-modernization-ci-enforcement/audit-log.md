@@ -13,3 +13,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 2): PASS — `FakeAgent` now uses concrete `BaseModel` types for outputs/contexts and method signatures; targeted checks pass (`pytest -q tests/unit/rentl-agents/test_alignment_retries.py`, `ruff check` on Task 4 changed files).
 - **Task 5** (round 1): PASS — Legacy phase dispatch and related modern-Python cleanup were implemented with `match/case` and dict union updates across changed files, with no Task 5 regressions or standards violations in audit scope.
 - **Task 6** (round 1): PASS — `ty` strict enforcement and Task 6 type annotation updates are clean in scope; `uv run ty check` plus targeted unit/integration tests passed.
+- **Task 7** (round 1): PASS — `.github/workflows/ci.yml` runs `make all` on PRs to `main`, and deprecation warnings are enforced in both `pyproject.toml` pytest `addopts` and Makefile test targets.
