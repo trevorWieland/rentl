@@ -15,3 +15,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 1): PASS — `ty` strict enforcement and Task 6 type annotation updates are clean in scope; `uv run ty check` plus targeted unit/integration tests passed.
 - **Task 7** (round 1): PASS — `.github/workflows/ci.yml` runs `make all` on PRs to `main`, and deprecation warnings are enforced in both `pyproject.toml` pytest `addopts` and Makefile test targets.
 - **Task 8** (round 1): PASS — Standards compliance sweep is clean in scope: `LineId` + UUIDv7/API envelope/placeholder/dependency-bound updates are implemented and targeted `pytest`, `ruff`, and `ty` checks passed.
+- **Demo** (run 1): PASS — All 8 steps verified: zero non-framework dataclasses, match/case conversions confirmed, ty strict clean, make all 1025 tests pass, CI workflow correct, deprecation enforcement active, ApiResponse envelope present, dependency bounds set (8 run, 8 verified)
