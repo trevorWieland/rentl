@@ -276,7 +276,7 @@ class TestApplyMigrations:
 
         # Create two distinct transform functions that have the same __name__
         # by using exec to define them in separate namespaces
-        namespace1: dict[str, object] = {}
+        namespace1: dict[str, MigrationTransform] = {}
         exec(
             """
 def transform(config: dict) -> dict:
@@ -286,7 +286,7 @@ def transform(config: dict) -> dict:
         )
         transform1 = cast(MigrationTransform, namespace1["transform"])
 
-        namespace2: dict[str, object] = {}
+        namespace2: dict[str, MigrationTransform] = {}
         exec(
             """
 def transform(config: dict) -> dict:

@@ -59,7 +59,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - `services/rentl-cli/src/rentl/main.py:2335` — isinstance chain to match/case
   - Sweep for any additional legacy if/elif or dict merge patterns
   - Run `make check` to verify
-- [ ] Task 6: Enable ty strict mode + fix type annotations
+- [x] Task 6: Enable ty strict mode + fix type annotations
   - Enable ty strict mode in `pyproject.toml:61`
   - Replace `object` annotations in `packages/rentl-schemas/src/rentl_schemas/version.py` (5 comparison methods)
   - Replace `object` annotations in `packages/rentl-schemas/src/rentl_schemas/config.py` (6 coerce validators)
@@ -68,7 +68,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Replace `object` annotations in test files where applicable
   - Resolve any new ty errors introduced by strict mode
   - Run `make check` to verify
-  - [ ] Fix: Replace remaining `Any`/`object` annotations in tests to satisfy `strict-typing-enforcement` (`tests/unit/schemas/test_validation.py:3`, `tests/unit/schemas/test_validation.py:37`, `tests/unit/schemas/test_validation.py:231`, `tests/unit/schemas/test_validation.py:244`, `packages/rentl-core/tests/unit/core/test_migrate.py:279`, `packages/rentl-core/tests/unit/core/test_migrate.py:289`) (audit round 1)
+  - [x] Fix: Replace remaining `Any`/`object` annotations in tests to satisfy `strict-typing-enforcement` (`tests/unit/schemas/test_validation.py:3`, `tests/unit/schemas/test_validation.py:37`, `tests/unit/schemas/test_validation.py:231`, `tests/unit/schemas/test_validation.py:244`, `packages/rentl-core/tests/unit/core/test_migrate.py:279`, `packages/rentl-core/tests/unit/core/test_migrate.py:289`) (audit round 1)
 - [ ] Task 7: Create CI workflow + deprecation warnings enforcement
   - Create `.github/workflows/ci.yml` that runs `make all` on pull requests to main
   - Configure as required status check for merge blocking
