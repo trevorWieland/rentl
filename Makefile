@@ -40,7 +40,7 @@ endef
 # Install dependencies
 install:
 	@echo "📦 Installing dependencies..."
-	@uv sync > /dev/null
+	@uv sync --upgrade > /dev/null
 	@echo "✅ Install Complete"
 
 # Format code with ruff

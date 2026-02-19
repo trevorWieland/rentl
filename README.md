@@ -34,7 +34,7 @@ For development or to run the latest unreleased changes:
 ```bash
 git clone https://github.com/trevorWieland/rentl.git
 cd rentl
-uv sync
+uv sync --upgrade
 ```
 
 rentl requires Python 3.14+ and uses [uv](https://github.com/astral-sh/uv) for dependency management.

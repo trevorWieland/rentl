@@ -74,7 +74,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Add `-W error::DeprecationWarning` to pytest `addopts` in `pyproject.toml:71`
   - Add deprecation warning flag to Makefile test targets at `Makefile:69`
   - Run `make check` to verify
-- [ ] Task 8: Standards compliance sweep (ID formats, API envelope, placeholders, dependency versions)
+- [x] Task 8: Standards compliance sweep (ID formats, API envelope, placeholders, dependency versions)
   - `HeadToHeadResult.line_id` — change type from `str` to `LineId` at `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:20`
   - Runtime `run_id` — validate as UUIDv7 at `packages/rentl-agents/src/rentl_agents/runtime.py:594`
   - Health endpoint — wrap in `ApiResponse` envelope at `services/rentl-api/src/rentl_api/main.py:16`

@@ -1385,7 +1385,7 @@ class PipelineOrchestrator:
             target_language=target_language,
             format=ArtifactFormat.JSONL,
             created_at=self._clock(),
-            location=_placeholder_reference(ArtifactFormat.JSONL),
+            location=_pending_storage_reference(ArtifactFormat.JSONL),
             description=description,
             size_bytes=None,
             checksum_sha256=None,
@@ -1514,11 +1514,18 @@ def _build_run_state(run: PipelineRunContext) -> RunState:
     )
 
 
-def _placeholder_reference(format: ArtifactFormat) -> StorageReference:
+def _pending_storage_reference(format: ArtifactFormat) -> StorageReference:
+    """Build a pre-write storage reference.
+
+    The storage backend replaces this with the real location after write.
+
+    Returns:
+        StorageReference with a pending URI for the given format.
+    """
     return StorageReference(
         backend=None,
-        path=f"placeholder.{format.value}",
-        uri=None,
+        path=None,
+        uri=f"pending:artifact.{format.value}",
     )
 
 

@@ -8,8 +8,8 @@ dependencies = [
     "rentl-core",
     "rentl-schemas",
     "rentl-llm",
-    "pydantic-ai>=1.47.0",
-    "aiofiles>=24.1.0",
+    "pydantic-ai>=1.47.0, <2",
+    "aiofiles>=24.1.0, <25",
 ]
 
 [build-system]

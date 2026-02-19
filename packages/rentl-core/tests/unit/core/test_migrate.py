@@ -411,7 +411,7 @@ class TestGlobalRegistry:
         if "schema_version" in result and not isinstance(
             result["schema_version"], dict
         ):
-            pytest.fail(
+            assert False, (  # noqa: B011
                 f"Top-level schema_version should not exist as string. "
                 f"Found: {result.get('schema_version')}"
             )
