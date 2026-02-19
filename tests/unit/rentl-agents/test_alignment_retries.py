@@ -42,20 +42,20 @@ class FakeAgent(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    outputs: list[object] = Field(
+    outputs: list[BaseModel] = Field(
         description="Predefined outputs to return in sequence"
     )
-    contexts: list[object] = Field(
+    contexts: list[BaseModel] = Field(
         default_factory=list,
         description="Recorded template contexts from update_context",
     )
     call_count: int = Field(default=0, description="Number of run() calls made so far")
 
-    def update_context(self, context: object) -> None:
+    def update_context(self, context: BaseModel) -> None:
         """Record updated template context."""
         self.contexts.append(context)
 
-    async def run(self, payload: object) -> object:
+    async def run(self, payload: BaseModel) -> BaseModel:
         """Return the next predefined output."""
         if self.call_count >= len(self.outputs):
             return self.outputs[-1]
