@@ -34,7 +34,7 @@ The 2026-02-17 standards audit flagged 17 violations across 4 standards (speed-w
   - `tests/quality/pipeline/test_golden_script_pipeline.py:44` — Add round-trip `RunConfig.model_validate` guard (violation #8)
   - `tests/quality/cli/test_preset_validation.py:93` — Add `RunConfig.model_validate` between file-existence check and doctor invocation (violation #9)
   - Acceptance: no config fixture writers without schema validation; no file-existence-only assertions for generated configs
-- [ ] Task 5: Wrap sync I/O in async contexts
+- [x] Task 5: Wrap sync I/O in async contexts
   - `services/rentl-cli/src/rentl/main.py:2811` — Wrap sync progress/report I/O in `asyncio.to_thread` (violation #10)
   - `services/rentl-cli/src/rentl/main.py:2609` — Wrap sync agent/prompt loaders in `asyncio.to_thread` (violation #11, critical)
   - `services/rentl-cli/src/rentl/main.py:1208` — Wrap sync manifest/slice loading in `asyncio.to_thread` (violation #12)

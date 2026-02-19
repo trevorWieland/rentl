@@ -7,6 +7,7 @@ fix suggestions.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import tomllib
@@ -449,7 +450,7 @@ async def run_doctor(
     # Load config for remaining checks (if valid)
     config: RunConfig | None = None
     if config_valid_check.status == CheckStatus.PASS:
-        config = _load_config_sync(config_path)
+        config = await asyncio.to_thread(_load_config_sync, config_path)
 
     # Check 4: Workspace directories (depends on valid config)
     if config is not None:
