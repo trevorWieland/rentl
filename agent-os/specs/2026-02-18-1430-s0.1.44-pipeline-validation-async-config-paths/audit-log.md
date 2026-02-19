@@ -14,3 +14,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 1): PASS — Path resolution changes in `doctor.py`, `validate_agents.py`, and `wiring.py` match Task 6 requirements and targeted unit tests pass.
 - **Demo** (run 1): PASS — All 6 [RUN] steps pass (6 run, 6 verified)
 - **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 2
+- **Demo** (run 2): PASS — All 6 [RUN] steps pass post-audit fixes (6 run, 6 verified)
