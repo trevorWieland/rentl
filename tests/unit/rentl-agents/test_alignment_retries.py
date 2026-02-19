@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import cast
 from uuid import UUID
 
 import pytest
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_agents.runtime import ProfileAgent, ProfileAgentConfig
 from rentl_agents.wiring import (
@@ -37,13 +37,19 @@ from rentl_schemas.primitives import QaCategory, QaSeverity
 from rentl_schemas.qa import QaIssue
 
 
-@dataclass
-class FakeAgent:
+class FakeAgent(BaseModel):
     """Fake profile agent that returns predefined outputs."""
 
-    outputs: list[object]
-    contexts: list[object] = field(default_factory=list)
-    call_count: int = 0
+    model_config = ConfigDict(extra="forbid")
+
+    outputs: list[object] = Field(
+        description="Predefined outputs to return in sequence"
+    )
+    contexts: list[object] = Field(
+        default_factory=list,
+        description="Recorded template contexts from update_context",
+    )
+    call_count: int = Field(default=0, description="Number of run() calls made so far")
 
     def update_context(self, context: object) -> None:
         """Record updated template context."""

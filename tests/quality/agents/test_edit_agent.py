@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from uuid import UUID
 
 import pytest
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 from pydantic_evals import Case, Dataset
@@ -45,13 +45,18 @@ pytestmark = pytest.mark.quality
 scenarios("../features/agents/edit_agent.feature")
 
 
-@dataclass
-class EvalContext:
+class EvalContext(BaseModel):
     """Container for edit agent eval execution."""
 
-    dataset: Dataset
-    task: Callable[[EditPhaseInput], Awaitable[AgentEvalOutput]]
-    report: EvaluationReport | None = None
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    dataset: Dataset = Field(description="Eval dataset for the edit agent")
+    task: Callable[[EditPhaseInput], Awaitable[AgentEvalOutput]] = Field(
+        description="Async task that runs the agent under test"
+    )
+    report: EvaluationReport | None = Field(
+        default=None, description="Evaluation report populated after execution"
+    )
 
 
 @given("an edit agent quality eval dataset", target_fixture="ctx")

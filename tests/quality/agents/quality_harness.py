@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
@@ -15,15 +15,18 @@ from rentl_agents.runtime import ProfileAgentConfig
 from rentl_llm.provider_factory import create_model
 
 
-@dataclass
-class QualityModelConfig:
+class QualityModelConfig(BaseModel):
     """Model configuration for quality evals."""
 
-    api_key: str
-    base_url: str
-    model_id: str
-    judge_model_id: str
-    judge_base_url: str
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: str = Field(description="API key for the quality eval provider")
+    base_url: str = Field(description="Base URL of the quality eval endpoint")
+    model_id: str = Field(description="Model identifier for agent under test")
+    judge_model_id: str = Field(
+        description="Model identifier for LLM-as-judge evaluator"
+    )
+    judge_base_url: str = Field(description="Base URL for the judge model endpoint")
 
 
 def _require_env(name: str) -> str:

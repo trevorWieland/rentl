@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_agents.tools.game_info import GameInfoTool, ProjectContext
 from rentl_agents.tools.legacy import (
@@ -16,11 +16,14 @@ from rentl_schemas.primitives import JsonValue
 from tests.quality.agents.eval_types import ToolCallRecord
 
 
-@dataclass
-class ToolCallRecorder:
+class ToolCallRecorder(BaseModel):
     """Collects tool call inputs and outputs."""
 
-    calls: list[ToolCallRecord] = field(default_factory=list)
+    model_config = ConfigDict(extra="forbid")
+
+    calls: list[ToolCallRecord] = Field(
+        default_factory=list, description="Recorded tool call entries"
+    )
 
     def record(
         self,
