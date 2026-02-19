@@ -46,10 +46,10 @@ def given_valid_config(
     (tmp_workspace / "prompts").mkdir(exist_ok=True)
     (tmp_workspace / "agents").mkdir(exist_ok=True)
 
-    # Create output/logs directories relative to config directory (not workspace)
-    # These are resolved as config_dir / "out" and config_dir / "logs" in doctor
-    (ctx.config_dir / "out").mkdir(exist_ok=True)
-    (ctx.config_dir / "logs").mkdir(exist_ok=True)
+    # Create output/logs directories inside workspace
+    # Doctor resolves these as workspace_dir / output_dir and workspace_dir / logs_dir
+    (tmp_workspace / "out").mkdir(exist_ok=True)
+    (tmp_workspace / "logs").mkdir(exist_ok=True)
 
     return ctx
 
