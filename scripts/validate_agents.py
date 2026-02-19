@@ -403,8 +403,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Load .env file if present
-    env_path = Path(".env")
+    # Load .env from config file parent (not CWD) per config-path-resolution standard
+    env_path = args.config.parent / ".env"
     if env_path.exists():
         load_dotenv(env_path, override=False)
 

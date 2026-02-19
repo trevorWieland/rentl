@@ -41,7 +41,7 @@ The 2026-02-17 standards audit flagged 17 violations across 4 standards (speed-w
   - `packages/rentl-core/src/rentl_core/benchmark/eval_sets/downloader.py:35` — Wrap mkdir, sha256, write_bytes, unlink with `asyncio.to_thread` (violation #13)
   - `packages/rentl-core/src/rentl_core/doctor.py:423` — Wrap `_load_config_sync` call with `asyncio.to_thread` (violation #14)
   - Acceptance: no direct `open()`/`read()`/`write()`/`Path.mkdir()`/`Path.write_bytes()` calls inside async functions; all wrapped with `asyncio.to_thread`
-- [ ] Task 6: Fix config path resolution
+- [x] Task 6: Fix config path resolution
   - `packages/rentl-core/src/rentl_core/doctor.py:264` — Resolve workspace paths from `workspace_dir` instead of `config_dir` (violation #15)
   - `scripts/validate_agents.py:406` — Load `.env` from config file parent, not CWD (violation #16)
   - `packages/rentl-agents/src/rentl_agents/wiring.py:1205` — Add workspace containment check to `_resolve_agent_path`; reject absolute paths that escape workspace (violation #17)

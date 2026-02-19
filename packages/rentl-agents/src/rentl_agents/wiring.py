@@ -1138,8 +1138,8 @@ def build_agent_pools(
     else:
         agents_config = config.agents
         workspace_dir = Path(config.project.paths.workspace_dir)
-        prompts_dir = _resolve_agent_path(agents_config.prompts_dir, workspace_dir)
-        agents_dir = _resolve_agent_path(agents_config.agents_dir, workspace_dir)
+        prompts_dir = resolve_agent_path(agents_config.prompts_dir, workspace_dir)
+        agents_dir = resolve_agent_path(agents_config.agents_dir, workspace_dir)
     source_lang = config.project.languages.source_language
     target_lang = _resolve_primary_target_language(config)
     tool_registry = get_default_registry()
@@ -1215,11 +1215,29 @@ def build_agent_pools(
     )
 
 
-def _resolve_agent_path(value: str, workspace_dir: Path) -> Path:
+def resolve_agent_path(value: str, workspace_dir: Path) -> Path:
+    """Resolve an agent path and enforce workspace containment.
+
+    Returns:
+        Resolved absolute path within the workspace.
+
+    Raises:
+        ValueError: If the resolved path escapes the workspace directory.
+    """
+    resolved_workspace = workspace_dir.resolve()
     path = Path(value)
     if path.is_absolute():
-        return path
-    return (workspace_dir / path).resolve()
+        resolved = path.resolve()
+    else:
+        resolved = (resolved_workspace / path).resolve()
+    try:
+        resolved.relative_to(resolved_workspace)
+    except ValueError as exc:
+        raise ValueError(
+            f"Agent path escapes workspace: {value!r} resolves to "
+            f"{resolved}, which is outside {resolved_workspace}"
+        ) from exc
+    return resolved
 
 
 def _discover_agent_profile_specs(agents_dir: Path) -> dict[str, _AgentProfileSpec]:

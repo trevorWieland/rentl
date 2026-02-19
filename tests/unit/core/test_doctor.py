@@ -145,9 +145,9 @@ def mock_config(tmp_path: Path) -> RunConfig:
             project_name="test_project",
             paths=ProjectPaths(
                 workspace_dir="workspace",
-                input_path="workspace/input.jsonl",
-                output_dir="workspace/out",
-                logs_dir="workspace/logs",
+                input_path="input.jsonl",
+                output_dir="out",
+                logs_dir="logs",
             ),
             formats=FormatConfig(
                 input_format=FileFormat.JSONL,
@@ -392,8 +392,9 @@ class TestCheckWorkspaceDirs:
 
     def test_missing_output_dir(self, mock_config: RunConfig, tmp_path: Path) -> None:
         """Test that missing output directory fails."""
-        # Resolve relative path from config using config_dir
-        output_dir = tmp_path / mock_config.project.paths.output_dir
+        # Resolve through workspace_dir (matching config-path-resolution standard)
+        workspace_dir = tmp_path / mock_config.project.paths.workspace_dir
+        output_dir = workspace_dir / mock_config.project.paths.output_dir
         output_dir.rmdir()
 
         result = check_workspace_dirs(mock_config, tmp_path)
@@ -406,9 +407,10 @@ class TestCheckWorkspaceDirs:
         self, mock_config: RunConfig, tmp_path: Path
     ) -> None:
         """Test that multiple missing directories are reported."""
-        # Resolve relative paths from config using config_dir
-        output_dir = tmp_path / mock_config.project.paths.output_dir
-        logs_dir = tmp_path / mock_config.project.paths.logs_dir
+        # Resolve through workspace_dir (matching config-path-resolution standard)
+        workspace_dir = tmp_path / mock_config.project.paths.workspace_dir
+        output_dir = workspace_dir / mock_config.project.paths.output_dir
+        logs_dir = workspace_dir / mock_config.project.paths.logs_dir
         output_dir.rmdir()
         logs_dir.rmdir()
 
@@ -422,9 +424,8 @@ class TestCheckWorkspaceDirs:
     ) -> None:
         """Test that workspace paths resolve relative to config_dir, not CWD.
 
-        Regression test for audit round 1 signpost: paths were incorrectly
-        resolved relative to CWD, causing false PASSes when unrelated CWD
-        directories happened to exist.
+        Regression test: paths were incorrectly resolved relative to CWD,
+        causing false PASSes when unrelated CWD directories happened to exist.
         """
         # Change CWD to a different directory with its own "workspace/out/logs"
         unrelated_dir = tmp_path / "unrelated_cwd"
@@ -434,18 +435,87 @@ class TestCheckWorkspaceDirs:
         (unrelated_dir / "workspace" / "logs").mkdir()
         monkeypatch.chdir(unrelated_dir)
 
-        # Delete the actual workspace directories (relative to config_dir, not CWD)
-        actual_output = tmp_path / mock_config.project.paths.output_dir
-        actual_logs = tmp_path / mock_config.project.paths.logs_dir
+        # Delete the actual workspace directories (resolved through workspace_dir)
+        workspace_dir = tmp_path / mock_config.project.paths.workspace_dir
+        actual_output = workspace_dir / mock_config.project.paths.output_dir
+        actual_logs = workspace_dir / mock_config.project.paths.logs_dir
         actual_output.rmdir()
         actual_logs.rmdir()
 
-        # Check should FAIL because config_dir paths are missing,
+        # Check should FAIL because workspace paths are missing,
         # even though CWD has "workspace/out/logs"
         result = check_workspace_dirs(mock_config, tmp_path)
         assert result.status == CheckStatus.FAIL
         assert "output" in result.message
         assert "logs" in result.message
+
+    def test_output_logs_resolve_from_workspace_dir_not_config_dir(
+        self, tmp_path: Path
+    ) -> None:
+        """Output and logs dirs resolve relative to workspace_dir, not config_dir.
+
+        Per config-path-resolution standard: workspace_dir resolves from
+        config_dir, then output_dir/logs_dir resolve from workspace_dir.
+        """
+        # Create workspace in a subdirectory
+        workspace = tmp_path / "sub" / "workspace"
+        workspace.mkdir(parents=True)
+        (workspace / "out").mkdir()
+        (workspace / "logs").mkdir()
+
+        config = RunConfig(
+            project=ProjectConfig(
+                schema_version=VersionInfo(major=0, minor=1, patch=0),
+                project_name="test",
+                paths=ProjectPaths(
+                    workspace_dir="sub/workspace",
+                    input_path="input.jsonl",
+                    output_dir="out",
+                    logs_dir="logs",
+                ),
+                formats=FormatConfig(
+                    input_format=FileFormat.JSONL,
+                    output_format=FileFormat.JSONL,
+                ),
+                languages=LanguageConfig(source_language="ja", target_languages=["en"]),
+            ),
+            logging=LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.CONSOLE)]),
+            endpoint=ModelEndpointConfig(
+                provider_name="test",
+                base_url="https://api.test.com",
+                api_key_env="TEST_API_KEY",
+            ),
+            pipeline=PipelineConfig(
+                phases=[
+                    PhaseConfig(phase=PhaseName.INGEST),
+                    PhaseConfig(phase=PhaseName.CONTEXT, agents=["scene_summarizer"]),
+                    PhaseConfig(
+                        phase=PhaseName.PRETRANSLATION, agents=["idiom_labeler"]
+                    ),
+                    PhaseConfig(
+                        phase=PhaseName.TRANSLATE, agents=["direct_translator"]
+                    ),
+                    PhaseConfig(phase=PhaseName.QA, agents=["style_guide_critic"]),
+                    PhaseConfig(phase=PhaseName.EDIT, agents=["basic_editor"]),
+                    PhaseConfig(phase=PhaseName.EXPORT),
+                ],
+                default_model=ModelSettings(model_id="test/model"),
+            ),
+            concurrency=ConcurrencyConfig(
+                max_parallel_requests=8, max_parallel_scenes=4
+            ),
+            retry=RetryConfig(max_retries=3, backoff_s=1.0, max_backoff_s=30.0),
+            cache=CacheConfig(enabled=False),
+        )
+
+        # Passes: out/logs exist under workspace
+        result = check_workspace_dirs(config, tmp_path)
+        assert result.status == CheckStatus.PASS
+
+        # If we wrongly resolved from config_dir, it would look for tmp_path/out
+        # which doesn't exist — verify that doesn't happen
+        assert not (tmp_path / "out").exists()
+        assert not (tmp_path / "logs").exists()
 
 
 class TestCheckApiKeys:

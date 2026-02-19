@@ -261,10 +261,11 @@ def check_workspace_dirs(config: RunConfig, config_dir: Path) -> CheckResult:
     Returns:
         CheckResult: Check result for workspace directory structure.
     """
-    # Resolve paths relative to config directory (not CWD)
+    # Resolve workspace_dir from config_dir, then output/logs from workspace_dir
+    # (matches the resolution chain in config-path-resolution standard)
     workspace_dir = config_dir / config.project.paths.workspace_dir
-    output_dir = config_dir / config.project.paths.output_dir
-    logs_dir = config_dir / config.project.paths.logs_dir
+    output_dir = workspace_dir / config.project.paths.output_dir
+    logs_dir = workspace_dir / config.project.paths.logs_dir
 
     missing: list[str] = []
     if not workspace_dir.exists():

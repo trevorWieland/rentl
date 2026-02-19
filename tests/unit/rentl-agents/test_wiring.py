@@ -24,6 +24,7 @@ from rentl_agents.wiring import (
     create_translate_agent_from_profile,
     get_default_agents_dir,
     get_default_prompts_dir,
+    resolve_agent_path,
 )
 from rentl_core.orchestrator import PhaseAgentPool
 from rentl_schemas.config import (
@@ -471,3 +472,35 @@ async def test_edit_agent_aggregate_validation_passes_on_matching_lines() -> Non
     result = await agent.run(payload)
     assert len(result.edited_lines) == 1
     assert result.edited_lines[0].line_id == "line_1"
+
+
+class TestResolveAgentPath:
+    """Tests for resolve_agent_path workspace containment."""
+
+    def test_relative_path_resolves_within_workspace(self, tmp_path: Path) -> None:
+        """Relative paths resolve against workspace_dir."""
+        result = resolve_agent_path("agents/translate", tmp_path)
+        assert result == (tmp_path / "agents" / "translate").resolve()
+
+    def test_absolute_path_within_workspace_allowed(self, tmp_path: Path) -> None:
+        """Absolute paths inside workspace are accepted."""
+        inner = tmp_path / "agents"
+        inner.mkdir()
+        result = resolve_agent_path(str(inner), tmp_path)
+        assert result == inner.resolve()
+
+    def test_absolute_path_escaping_workspace_raises(self, tmp_path: Path) -> None:
+        """Absolute paths outside workspace are rejected."""
+        workspace = tmp_path / "project"
+        workspace.mkdir()
+        outside = tmp_path / "elsewhere"
+        outside.mkdir()
+        with pytest.raises(ValueError, match="escapes workspace"):
+            resolve_agent_path(str(outside), workspace)
+
+    def test_relative_path_with_dotdot_escaping_raises(self, tmp_path: Path) -> None:
+        """Relative paths that escape workspace via '..' are rejected."""
+        workspace = tmp_path / "project"
+        workspace.mkdir()
+        with pytest.raises(ValueError, match="escapes workspace"):
+            resolve_agent_path("../../etc/passwd", workspace)
