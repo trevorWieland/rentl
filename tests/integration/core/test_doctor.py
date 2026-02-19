@@ -112,12 +112,13 @@ enabled = false
         backup_path = config_path.with_suffix(".toml.bak")
         assert backup_path.exists()
 
-        # And: Original backup contains old version
+        # And: Original backup contains old version (validated via schema)
         with open(backup_path, "rb") as f:
             backup_data = tomllib.load(f)
-        assert backup_data["project"]["schema_version"]["major"] == 0
-        assert backup_data["project"]["schema_version"]["minor"] == 0
-        assert backup_data["project"]["schema_version"]["patch"] == 1
+        backup_config = RunConfig.model_validate(backup_data)
+        assert backup_config.project.schema_version.major == 0
+        assert backup_config.project.schema_version.minor == 0
+        assert backup_config.project.schema_version.patch == 1
 
         # And: Migrated config validates as RunConfig with updated schema version
         with open(config_path, "rb") as f:

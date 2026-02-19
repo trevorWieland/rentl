@@ -218,14 +218,12 @@ def then_backup_created(ctx: MigrateContext) -> None:
     backup_path = ctx.config_path.with_suffix(".toml.bak")
     assert backup_path.exists()
 
-    # Verify backup contains original version
+    # Verify backup contains original version via schema validation
     with backup_path.open("rb") as f:
         backup_dict = tomllib.load(f)
+    backup_config = RunConfig.model_validate(backup_dict)
 
-    schema_version = backup_dict["project"]["schema_version"]
-    version_str = (
-        f"{schema_version['major']}.{schema_version['minor']}.{schema_version['patch']}"
-    )
+    version_str = str(backup_config.project.schema_version)
     assert version_str == ctx.original_version
 
 
