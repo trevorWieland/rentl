@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from time import monotonic
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_core.ports.llm import LlmRuntimeProtocol
 from rentl_schemas.config import (
@@ -37,12 +38,17 @@ _LLM_PHASES = {
 }
 
 
-@dataclass(frozen=True)
-class LlmConnectionTarget:
+class LlmConnectionTarget(BaseModel):
     """Resolved runtime target for connectivity checks."""
 
-    runtime: LlmRuntimeSettings
-    phases: tuple[PhaseName, ...]
+    model_config = ConfigDict(frozen=True)
+
+    runtime: LlmRuntimeSettings = Field(
+        description="Resolved LLM runtime settings for this target"
+    )
+    phases: tuple[PhaseName, ...] = Field(
+        description="Pipeline phases using this target"
+    )
 
 
 def build_connection_plan(

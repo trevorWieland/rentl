@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_schemas.io import TranslatedLine
 from rentl_schemas.primitives import (
@@ -14,8 +15,7 @@ from rentl_schemas.primitives import (
 )
 
 
-@dataclass(frozen=True, slots=True)
-class DeterministicCheckResult:
+class DeterministicCheckResult(BaseModel):
     """Result of a single check on a single line.
 
     Attributes:
@@ -27,12 +27,18 @@ class DeterministicCheckResult:
         metadata: Optional structured metadata about the issue.
     """
 
-    line_id: LineId
-    category: QaCategory
-    severity: QaSeverity
-    message: str
-    suggestion: str | None = None
-    metadata: dict[str, JsonValue] | None = None
+    model_config = ConfigDict(frozen=True)
+
+    line_id: LineId = Field(description="Identifier of the checked line")
+    category: QaCategory = Field(description="QA category for this issue")
+    severity: QaSeverity = Field(description="Severity level for this issue")
+    message: str = Field(description="Human-readable description of the issue")
+    suggestion: str | None = Field(
+        default=None, description="Optional suggestion for fixing the issue"
+    )
+    metadata: dict[str, JsonValue] | None = Field(
+        default=None, description="Optional structured metadata about the issue"
+    )
 
 
 @runtime_checkable

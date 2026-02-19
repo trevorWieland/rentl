@@ -6,10 +6,11 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TypeVar
 from uuid import uuid7
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_core.ports.export import (
     ExportAdapterProtocol,
@@ -235,31 +236,60 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
         return resolved
 
 
-@dataclass(slots=True)
-class PipelineRunContext:
+class PipelineRunContext(BaseModel):
     """In-memory run context for orchestration."""
 
-    run_id: RunId
-    config: RunConfig
-    progress: RunProgress
-    created_at: Timestamp
-    started_at: Timestamp | None = None
-    completed_at: Timestamp | None = None
-    status: RunStatus = RunStatus.PENDING
-    current_phase: PhaseName | None = None
-    last_error: RunError | None = None
-    artifacts: list[PhaseArtifacts] = field(default_factory=list)
-    source_lines: list[SourceLine] | None = None
-    context_output: ContextPhaseOutput | None = None
-    pretranslation_output: PretranslationPhaseOutput | None = None
-    translate_outputs: dict[LanguageCode, TranslatePhaseOutput] = field(
-        default_factory=dict
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    run_id: RunId = Field(description="Unique identifier for this pipeline run")
+    config: RunConfig = Field(description="Run configuration")
+    progress: RunProgress = Field(description="Current run progress")
+    created_at: Timestamp = Field(description="Timestamp when the run was created")
+    started_at: Timestamp | None = Field(
+        default=None, description="Timestamp when the run started executing"
     )
-    qa_outputs: dict[LanguageCode, QaPhaseOutput] = field(default_factory=dict)
-    edit_outputs: dict[LanguageCode, EditPhaseOutput] = field(default_factory=dict)
-    export_results: dict[LanguageCode, ExportResult] = field(default_factory=dict)
-    phase_history: list[PhaseRunRecord] = field(default_factory=list)
-    phase_revisions: dict[PhaseKey, int] = field(default_factory=dict)
+    completed_at: Timestamp | None = Field(
+        default=None, description="Timestamp when the run completed"
+    )
+    status: RunStatus = Field(
+        default=RunStatus.PENDING, description="Current run status"
+    )
+    current_phase: PhaseName | None = Field(
+        default=None, description="Currently executing phase"
+    )
+    last_error: RunError | None = Field(
+        default=None, description="Most recent error encountered"
+    )
+    artifacts: list[PhaseArtifacts] = Field(
+        default_factory=list, description="Collected phase artifacts"
+    )
+    source_lines: list[SourceLine] | None = Field(
+        default=None, description="Ingested source lines"
+    )
+    context_output: ContextPhaseOutput | None = Field(
+        default=None, description="Output from context phase"
+    )
+    pretranslation_output: PretranslationPhaseOutput | None = Field(
+        default=None, description="Output from pretranslation phase"
+    )
+    translate_outputs: dict[LanguageCode, TranslatePhaseOutput] = Field(
+        default_factory=dict, description="Per-language translate phase outputs"
+    )
+    qa_outputs: dict[LanguageCode, QaPhaseOutput] = Field(
+        default_factory=dict, description="Per-language QA phase outputs"
+    )
+    edit_outputs: dict[LanguageCode, EditPhaseOutput] = Field(
+        default_factory=dict, description="Per-language edit phase outputs"
+    )
+    export_results: dict[LanguageCode, ExportResult] = Field(
+        default_factory=dict, description="Per-language export results"
+    )
+    phase_history: list[PhaseRunRecord] = Field(
+        default_factory=list, description="History of phase executions"
+    )
+    phase_revisions: dict[PhaseKey, int] = Field(
+        default_factory=dict, description="Revision counts per phase key"
+    )
 
 
 class PipelineOrchestrator:
@@ -2003,9 +2033,10 @@ def _group_by_route(source_lines: list[SourceLine]) -> list[list[SourceLine]]:
     return groups
 
 
-@dataclass(slots=True)
-class _WorkChunk:
-    source_lines: list[SourceLine]
+class _WorkChunk(BaseModel):
+    source_lines: list[SourceLine] = Field(
+        description="Source lines in this work chunk"
+    )
 
     @property
     def line_ids(self) -> set[LineId]:

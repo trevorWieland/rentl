@@ -40,11 +40,11 @@ import os
 import sys
 import tomllib
 import traceback
-from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid7
 
 from dotenv import load_dotenv
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_agents import (
     chunk_lines,
@@ -113,21 +113,23 @@ class ConfigError(Exception):
     pass
 
 
-@dataclass(frozen=True, slots=True)
-class _ResolvedConfig:
-    config: RunConfig
-    config_path: Path
-    workspace_dir: Path
-    agents_dir: Path
-    prompts_dir: Path
+class _ResolvedConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    config: RunConfig = Field(description="Parsed run configuration")
+    config_path: Path = Field(description="Path to the configuration file")
+    workspace_dir: Path = Field(description="Workspace root directory")
+    agents_dir: Path = Field(description="Directory containing agent profiles")
+    prompts_dir: Path = Field(description="Directory containing prompt templates")
 
 
-@dataclass(frozen=True, slots=True)
-class _AgentProfileSpec:
-    name: str
-    phase: PhaseName
-    version: str
-    path: Path
+class _AgentProfileSpec(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(description="Agent profile identifier")
+    phase: PhaseName = Field(description="Pipeline phase for this agent")
+    version: str = Field(description="Agent profile version")
+    path: Path = Field(description="File path to the agent profile")
 
 
 def load_config(config_path: Path) -> _ResolvedConfig:
