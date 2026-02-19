@@ -27,7 +27,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Run `make check` to verify
   - [x] Fix: `ProviderCapabilities` uses raw schema annotations instead of `Field(..., description=...)`, violating `pydantic-only-schemas` and `strict-typing-enforcement` (`packages/rentl-llm/src/rentl_llm/providers.py:28`, `packages/rentl-llm/src/rentl_llm/providers.py:29`, `packages/rentl-llm/src/rentl_llm/providers.py:30`, `packages/rentl-llm/src/rentl_llm/providers.py:31`) (audit round 1)
   - [x] Fix: Add `Field(..., description=...)` (and validators where applicable) for migrated schema fields in `ProjectContext`, `_AgentCacheEntry`, `PromptLayerRegistry`, `PromptComposer`, `TemplateContext`, `AgentPoolBundle`, and `_AgentProfileSpec` to satisfy `pydantic-only-schemas` and `strict-typing-enforcement` (`packages/rentl-agents/src/rentl_agents/tools/game_info.py:19`, `packages/rentl-agents/src/rentl_agents/factory.py:108`, `packages/rentl-agents/src/rentl_agents/layers.py:64`, `packages/rentl-agents/src/rentl_agents/layers.py:467`, `packages/rentl-agents/src/rentl_agents/templates.py:274`, `packages/rentl-agents/src/rentl_agents/wiring.py:1107`, `packages/rentl-agents/src/rentl_agents/wiring.py:1117`) (audit round 1; see signposts.md: Task 2, migrated models missing Field metadata)
-- [x] Task 3: Migrate rentl-core + scripts dataclasses to Pydantic (6 classes, 5 files)
+- [ ] Task 3: Migrate rentl-core + scripts dataclasses to Pydantic (6 classes, 5 files)
   - **`PipelineRunContext`** — `packages/rentl-core/src/rentl_core/orchestrator.py:238` (high-impact: core run state)
   - Unlisted dataclass — `packages/rentl-core/src/rentl_core/orchestrator.py:2006`
   - **`DeterministicCheckResult`** — `packages/rentl-core/src/rentl_core/qa/protocol.py:17` (high-impact: QA output)
@@ -37,6 +37,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Extra care on PipelineRunContext and DeterministicCheckResult — used extensively
   - Preserve public API and any `slots=True`, `frozen=True` behavior
   - Run `make check` to verify
+  - [ ] Fix: Configure all Task 3 migrated BaseModels to reject unknown input fields (e.g., `model_config = ConfigDict(extra="forbid", ...)`) so constructor behavior matches prior dataclasses and unknown kwargs do not get silently dropped (`packages/rentl-core/src/rentl_core/llm/connection.py:44`, `packages/rentl-core/src/rentl_core/orchestrator.py:242`, `packages/rentl-core/src/rentl_core/orchestrator.py:2036`, `packages/rentl-core/src/rentl_core/qa/protocol.py:30`, `scripts/validate_agents.py:117`, `scripts/validate_agents.py:127`) (audit round 1; see signposts.md: Task 3, unknown kwargs silently ignored after dataclass migration)
 - [ ] Task 4: Migrate test code dataclasses to Pydantic (16 occurrences, 8 files)
   - `tests/quality/agents/evaluators.py` — 8 dataclasses
   - `tests/quality/agents/quality_harness.py:18`
