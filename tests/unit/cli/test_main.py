@@ -24,7 +24,7 @@ from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
 from rentl_io.storage import FileSystemLogStore
 from rentl_io.storage.log_sink import RedactingLogSink, StorageLogSink
-from rentl_schemas.config import ProjectConfig, RunConfig
+from rentl_schemas.config import RunConfig
 from rentl_schemas.events import CommandEvent, ProgressEvent
 from rentl_schemas.exit_codes import ExitCode
 from rentl_schemas.io import SourceLine
@@ -2659,7 +2659,7 @@ def test_auto_migrate_if_needed_outdated(tmp_path: Path) -> None:
     """Test auto-migrate upgrades outdated config and creates backup."""
     config_path = tmp_path / "rentl.toml"
 
-    # Write an old config
+    # Write an old config — full RunConfig payload so we can validate the whole result
     old_config_content = """[project]
 schema_version = { major = 0, minor = 0, patch = 1 }
 project_name = "test-project"
@@ -2688,6 +2688,33 @@ provider_name = "test"
 base_url = "http://localhost"
 api_key_env = "TEST_API_KEY"
 model_id = "test-model"
+
+[pipeline]
+
+[pipeline.default_model]
+model_id = "test-model"
+
+[[pipeline.phases]]
+phase = "ingest"
+
+[[pipeline.phases]]
+phase = "translate"
+agents = ["direct_translator"]
+
+[[pipeline.phases]]
+phase = "export"
+
+[concurrency]
+max_parallel_requests = 8
+max_parallel_scenes = 4
+
+[retry]
+max_retries = 3
+backoff_s = 1.0
+max_backoff_s = 30.0
+
+[cache]
+enabled = false
 """
     config_path.write_text(old_config_content, encoding="utf-8")
 
@@ -2698,11 +2725,11 @@ model_id = "test-model"
     # Run auto-migrate
     result = cli_main._auto_migrate_if_needed(config_path, payload)
 
-    # Should have upgraded the schema version — validate project section with schema
-    migrated_project = ProjectConfig.model_validate(result["project"])
-    assert migrated_project.schema_version.major == 0
-    assert migrated_project.schema_version.minor == 1
-    assert migrated_project.schema_version.patch == 0
+    # Should have upgraded the schema version — validate full config with schema
+    migrated_config = RunConfig.model_validate(result)
+    assert migrated_config.project.schema_version.major == 0
+    assert migrated_config.project.schema_version.minor == 1
+    assert migrated_config.project.schema_version.patch == 0
 
     # Should have created a backup
     backup_path = config_path.with_suffix(".toml.bak")
@@ -2711,18 +2738,18 @@ model_id = "test-model"
     # Backup should contain the original version
     with backup_path.open("rb") as f:
         backup_dict = tomllib.load(f)
-    backup_project = ProjectConfig.model_validate(backup_dict["project"])
-    assert backup_project.schema_version.major == 0
-    assert backup_project.schema_version.minor == 0
-    assert backup_project.schema_version.patch == 1
+    backup_config = RunConfig.model_validate(backup_dict)
+    assert backup_config.project.schema_version.major == 0
+    assert backup_config.project.schema_version.minor == 0
+    assert backup_config.project.schema_version.patch == 1
 
     # Config file should have been updated
     with config_path.open("rb") as f:
         updated_dict = tomllib.load(f)
-    updated_project = ProjectConfig.model_validate(updated_dict["project"])
-    assert updated_project.schema_version.major == 0
-    assert updated_project.schema_version.minor == 1
-    assert updated_project.schema_version.patch == 0
+    updated_config = RunConfig.model_validate(updated_dict)
+    assert updated_config.project.schema_version.major == 0
+    assert updated_config.project.schema_version.minor == 1
+    assert updated_config.project.schema_version.patch == 0
 
 
 def test_auto_migrate_if_needed_no_schema_version(tmp_path: Path) -> None:
