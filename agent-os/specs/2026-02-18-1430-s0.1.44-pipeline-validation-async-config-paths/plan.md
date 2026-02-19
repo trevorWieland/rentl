@@ -11,7 +11,7 @@ The 2026-02-17 standards audit flagged 17 violations across 4 standards (speed-w
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Add edit output validation gates
+- [x] Task 2: Add edit output validation gates
   - Add quality gate in `orchestrator.py` between edit merge and persistence: reorder store-after-persist, add try/except rollback on failure (violation #1, #3)
   - Add post-edit aggregate validation in `wiring.py`: assert `len(edited_lines) == len(translated_lines)` and output line ID set matches input (violation #2)
   - Add unit tests for the new validation gates

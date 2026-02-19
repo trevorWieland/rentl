@@ -970,6 +970,25 @@ class EditBasicEditorAgent:
                     )
                 break
 
+        # Aggregate validation: edited output must match input lines exactly
+        input_ids = {line.line_id for line in payload.translated_lines}
+        output_ids = {line.line_id for line in edited_lines}
+        if len(edited_lines) != len(payload.translated_lines):
+            raise RuntimeError(
+                f"Edit output line count mismatch: "
+                f"expected {len(payload.translated_lines)}, "
+                f"got {len(edited_lines)}"
+            )
+        if output_ids != input_ids:
+            missing = input_ids - output_ids
+            extra = output_ids - input_ids
+            parts = []
+            if missing:
+                parts.append(f"missing={sorted(missing)}")
+            if extra:
+                parts.append(f"extra={sorted(extra)}")
+            raise RuntimeError(f"Edit output line ID mismatch: {', '.join(parts)}")
+
         return EditPhaseOutput(
             run_id=payload.run_id,
             phase=PhaseName.EDIT,

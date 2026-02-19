@@ -44,6 +44,8 @@ from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import (
     ContextPhaseInput,
     ContextPhaseOutput,
+    EditPhaseInput,
+    EditPhaseOutput,
     PretranslationPhaseInput,
     PretranslationPhaseOutput,
     QaPhaseInput,
@@ -202,6 +204,58 @@ class _StubQaAgent:
             target_language=payload.target_language,
             issues=[],
             summary=summary,
+        )
+
+
+class _StubEditAgent:
+    """Stub edit agent that passes all lines through unchanged."""
+
+    async def run(self, payload: EditPhaseInput) -> EditPhaseOutput:
+        edited_lines = [
+            TranslatedLine(
+                line_id=line.line_id,
+                route_id=line.route_id,
+                scene_id=line.scene_id,
+                speaker=line.speaker,
+                source_text=line.source_text,
+                text=line.text,
+                metadata=line.metadata,
+                source_columns=line.source_columns,
+            )
+            for line in payload.translated_lines
+        ]
+        return EditPhaseOutput(
+            run_id=payload.run_id,
+            phase=PhaseName.EDIT,
+            target_language=payload.target_language,
+            edited_lines=edited_lines,
+            change_log=[],
+        )
+
+
+class _DroppingEditAgent:
+    """Edit agent that drops a line from the output (for validation testing)."""
+
+    async def run(self, payload: EditPhaseInput) -> EditPhaseOutput:
+        edited_lines = [
+            TranslatedLine(
+                line_id=line.line_id,
+                route_id=line.route_id,
+                scene_id=line.scene_id,
+                speaker=line.speaker,
+                source_text=line.source_text,
+                text=line.text,
+                metadata=line.metadata,
+                source_columns=line.source_columns,
+            )
+            for line in payload.translated_lines[:-1]  # drop last line
+        ]
+        return EditPhaseOutput(
+            run_id=payload.run_id,
+            phase=PhaseName.EDIT,
+            target_language=payload.target_language,
+            edited_lines=edited_lines,
+            change_log=[],
         )
 
 
@@ -1025,3 +1079,134 @@ async def test_orchestrator_records_phase_summary_and_logs() -> None:
     summary_payload = entry_data.get("summary")
     assert isinstance(summary_payload, dict)
     assert summary_payload["phase"] == "context"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_edit_validation_gate_passes_on_matching_output() -> None:
+    """Edit phase succeeds when output lines match input lines."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5e0")
+    config = _build_run_config()
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_2",
+            scene_id="scene_1",
+            speaker=None,
+            text="Bye",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
+        ingest_adapter=ingest_adapter,
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
+        pretranslation_agents=[
+            (
+                "pretranslation_agent",
+                PhaseAgentPool(agents=[_StubPretranslationAgent()]),
+            ),
+        ],
+        translate_agents=[
+            ("translate_agent", PhaseAgentPool(agents=[_StubTranslateAgent()])),
+        ],
+        qa_agents=[
+            ("qa_agent", PhaseAgentPool(agents=[_StubQaAgent()])),
+        ],
+        edit_agents=[
+            ("edit_agent", PhaseAgentPool(agents=[_StubEditAgent()])),
+        ],
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+    await orchestrator.run_phase(run, PhaseName.CONTEXT)
+    await orchestrator.run_phase(run, PhaseName.PRETRANSLATION)
+    await orchestrator.run_phase(run, PhaseName.TRANSLATE, target_language="ja")
+    await orchestrator.run_phase(run, PhaseName.QA, target_language="ja")
+    record = await orchestrator.run_phase(run, PhaseName.EDIT, target_language="ja")
+
+    assert record.status == PhaseStatus.COMPLETED
+    assert "ja" in run.edit_outputs
+    assert len(run.edit_outputs["ja"].edited_lines) == 2
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_edit_validation_gate_rejects_missing_lines() -> None:
+    """Edit phase raises when agent drops a line from the output."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5e1")
+    config = _build_run_config()
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_2",
+            scene_id="scene_1",
+            speaker=None,
+            text="Bye",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
+        ingest_adapter=ingest_adapter,
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_StubContextAgent()])),
+        ],
+        pretranslation_agents=[
+            (
+                "pretranslation_agent",
+                PhaseAgentPool(agents=[_StubPretranslationAgent()]),
+            ),
+        ],
+        translate_agents=[
+            ("translate_agent", PhaseAgentPool(agents=[_StubTranslateAgent()])),
+        ],
+        qa_agents=[
+            ("qa_agent", PhaseAgentPool(agents=[_StubQaAgent()])),
+        ],
+        edit_agents=[
+            ("edit_agent", PhaseAgentPool(agents=[_DroppingEditAgent()])),
+        ],
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+    await orchestrator.run_phase(run, PhaseName.CONTEXT)
+    await orchestrator.run_phase(run, PhaseName.PRETRANSLATION)
+    await orchestrator.run_phase(run, PhaseName.TRANSLATE, target_language="ja")
+    await orchestrator.run_phase(run, PhaseName.QA, target_language="ja")
+
+    with pytest.raises(OrchestrationError, match="line count mismatch"):
+        await orchestrator.run_phase(run, PhaseName.EDIT, target_language="ja")
+
+    # Output must not be stored on validation failure
+    assert "ja" not in run.edit_outputs

@@ -1054,7 +1054,7 @@ class PipelineOrchestrator:
         merged_output = _merge_edit_outputs_across_agents(
             run, target_language, agent_outputs
         )
-        run.edit_outputs[target_language] = merged_output
+        _validate_edit_output(run, target_language, merged_output)
         artifact_ids = await self._persist_phase_artifact(
             run,
             PhaseName.EDIT,
@@ -1062,6 +1062,7 @@ class PipelineOrchestrator:
             target_language,
             description=f"Edit output ({target_language})",
         )
+        run.edit_outputs[target_language] = merged_output
         revision = _next_revision(run, PhaseName.EDIT, target_language)
         dependencies = _build_dependencies(run, PhaseName.EDIT, target_language)
         summary = _build_edit_summary(merged_output)
@@ -2455,6 +2456,71 @@ def _merge_edit_outputs_across_agents(
         edited_lines=edited_lines,
         change_log=change_log,
     )
+
+
+def _validate_edit_output(
+    run: PipelineRunContext,
+    target_language: LanguageCode,
+    output: EditPhaseOutput,
+) -> None:
+    """Validate edit output before persistence.
+
+    Checks that every source line has a corresponding edited line
+    and no extra lines appear in the output.
+
+    Raises:
+        OrchestrationError: If line counts or IDs don't match.
+    """
+    source_ids = {line.line_id for line in (run.source_lines or [])}
+    edited_ids = {line.line_id for line in output.edited_lines}
+
+    if len(output.edited_lines) != len(source_ids):
+        raise OrchestrationError(
+            OrchestrationErrorInfo(
+                code=OrchestrationErrorCode.INVALID_STATE,
+                message=(
+                    f"Edit output line count mismatch: "
+                    f"expected {len(source_ids)}, got {len(output.edited_lines)}"
+                ),
+                details=OrchestrationErrorDetails(
+                    phase=PhaseName.EDIT,
+                    target_language=target_language,
+                ),
+            )
+        )
+
+    missing = source_ids - edited_ids
+    if missing:
+        preview = sorted(missing)[:5]
+        suffix = f" (+{len(missing) - 5} more)" if len(missing) > 5 else ""
+        raise OrchestrationError(
+            OrchestrationErrorInfo(
+                code=OrchestrationErrorCode.INVALID_STATE,
+                message=(f"Edit output missing lines: {', '.join(preview)}{suffix}"),
+                details=OrchestrationErrorDetails(
+                    phase=PhaseName.EDIT,
+                    target_language=target_language,
+                ),
+            )
+        )
+
+    extra = edited_ids - source_ids
+    if extra:
+        preview = sorted(extra)[:5]
+        suffix = f" (+{len(extra) - 5} more)" if len(extra) > 5 else ""
+        raise OrchestrationError(
+            OrchestrationErrorInfo(
+                code=OrchestrationErrorCode.INVALID_STATE,
+                message=(
+                    f"Edit output contains unexpected lines: "
+                    f"{', '.join(preview)}{suffix}"
+                ),
+                details=OrchestrationErrorDetails(
+                    phase=PhaseName.EDIT,
+                    target_language=target_language,
+                ),
+            )
+        )
 
 
 def _merge_optional_texts(values: list[str | None]) -> str | None:

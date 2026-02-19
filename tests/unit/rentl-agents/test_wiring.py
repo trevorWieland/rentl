@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import AsyncMock
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
@@ -43,6 +45,8 @@ from rentl_schemas.config import (
     RetryConfig,
     RunConfig,
 )
+from rentl_schemas.io import TranslatedLine
+from rentl_schemas.phases import EditPhaseInput, TranslationResultLine
 from rentl_schemas.primitives import (
     FileFormat,
     LogSinkType,
@@ -370,3 +374,100 @@ def test_profile_agent_config_requires_model_id() -> None:
     """Omitting model_id raises ValidationError."""
     with pytest.raises(ValidationError, match="model_id"):
         ProfileAgentConfig(api_key="test-key")  # type: ignore[call-arg]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_edit_agent_aggregate_validation_rejects_mismatched_lines() -> None:
+    """EditBasicEditorAgent raises when output line IDs don't match input."""
+    # Build a mock profile agent that returns wrong line_id
+    mock_profile = AsyncMock()
+    mock_profile.run = AsyncMock(
+        side_effect=lambda _payload: TranslationResultLine(
+            line_id="line_999", text="edited"
+        )
+    )
+    mock_profile.update_context = lambda _ctx: None
+
+    config = _build_config()
+    agent = EditBasicEditorAgent(
+        profile_agent=mock_profile,
+        config=config,
+        source_lang="ja",
+        target_lang="en",
+    )
+    payload = EditPhaseInput(
+        run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f0"),
+        target_language="en",
+        translated_lines=[
+            TranslatedLine(
+                line_id="line_1",
+                scene_id="scene_1",
+                speaker=None,
+                source_text="Hi",
+                text="Hello",
+                metadata=None,
+                source_columns=None,
+            ),
+        ],
+        qa_issues=None,
+        reviewer_notes=None,
+        scene_summaries=None,
+        context_notes=None,
+        project_context=None,
+        pretranslation_annotations=None,
+        term_candidates=None,
+        glossary=None,
+        style_guide=None,
+    )
+
+    # The alignment retry logic will exhaust retries and raise RuntimeError
+    with pytest.raises(RuntimeError, match="line_id must match"):
+        await agent.run(payload)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_edit_agent_aggregate_validation_passes_on_matching_lines() -> None:
+    """EditBasicEditorAgent succeeds when output lines match input."""
+    mock_profile = AsyncMock()
+    mock_profile.run = AsyncMock(
+        return_value=TranslationResultLine(line_id="line_1", text="edited")
+    )
+    mock_profile.update_context = lambda _ctx: None
+
+    config = _build_config()
+    agent = EditBasicEditorAgent(
+        profile_agent=mock_profile,
+        config=config,
+        source_lang="ja",
+        target_lang="en",
+    )
+    payload = EditPhaseInput(
+        run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f0"),
+        target_language="en",
+        translated_lines=[
+            TranslatedLine(
+                line_id="line_1",
+                scene_id="scene_1",
+                speaker=None,
+                source_text="Hi",
+                text="Hello",
+                metadata=None,
+                source_columns=None,
+            ),
+        ],
+        qa_issues=None,
+        reviewer_notes=None,
+        scene_summaries=None,
+        context_notes=None,
+        project_context=None,
+        pretranslation_annotations=None,
+        term_candidates=None,
+        glossary=None,
+        style_guide=None,
+    )
+
+    result = await agent.run(payload)
+    assert len(result.edited_lines) == 1
+    assert result.edited_lines[0].line_id == "line_1"
