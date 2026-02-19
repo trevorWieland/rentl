@@ -455,7 +455,9 @@ async def run_doctor(
 
     # Check 4: Workspace directories (depends on valid config)
     if config is not None:
-        checks.append(check_workspace_dirs(config, config_path.parent))
+        checks.append(
+            await asyncio.to_thread(check_workspace_dirs, config, config_path.parent)
+        )
     else:
         checks.append(
             CheckResult(

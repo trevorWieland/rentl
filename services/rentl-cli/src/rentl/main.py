@@ -1234,9 +1234,8 @@ async def _benchmark_download_async(
             if slice_name not in slices_config.slices:
                 rprint(f"[red]Error:[/red] Slice '{slice_name}' not found")
                 raise typer.Exit(code=1)
-            script_files = EvalSetLoader.get_slice_scripts(
-                normalized_eval_set, slice_name
-            )
+            slice_def = slices_config.slices[slice_name]
+            script_files = [script.file for script in slice_def.scripts]
             rprint(f"[cyan]Using slice:[/cyan] {slice_name}")
         else:
             script_files = list(manifest.scripts.keys())
