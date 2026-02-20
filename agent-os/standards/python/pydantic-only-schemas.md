@@ -45,3 +45,14 @@ class TranslationRequest:
 - API contracts
 
 **Why:** Pydantic provides automatic validation, native JSON serialization/deserialization, better type inference and IDE support than dataclasses, and catches schema errors early.
+
+**Dataclass migration checklist:**
+
+When migrating `@dataclass` to `BaseModel`:
+
+1. Add `model_config = ConfigDict(extra="forbid")` — dataclasses reject unknown kwargs by default; Pydantic silently drops them without this
+2. Preserve `frozen=True` via `ConfigDict(frozen=True)` and `slots=True` via `ConfigDict(slots=True)`
+3. Replace all raw field annotations with `Field(..., description="...")`
+4. Add built-in validators where constraints are known (min_length, pattern, etc.)
+5. Remove `from dataclasses import dataclass` when no longer needed
+6. Verify: construct with an unknown kwarg — must raise `ValidationError`
