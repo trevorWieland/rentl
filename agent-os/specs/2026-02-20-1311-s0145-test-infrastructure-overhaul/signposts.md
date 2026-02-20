@@ -66,7 +66,7 @@ that demonstrates the problem.
 ## Signpost 4: Pretranslation quality test timeout at 29s
 
 - **Task:** 9 (originally post-task-8)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** `test_pretranslation_agent_evaluation_passes` timed out at 29s during `make all`. The pytest timeout (29s) was too tight for the pretranslation agent's combined agent run + LLM judge evaluation.
 - **Evidence (round 1):**
   ```
@@ -109,4 +109,5 @@ that demonstrates the problem.
   If pretranslation were recombined into a single test (~7.8s), it would still be well under 29s — consistent with the other agents.
 - **Actual root cause:** The original timeouts were caused by the pre-fix config: `timeout_s=15`, `max_output_retries=2` allowed worst case of 15s × 4 attempts = 60s agent budget alone. The progressive config reductions (`timeout_s` 15→12→8, `max_output_retries` 2→1→0) already fixed the underlying issue. The round 4 failure was an intermittent OpenRouter latency spike, not a structural problem. The split was an unnecessary overreaction.
 - **Solution:** Revert the split. Recombine into a single scenario with real agent run + all evaluators (structural + LLM judge) — matching the pattern used by the other 4 agent quality tests. No special treatment needed.
+- **Resolution:** do-task round 7, Task 9. Removed per-test `pytest.mark.timeout(29)` marker, recombined into single scenario matching context/translate/QA/edit pattern.
 - **Files affected:** `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/features/agents/pretranslation_agent.feature`

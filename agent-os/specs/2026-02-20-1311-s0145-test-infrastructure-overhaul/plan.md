@@ -75,7 +75,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Run `make all` and verify clean pass
   - Acceptance: `make all` passes; no remaining violations of any testing standard
   - [x] Fix: Move or rename ad-hoc `debug_test.py` so no test-named files exist outside `tests/{unit,integration,quality}/` (`debug_test.py:1`) (audit round 1).
-- [ ] Task 9: Recombine pretranslation quality test into single scenario (Signpost 4 — REDO)
+- [x] Task 9: Recombine pretranslation quality test into single scenario (Signpost 4 — REDO)
   - Task 9's previous solution (split into structural eval + judge eval with hardcoded output) was **rejected during walk-spec**: the LLM judge must evaluate real agent output, not hardcoded output.
   - **Investigation found:** All 4 other agent quality tests (context, translate, QA, edit) use the same pattern — real agent + LLM judge in a single test, same harness config (`timeout_s=8.0`, `max_output_retries=0`) — and none time out. The translate test makes 5 LLM calls and finishes in 5.66s. There is nothing special about pretranslation. The original timeouts were caused by pre-fix config (`timeout_s=15`, `max_output_retries=2`); the config reductions already fixed the problem. The split was unnecessary.
   - **Solution:** Revert the split. Recombine into a single scenario matching the pattern in the other 4 agent quality tests: real agent run + structural evaluators + LLM judge, all in one test. Remove the `pytest.mark.timeout(29)` per-test marker (the other agent tests don't have it; they rely on the Makefile's global `--timeout=29`).
