@@ -54,7 +54,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Scan all other integration tests for non-BDD style and convert
   - Create feature files in `tests/integration/` as needed
   - Acceptance: all integration tests use pytest_bdd Given/When/Then fixtures
-- [ ] Task 7: Convert quality tests to BDD style
+- [x] Task 7: Convert quality tests to BDD style
   - Convert `tests/quality/cli/test_preset_validation.py` to BDD
   - Scan all other quality tests for non-BDD style and convert
   - Create feature files in `tests/quality/` as needed
