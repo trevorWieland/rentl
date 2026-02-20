@@ -14,3 +14,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 1): PASS — Integration tests are converted to BDD (Given/When/Then), feature files are wired, and targeted Task 6 test files pass.
 - **Task 7** (round 1): PASS — Quality tests are BDD-converted with feature wiring, and targeted pytest execution passes for the converted file.
 - **Task 8** (round 1): PASS — Final sweep fix is applied (`Makefile` quality timeout `--timeout=29`), and targeted standard checks are clean.
+- **Demo** (run 1): PASS — All 7 [RUN] steps passed (7 run, 7 verified)

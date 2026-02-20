@@ -21,4 +21,12 @@ The test suite now conforms to all 5 testing standards — proper mock boundarie
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — Full demo (2026-02-20 19:45)
+- Step 1 [RUN]: PASS — `make check` passes (993 unit tests, 95 integration tests, coverage thresholds met on both tiers)
+- Step 2 [RUN]: PASS — `find packages -name 'test_*' -type f` returns nothing; `tests/features/` does not exist
+- Step 3 [RUN]: PASS — grep for `_build_llm_runtime` and `pydantic_ai.Agent.run` in integration tests returns zero matches
+- Step 4 [RUN]: PASS — all mocks in integration tests have corresponding invocation assertions (verified across 15 files with mocks)
+- Step 5 [RUN]: PASS — Makefile quality target uses `--timeout=29` (≤30s)
+- Step 6 [RUN]: PASS — `make quality` passes (9 tests in 37.82s, all within 29s individual timeout)
+- Step 7 [RUN]: PASS — `make all` passes (format, lint, type, 993 unit, 95 integration, 9 quality — all green)
+- **Overall: PASS**
