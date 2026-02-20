@@ -38,7 +38,6 @@ from rentl_schemas.phases import (
 )
 from rentl_schemas.primitives import FileFormat, JsonValue
 from rentl_schemas.validation import validate_run_config
-from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
     pass
@@ -226,7 +225,6 @@ def then_pipeline_executes_end_to_end(
     ctx: InitContext,
     monkeypatch: pytest.MonkeyPatch,
     cli_runner: CliRunner,
-    mock_llm_runtime: FakeLlmRuntime,
 ) -> None:
     """Assert the generated project can execute the full pipeline and exports.
 

@@ -140,7 +140,6 @@ def when_run_benchmark_download_kebab_case(
     with patch("rentl.main.EvalSetLoader") as mock_loader:
         mock_loader.load_manifest = MagicMock(return_value=mock_manifest)
         mock_loader.load_slices = MagicMock(return_value=mock_slices)
-        mock_loader.get_slice_scripts = MagicMock(return_value=["script-a1-monday.rpy"])
 
         # Mock the downloader
         with patch("rentl.main.KatawaShoujoDownloader") as mock_downloader_class:

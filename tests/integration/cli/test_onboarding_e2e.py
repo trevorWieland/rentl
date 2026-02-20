@@ -52,6 +52,7 @@ class OnboardingContext:
     export_response: dict | None = None
     mock_call_count: dict[str, int] | None = None
     preflight_called: dict[str, int] | None = None
+    mock_llm_runtime: FakeLlmRuntime | None = None
 
 
 @given("a clean temporary directory", target_fixture="ctx")
@@ -132,6 +133,9 @@ def when_run_doctor(
     # (init always uses RENTL_LOCAL_API_KEY as the env var name)
     env_path = ctx.project_dir / ".env"
     env_path.write_text("RENTL_LOCAL_API_KEY=fake-api-key-for-e2e-test\n")
+
+    # Store the mock LLM runtime so we can assert it was invoked
+    ctx.mock_llm_runtime = mock_llm_runtime
 
     ctx.doctor_result = cli_runner.invoke(
         cli_main.app,
@@ -403,6 +407,13 @@ def then_all_commands_succeed(ctx: OnboardingContext) -> None:
     assert ctx.preflight_called["count"] > 0, (
         "assert_preflight mock was never called — "
         "the monkeypatch may not be targeting the correct attribute"
+    )
+
+    # Verify the mock LLM runtime was invoked during doctor connectivity check
+    assert ctx.mock_llm_runtime is not None, "Mock LLM runtime not tracked"
+    assert ctx.mock_llm_runtime.call_count > 0, (
+        "mock_llm_runtime was never called during doctor — "
+        "the monkeypatch may not be targeting the correct execution boundary"
     )
 
 
