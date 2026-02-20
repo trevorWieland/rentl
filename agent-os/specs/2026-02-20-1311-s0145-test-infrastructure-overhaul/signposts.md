@@ -66,7 +66,7 @@ that demonstrates the problem.
 ## Signpost 4: Pretranslation quality test timeout at 29s
 
 - **Task:** make all gate fix (post-task-8)
-- **Status:** resolved
+- **Status:** unresolved
 - **Problem:** `test_pretranslation_agent_evaluation_passes` timed out at 29s during `make all`. The pytest timeout (29s) was too tight for the pretranslation agent's combined agent run + LLM judge evaluation.
 - **Evidence (round 1):**
   ```
@@ -87,6 +87,13 @@ that demonstrates the problem.
   E   Failed: Timeout (>29.0s) from pytest-timeout.
   ```
 - **Tried (round 3):** Reduced `timeout_s` from 12s to 8s per-request. With 2 LLM calls the agent budget is 2 x 8s = 16s max. Judge ~10s = ~26s total, 3s margin. Also reduced `MaxDuration` evaluator from 20s to 15s to match new budget.
-- **Solution:** `timeout_s=8.0` in `quality_harness.py`, `MaxDuration(seconds=15.0)` in `test_pretranslation_agent.py`.
-- **Resolution:** do-task, make-all gate fix round 3
+- **Tried (round 3 solution):** `timeout_s=8.0` in `quality_harness.py`, `MaxDuration(seconds=15.0)` in `test_pretranslation_agent.py`. Appeared to work in round 3 but has proven unreliable.
+- **Evidence (round 4, demo run 5):** Same timeout recurred. With `timeout_s=8.0`, 2 LLM calls, and judge, the 3s margin is insufficient when OpenRouter response latency is high.
+  ```
+  tests/quality/agents/test_pretranslation_agent.py +++++ Timeout +++++
+  FAILED tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes
+  E   Failed: Timeout (>29.0s) from pytest-timeout.
+  1 failed, 8 passed in 90.34s (0:01:30)
+  ```
+- **Root cause:** The 29s pytest timeout is fundamentally incompatible with 2 real LLM API calls + LLM judge through OpenRouter. The per-request httpx timeout (8s) does not guarantee the call completes in 8s — network and API latency is variable. The only reliable fix is to either: (a) increase the pytest timeout above 29s (conflicts with <30s standard), or (b) reduce the number of real LLM calls (e.g., separate agent run from judge into different tests, or mock the judge).
 - **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/agents/test_pretranslation_agent.py`
