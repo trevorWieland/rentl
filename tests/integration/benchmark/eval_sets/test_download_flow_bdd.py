@@ -90,11 +90,8 @@ def given_mock_http_with_404(ctx: DownloadFlowContext) -> None:
     Args:
         ctx: Download flow context.
     """
-    # Mock 404 response (Task 13: Japanese translations at game/tl/jp)
-    with respx.mock:
-        respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/missing.rpy"
-        ).mock(return_value=httpx.Response(404))
+    # 404 mock is created in the when step (when_download_missing_script)
+    pass
 
 
 @given("a script is already cached with correct hash")
