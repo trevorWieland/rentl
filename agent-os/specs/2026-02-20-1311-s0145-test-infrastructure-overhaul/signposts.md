@@ -60,3 +60,21 @@ that demonstrates the problem.
 - **Solution:** Reduced both markers from `timeout(30)` to `timeout(29)`, satisfying the `<30s` requirement.
 - **Resolution:** do-task round 2, Task 5 fix items
 - **Files affected:** `tests/quality/pipeline/test_golden_script_pipeline.py`, `tests/quality/agents/test_pretranslation_agent.py`
+
+---
+
+## Signpost 4: Pretranslation quality test timeout at 29s
+
+- **Task:** make all gate fix (post-task-8)
+- **Status:** resolved
+- **Problem:** `test_pretranslation_agent_evaluation_passes` timed out at 29s during `make all`. The pytest timeout (29s) was too tight for the pretranslation agent's combined agent run + LLM judge evaluation. With `timeout_s=15.0` and `max_output_retries=2`, a single validation retry would give 15s + 15s = 30s for the agent alone, before the LLM judge even runs.
+- **Evidence:**
+  ```
+  tests/quality/agents/test_pretranslation_agent.py +++++ Timeout +++++
+  FAILED tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes
+  E   Failed: Timeout (>29.0s) from pytest-timeout.
+  ```
+- **Tried:** Analyzed timing budget: agent (up to 15s × 3 attempts = 45s worst case) + LLM judge (~5s) far exceeded 29s.
+- **Solution:** Reduced `timeout_s` from 15s to 12s and `max_output_retries` from 2 to 1 in `quality_harness.py`. Worst case: 12s + 12s retry = 24s agent + ~5s judge = ~29s. Also lowered `MaxDuration` evaluator from 25s to 20s in all 5 agent tests. Other agent tests unaffected (they complete well under 12s).
+- **Resolution:** do-task, make-all gate fix round
+- **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/agents/test_context_agent.py`, `tests/quality/agents/test_edit_agent.py`, `tests/quality/agents/test_translate_agent.py`, `tests/quality/agents/test_qa_agent.py`
