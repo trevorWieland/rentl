@@ -71,7 +71,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Resolve any new ty errors introduced by strict mode
   - Run `make check` to verify
   - [x] Fix: Replace remaining `Any`/`object` annotations in tests to satisfy `strict-typing-enforcement` (`tests/unit/schemas/test_validation.py:3`, `tests/unit/schemas/test_validation.py:37`, `tests/unit/schemas/test_validation.py:231`, `tests/unit/schemas/test_validation.py:244`, `packages/rentl-core/tests/unit/core/test_migrate.py:279`, `packages/rentl-core/tests/unit/core/test_migrate.py:289`) (audit round 1)
-- [x] Task 7: Create CI workflow + deprecation warnings enforcement
+- [ ] Task 7: Create CI workflow + deprecation warnings enforcement
   - Create `.github/workflows/ci.yml` that runs `make all` on pull requests to main
   - Configure as required status check for merge blocking
   - Add `-W error::DeprecationWarning` to pytest `addopts` in `pyproject.toml:71`
@@ -83,6 +83,7 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - [x] Fix: [CI] Fix benchmark compare integration tests to set `RENTL_OPENROUTER_API_KEY` in test env or patch env var resolution so tests pass without real API keys (`tests/integration/benchmark/test_cli_command.py:439`, CI run #22231065113)
   - [x] Fix: [CI] Fix onboarding E2E test — `pipeline_response` is `None` because pipeline command output isn't valid JSON; test needs to handle mock pipeline output correctly (`tests/integration/cli/test_onboarding_e2e.py:279`, CI run #22231065113)
   - [x] Fix: Restore non-negotiable CI contract by ensuring the PR-required status check executes `make all` semantics (or an equivalent `make all` gate that includes quality coverage without paid live API dependency), and align the required status context with the workflow job name; current workflow runs `make ci` (`.github/workflows/ci.yml:13`, `.github/workflows/ci.yml:30`) while `main` ruleset still requires `make all` (`gh api repos/trevorWieland/rentl/rulesets/13017577` required_status_checks context: `make all`) (audit round 4)
+  - [ ] Fix: Restore the spec's hard `make all` PR gate contract by running full `make all` semantics from the required workflow/status check (not `make ci`) and aligning the ruleset context to that gate; current state still enforces `make ci` (`.github/workflows/ci.yml:13`, `.github/workflows/ci.yml:30`, `gh api repos/trevorWieland/rentl/rulesets/13017577` required_status_checks context: `make ci`) (audit round 5)
 - [x] Task 8: Standards compliance sweep (ID formats, API envelope, placeholders, dependency versions)
   - `HeadToHeadResult.line_id` — change type from `str` to `LineId` at `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:20`
   - Runtime `run_id` — validate as UUIDv7 at `packages/rentl-agents/src/rentl_agents/runtime.py:594`
