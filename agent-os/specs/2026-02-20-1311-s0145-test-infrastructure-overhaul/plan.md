@@ -75,9 +75,11 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Run `make all` and verify clean pass
   - Acceptance: `make all` passes; no remaining violations of any testing standard
   - [x] Fix: Move or rename ad-hoc `debug_test.py` so no test-named files exist outside `tests/{unit,integration,quality}/` (`debug_test.py:1`) (audit round 1).
-- [x] Task 9: Fix pretranslation quality test timeout (Signpost 4 round 4)
-  - The pretranslation quality test (`test_pretranslation_agent_evaluation_passes`) times out at 29s because it makes 2 real LLM API calls (tool call + structured output via `end_strategy="exhaustive"`) plus an LLM judge call, and the combined latency through OpenRouter exceeds the 29s pytest timeout.
-  - Previous attempts reduced `timeout_s` from 15→12→8 and `max_output_retries` to 0 — still insufficient because OpenRouter latency is variable.
-  - Recommended approach: split the pretranslation quality test into two separate tests — one for the agent run (no judge) and one for the judge evaluation (with cached/hardcoded agent output) — so each test stays comfortably under 29s. Alternatively, reduce the per-request timeout further (e.g., 6s) though this risks the agent failing to complete within the timeout on slower days.
-  - Files: `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/agents/quality_harness.py`
-  - Acceptance: `make quality` passes reliably with `--timeout=29`
+- [ ] Task 9: Fix pretranslation quality test timeout (Signpost 4 — REDO)
+  - Task 9's previous solution (split into structural eval + judge eval with hardcoded output) was **rejected during walk-spec**: the LLM judge must evaluate real agent output, not hardcoded output. The split made both tests meaningless. Revert the split and find a proper solution.
+  - **Constraint:** The test MUST run the real pretranslation agent AND have the LLM judge evaluate the real agent output in a single test scenario. Splitting agent run from judge evaluation is not acceptable.
+  - **Root cause:** The pretranslation agent requires 2+ real LLM API calls (tool call + structured output via `end_strategy="exhaustive"`) plus 1 LLM judge call. Combined latency through OpenRouter is variable and frequently exceeds the 29s pytest timeout.
+  - **Previous failed approaches:** Reducing `timeout_s` (15→12→8), reducing `max_output_retries` (2→1→0), splitting into separate tests (rejected — defeats purpose of quality testing).
+  - **Possible directions:** Update the `test-timing-rules` standard to allow a higher per-test timeout for quality tests involving agent+judge (the <30s limit predates multi-call quality evals); use a faster model for the agent in quality tests; restructure the agent to avoid `end_strategy="exhaustive"` in quality mode (reducing from 2 to 1 agent LLM call); accept intermittent failure with test-runner retry.
+  - Files: `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/features/agents/pretranslation_agent.feature`, potentially `agent-os/standards/testing/test-timing-rules.md`
+  - Acceptance: `make quality` passes reliably; the pretranslation quality test runs the real agent AND has the LLM judge evaluate the real output in a single scenario
