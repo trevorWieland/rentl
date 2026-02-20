@@ -75,7 +75,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Run `make all` and verify clean pass
   - Acceptance: `make all` passes; no remaining violations of any testing standard
   - [x] Fix: Move or rename ad-hoc `debug_test.py` so no test-named files exist outside `tests/{unit,integration,quality}/` (`debug_test.py:1`) (audit round 1).
-- [ ] Task 9: Fix pretranslation quality test timeout (Signpost 4 round 4)
+- [x] Task 9: Fix pretranslation quality test timeout (Signpost 4 round 4)
   - The pretranslation quality test (`test_pretranslation_agent_evaluation_passes`) times out at 29s because it makes 2 real LLM API calls (tool call + structured output via `end_strategy="exhaustive"`) plus an LLM judge call, and the combined latency through OpenRouter exceeds the 29s pytest timeout.
   - Previous attempts reduced `timeout_s` from 15→12→8 and `max_output_retries` to 0 — still insufficient because OpenRouter latency is variable.
   - Recommended approach: split the pretranslation quality test into two separate tests — one for the agent run (no judge) and one for the judge evaluation (with cached/hardcoded agent output) — so each test stays comfortably under 29s. Alternatively, reduce the per-request timeout further (e.g., 6s) though this risks the agent failing to complete within the timeout on slower days.

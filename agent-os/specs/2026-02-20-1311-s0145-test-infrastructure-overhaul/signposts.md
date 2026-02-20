@@ -65,8 +65,8 @@ that demonstrates the problem.
 
 ## Signpost 4: Pretranslation quality test timeout at 29s
 
-- **Task:** make all gate fix (post-task-8)
-- **Status:** unresolved
+- **Task:** 9 (originally post-task-8)
+- **Status:** resolved
 - **Problem:** `test_pretranslation_agent_evaluation_passes` timed out at 29s during `make all`. The pytest timeout (29s) was too tight for the pretranslation agent's combined agent run + LLM judge evaluation.
 - **Evidence (round 1):**
   ```
@@ -96,4 +96,6 @@ that demonstrates the problem.
   1 failed, 8 passed in 90.34s (0:01:30)
   ```
 - **Root cause:** The 29s pytest timeout is fundamentally incompatible with 2 real LLM API calls + LLM judge through OpenRouter. The per-request httpx timeout (8s) does not guarantee the call completes in 8s — network and API latency is variable. The only reliable fix is to either: (a) increase the pytest timeout above 29s (conflicts with <30s standard), or (b) reduce the number of real LLM calls (e.g., separate agent run from judge into different tests, or mock the judge).
-- **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/agents/test_pretranslation_agent.py`
+- **Solution:** Split the single scenario into two: (1) structural eval — real agent run with deterministic evaluators only (no LLM judge), ~20s budget; (2) judge eval — hardcoded representative agent output with LLM judge only (no agent run), ~10s budget. Each test stays comfortably under 29s independently.
+- **Resolution:** do-task Task 9
+- **Files affected:** `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/features/agents/pretranslation_agent.feature`
