@@ -19,7 +19,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Remove empty `packages/rentl-core/tests/` and `tests/features/` directories
   - Update `pyproject.toml` test discovery config if paths are referenced
   - Acceptance: `find packages -name 'test_*' -type f` returns nothing; `tests/features/` doesn't exist
-- [x] Task 3: Fix mock boundaries in integration tests
+- [ ] Task 3: Fix mock boundaries in integration tests
   - Refactor `tests/integration/cli/test_run_pipeline.py` — mock `ProfileAgent.run` instead of `_build_llm_runtime`
   - Refactor `tests/integration/cli/test_run_phase.py` — same fix
   - Refactor `tests/integration/benchmark/test_judge_flow.py` — mock at agent boundary instead of `pydantic_ai.Agent.run`
@@ -31,6 +31,10 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - [x] Fix: Make OpenRouter mocked responses schema-valid by including required OpenRouter fields (`choices[].native_finish_reason`, top-level `provider`) in `tests/integration/byok/test_openrouter_runtime.py:60` (audit round 1; `pytest -q tests/integration/byok/test_openrouter_runtime.py` fails with ValidationError).
   - [x] Fix: Add explicit invocation assertions (or remove unnecessary mocks) for `ProfileAgent.run` mocks in `tests/integration/cli/test_run_pipeline.py:157` and `tests/integration/cli/test_run_phase.py:151`; current `mock_call_count` values are never asserted (audit round 1; violates `mock-execution-boundary` and spec non-negotiable #2).
   - [x] Fix: Remove `_build_llm_runtime` literal references from integration-test comments/docstrings in `tests/integration/cli/test_run_pipeline.py:154`, `tests/integration/cli/test_run_phase.py:148`, and `tests/integration/conftest.py:151` so the Task 3 acceptance grep in `agent-os/specs/2026-02-20-1311-s0145-test-infrastructure-overhaul/plan.md:30` returns zero (audit round 1).
+  - [ ] Fix: Add explicit invocation assertion for the patched `_export_async` mock in `tests/integration/cli/test_exit_codes.py:275` (audit round 1; mock is patched but never explicitly asserted).
+  - [ ] Fix: Add explicit invocation assertions for patched `assert_preflight` mocks in `tests/integration/cli/test_init.py:264` and `tests/integration/cli/test_onboarding_e2e.py:162` (audit round 1; only `ProfileAgent.run` mock invocation is currently asserted).
+  - [ ] Fix: Add explicit invocation assertions for benchmark CLI mocks in `tests/integration/benchmark/test_cli_command.py:143`, `tests/integration/benchmark/test_cli_command.py:151`, and `tests/integration/benchmark/test_cli_command.py:429` (audit round 1; patched collaborators are not explicitly asserted as invoked).
+  - [ ] Fix: Add explicit `route.called` assertions for mocked HTTP routes in `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:156` and `tests/integration/byok/test_local_model_factory.py:196` (audit round 1; mocked routes are configured without explicit invocation checks in these scenarios).
 - [x] Task 4: Enforce coverage on integration tier
   - Add `--cov=packages --cov=services --cov-fail-under=80` to integration Makefile target
   - Scope coverage modules correctly for integration tier
@@ -59,8 +63,9 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Scan all other quality tests for non-BDD style and convert
   - Create feature files in `tests/quality/` as needed
   - Acceptance: all quality tests use pytest_bdd Given/When/Then fixtures
-- [x] Task 8: Full audit sweep and cleanup
+- [ ] Task 8: Full audit sweep and cleanup
   - Scan entire test suite for any remaining violations of all 5 standards
   - Fix all violations found
   - Run `make all` and verify clean pass
   - Acceptance: `make all` passes; no remaining violations of any testing standard
+  - [ ] Fix: Move or rename ad-hoc `debug_test.py` so no test-named files exist outside `tests/{unit,integration,quality}/` (`debug_test.py:1`) (audit round 1).
