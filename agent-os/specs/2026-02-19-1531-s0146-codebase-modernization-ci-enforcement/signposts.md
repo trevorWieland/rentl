@@ -35,6 +35,18 @@
 - **Solution:** Rewrote the edit agent rubric to match the translate agent pattern: explicit "Score: PASS if X, FAIL only if Y" criteria focused on whether the agent produced coherent English edit output, not whether the specific QA suggestion was perfectly applied.
 - **Files affected:** `tests/quality/agents/test_edit_agent.py`
 
+- **Task:** Task 7 (feedback round 1)
+- **Status:** unresolved
+- **Problem:** CI `make all` fails with 3 integration test failures. Two root causes: (1) benchmark compare tests don't mock `RENTL_OPENROUTER_API_KEY` env var — the CLI resolves the judge provider as OpenRouter at `services/rentl-cli/src/rentl/main.py:1459` and demands the env var before the patched `RubricJudge` is reached; (2) onboarding E2E test's `pipeline_response` is `None` because the mock pipeline doesn't produce JSON stdout, causing `AttributeError` at `tests/integration/cli/test_onboarding_e2e.py:279`.
+- **Evidence:** CI run #22231065113 — `FAILED tests/integration/benchmark/test_cli_command.py::test_benchmark_compare_handles_outoforder_async_completion - AssertionError: No progress updates recorded`; `FAILED tests/integration/benchmark/test_cli_command.py::test_benchmark_compare_completes_full_evaluation_flow - Error: Set RENTL_OPENROUTER_API_KEY environment variable`; `FAILED tests/integration/cli/test_onboarding_e2e.py::test_full_onboarding_flow_succeeds - AttributeError: 'NoneType' object has no attribute 'get'`
+- **Impact:** CI gate blocks PR merge. These are pre-existing test issues now exposed by the new CI workflow — the tests pass locally with `.env` but fail in CI without secrets.
+
+- **Task:** Task 7 (feedback round 1)
+- **Status:** unresolved
+- **Problem:** Quality tests (`make quality`) require real OpenRouter API access and incur billing. Running them in CI on a public repo means any fork PR triggers real API calls. CI should run a subset excluding quality tests.
+- **Evidence:** Quality test target loads `.env` and calls OpenRouter endpoints (`Makefile:79`). Public repo CI triggers on `pull_request` from any fork (`.github/workflows/ci.yml:4`).
+- **Impact:** Cost exposure and potential abuse vector. CI should run `make ci` (format + lint + type + unit + integration) instead of `make all`.
+
 - **Task:** Post-completion gate fix
 - **Status:** resolved
 - **Resolution:** do-task fix round (2026-02-19) — increased output retries in quality harness and preflight probe
