@@ -11,3 +11,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 1): PASS — Integration coverage enforcement is active (`make integration` passes with `--cov-fail-under`), version assertion brittleness is removed, and the `rentl_tui` coverage gap is documented as deferred.
 - **Task 5** (round 1): FAIL — Quality-test timeout markers are set to `30s` (not below `30s`), so Task 5 timing compliance is incomplete.
 - **Task 5** (round 2): PASS — Quality-test timeout markers were reduced to `29s`, satisfying Task 5 timing requirements and `test-timing-rules`.
+- **Task 6** (round 1): PASS — Integration tests are converted to BDD (Given/When/Then), feature files are wired, and targeted Task 6 test files pass.
