@@ -50,6 +50,7 @@ class OnboardingContext:
     export_result: Result | None = None
     pipeline_response: dict | None = None
     export_response: dict | None = None
+    mock_call_count: dict[str, int] | None = None
 
 
 @given("a clean temporary directory", target_fixture="ctx")
@@ -252,6 +253,7 @@ def when_run_pipeline(
             raise ValueError(f"Unexpected output type in E2E test mock: {output_type}")
 
     monkeypatch.setattr(ProfileAgent, "run", mock_agent_run)
+    ctx.mock_call_count = mock_call_count
 
     # Run the pipeline
     ctx.pipeline_result = cli_runner.invoke(
@@ -381,6 +383,13 @@ def then_all_commands_succeed(ctx: OnboardingContext) -> None:
         f"Export command failed with exit code {ctx.export_result.exit_code}\n"
         f"Output: {ctx.export_result.stdout}\n"
         f"Error: {ctx.export_result.stderr}"
+    )
+
+    # Verify ProfileAgent.run mock was actually invoked
+    assert ctx.mock_call_count is not None, "Mock call count not tracked"
+    assert ctx.mock_call_count["count"] > 0, (
+        "ProfileAgent.run mock was never called — "
+        "the patch may not be at the correct execution boundary"
     )
 
 

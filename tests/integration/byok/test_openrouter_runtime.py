@@ -1,12 +1,16 @@
-"""Integration tests for OpenRouter provider parity."""
+"""Integration tests for OpenRouter provider parity.
+
+Verifies that OpenAICompatibleRuntime correctly routes requests through
+the provider factory based on base_url, using HTTP-level mocking (respx)
+to avoid patching internal pydantic-ai classes.
+"""
 
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 
-from pydantic_ai.models.openai import OpenAIChatModelSettings
-from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
+import httpx
+import respx
 
 from rentl_llm.openai_runtime import OpenAICompatibleRuntime
 from rentl_schemas.config import RetryConfig
@@ -53,11 +57,41 @@ def _make_request(
     )
 
 
+def _chat_completion_response(content: str, model: str = "gpt-4") -> dict[str, object]:
+    """Build a minimal OpenAI-compatible chat completion response.
+
+    Args:
+        content: The assistant message content.
+        model: Model ID to include in the response.
+
+    Returns:
+        Dict matching the OpenAI chat completion response schema.
+    """
+    return {
+        "id": "chatcmpl-mock-openrouter",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+        },
+    }
+
+
 class TestOpenRouterProviderSelection:
     """Tests for OpenRouter provider selection in BYOK runtime."""
 
     def test_openrouter_base_url_selects_openrouter_provider(self) -> None:
-        """OpenRouter base_url should select OpenRouterProvider and OpenRouterModel."""
+        """OpenRouter base_url should route through OpenRouter provider."""
         runtime = OpenAICompatibleRuntime()
 
         request = _make_request(
@@ -66,42 +100,25 @@ class TestOpenRouterProviderSelection:
             model_id="anthropic/claude-4.5-sonnet",
         )
 
-        mock_model = MagicMock(spec=OpenRouterModel)
-        mock_settings: OpenRouterModelSettings = {
-            "temperature": 0.7,
-            "openrouter_provider": {"require_parameters": True},
-        }
+        with respx.mock:
+            route = respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+                return_value=httpx.Response(
+                    200,
+                    json=_chat_completion_response(
+                        "OpenRouter response", "anthropic/claude-4.5-sonnet"
+                    ),
+                )
+            )
 
-        with (
-            patch(
-                "rentl_llm.openai_runtime.create_model",
-                return_value=(mock_model, mock_settings),
-            ) as mock_factory,
-            patch("rentl_llm.openai_runtime.Agent") as mock_agent,
-        ):
-            mock_agent_instance = MagicMock()
-            mock_agent_instance.run = AsyncMock()
-            mock_agent.return_value = mock_agent_instance
+            response = asyncio.run(runtime.run_prompt(request, api_key="test-key"))
 
-            asyncio.run(runtime.run_prompt(request, api_key="test-key"))
-
-        # Verify factory was called with OpenRouter base_url and api_key
-        mock_factory.assert_called_once()
-        call_kwargs = mock_factory.call_args.kwargs
-        assert call_kwargs["base_url"] == "https://openrouter.ai/api/v1"
-        assert call_kwargs["api_key"] == "test-key"
-        assert call_kwargs["model_id"] == "anthropic/claude-4.5-sonnet"
-
-        # Verify model returned by factory was passed to Agent
-        mock_agent.assert_called_once()
-        assert mock_agent.call_args.args[0] is mock_model
-
-        # Verify model_settings from factory were passed to agent.run
-        run_kwargs = mock_agent_instance.run.call_args.kwargs
-        assert run_kwargs["model_settings"] is mock_settings
+        # Verify the HTTP request was sent to OpenRouter
+        assert route.called
+        assert response.output_text == "OpenRouter response"
+        assert response.model_id == "anthropic/claude-4.5-sonnet"
 
     def test_non_openrouter_uses_openai_provider(self) -> None:
-        """Non-OpenRouter base_url should use OpenAI provider path in factory."""
+        """Non-OpenRouter base_url should route through OpenAI provider."""
         runtime = OpenAICompatibleRuntime()
 
         request = _make_request(
@@ -109,28 +126,20 @@ class TestOpenRouterProviderSelection:
             base_url="http://localhost:8000/v1",
         )
 
-        mock_model = MagicMock()
-        mock_settings: OpenAIChatModelSettings = {"temperature": 0.7}
+        with respx.mock:
+            route = respx.post("http://localhost:8000/v1/chat/completions").mock(
+                return_value=httpx.Response(
+                    200,
+                    json=_chat_completion_response("Local response"),
+                )
+            )
 
-        with (
-            patch(
-                "rentl_llm.openai_runtime.create_model",
-                return_value=(mock_model, mock_settings),
-            ) as mock_factory,
-            patch("rentl_llm.openai_runtime.Agent") as mock_agent,
-        ):
-            mock_agent_instance = MagicMock()
-            mock_agent_instance.run = AsyncMock()
-            mock_agent.return_value = mock_agent_instance
+            response = asyncio.run(runtime.run_prompt(request, api_key="test-key"))
 
-            asyncio.run(runtime.run_prompt(request, api_key="test-key"))
-
-        # Verify factory was called with non-OpenRouter base_url
-        mock_factory.assert_called_once()
-        call_kwargs = mock_factory.call_args.kwargs
-        assert call_kwargs["base_url"] == "http://localhost:8000/v1"
-        assert call_kwargs["api_key"] == "test-key"
-        assert call_kwargs["model_id"] == "gpt-4"
+        # Verify the HTTP request was sent to the local endpoint
+        assert route.called
+        assert response.output_text == "Local response"
+        assert response.model_id == "gpt-4"
 
 
 class TestProviderSwitching:
@@ -139,35 +148,30 @@ class TestProviderSwitching:
     def test_provider_switching_requires_config_only(self) -> None:
         """Switching providers should only require config changes."""
         endpoints = [
-            ("openrouter", "https://openrouter.ai/api/v1"),
-            ("openai", "https://api.openai.com/v1"),
-            ("local", "http://localhost:8000/v1"),
+            ("openrouter", "https://openrouter.ai/api/v1", "openai/gpt-4"),
+            ("openai", "https://api.openai.com/v1", "gpt-4"),
+            ("local", "http://localhost:8000/v1", "gpt-4"),
         ]
 
-        for provider_name, base_url in endpoints:
+        for provider_name, base_url, model_id in endpoints:
             request = _make_request(
                 provider_name=provider_name,
                 base_url=base_url,
+                model_id=model_id,
             )
 
             runtime = OpenAICompatibleRuntime()
 
-            mock_model = MagicMock()
-            mock_settings: OpenAIChatModelSettings = {"temperature": 0.7}
+            with respx.mock:
+                route = respx.post(f"{base_url}/chat/completions").mock(
+                    return_value=httpx.Response(
+                        200,
+                        json=_chat_completion_response("Response", model_id),
+                    )
+                )
 
-            with (
-                patch(
-                    "rentl_llm.openai_runtime.create_model",
-                    return_value=(mock_model, mock_settings),
-                ) as mock_factory,
-                patch("rentl_llm.openai_runtime.Agent") as mock_agent,
-            ):
-                mock_agent_instance = MagicMock()
-                mock_agent_instance.run = AsyncMock()
-                mock_agent.return_value = mock_agent_instance
+                response = asyncio.run(runtime.run_prompt(request, api_key="test-key"))
 
-                asyncio.run(runtime.run_prompt(request, api_key="test-key"))
-
-                # Verify factory was called with the correct base_url
-                mock_factory.assert_called_once()
-                assert mock_factory.call_args.kwargs["base_url"] == base_url
+                # Verify the correct endpoint was called
+                assert route.called
+                assert response.model_id == model_id
