@@ -80,7 +80,7 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         temperature=0.2,
         timeout_s=12.0,  # Cap per-request to stay within 29s budget
         max_retries=0,  # No retries — single attempt to avoid timeout amplification
-        max_output_retries=1,  # Allow 2 total validation attempts (initial + 1 retry)
+        max_output_retries=0,  # Single attempt to stay within 29s
         retry_base_delay=1.0,
         end_strategy="exhaustive",
         required_tool_calls=["get_game_info"],
