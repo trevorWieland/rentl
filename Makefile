@@ -73,25 +73,10 @@ integration:
 	@echo "🔌 Running integration tests..."
 	$(call run_test, uv run pytest tests/integration -q --tb=short --timeout=5 -W error::DeprecationWarning, .integration.log, Integration Tests)
 
-# Run quality tests (skipped when RENTL_OPENROUTER_API_KEY is unset, e.g. fork PRs)
+# Run quality tests (requires RENTL_OPENROUTER_API_KEY in .env or environment)
 quality:
 	@echo "💎 Running quality tests..."
-	@if [ -z "$$RENTL_OPENROUTER_API_KEY" ] && ! grep -q RENTL_OPENROUTER_API_KEY .env 2>/dev/null; then \
-		echo "⚠️  RENTL_OPENROUTER_API_KEY not set — skipping quality tests (fork PR or missing secret)"; \
-	else \
-		echo "  Checking... "; \
-		if bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=90 -W error::DeprecationWarning' > .quality.log 2>&1; then \
-			SUMMARY=$$(grep -o '[0-9]\+ passed' .quality.log | tail -n 1); \
-			if [ -z "$$SUMMARY" ]; then SUMMARY="Passed"; fi; \
-			echo "✅ Quality Tests $$SUMMARY"; \
-			rm -f .quality.log; \
-		else \
-			echo "❌ Quality Tests Failed"; \
-			cat .quality.log; \
-			rm -f .quality.log; \
-			exit 1; \
-		fi; \
-	fi
+	$(call run_test, bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=90 -W error::DeprecationWarning', .quality.log, Quality Tests)
 
 # Run all tests with coverage
 test:
