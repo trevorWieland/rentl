@@ -30,3 +30,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 9** (round 1): PASS — Split pretranslation quality eval into structural + judge scenarios; targeted pytest and `make quality` both pass with timeout=29 constraints.
 - **Demo** (run 6): PASS — All 7 [RUN] steps passed post-Task-9 re-verification (7 run, 7 verified)
 - **Spec Audit** (round 5): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count: 0
+- **Demo** (run 7): PASS — All 7 [RUN] steps passed post-audit re-verification (7 run, 7 verified)
