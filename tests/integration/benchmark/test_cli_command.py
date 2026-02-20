@@ -34,6 +34,9 @@ class BenchmarkCLIContext:
         self.stdout: str = ""
         self.config_dir: Path | None = None
         self.mock_loader: MagicMock | None = None
+        self.mock_downloader: MagicMock | None = None
+        self.mock_parser: MagicMock | None = None
+        self.mock_judge: MagicMock | None = None
         self.progress_updates: list[int] = []
         self.output_file_a: Path | None = None
         self.output_file_b: Path | None = None
@@ -166,8 +169,10 @@ def when_run_benchmark_download_kebab_case(
                 )
                 ctx.stdout = ctx.result.stdout + ctx.result.stderr
 
-                # Store the mock for assertion
+                # Store mocks for assertion
                 ctx.mock_loader = mock_loader
+                ctx.mock_downloader = mock_downloader
+                ctx.mock_parser = mock_parser
 
 
 @then("the command normalizes to snake_case internally")
@@ -194,6 +199,12 @@ def then_download_succeeds(ctx: BenchmarkCLIContext) -> None:
     assert ctx.result.exit_code == 0, (
         f"Expected exit code 0, got {ctx.result.exit_code}\nOutput: {ctx.stdout}"
     )
+
+    # Assert mocked collaborators were invoked
+    assert ctx.mock_downloader is not None
+    ctx.mock_downloader.download_scripts.assert_called()
+    assert ctx.mock_parser is not None
+    ctx.mock_parser.parse_script.assert_called()
 
 
 @given("two translation output files exist", target_fixture="ctx")
@@ -341,6 +352,7 @@ def when_run_benchmark_compare_staggered(
             },
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
+        ctx.mock_judge = mock_judge
 
 
 @then("progress updates are monotonically increasing")
@@ -358,6 +370,10 @@ def then_progress_updates_monotonic(ctx: BenchmarkCLIContext) -> None:
         assert curr >= prev, (
             f"Progress update regressed from {prev} to {curr} at index {i}"
         )
+
+    # Assert the judge mock was invoked
+    if ctx.mock_judge is not None:
+        ctx.mock_judge.compare_head_to_head.assert_called()
 
 
 @then("final progress reaches 100%")
@@ -445,6 +461,7 @@ def when_run_benchmark_compare_full_flow(
             },
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
+        ctx.mock_judge = mock_judge
 
     # Load the report if it was written
     if ctx.report_path and ctx.report_path.exists():
@@ -463,6 +480,10 @@ def then_command_completes_successfully(ctx: BenchmarkCLIContext) -> None:
     assert ctx.result.exit_code == 0, (
         f"Expected exit code 0, got {ctx.result.exit_code}\nOutput: {ctx.stdout}"
     )
+
+    # Assert the judge mock was invoked
+    if ctx.mock_judge is not None:
+        ctx.mock_judge.compare_head_to_head.assert_called()
 
 
 @then("the output indicates judging progress")

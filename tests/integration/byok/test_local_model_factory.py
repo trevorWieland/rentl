@@ -192,17 +192,13 @@ def given_local_endpoint_mocked_tool() -> LocalModelContext:
 
 @when("I create a model through the factory")
 def when_create_model(ctx: LocalModelContext) -> None:
-    """Create a model via the provider factory with mocked HTTP."""
-    with respx.mock:
-        respx.post(f"{_LOCAL_BASE_URL}/chat/completions").mock(
-            return_value=httpx.Response(200, json=_chat_completion_response("ok"))
-        )
-        ctx.model, ctx.settings = create_model(
-            base_url=_LOCAL_BASE_URL,
-            api_key=_LOCAL_API_KEY,
-            model_id=_LOCAL_MODEL_ID,
-            temperature=0.5,
-        )
+    """Create a model via the provider factory (no HTTP calls needed)."""
+    ctx.model, ctx.settings = create_model(
+        base_url=_LOCAL_BASE_URL,
+        api_key=_LOCAL_API_KEY,
+        model_id=_LOCAL_MODEL_ID,
+        temperature=0.5,
+    )
 
 
 @when("I run an agent with plain text output")

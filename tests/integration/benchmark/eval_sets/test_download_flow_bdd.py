@@ -155,7 +155,7 @@ def when_download_with_correct_hash(ctx: DownloadFlowContext) -> None:
     """
     with respx.mock:
         # Mock the HTTP request (Task 13: Japanese translations at game/tl/jp)
-        respx.get(
+        route = respx.get(
             "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/test.rpy"
         ).mock(return_value=httpx.Response(200, content=ctx.script_content))
 
@@ -170,6 +170,9 @@ def when_download_with_correct_hash(ctx: DownloadFlowContext) -> None:
             )
         )
 
+        # Assert the HTTP route was called
+        assert route.called
+
 
 @when("I download the script with wrong hash")
 def when_download_with_wrong_hash(ctx: DownloadFlowContext) -> None:
@@ -182,7 +185,7 @@ def when_download_with_wrong_hash(ctx: DownloadFlowContext) -> None:
 
     with respx.mock:
         # Mock the HTTP request (Task 13: Japanese translations at game/tl/jp)
-        respx.get(
+        route = respx.get(
             "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/test.rpy"
         ).mock(return_value=httpx.Response(200, content=ctx.script_content))
 
@@ -198,6 +201,9 @@ def when_download_with_wrong_hash(ctx: DownloadFlowContext) -> None:
             )
         except ValueError as e:
             ctx.error = e
+
+        # Assert the HTTP route was called (download happened before hash check)
+        assert route.called
 
 
 @when("I attempt to download the script")
@@ -237,10 +243,10 @@ def when_download_all_scripts(ctx: DownloadFlowContext) -> None:
 
     with respx.mock:
         # Mock HTTP requests (Task 13: Japanese translations at game/tl/jp)
-        respx.get(
+        route1 = respx.get(
             "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/script1.rpy"
         ).mock(return_value=httpx.Response(200, content=script1_content))
-        respx.get(
+        route2 = respx.get(
             "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/script2.rpy"
         ).mock(return_value=httpx.Response(200, content=script2_content))
 
@@ -256,6 +262,10 @@ def when_download_all_scripts(ctx: DownloadFlowContext) -> None:
         ctx.results = asyncio.run(
             ctx.downloader.download_scripts(["script1.rpy", "script2.rpy"])
         )
+
+        # Assert both HTTP routes were called
+        assert route1.called
+        assert route2.called
 
 
 @when("I attempt to download a missing script")
@@ -324,10 +334,10 @@ emi "Hey!"
 
     with respx.mock:
         # Mock HTTP requests (Task 13: Japanese translations at game/tl/jp)
-        respx.get(
+        ja_route = respx.get(
             "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/ja-script.rpy"
         ).mock(return_value=httpx.Response(200, content=ja_content))
-        respx.get(
+        en_route = respx.get(
             "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/en-script.rpy"
         ).mock(return_value=httpx.Response(200, content=en_content))
 
@@ -344,6 +354,10 @@ emi "Hey!"
                 },
             )
         )
+
+        # Assert both HTTP routes were called
+        assert ja_route.called
+        assert en_route.called
 
 
 @when("I parse both scripts with RenpyDialogueParser")

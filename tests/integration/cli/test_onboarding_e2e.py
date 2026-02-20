@@ -51,6 +51,7 @@ class OnboardingContext:
     pipeline_response: dict | None = None
     export_response: dict | None = None
     mock_call_count: dict[str, int] | None = None
+    preflight_called: dict[str, int] | None = None
 
 
 @given("a clean temporary directory", target_fixture="ctx")
@@ -156,10 +157,15 @@ def when_run_pipeline(
     monkeypatch.setenv("RENTL_LOCAL_API_KEY", "fake-api-key-for-e2e-test")
 
     # Bypass preflight probe (makes real HTTP requests to provider endpoints)
-    async def _noop_preflight(endpoints: list[object]) -> None:
-        pass
+    preflight_called = {"count": 0}
+
+    async def _noop_preflight(endpoints: list[object]) -> None:  # noqa: RUF029
+        preflight_called["count"] += 1
 
     monkeypatch.setattr(cli_main, "assert_preflight", _noop_preflight)
+
+    # Store preflight tracker on context for assertion in then step
+    ctx.preflight_called = preflight_called
 
     # Track mock invocations
     mock_call_count = {"count": 0}
@@ -390,6 +396,13 @@ def then_all_commands_succeed(ctx: OnboardingContext) -> None:
     assert ctx.mock_call_count["count"] > 0, (
         "ProfileAgent.run mock was never called — "
         "the patch may not be at the correct execution boundary"
+    )
+
+    # Verify the preflight bypass was invoked
+    assert ctx.preflight_called is not None, "Preflight call count not tracked"
+    assert ctx.preflight_called["count"] > 0, (
+        "assert_preflight mock was never called — "
+        "the monkeypatch may not be targeting the correct attribute"
     )
 
 

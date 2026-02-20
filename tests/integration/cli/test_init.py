@@ -258,8 +258,10 @@ def then_pipeline_executes_end_to_end(
     monkeypatch.setenv(StandardEnvVar.API_KEY.value, "fake-api-key-for-testing")
 
     # Bypass preflight probe (makes real HTTP requests to provider endpoints)
-    async def _noop_preflight(endpoints: list[object]) -> None:
-        pass
+    preflight_called = {"count": 0}
+
+    async def _noop_preflight(endpoints: list[object]) -> None:  # noqa: RUF029
+        preflight_called["count"] += 1
 
     monkeypatch.setattr(cli_main, "assert_preflight", _noop_preflight)
 
@@ -421,6 +423,12 @@ def then_pipeline_executes_end_to_end(
     assert mock_call_count["count"] > 0, (
         "Mock agent execution was never called - "
         "the patch may not be at the correct execution boundary"
+    )
+
+    # Verify the preflight bypass was invoked
+    assert preflight_called["count"] > 0, (
+        "assert_preflight mock was never called — "
+        "the monkeypatch may not be targeting the correct attribute"
     )
 
     # Verify the pipeline completed successfully
