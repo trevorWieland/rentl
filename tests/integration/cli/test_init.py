@@ -17,13 +17,14 @@ from typer.testing import CliRunner
 import rentl.main as cli_main
 from rentl_agents.providers import detect_provider
 from rentl_agents.runtime import ProfileAgent
-from rentl_agents.wiring import build_agent_pools
+from rentl_agents.wiring import AgentPoolBundle, build_agent_pools
 from rentl_core.init import (
     ENDPOINT_PRESETS,
     InitAnswers,
     StandardEnvVar,
     generate_project,
 )
+from rentl_schemas.config import RunConfig
 from rentl_schemas.io import SourceLine
 from rentl_schemas.phases import (
     IdiomAnnotation,
@@ -475,23 +476,32 @@ def then_pipeline_executes_end_to_end(
             assert len(content.strip()) > 0, f"Export artifact is empty: {export_file}"
 
 
-def test_env_var_scoping_regression(
+class EnvScopeContext:
+    """Context object for env var scoping BDD scenario."""
+
+    original_value: str | None = None
+    config: RunConfig | None = None
+    pools: AgentPoolBundle | None = None
+
+
+class PresetContext:
+    """Context object for endpoint preset BDD scenario."""
+
+    preset_results: list[tuple[str, RunConfig, AgentPoolBundle]] | None = None
+
+
+@given("an empty temp directory with generated project", target_fixture="env_ctx")
+def given_temp_dir_with_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Verify that monkeypatch env var setup is scoped to the test.
+) -> EnvScopeContext:
+    """Create a temp directory with a generated project.
 
-    This regression test ensures that the API key environment variable set
-    during agent pool building doesn't leak outside the test context and that
-    the BDD test doesn't rely on external shell environment.
-
-    This addresses the audit feedback about deterministic test execution.
-    Uses monkeypatch.context() to prove temporary override + restoration
-    regardless of pre-existing environment state.
+    Returns:
+        EnvScopeContext with fields initialized.
     """
-    # Capture the original state (might be set or unset)
-    original_value = os.environ.get(StandardEnvVar.API_KEY.value)
+    ctx = EnvScopeContext()
+    ctx.original_value = os.environ.get(StandardEnvVar.API_KEY.value)
 
-    # Generate a project with default answers
     answers = InitAnswers(
         project_name="test-env-scope",
         game_name="Test Game",
@@ -508,48 +518,55 @@ def test_env_var_scoping_regression(
     target_dir.mkdir()
     generate_project(answers, target_dir)
 
-    # Load the generated config
     config_path = target_dir / "rentl.toml"
     with config_path.open("rb") as handle:
         payload: dict[str, JsonValue] = tomllib.load(handle)
-    config = validate_run_config(payload)
+    ctx.config = validate_run_config(payload)
+    return ctx
 
-    # Use isolated patch scope to verify temporary override + restoration
+
+@when("I build agent pools within a scoped env override")
+def when_build_pools_scoped(
+    env_ctx: EnvScopeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Build agent pools within a scoped monkeypatch env override."""
     with monkeypatch.context() as m:
-        # Temporarily set the API key within the isolated scope
         m.setenv(StandardEnvVar.API_KEY.value, "fake-api-key-for-scoping-test")
-
-        # Verify it's set within the monkeypatch scope
         assert (
             os.environ.get(StandardEnvVar.API_KEY.value)
             == "fake-api-key-for-scoping-test"
         )
-
-        # Build agent pools (this should work with the monkeypatched env var)
-        pools = build_agent_pools(config=config)
-        assert pools is not None
-
-    # After exiting the context, verify restoration to original state
-    assert os.environ.get(StandardEnvVar.API_KEY.value) == original_value
+        assert env_ctx.config is not None
+        env_ctx.pools = build_agent_pools(config=env_ctx.config)
+        assert env_ctx.pools is not None
 
 
-def test_all_endpoint_presets_produce_valid_configs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Verify that all endpoint presets produce valid, runnable configs.
+@then("the env var is restored after scope exit")
+def then_env_restored(env_ctx: EnvScopeContext) -> None:
+    """Assert the env var is restored to its original value."""
+    assert os.environ.get(StandardEnvVar.API_KEY.value) == env_ctx.original_value
 
-    This integration test ensures that:
-    1. Each endpoint preset in ENDPOINT_PRESETS is complete and valid
-    2. The preset values can generate a valid rentl.toml
-    3. The generated config passes schema validation
-    4. Agent pools can be built from the generated config (proving API compatibility)
 
-    This is a regression guard against incomplete or misconfigured presets.
+@given("all endpoint presets with default models", target_fixture="preset_ctx")
+def given_all_presets() -> PresetContext:
+    """Set up preset context.
+
+    Returns:
+        PresetContext with fields initialized.
     """
+    return PresetContext()
+
+
+@when("I generate and validate each preset config")
+def when_generate_preset_configs(
+    preset_ctx: PresetContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Generate and validate configs for all endpoint presets."""
+    preset_ctx.preset_results = []
+
     for preset in ENDPOINT_PRESETS:
         if preset.default_model is None:
-            continue  # Local preset has no default; CLI prompts user
-        # Create answers using the preset
+            continue
         answers = InitAnswers(
             project_name=f"test-{preset.name.lower().replace(' ', '-')}",
             game_name="Test Game",
@@ -562,17 +579,13 @@ def test_all_endpoint_presets_produce_valid_configs(
             provider_name=detect_provider(preset.base_url).name,
         )
 
-        # Generate project in preset-specific directory
         preset_dir = tmp_path / preset.name.replace(" ", "_").replace("(", "").replace(
             ")", ""
         )
         preset_dir.mkdir()
         result = generate_project(answers, preset_dir)
-
-        # Verify files were created
         assert len(result.created_files) > 0, f"No files created for {preset.name}"
 
-        # Load and validate the generated config
         config_path = preset_dir / "rentl.toml"
         assert config_path.exists(), f"Config not created for {preset.name}"
 
@@ -582,9 +595,7 @@ def test_all_endpoint_presets_produce_valid_configs(
         config = validate_run_config(payload)
         assert config is not None, f"Config validation failed for {preset.name}"
 
-        # Verify endpoint matches preset
         assert config.endpoint is not None
-        # provider_name is auto-detected from base_url
         assert config.endpoint.base_url == preset.base_url, (
             f"Base URL mismatch for {preset.name}"
         )
@@ -594,23 +605,34 @@ def test_all_endpoint_presets_produce_valid_configs(
         assert config.endpoint.provider_name, (
             f"provider_name should not be empty for {preset.name}"
         )
-        # api_key_env uses standardized name
         assert config.endpoint.api_key_env == StandardEnvVar.API_KEY.value, (
             f"API key env should be standardized for {preset.name}"
         )
-
-        # Verify default model matches preset
         assert config.pipeline.default_model is not None
         assert config.pipeline.default_model.model_id == preset.default_model, (
             f"Model ID mismatch for {preset.name}"
         )
 
-        # Set the standardized API key environment variable for agent pool building
         monkeypatch.setenv(StandardEnvVar.API_KEY.value, "fake-api-key-for-testing")
-
-        # Verify agent pools can be built
-        # This proves the config is compatible with the agent system
         pools = build_agent_pools(config=config)
-        assert pools is not None, f"Agent pools failed to build for {preset.name}"
-        assert len(pools.context_agents) > 0, f"No context agents for {preset.name}"
-        assert len(pools.translate_agents) > 0, f"No translate agents for {preset.name}"
+
+        preset_ctx.preset_results.append((preset.name, config, pools))
+
+
+@then("each config passes schema validation")
+def then_configs_validate(preset_ctx: PresetContext) -> None:
+    """Assert all preset configs passed validation."""
+    assert preset_ctx.preset_results is not None
+    assert len(preset_ctx.preset_results) > 0
+    for name, config, _pools in preset_ctx.preset_results:
+        assert config is not None, f"Config validation failed for {name}"
+
+
+@then("agent pools can be built from each config")
+def then_pools_built(preset_ctx: PresetContext) -> None:
+    """Assert agent pools were built from each config."""
+    assert preset_ctx.preset_results is not None
+    for name, _config, pools in preset_ctx.preset_results:
+        assert pools is not None, f"Agent pools failed to build for {name}"
+        assert len(pools.context_agents) > 0, f"No context agents for {name}"
+        assert len(pools.translate_agents) > 0, f"No translate agents for {name}"

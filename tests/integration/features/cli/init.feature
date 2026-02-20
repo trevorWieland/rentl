@@ -12,3 +12,14 @@ Feature: Init Command
     And the generated config resolves without errors
     And the seed data file is valid JSONL
     And the pipeline can execute end-to-end and produce export artifacts
+
+  Scenario: Environment variable scoping is isolated
+    Given an empty temp directory with generated project
+    When I build agent pools within a scoped env override
+    Then the env var is restored after scope exit
+
+  Scenario: All endpoint presets produce valid configs
+    Given all endpoint presets with default models
+    When I generate and validate each preset config
+    Then each config passes schema validation
+    And agent pools can be built from each config

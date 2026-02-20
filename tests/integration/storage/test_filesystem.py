@@ -58,6 +58,14 @@ class _TestRecord(BaseSchema):
     value: int = Field(..., description="Record value")
 
 
+class _ArtifactRecord(BaseSchema):
+    """Test record for artifact redaction tests."""
+
+    name: str = Field(..., description="Record name")
+    api_key: str = Field(..., description="API key field")
+    metadata: dict[str, str] = Field(..., description="Metadata dict")
+
+
 def _build_run_state(run_id: RunId) -> RunState:
     """Build a test run state.
 
@@ -115,6 +123,16 @@ class StorageContext:
     original_records: list[_TestRecord] | None = None
     loaded_records: list[_TestRecord] | None = None
     log_reference: LogFileReference | None = None
+
+
+class RedactionContext:
+    """Context object for redaction BDD scenarios."""
+
+    tmp_path: Path | None = None
+    log_lines: list[str] | None = None
+    artifact_lines: list[str] | None = None
+    json_content: str | None = None
+    json_payload: dict | None = None
 
 
 @given("an empty workspace directory", target_fixture="ctx")
@@ -292,14 +310,28 @@ def then_log_file_exists(ctx: StorageContext) -> None:
     assert log_path.exists(), f"Log file not found: {log_path}"
 
 
-# --- Log Redaction Integration Test ---
+# --- Log Redaction scenarios ---
 
 
-def test_log_sink_redacts_secrets_end_to_end(tmp_path: Path) -> None:
-    """Integration test: log sink redacts secrets before writing to file."""
-    # Setup
+@given("a log store with redaction configured", target_fixture="redaction_ctx")
+def given_log_store_with_redaction(tmp_path: Path) -> RedactionContext:
+    """Set up a log store with redaction configured.
+
+    Returns:
+        RedactionContext with fields initialized.
+    """
+    ctx = RedactionContext()
+    ctx.tmp_path = tmp_path
+    return ctx
+
+
+@when("I write a log entry containing secrets")
+def when_write_log_with_secrets(redaction_ctx: RedactionContext) -> None:
+    """Write a log entry that contains secrets."""
+    assert redaction_ctx.tmp_path is not None
+
     run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb700")
-    log_store = FileSystemLogStore(logs_dir=str(tmp_path / "logs"))
+    log_store = FileSystemLogStore(logs_dir=str(redaction_ctx.tmp_path / "logs"))
     logging_config = LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.FILE)])
     config = RedactionConfig(
         patterns=[SecretPattern(pattern=r"sk-[a-zA-Z0-9]{20,}", label="API key")],
@@ -308,7 +340,6 @@ def test_log_sink_redacts_secrets_end_to_end(tmp_path: Path) -> None:
     redactor = build_redactor(config, {"TEST_SECRET": "my-secret-value-123"})
     sink = build_log_sink(logging_config, log_store, redactor=redactor)
 
-    # Write a log entry with secrets
     entry = LogEntry(
         timestamp="2026-02-09T12:00:00Z",
         level=LogLevel.INFO,
@@ -325,23 +356,22 @@ def test_log_sink_redacts_secrets_end_to_end(tmp_path: Path) -> None:
 
     asyncio.run(sink.emit_log(entry))
 
-    # Read the log file back
     log_file_ref = asyncio.run(log_store.get_log_reference(run_id))
     assert log_file_ref is not None
     assert log_file_ref.location.path is not None
     log_path = Path(log_file_ref.location.path)
     assert log_path.exists()
 
-    # Verify redaction occurred
-    log_lines = log_path.read_text(encoding="utf-8").strip().splitlines()
-    # Expect 2 lines: the redacted entry + the debug entry about redaction
-    assert len(log_lines) == 2
+    redaction_ctx.log_lines = log_path.read_text(encoding="utf-8").strip().splitlines()
 
-    # Parse both entries
-    redacted_entry = json.loads(log_lines[0])
-    debug_entry = json.loads(log_lines[1])
 
-    # Check the original entry is redacted
+@then("the log file redacts API keys and env var values")
+def then_log_redacts_secrets(redaction_ctx: RedactionContext) -> None:
+    """Assert secrets are redacted in log output."""
+    assert redaction_ctx.log_lines is not None
+    assert len(redaction_ctx.log_lines) == 2
+
+    redacted_entry = json.loads(redaction_ctx.log_lines[0])
     assert "[REDACTED]" in redacted_entry["message"]
     assert "sk-abc123def456ghi789jkl012" not in redacted_entry["message"]
     assert "my-secret-value-123" not in redacted_entry["message"]
@@ -349,7 +379,12 @@ def test_log_sink_redacts_secrets_end_to_end(tmp_path: Path) -> None:
     assert redacted_entry["data"]["secret"] == "[REDACTED]"
     assert redacted_entry["data"]["safe"] == "public-data"
 
-    # Check the debug entry records redaction metadata
+
+@then("a debug entry records redaction metadata")
+def then_debug_entry_records_metadata(redaction_ctx: RedactionContext) -> None:
+    """Assert the debug entry records redaction details."""
+    assert redaction_ctx.log_lines is not None
+    debug_entry = json.loads(redaction_ctx.log_lines[1])
     assert debug_entry["event"] == "redaction_applied"
     assert debug_entry["level"] == "debug"
     assert debug_entry["data"]["original_event"] == "test_event"
@@ -357,23 +392,29 @@ def test_log_sink_redacts_secrets_end_to_end(tmp_path: Path) -> None:
     assert debug_entry["data"]["data_redacted"] is True
 
 
-# --- Artifact Redaction Integration Tests ---
+# --- Artifact Redaction scenarios ---
 
 
-class _ArtifactRecord(BaseSchema):
-    """Test record for artifact redaction tests."""
+@given("an artifact store with redaction configured", target_fixture="redaction_ctx")
+def given_artifact_store_with_redaction(tmp_path: Path) -> RedactionContext:
+    """Set up an artifact store with redaction configured.
 
-    name: str = Field(..., description="Record name")
-    api_key: str = Field(..., description="API key field")
-    metadata: dict[str, str] = Field(..., description="Metadata dict")
+    Returns:
+        RedactionContext with fields initialized.
+    """
+    ctx = RedactionContext()
+    ctx.tmp_path = tmp_path
+    return ctx
 
 
-def test_artifact_jsonl_redacts_secrets(tmp_path: Path) -> None:
-    """Integration test: JSONL artifact redaction before writing."""
-    # Setup
+@when("I write JSONL records containing secrets")
+def when_write_jsonl_with_secrets(redaction_ctx: RedactionContext) -> None:
+    """Write JSONL artifact records that contain secrets."""
+    assert redaction_ctx.tmp_path is not None
+
     run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb800")
     artifact_id: ArtifactId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb801")
-    store = FileSystemArtifactStore(base_dir=str(tmp_path / "artifacts"))
+    store = FileSystemArtifactStore(base_dir=str(redaction_ctx.tmp_path / "artifacts"))
 
     config = RedactionConfig(
         patterns=[SecretPattern(pattern=r"sk-[a-zA-Z0-9]{20,}", label="API key")],
@@ -381,7 +422,6 @@ def test_artifact_jsonl_redacts_secrets(tmp_path: Path) -> None:
     )
     redactor = build_redactor(config, {"SECRET_TOKEN": "token-abc123xyz"})
 
-    # Write JSONL artifact with secrets
     records = [
         _ArtifactRecord(
             name="record1",
@@ -413,39 +453,53 @@ def test_artifact_jsonl_redacts_secrets(tmp_path: Path) -> None:
     )
 
     stored = asyncio.run(store.write_artifact_jsonl(metadata, records, redactor))
-
-    # Read the artifact file directly
     assert stored.location.path is not None
     artifact_path = Path(stored.location.path)
     assert artifact_path.exists()
 
-    lines = artifact_path.read_text(encoding="utf-8").strip().splitlines()
-    assert len(lines) == 2
+    redaction_ctx.artifact_lines = (
+        artifact_path.read_text(encoding="utf-8").strip().splitlines()
+    )
 
-    # Verify first record is redacted
-    record1 = json.loads(lines[0])
+
+@then("the stored records have secrets redacted")
+def then_jsonl_secrets_redacted(redaction_ctx: RedactionContext) -> None:
+    """Assert JSONL records have secrets redacted."""
+    assert redaction_ctx.artifact_lines is not None
+    assert len(redaction_ctx.artifact_lines) == 2
+
+    record1 = json.loads(redaction_ctx.artifact_lines[0])
     assert record1["name"] == "record1"
     assert record1["api_key"] == "[REDACTED]"
     assert record1["metadata"]["token"] == "[REDACTED]"
     assert record1["metadata"]["safe"] == "public"
-    assert "sk-abc123def456ghi789jkl012" not in lines[0]
-    assert "token-abc123xyz" not in lines[0]
+    assert "sk-abc123def456ghi789jkl012" not in redaction_ctx.artifact_lines[0]
+    assert "token-abc123xyz" not in redaction_ctx.artifact_lines[0]
 
-    # Verify second record is redacted
-    record2 = json.loads(lines[1])
+    record2 = json.loads(redaction_ctx.artifact_lines[1])
     assert record2["name"] == "record2"
     assert record2["api_key"] == "[REDACTED]"
     assert record2["metadata"]["value"] == "[REDACTED]"
-    assert "sk-xyz987wvu654tsr321pqo098" not in lines[1]
-    assert "token-abc123xyz" not in lines[1]
+    assert "sk-xyz987wvu654tsr321pqo098" not in redaction_ctx.artifact_lines[1]
+    assert "token-abc123xyz" not in redaction_ctx.artifact_lines[1]
 
 
-def test_artifact_json_redacts_secrets(tmp_path: Path) -> None:
-    """Integration test: JSON artifact redaction before writing."""
-    # Setup
+@then("safe values are preserved")
+def then_safe_values_preserved(redaction_ctx: RedactionContext) -> None:
+    """Assert safe values remain unchanged in JSONL records."""
+    assert redaction_ctx.artifact_lines is not None
+    record1 = json.loads(redaction_ctx.artifact_lines[0])
+    assert record1["metadata"]["safe"] == "public"
+
+
+@when("I write a JSON record containing secrets")
+def when_write_json_with_secrets(redaction_ctx: RedactionContext) -> None:
+    """Write a JSON artifact record that contains secrets."""
+    assert redaction_ctx.tmp_path is not None
+
     run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb900")
     artifact_id: ArtifactId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb901")
-    store = FileSystemArtifactStore(base_dir=str(tmp_path / "artifacts"))
+    store = FileSystemArtifactStore(base_dir=str(redaction_ctx.tmp_path / "artifacts"))
 
     config = RedactionConfig(
         patterns=[SecretPattern(pattern=r"sk-[a-zA-Z0-9]{20,}", label="API key")],
@@ -453,7 +507,6 @@ def test_artifact_json_redacts_secrets(tmp_path: Path) -> None:
     )
     redactor = build_redactor(config, {"API_SECRET": "secret-value-456"})
 
-    # Write JSON artifact with secrets
     record = _ArtifactRecord(
         name="single-record",
         api_key="sk-abc123def456ghi789jkl012",
@@ -476,19 +529,28 @@ def test_artifact_json_redacts_secrets(tmp_path: Path) -> None:
     )
 
     stored = asyncio.run(store.write_artifact_json(metadata, record, redactor))
-
-    # Read the artifact file directly
     assert stored.location.path is not None
     artifact_path = Path(stored.location.path)
     assert artifact_path.exists()
 
-    content = artifact_path.read_text(encoding="utf-8")
-    payload = json.loads(content)
+    redaction_ctx.json_content = artifact_path.read_text(encoding="utf-8")
+    redaction_ctx.json_payload = json.loads(redaction_ctx.json_content)
 
-    # Verify redaction
-    assert payload["name"] == "single-record"
-    assert payload["api_key"] == "[REDACTED]"
-    assert payload["metadata"]["secret"] == "[REDACTED]"
-    assert payload["metadata"]["public"] == "data"
-    assert "sk-abc123def456ghi789jkl012" not in content
-    assert "secret-value-456" not in content
+
+@then("the stored record has secrets redacted")
+def then_json_secrets_redacted(redaction_ctx: RedactionContext) -> None:
+    """Assert JSON record has secrets redacted."""
+    assert redaction_ctx.json_payload is not None
+    assert redaction_ctx.json_content is not None
+    assert redaction_ctx.json_payload["name"] == "single-record"
+    assert redaction_ctx.json_payload["api_key"] == "[REDACTED]"
+    assert redaction_ctx.json_payload["metadata"]["secret"] == "[REDACTED]"
+    assert "sk-abc123def456ghi789jkl012" not in redaction_ctx.json_content
+    assert "secret-value-456" not in redaction_ctx.json_content
+
+
+@then("safe values are preserved in JSON")
+def then_safe_values_preserved_json(redaction_ctx: RedactionContext) -> None:
+    """Assert safe values remain unchanged in JSON record."""
+    assert redaction_ctx.json_payload is not None
+    assert redaction_ctx.json_payload["metadata"]["public"] == "data"

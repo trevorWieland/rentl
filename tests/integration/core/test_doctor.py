@@ -1,4 +1,4 @@
-"""Integration tests for doctor auto-migration functionality.
+"""BDD integration tests for doctor auto-migration functionality.
 
 These tests verify that the doctor module correctly auto-migrates
 outdated config files before validation.
@@ -7,29 +7,15 @@ outdated config files before validation.
 import tomllib
 from pathlib import Path
 
-import pytest
+from pytest_bdd import given, scenarios, then, when
 
-from rentl_core.doctor import CheckStatus, check_config_valid
+from rentl_core.doctor import CheckResult, CheckStatus, check_config_valid
 from rentl_schemas.config import RunConfig
 
-# Apply integration marker
-pytestmark = pytest.mark.integration
+# Link feature file
+scenarios("../features/core/doctor.feature")
 
-
-class TestDoctorAutoMigration:
-    """Integration tests for doctor config auto-migration."""
-
-    def test_given_outdated_config_when_checking_validity_then_auto_migrates(
-        self, tmp_path: Path
-    ) -> None:
-        """Given: Config file with old schema version 0.0.1.
-
-        When: Running check_config_valid.
-        Then: Config is auto-migrated to 0.1.0, backup created, and validation passes.
-        """
-        # Given: Config with old schema version 0.0.1
-        config_path = tmp_path / "rentl.toml"
-        old_config = """
+_OLD_CONFIG = """
 [project]
 schema_version = { major = 0, minor = 0, patch = 1 }
 project_name = "test"
@@ -99,46 +85,8 @@ max_backoff_s = 30.0
 [cache]
 enabled = false
 """
-        config_path.write_text(old_config)
 
-        # When: Running check_config_valid (which should trigger auto-migration)
-        result = check_config_valid(config_path)
-
-        # Then: Check passes
-        assert result.status == CheckStatus.PASS
-        assert result.fix_suggestion is None
-
-        # And: Backup file was created
-        backup_path = config_path.with_suffix(".toml.bak")
-        assert backup_path.exists()
-
-        # And: Original backup contains old version (validated via schema)
-        with open(backup_path, "rb") as f:
-            backup_data = tomllib.load(f)
-        backup_config = RunConfig.model_validate(backup_data)
-        assert backup_config.project.schema_version.major == 0
-        assert backup_config.project.schema_version.minor == 0
-        assert backup_config.project.schema_version.patch == 1
-
-        # And: Migrated config validates as RunConfig with updated schema version
-        with open(config_path, "rb") as f:
-            migrated_dict = tomllib.load(f)
-        migrated = RunConfig.model_validate(migrated_dict)
-        assert migrated.project.schema_version.major == 0
-        assert migrated.project.schema_version.minor == 1
-        assert migrated.project.schema_version.patch == 0
-
-    def test_given_current_config_when_checking_validity_then_no_migration(
-        self, tmp_path: Path
-    ) -> None:
-        """Given: Config file with current schema version 0.1.0.
-
-        When: Running check_config_valid.
-        Then: No migration occurs and no backup is created.
-        """
-        # Given: Config with current schema version 0.1.0
-        config_path = tmp_path / "rentl.toml"
-        current_config = """
+_CURRENT_CONFIG = """
 [project]
 schema_version = { major = 0, minor = 1, patch = 0 }
 project_name = "test"
@@ -208,23 +156,104 @@ max_backoff_s = 30.0
 [cache]
 enabled = false
 """
-        config_path.write_text(current_config)
 
-        # When: Running check_config_valid
-        result = check_config_valid(config_path)
 
-        # Then: Check passes
-        assert result.status == CheckStatus.PASS
-        assert result.fix_suggestion is None
+class DoctorContext:
+    """Context object for doctor BDD scenarios."""
 
-        # And: No backup file was created
-        backup_path = config_path.with_suffix(".toml.bak")
-        assert not backup_path.exists()
+    config_path: Path | None = None
+    result: CheckResult | None = None
 
-        # And: Config validates as RunConfig with version unchanged
-        with open(config_path, "rb") as f:
-            config_dict = tomllib.load(f)
-        config = RunConfig.model_validate(config_dict)
-        assert config.project.schema_version.major == 0
-        assert config.project.schema_version.minor == 1
-        assert config.project.schema_version.patch == 0
+
+@given("a config file with old schema version 0.0.1", target_fixture="ctx")
+def given_old_config(tmp_path: Path) -> DoctorContext:
+    """Create a config file with outdated schema version 0.0.1.
+
+    Returns:
+        DoctorContext with fields initialized.
+    """
+    ctx = DoctorContext()
+    ctx.config_path = tmp_path / "rentl.toml"
+    ctx.config_path.write_text(_OLD_CONFIG)
+    return ctx
+
+
+@given("a config file with current schema version 0.1.0", target_fixture="ctx")
+def given_current_config(tmp_path: Path) -> DoctorContext:
+    """Create a config file with current schema version 0.1.0.
+
+    Returns:
+        DoctorContext with fields initialized.
+    """
+    ctx = DoctorContext()
+    ctx.config_path = tmp_path / "rentl.toml"
+    ctx.config_path.write_text(_CURRENT_CONFIG)
+    return ctx
+
+
+@when("I run check_config_valid")
+def when_check_config_valid(ctx: DoctorContext) -> None:
+    """Run the check_config_valid doctor check on the config file."""
+    assert ctx.config_path is not None
+    ctx.result = check_config_valid(ctx.config_path)
+
+
+@then("the check passes")
+def then_check_passes(ctx: DoctorContext) -> None:
+    """Assert the doctor check passed with no fix suggestion."""
+    assert ctx.result is not None
+    assert ctx.result.status == CheckStatus.PASS
+    assert ctx.result.fix_suggestion is None
+
+
+@then("a backup file is created")
+def then_backup_created(ctx: DoctorContext) -> None:
+    """Assert a .toml.bak backup file was created alongside the config."""
+    assert ctx.config_path is not None
+    backup_path = ctx.config_path.with_suffix(".toml.bak")
+    assert backup_path.exists()
+
+
+@then("the backup contains the old version")
+def then_backup_old_version(ctx: DoctorContext) -> None:
+    """Assert the backup file contains the original old schema version."""
+    assert ctx.config_path is not None
+    backup_path = ctx.config_path.with_suffix(".toml.bak")
+    with open(backup_path, "rb") as f:
+        backup_data = tomllib.load(f)
+    backup_config = RunConfig.model_validate(backup_data)
+    assert backup_config.project.schema_version.major == 0
+    assert backup_config.project.schema_version.minor == 0
+    assert backup_config.project.schema_version.patch == 1
+
+
+@then("the migrated config has version 0.1.0")
+def then_migrated_version(ctx: DoctorContext) -> None:
+    """Assert the migrated config file has schema version 0.1.0."""
+    assert ctx.config_path is not None
+    with open(ctx.config_path, "rb") as f:
+        migrated_dict = tomllib.load(f)
+    migrated = RunConfig.model_validate(migrated_dict)
+    assert migrated.project.schema_version.major == 0
+    assert migrated.project.schema_version.minor == 1
+    assert migrated.project.schema_version.patch == 0
+
+
+@then("no backup file is created")
+def then_no_backup(ctx: DoctorContext) -> None:
+    """Assert no backup file was created when migration is unnecessary."""
+    assert ctx.config_path is not None
+    backup_path = ctx.config_path.with_suffix(".toml.bak")
+    assert not backup_path.exists()
+
+
+@then("the config version is unchanged")
+def then_version_unchanged(ctx: DoctorContext) -> None:
+    """Assert the config file retains its original schema version."""
+    assert ctx.config_path is not None
+    with open(ctx.config_path, "rb") as f:
+        config_dict = tomllib.load(f)
+    config = RunConfig.model_validate(config_dict)
+    assert config.project.schema_version.major == 0
+    assert config.project.schema_version.minor == 1
+    assert config.project.schema_version.patch == 0

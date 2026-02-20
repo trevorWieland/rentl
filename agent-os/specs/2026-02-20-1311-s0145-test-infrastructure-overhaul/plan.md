@@ -45,7 +45,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Acceptance: `make quality` passes with `--timeout=30`
   - [x] Fix: Reduce timeout marker below 30s in `tests/quality/agents/test_pretranslation_agent.py:42` (currently `pytest.mark.timeout(30)`, still `>= 30`; violates Task 5 sub-item and `test-timing-rules`) (audit round 1)
   - [x] Fix: Reduce timeout marker below 30s in `tests/quality/pipeline/test_golden_script_pipeline.py:38` (currently `pytest.mark.timeout(30)`; standard text says quality tests must be `< 30s`) (audit round 1)
-- [ ] Task 6: Convert integration tests to BDD style
+- [x] Task 6: Convert integration tests to BDD style
   - Convert `tests/integration/core/test_deterministic_qa.py` to BDD Given/When/Then
   - Convert `tests/integration/core/test_doctor.py` to BDD
   - Convert `tests/integration/byok/test_openrouter_runtime.py` to BDD
