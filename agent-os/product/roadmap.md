@@ -71,7 +71,7 @@
 - (s0.1.43) Documentation Placeholders, CLI Surface & UX Polish — Replace doc placeholders, fix stale refs, extract CLI domain logic to core, improve init UX and progress reporting. **Depends on:** s0.1.29, s0.1.30, s0.1.31, s0.1.41.
 - ✅ (s0.1.44) Pipeline Validation, Async Correctness & Config Paths — Add edit pipeline quality gates, schema-based test assertions, async I/O correctness, and config path resolution fixes. **Depends on:** s0.1.07, s0.1.08, s0.1.12, s0.1.13.
 - (s0.1.45) Test Infrastructure Overhaul — Fix mock boundaries, extend coverage enforcement, fix timing limits, consolidate test tree, adopt BDD style. **Depends on:** s0.1.23, s0.1.24, s0.1.25.
-- (s0.1.46) Codebase Modernization & CI Enforcement — Migrate dataclasses to Pydantic, adopt match/case, enable strict typing, create CI gate, fix minor compliance gaps. **Depends on:** s0.1.01, s0.1.23.
+- ✅ (s0.1.46) Codebase Modernization & CI Enforcement — Migrate dataclasses to Pydantic, adopt match/case, enable strict typing, create CI gate, fix minor compliance gaps. **Depends on:** s0.1.01, s0.1.23.
 - (s0.1.47) Recalibrate Naming Conventions Standard — Update naming-conventions standard to allow SCREAMING_SNAKE_CASE for module-level constants per PEP 8. **Depends on:** None.
 
 **Success Criteria:**
