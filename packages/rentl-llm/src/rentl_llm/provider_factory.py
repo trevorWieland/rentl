@@ -277,6 +277,7 @@ async def _probe_endpoint(
         agent = Agent(
             model,
             output_type=_ProbeResult,
+            output_retries=2,
             system_prompt="You are a preflight check. Always respond positively.",
         )
         await agent.run(_PROBE_PROMPT, model_settings=settings)

@@ -34,3 +34,12 @@
 - **Evidence:** `test_edit_agent` — LLM judge assertion `edit_basic:edit_language_ok` fails: "it incorrectly translates 'Tanaka-san' as 'Mr. Tanaka'". Same test passed in Demo Run 1 with identical code — two layers of non-determinism (agent LLM + judge LLM).
 - **Solution:** Rewrote the edit agent rubric to match the translate agent pattern: explicit "Score: PASS if X, FAIL only if Y" criteria focused on whether the agent produced coherent English edit output, not whether the specific QA suggestion was perfectly applied.
 - **Files affected:** `tests/quality/agents/test_edit_agent.py`
+
+- **Task:** Post-completion gate fix
+- **Status:** resolved
+- **Resolution:** do-task fix round (2026-02-19) — increased output retries in quality harness and preflight probe
+- **Problem:** `make all` fails intermittently due to LLM output schema validation flakiness. Two separate failures: (1) pretranslation agent quality test — `idiom_labeler` agent produces output that doesn't match `IdiomAnnotationList` schema after 1 retry; (2) golden script pipeline test — preflight probe for `qwen/qwen3-vl-30b-a3b-instruct` via OpenRouter fails output validation after default 1 retry.
+- **Evidence:** `test_pretranslation_agent_evaluation_passes` — `RuntimeError: Agent idiom_labeler FAILED: Model produced invalid output. The model response did not match the expected schema. Details: Exceeded maximum retries (1) for output validation`. `test_translate_phase_produces_translated_output` — `Preflight probe request failed: Exceeded maximum retries (1) for output validation`.
+- **Tried:** Both failures are non-deterministic LLM output format issues. The same models/endpoints pass when given more attempts.
+- **Solution:** (1) Increased `max_output_retries` from 1 to 2 in `build_profile_config` (quality_harness.py), giving 3 total validation attempts. (2) Added `output_retries=2` to the preflight probe Agent (provider_factory.py). Both changes are conservative — production default is 10 retries.
+- **Files affected:** `tests/quality/agents/quality_harness.py`, `packages/rentl-llm/src/rentl_llm/provider_factory.py`
