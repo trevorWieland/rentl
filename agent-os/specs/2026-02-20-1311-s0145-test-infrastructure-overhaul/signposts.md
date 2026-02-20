@@ -95,12 +95,18 @@ that demonstrates the problem.
   E   Failed: Timeout (>29.0s) from pytest-timeout.
   1 failed, 8 passed in 90.34s (0:01:30)
   ```
-- **Tried (round 5, Task 9):** Split the single scenario into two: (1) structural eval — real agent run with deterministic evaluators only (no LLM judge), ~20s budget; (2) judge eval — hardcoded representative agent output with LLM judge only (no agent run), ~10s budget. **REJECTED during walk-spec**: splitting the test so the LLM judge evaluates hardcoded output instead of real agent output defeats the entire purpose of quality testing. The judge must evaluate what the agent actually produces. Neither test individually has meaning — the structural eval only checks output shape without quality, and the judge eval checks quality of fake output. This is worse than the original timeout problem.
-- **Root cause:** The 29s pytest timeout is fundamentally incompatible with 2 real LLM API calls + LLM judge through OpenRouter. The per-request httpx timeout does not guarantee call completion within the limit — network and API latency is variable. The split approach is invalid because it decouples the judge from real agent output.
-- **Constraint:** The quality test MUST run the real agent AND have the LLM judge evaluate the real agent output in a single test. The `test-timing-rules` standard requires quality tests < 30s. These two requirements are in tension for this agent, which inherently requires 3+ real LLM API calls (2 agent + 1 judge).
-- **Possible directions (not yet tried):**
-  - Update the `test-timing-rules` standard to allow a higher per-test timeout for quality tests that involve agent run + LLM judge (the current < 30s limit was likely designed with single-call tests in mind)
-  - Use a faster/smaller model for the pretranslation agent in quality tests to reduce agent call latency
-  - Restructure the pretranslation agent to avoid `end_strategy="exhaustive"` in quality mode, reducing from 2 agent LLM calls to 1
-  - Accept that this specific test may intermittently fail due to network latency and add a retry mechanism at the test runner level
+- **Tried (round 5, Task 9):** Split the single scenario into two: (1) structural eval — real agent run with deterministic evaluators only (no LLM judge), ~20s budget; (2) judge eval — hardcoded representative agent output with LLM judge only (no agent run), ~10s budget. **REJECTED during walk-spec**: splitting the test so the LLM judge evaluates hardcoded output instead of real agent output defeats the entire purpose of quality testing. The judge must evaluate what the agent actually produces.
+- **Investigation (walk-spec):** Compared pretranslation to all 4 other agent quality tests (context, translate, QA, edit). They ALL use the same pattern: real agent run + LLM judge in a single test, same `build_profile_config` settings (`timeout_s=8.0`, `max_output_retries=0`), same `required_tool_calls=["get_game_info"]`, same 3+ LLM calls. The translate test makes **5 LLM calls** (agent + 3 judges). None of them time out.
+- **Evidence (timing comparison):**
+  ```
+  translate (5 LLM calls, agent+3 judges): 5.66s
+  context (3 LLM calls, agent+judge):      5.58s
+  QA (3 LLM calls, agent+judge):           5.08s
+  edit (3 LLM calls, agent+judge):         4.58s
+  pretranslation structural (2 calls):     4.00s
+  pretranslation judge (1 call):           3.79s
+  ```
+  If pretranslation were recombined into a single test (~7.8s), it would still be well under 29s — consistent with the other agents.
+- **Actual root cause:** The original timeouts were caused by the pre-fix config: `timeout_s=15`, `max_output_retries=2` allowed worst case of 15s × 4 attempts = 60s agent budget alone. The progressive config reductions (`timeout_s` 15→12→8, `max_output_retries` 2→1→0) already fixed the underlying issue. The round 4 failure was an intermittent OpenRouter latency spike, not a structural problem. The split was an unnecessary overreaction.
+- **Solution:** Revert the split. Recombine into a single scenario with real agent run + all evaluators (structural + LLM judge) — matching the pattern used by the other 4 agent quality tests. No special treatment needed.
 - **Files affected:** `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/features/agents/pretranslation_agent.feature`
