@@ -63,9 +63,9 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Scan all other quality tests for non-BDD style and convert
   - Create feature files in `tests/quality/` as needed
   - Acceptance: all quality tests use pytest_bdd Given/When/Then fixtures
-- [ ] Task 8: Full audit sweep and cleanup
+- [x] Task 8: Full audit sweep and cleanup
   - Scan entire test suite for any remaining violations of all 5 standards
   - Fix all violations found
   - Run `make all` and verify clean pass
   - Acceptance: `make all` passes; no remaining violations of any testing standard
-  - [ ] Fix: Move or rename ad-hoc `debug_test.py` so no test-named files exist outside `tests/{unit,integration,quality}/` (`debug_test.py:1`) (audit round 1).
+  - [x] Fix: Move or rename ad-hoc `debug_test.py` so no test-named files exist outside `tests/{unit,integration,quality}/` (`debug_test.py:1`) (audit round 1).
