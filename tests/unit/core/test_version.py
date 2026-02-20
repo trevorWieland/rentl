@@ -18,7 +18,10 @@ def test_version_info_str() -> None:
     assert str(info) == "1.2.3"
 
 
-def test_global_version_exists() -> None:
-    """Test global VERSION is defined and valid."""
-    assert VERSION is not None
-    assert str(VERSION) == "0.1.8"
+def test_global_version_is_valid_version_info() -> None:
+    """Test global VERSION is a valid VersionInfo with non-negative components."""
+    assert isinstance(VERSION, VersionInfo)
+    assert VERSION.major >= 0
+    assert VERSION.minor >= 0
+    assert VERSION.patch >= 0
+    assert str(VERSION) == f"{VERSION.major}.{VERSION.minor}.{VERSION.patch}"

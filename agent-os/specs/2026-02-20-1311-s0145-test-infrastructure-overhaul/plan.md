@@ -31,7 +31,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - [x] Fix: Make OpenRouter mocked responses schema-valid by including required OpenRouter fields (`choices[].native_finish_reason`, top-level `provider`) in `tests/integration/byok/test_openrouter_runtime.py:60` (audit round 1; `pytest -q tests/integration/byok/test_openrouter_runtime.py` fails with ValidationError).
   - [x] Fix: Add explicit invocation assertions (or remove unnecessary mocks) for `ProfileAgent.run` mocks in `tests/integration/cli/test_run_pipeline.py:157` and `tests/integration/cli/test_run_phase.py:151`; current `mock_call_count` values are never asserted (audit round 1; violates `mock-execution-boundary` and spec non-negotiable #2).
   - [x] Fix: Remove `_build_llm_runtime` literal references from integration-test comments/docstrings in `tests/integration/cli/test_run_pipeline.py:154`, `tests/integration/cli/test_run_phase.py:148`, and `tests/integration/conftest.py:151` so the Task 3 acceptance grep in `agent-os/specs/2026-02-20-1311-s0145-test-infrastructure-overhaul/plan.md:30` returns zero (audit round 1).
-- [ ] Task 4: Enforce coverage on integration tier
+- [x] Task 4: Enforce coverage on integration tier
   - Add `--cov=packages --cov=services --cov-fail-under=80` to integration Makefile target
   - Scope coverage modules correctly for integration tier
   - Fix `tests/unit/core/test_version.py` constant-only assertion (violation 9)

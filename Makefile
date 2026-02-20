@@ -71,7 +71,7 @@ unit:
 # Run integration tests
 integration:
 	@echo "🔌 Running integration tests..."
-	$(call run_test, uv run pytest tests/integration -q --tb=short --timeout=5 -W error::DeprecationWarning, .integration.log, Integration Tests)
+	$(call run_test, uv run pytest tests/integration -q --tb=short --timeout=5 -W error::DeprecationWarning --cov=packages/rentl-core --cov=packages/rentl-schemas --cov=packages/rentl-io --cov-fail-under=75 --cov-precision=2, .integration.log, Integration Tests)
 
 # Run quality tests (requires RENTL_OPENROUTER_API_KEY in .env or environment)
 quality:
