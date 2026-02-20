@@ -57,34 +57,44 @@ def _make_request(
     )
 
 
-def _chat_completion_response(content: str, model: str = "gpt-4") -> dict[str, object]:
+def _chat_completion_response(
+    content: str, model: str = "gpt-4", *, openrouter: bool = False
+) -> dict[str, object]:
     """Build a minimal OpenAI-compatible chat completion response.
 
     Args:
         content: The assistant message content.
         model: Model ID to include in the response.
+        openrouter: If True, include OpenRouter-specific fields
+            (native_finish_reason, provider).
 
     Returns:
         Dict matching the OpenAI chat completion response schema.
     """
-    return {
+    choice: dict[str, object] = {
+        "index": 0,
+        "message": {"role": "assistant", "content": content},
+        "finish_reason": "stop",
+    }
+    if openrouter:
+        choice["native_finish_reason"] = "stop"
+
+    response: dict[str, object] = {
         "id": "chatcmpl-mock-openrouter",
         "object": "chat.completion",
         "created": 1700000000,
         "model": model,
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": content},
-                "finish_reason": "stop",
-            }
-        ],
+        "choices": [choice],
         "usage": {
             "prompt_tokens": 10,
             "completion_tokens": 5,
             "total_tokens": 15,
         },
     }
+    if openrouter:
+        response["provider"] = "OpenAI"
+
+    return response
 
 
 class TestOpenRouterProviderSelection:
@@ -105,7 +115,9 @@ class TestOpenRouterProviderSelection:
                 return_value=httpx.Response(
                     200,
                     json=_chat_completion_response(
-                        "OpenRouter response", "anthropic/claude-4.5-sonnet"
+                        "OpenRouter response",
+                        "anthropic/claude-4.5-sonnet",
+                        openrouter=True,
                     ),
                 )
             )
@@ -161,12 +173,15 @@ class TestProviderSwitching:
             )
 
             runtime = OpenAICompatibleRuntime()
+            is_openrouter = "openrouter" in base_url
 
             with respx.mock:
                 route = respx.post(f"{base_url}/chat/completions").mock(
                     return_value=httpx.Response(
                         200,
-                        json=_chat_completion_response("Response", model_id),
+                        json=_chat_completion_response(
+                            "Response", model_id, openrouter=is_openrouter
+                        ),
                     )
                 )
 

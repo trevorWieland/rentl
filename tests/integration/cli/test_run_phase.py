@@ -145,7 +145,7 @@ def given_config_all_phases(
     ctx.config_path = _write_phase_config(tmp_path, ctx.workspace_dir)
     monkeypatch.setenv("PRIMARY_KEY", "fake-key")
 
-    # Mock at agent boundary (ProfileAgent.run), not internal _build_llm_runtime
+    # Mock at agent boundary (ProfileAgent.run)
     mock_call_count = {"count": 0}
 
     async def mock_agent_run(  # noqa: RUF029
@@ -213,3 +213,9 @@ def then_response_contains_phase_data(ctx: PhaseContext) -> None:
     )
     assert ctx.response.get("data") is not None
     assert ctx.response["data"].get("run_id") is not None
+
+    # Verify agent mock was NOT called (ingest-only phase doesn't invoke agents)
+    assert ctx.mock_call_count["count"] == 0, (  # type: ignore[attr-defined]
+        f"ProfileAgent.run was called {ctx.mock_call_count['count']} times "  # type: ignore[attr-defined]
+        "in an ingest-only phase test — agents should not be invoked"
+    )

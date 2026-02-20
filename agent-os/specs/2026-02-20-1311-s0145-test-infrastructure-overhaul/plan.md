@@ -19,7 +19,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Remove empty `packages/rentl-core/tests/` and `tests/features/` directories
   - Update `pyproject.toml` test discovery config if paths are referenced
   - Acceptance: `find packages -name 'test_*' -type f` returns nothing; `tests/features/` doesn't exist
-- [ ] Task 3: Fix mock boundaries in integration tests
+- [x] Task 3: Fix mock boundaries in integration tests
   - Refactor `tests/integration/cli/test_run_pipeline.py` — mock `ProfileAgent.run` instead of `_build_llm_runtime`
   - Refactor `tests/integration/cli/test_run_phase.py` — same fix
   - Refactor `tests/integration/benchmark/test_judge_flow.py` — mock at agent boundary instead of `pydantic_ai.Agent.run`
@@ -28,9 +28,9 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Scan all other integration tests for internal mock targets and fix
   - Add `assert call_count > 0` to every mock in integration tests
   - Acceptance: grep for `_build_llm_runtime` and `pydantic_ai.Agent.run` in integration tests returns zero; all mocks have assertions
-  - [ ] Fix: Make OpenRouter mocked responses schema-valid by including required OpenRouter fields (`choices[].native_finish_reason`, top-level `provider`) in `tests/integration/byok/test_openrouter_runtime.py:60` (audit round 1; `pytest -q tests/integration/byok/test_openrouter_runtime.py` fails with ValidationError).
-  - [ ] Fix: Add explicit invocation assertions (or remove unnecessary mocks) for `ProfileAgent.run` mocks in `tests/integration/cli/test_run_pipeline.py:157` and `tests/integration/cli/test_run_phase.py:151`; current `mock_call_count` values are never asserted (audit round 1; violates `mock-execution-boundary` and spec non-negotiable #2).
-  - [ ] Fix: Remove `_build_llm_runtime` literal references from integration-test comments/docstrings in `tests/integration/cli/test_run_pipeline.py:154`, `tests/integration/cli/test_run_phase.py:148`, and `tests/integration/conftest.py:151` so the Task 3 acceptance grep in `agent-os/specs/2026-02-20-1311-s0145-test-infrastructure-overhaul/plan.md:30` returns zero (audit round 1).
+  - [x] Fix: Make OpenRouter mocked responses schema-valid by including required OpenRouter fields (`choices[].native_finish_reason`, top-level `provider`) in `tests/integration/byok/test_openrouter_runtime.py:60` (audit round 1; `pytest -q tests/integration/byok/test_openrouter_runtime.py` fails with ValidationError).
+  - [x] Fix: Add explicit invocation assertions (or remove unnecessary mocks) for `ProfileAgent.run` mocks in `tests/integration/cli/test_run_pipeline.py:157` and `tests/integration/cli/test_run_phase.py:151`; current `mock_call_count` values are never asserted (audit round 1; violates `mock-execution-boundary` and spec non-negotiable #2).
+  - [x] Fix: Remove `_build_llm_runtime` literal references from integration-test comments/docstrings in `tests/integration/cli/test_run_pipeline.py:154`, `tests/integration/cli/test_run_phase.py:148`, and `tests/integration/conftest.py:151` so the Task 3 acceptance grep in `agent-os/specs/2026-02-20-1311-s0145-test-infrastructure-overhaul/plan.md:30` returns zero (audit round 1).
 - [ ] Task 4: Enforce coverage on integration tier
   - Add `--cov=packages --cov=services --cov-fail-under=80` to integration Makefile target
   - Scope coverage modules correctly for integration tier

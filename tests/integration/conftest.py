@@ -147,8 +147,8 @@ def mock_llm_runtime(
 ) -> Generator[FakeLlmRuntime]:
     """Patch OpenAICompatibleRuntime.run_prompt at the execution boundary.
 
-    Mocks at the agent boundary (run_prompt) instead of the internal
-    factory function (_build_llm_runtime).
+    Mocks at the agent boundary (run_prompt) instead of internal
+    factory functions.
 
     Yields:
         The fake LLM runtime instance.
