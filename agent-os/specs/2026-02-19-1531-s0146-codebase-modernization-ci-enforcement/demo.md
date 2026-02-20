@@ -72,3 +72,14 @@ Codebase Modernization & CI Enforcement brings the repo to full compliance with 
 - Step 7 [RUN]: PASS — Health endpoint returns `ApiResponse[dict[str, str]]` with data, error, and MetaInfo meta fields
 - Step 8 [RUN]: PASS — All dependency specs use `>=X, <Y` compatible ranges with upper major bounds across all pyproject.toml files
 - **Overall: PASS**
+
+### Run 6 — full demo (2026-02-20 11:21)
+- Step 1 [RUN]: PASS — Zero `@dataclass` in `packages/`, `services/`, `scripts/`; 8 matches in `tests/quality/agents/evaluators.py` are framework-mandated subclasses (unchanged)
+- Step 2 [RUN]: PASS — match/case confirmed at orchestrator.py:529, orchestrator.py:1829, wiring.py:1336, main.py:2772; no legacy if/elif phase dispatches remain
+- Step 3 [RUN]: PASS — `ty check` clean exit, "All checks passed!"
+- Step 4 [RUN]: PASS — `make all` passed: format, lint, type, 921 unit, 95 integration, 9 quality tests all pass
+- Step 5 [RUN]: PASS — `.github/workflows/ci.yml` triggers on PRs to main, runs `make ci` with `uv sync --locked`, concurrency and timeout
+- Step 6 [RUN]: PASS — `-W error::DeprecationWarning` in pyproject.toml addopts and all Makefile test targets; all 1025 tests pass with flag active via `make all`
+- Step 7 [RUN]: PASS — Health endpoint returns `ApiResponse[dict[str, str]]` with data, error, and MetaInfo meta fields
+- Step 8 [RUN]: PASS — All dependency specs use `>=X, <Y` compatible ranges with upper major bounds across all pyproject.toml files
+- **Overall: PASS**
