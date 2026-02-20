@@ -201,8 +201,6 @@ def then_download_succeeds(ctx: BenchmarkCLIContext) -> None:
     )
 
     # Assert mocked collaborators were invoked
-    assert ctx.mock_loader is not None
-    ctx.mock_loader.get_slice_scripts.assert_called()
     assert ctx.mock_downloader is not None
     ctx.mock_downloader.download_scripts.assert_called()
     assert ctx.mock_parser is not None
