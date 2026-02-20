@@ -19,7 +19,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Remove empty `packages/rentl-core/tests/` and `tests/features/` directories
   - Update `pyproject.toml` test discovery config if paths are referenced
   - Acceptance: `find packages -name 'test_*' -type f` returns nothing; `tests/features/` doesn't exist
-- [x] Task 3: Fix mock boundaries in integration tests
+- [ ] Task 3: Fix mock boundaries in integration tests
   - Refactor `tests/integration/cli/test_run_pipeline.py` — mock `ProfileAgent.run` instead of `_build_llm_runtime`
   - Refactor `tests/integration/cli/test_run_phase.py` — same fix
   - Refactor `tests/integration/benchmark/test_judge_flow.py` — mock at agent boundary instead of `pydantic_ai.Agent.run`
@@ -35,6 +35,9 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - [x] Fix: Add explicit invocation assertions for patched `assert_preflight` mocks in `tests/integration/cli/test_init.py:264` and `tests/integration/cli/test_onboarding_e2e.py:162` (audit round 1; only `ProfileAgent.run` mock invocation is currently asserted).
   - [x] Fix: Add explicit invocation assertions for benchmark CLI mocks in `tests/integration/benchmark/test_cli_command.py:143`, `tests/integration/benchmark/test_cli_command.py:151`, and `tests/integration/benchmark/test_cli_command.py:429` (audit round 1; patched collaborators are not explicitly asserted as invoked).
   - [x] Fix: Add explicit `route.called` assertions for mocked HTTP routes in `tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:156` and `tests/integration/byok/test_local_model_factory.py:196` (audit round 1; mocked routes are configured without explicit invocation checks in these scenarios).
+  - [ ] Fix: Add explicit invocation verification for the shared `mock_llm_runtime` monkeypatch (`OpenAICompatibleRuntime.run_prompt`) used by integration scenarios so the patch cannot silently pass through (`tests/integration/conftest.py:156`, `tests/integration/cli/test_doctor.py:33`, `tests/integration/cli/test_validate_connection.py:187`) (audit round 2).
+  - [ ] Fix: Add explicit invocation assertions for remaining benchmark CLI mocks: `EvalSetLoader.get_slice_scripts` and `RubricJudge` in override-mode scenarios (`tests/integration/benchmark/test_cli_command.py:143`, `tests/integration/benchmark/test_cli_command.py:646`, `tests/integration/benchmark/test_cli_command.py:728`) (audit round 2).
+  - [ ] Fix: Add explicit invocation assertion for the mocked 404 download route (or remove the unnecessary mock) in the HTTP-error scenario (`tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:280`) (audit round 2).
 - [x] Task 4: Enforce coverage on integration tier
   - Add `--cov=packages --cov=services --cov-fail-under=80` to integration Makefile target
   - Scope coverage modules correctly for integration tier
