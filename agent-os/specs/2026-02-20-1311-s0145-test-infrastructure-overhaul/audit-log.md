@@ -18,3 +18,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 1): FAIL — Performance 4/5, Intent 3/5, Completion 2/5, Security 5/5, Stability 3/5; fix-now count: 5
 - **Task 7** (round 2): PASS — BDD conversion remains compliant; all `tests/quality/test_*.py` files use `pytest_bdd` Given/When/Then fixtures and targeted scenario execution passes.
 - **Task 8** (round 2): PASS — Root-level `debug_test.py` remains removed, standards checks are clean, and `make all` passes (unit 993, integration 95, quality 9).
+- **Demo** (run 2): PASS — All 7 [RUN] steps passed post-audit re-verification (7 run, 7 verified)
