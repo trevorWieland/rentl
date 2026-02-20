@@ -78,7 +78,7 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         base_url=config.base_url,
         model_id=config.model_id,
         temperature=0.2,
-        timeout_s=12.0,  # Cap per-request to stay within 29s budget
+        timeout_s=8.0,  # Cap per-request: 2 LLM calls x 8s + judge < 29s
         max_retries=0,  # No retries — single attempt to avoid timeout amplification
         max_output_retries=0,  # Single attempt to stay within 29s
         retry_base_delay=1.0,

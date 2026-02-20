@@ -80,7 +80,13 @@ that demonstrates the problem.
   tests/quality/agents/test_pretranslation_agent.py +++++ Timeout +++++
   E   Failed: Timeout (>29.0s) from pytest-timeout.
   ```
-- **Tried (round 2):** Set `max_output_retries=0` (no validation retries, single attempt only). Worst case: 12s agent + ~5s judge = ~17s, well within 29s budget.
-- **Solution:** `max_output_retries=0` in `quality_harness.py`. This applies to all agent tests but only affects pretranslation (other agents complete well under 12s).
-- **Resolution:** do-task, make-all gate fix round 2
-- **Files affected:** `tests/quality/agents/quality_harness.py`
+- **Tried (round 2):** Set `max_output_retries=0` (no validation retries, single attempt only). Assumed worst case: 12s agent + ~5s judge = ~17s. But this was wrong — `required_tool_calls=["get_game_info"]` with `end_strategy="exhaustive"` forces at minimum 2 LLM API calls (1 for tool calling, 1 for structured output), regardless of output retries. Real worst case: 2 x 12s + judge = ~29s+, still hitting the limit.
+- **Evidence (round 3):** Same timeout recurred at 29s.
+  ```
+  tests/quality/agents/test_pretranslation_agent.py +++++ Timeout +++++
+  E   Failed: Timeout (>29.0s) from pytest-timeout.
+  ```
+- **Tried (round 3):** Reduced `timeout_s` from 12s to 8s per-request. With 2 LLM calls the agent budget is 2 x 8s = 16s max. Judge ~10s = ~26s total, 3s margin. Also reduced `MaxDuration` evaluator from 20s to 15s to match new budget.
+- **Solution:** `timeout_s=8.0` in `quality_harness.py`, `MaxDuration(seconds=15.0)` in `test_pretranslation_agent.py`.
+- **Resolution:** do-task, make-all gate fix round 3
+- **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/agents/test_pretranslation_agent.py`
