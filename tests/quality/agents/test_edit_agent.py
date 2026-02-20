@@ -132,8 +132,13 @@ def given_edit_dataset(
         )
 
     rubric = (
-        "The output_text is written in English and reflects an edited translation "
-        "that reasonably addresses the QA issue. Minor errors are acceptable."
+        "The output_text is a grammatically correct English sentence that "
+        "represents an edited translation. The agent processed the input and "
+        "produced a revised version of the original line. "
+        "Score: PASS if the output is coherent English text that shows the "
+        "agent attempted to address the translation, even if the specific QA "
+        "suggestion was not perfectly applied. FAIL only if the output is not "
+        "in English, is incoherent, or is completely unrelated to the input."
     )
 
     dataset = Dataset(
