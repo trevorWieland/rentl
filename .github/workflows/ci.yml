@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   check:
-    name: make all
+    name: make ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -24,7 +24,7 @@ jobs:
         run: uv python install 3.14
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
 
-      - name: Run full verification
-        run: make all
+      - name: Run CI verification
+        run: make ci

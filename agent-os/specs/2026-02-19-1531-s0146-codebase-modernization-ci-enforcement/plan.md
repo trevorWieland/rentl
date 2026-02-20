@@ -71,17 +71,17 @@ The codebase has 30+ violations across 9 standards identified by a standards aud
   - Resolve any new ty errors introduced by strict mode
   - Run `make check` to verify
   - [x] Fix: Replace remaining `Any`/`object` annotations in tests to satisfy `strict-typing-enforcement` (`tests/unit/schemas/test_validation.py:3`, `tests/unit/schemas/test_validation.py:37`, `tests/unit/schemas/test_validation.py:231`, `tests/unit/schemas/test_validation.py:244`, `packages/rentl-core/tests/unit/core/test_migrate.py:279`, `packages/rentl-core/tests/unit/core/test_migrate.py:289`) (audit round 1)
-- [ ] Task 7: Create CI workflow + deprecation warnings enforcement
+- [x] Task 7: Create CI workflow + deprecation warnings enforcement
   - Create `.github/workflows/ci.yml` that runs `make all` on pull requests to main
   - Configure as required status check for merge blocking
   - Add `-W error::DeprecationWarning` to pytest `addopts` in `pyproject.toml:71`
   - Add deprecation warning flag to Makefile test targets at `Makefile:69`
   - Run `make check` to verify
   - [x] Fix: Enforce CI merge blocking by configuring required status checks/ruleset for `main` so `.github/workflows/ci.yml` `make all` job must pass before merge (`.github/workflows/ci.yml:3`, `.github/workflows/ci.yml:13`; audit evidence: `gh api repos/trevorWieland/rentl/branches/main/protection` returns `404 Branch not protected` and `gh api repos/trevorWieland/rentl/rulesets` returns `[]`) (audit round 1)
-  - [ ] Fix: [CI] Add `make ci` target (format + lint + type + unit + integration) and switch CI workflow from `make all` to `make ci` — quality tests require real OpenRouter API access and cost money; unsafe for public repo CI where any fork PR triggers the workflow (`Makefile`, `.github/workflows/ci.yml:30`, PR #137 feedback round 1)
-  - [ ] Fix: [CI] Use `uv sync --locked` in CI to enforce lockfile immutability (`.github/workflows/ci.yml:27`, PR #137 feedback from @chatgpt-codex-connector[bot], feedback round 1)
-  - [ ] Fix: [CI] Fix benchmark compare integration tests to set `RENTL_OPENROUTER_API_KEY` in test env or patch env var resolution so tests pass without real API keys (`tests/integration/benchmark/test_cli_command.py:439`, CI run #22231065113)
-  - [ ] Fix: [CI] Fix onboarding E2E test — `pipeline_response` is `None` because pipeline command output isn't valid JSON; test needs to handle mock pipeline output correctly (`tests/integration/cli/test_onboarding_e2e.py:279`, CI run #22231065113)
+  - [x] Fix: [CI] Add `make ci` target (format + lint + type + unit + integration) and switch CI workflow from `make all` to `make ci` — quality tests require real OpenRouter API access and cost money; unsafe for public repo CI where any fork PR triggers the workflow (`Makefile`, `.github/workflows/ci.yml:30`, PR #137 feedback round 1)
+  - [x] Fix: [CI] Use `uv sync --locked` in CI to enforce lockfile immutability (`.github/workflows/ci.yml:27`, PR #137 feedback from @chatgpt-codex-connector[bot], feedback round 1)
+  - [x] Fix: [CI] Fix benchmark compare integration tests to set `RENTL_OPENROUTER_API_KEY` in test env or patch env var resolution so tests pass without real API keys (`tests/integration/benchmark/test_cli_command.py:439`, CI run #22231065113)
+  - [x] Fix: [CI] Fix onboarding E2E test — `pipeline_response` is `None` because pipeline command output isn't valid JSON; test needs to handle mock pipeline output correctly (`tests/integration/cli/test_onboarding_e2e.py:279`, CI run #22231065113)
 - [x] Task 8: Standards compliance sweep (ID formats, API envelope, placeholders, dependency versions)
   - `HeadToHeadResult.line_id` — change type from `str` to `LineId` at `packages/rentl-schemas/src/rentl_schemas/benchmark/rubric.py:20`
   - Runtime `run_id` — validate as UUIDv7 at `packages/rentl-agents/src/rentl_agents/runtime.py:594`

@@ -126,10 +126,10 @@ def when_run_doctor(
     assert ctx.project_dir is not None
     assert ctx.config_path is not None
 
-    # Create .env file with the API key that the preset expects
-    # OpenRouter preset uses OPENROUTER_API_KEY
+    # Create .env file with the API key that the config expects
+    # (init always uses RENTL_LOCAL_API_KEY as the env var name)
     env_path = ctx.project_dir / ".env"
-    env_path.write_text("OPENROUTER_API_KEY=fake-api-key-for-e2e-test\n")
+    env_path.write_text("RENTL_LOCAL_API_KEY=fake-api-key-for-e2e-test\n")
 
     ctx.doctor_result = cli_runner.invoke(
         cli_main.app,
@@ -149,6 +149,10 @@ def when_run_pipeline(
     """
     assert ctx.config_path is not None
     assert ctx.project_dir is not None
+
+    # Set fake API key so _ensure_api_key() and _build_preflight_endpoints()
+    # pass without real credentials (init sets api_key_env = RENTL_LOCAL_API_KEY)
+    monkeypatch.setenv("RENTL_LOCAL_API_KEY", "fake-api-key-for-e2e-test")
 
     # Bypass preflight probe (makes real HTTP requests to provider endpoints)
     async def _noop_preflight(endpoints: list[object]) -> None:

@@ -335,7 +335,10 @@ def when_run_benchmark_compare_staggered(
                 "--candidate-names",
                 "candidate-a,candidate-b",
             ],
-            env={"OPENAI_API_KEY": "test-key"},
+            env={
+                "OPENAI_API_KEY": "test-key",
+                "RENTL_OPENROUTER_API_KEY": "test-key",
+            },
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
 
@@ -436,7 +439,10 @@ def when_run_benchmark_compare_full_flow(
                 "--output",
                 str(ctx.report_path),
             ],
-            env={"OPENAI_API_KEY": "test-key"},
+            env={
+                "OPENAI_API_KEY": "test-key",
+                "RENTL_OPENROUTER_API_KEY": "test-key",
+            },
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
 
@@ -817,7 +823,10 @@ def when_run_benchmark_compare_no_names(
             str(ctx.output_file_a),
             str(ctx.output_file_b),
         ],
-        env={"OPENAI_API_KEY": "test-key"},
+        env={
+            "OPENAI_API_KEY": "test-key",
+            "RENTL_OPENROUTER_API_KEY": "test-key",
+        },
     )
     ctx.stdout = ctx.result.stdout + ctx.result.stderr
 

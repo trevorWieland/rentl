@@ -36,13 +36,15 @@
 - **Files affected:** `tests/quality/agents/test_edit_agent.py`
 
 - **Task:** Task 7 (feedback round 1)
-- **Status:** unresolved
+- **Status:** resolved
+- **Resolution:** do-task round 3 (2026-02-20) — fixed integration test env vars and added `make ci` target
 - **Problem:** CI `make all` fails with 3 integration test failures. Two root causes: (1) benchmark compare tests don't mock `RENTL_OPENROUTER_API_KEY` env var — the CLI resolves the judge provider as OpenRouter at `services/rentl-cli/src/rentl/main.py:1459` and demands the env var before the patched `RubricJudge` is reached; (2) onboarding E2E test's `pipeline_response` is `None` because the mock pipeline doesn't produce JSON stdout, causing `AttributeError` at `tests/integration/cli/test_onboarding_e2e.py:279`.
 - **Evidence:** CI run #22231065113 — `FAILED tests/integration/benchmark/test_cli_command.py::test_benchmark_compare_handles_outoforder_async_completion - AssertionError: No progress updates recorded`; `FAILED tests/integration/benchmark/test_cli_command.py::test_benchmark_compare_completes_full_evaluation_flow - Error: Set RENTL_OPENROUTER_API_KEY environment variable`; `FAILED tests/integration/cli/test_onboarding_e2e.py::test_full_onboarding_flow_succeeds - AttributeError: 'NoneType' object has no attribute 'get'`
 - **Impact:** CI gate blocks PR merge. These are pre-existing test issues now exposed by the new CI workflow — the tests pass locally with `.env` but fail in CI without secrets.
 
 - **Task:** Task 7 (feedback round 1)
-- **Status:** unresolved
+- **Status:** resolved
+- **Resolution:** do-task round 3 (2026-02-20) — added `make ci` target and switched CI workflow
 - **Problem:** Quality tests (`make quality`) require real OpenRouter API access and incur billing. Running them in CI on a public repo means any fork PR triggers real API calls. CI should run a subset excluding quality tests.
 - **Evidence:** Quality test target loads `.env` and calls OpenRouter endpoints (`Makefile:79`). Public repo CI triggers on `pull_request` from any fork (`.github/workflows/ci.yml:4`).
 - **Impact:** Cost exposure and potential abuse vector. CI should run `make ci` (format + lint + type + unit + integration) instead of `make all`.
@@ -55,3 +57,12 @@
 - **Tried:** Both failures are non-deterministic LLM output format issues. The same models/endpoints pass when given more attempts.
 - **Solution:** (1) Increased `max_output_retries` from 1 to 2 in `build_profile_config` (quality_harness.py), giving 3 total validation attempts. (2) Added `output_retries=2` to the preflight probe Agent (provider_factory.py). Both changes are conservative — production default is 10 retries.
 - **Files affected:** `tests/quality/agents/quality_harness.py`, `packages/rentl-llm/src/rentl_llm/provider_factory.py`
+
+- **Task:** Task 7 (feedback round 1 fixes)
+- **Status:** resolved
+- **Resolution:** do-task round 3 (2026-02-20) — added `make ci` target, switched CI workflow, fixed integration tests
+- **Problem:** Four CI-related issues from PR #137 feedback: (1) `make all` in CI runs quality tests requiring real API keys; (2) `uv sync` without `--locked` allows lockfile drift; (3) benchmark compare tests fail in CI because `RENTL_OPENROUTER_API_KEY` env var not set; (4) onboarding E2E test fails because `RENTL_LOCAL_API_KEY` env var not set during pipeline execution.
+- **Evidence:** CI run #22231065113 — benchmark compare tests fail with `Error: Set RENTL_OPENROUTER_API_KEY environment variable`; onboarding E2E test fails with `AttributeError: 'NoneType' object has no attribute 'get'` at `tests/integration/cli/test_onboarding_e2e.py:279` because pipeline returns error response (data=null) due to missing `RENTL_LOCAL_API_KEY`.
+- **Tried:** Traced both test failures to missing env vars. Benchmark tests use `env={"OPENAI_API_KEY": "test-key"}` but the repo root `rentl.toml` config specifies `api_key_env = "RENTL_OPENROUTER_API_KEY"` (OpenRouter). Onboarding E2E test creates config via `init` which always sets `api_key_env = "RENTL_LOCAL_API_KEY"` (from `StandardEnvVar.API_KEY`), but the test only set `OPENROUTER_API_KEY` in the `.env` file.
+- **Solution:** (1) Added `make ci` target (format+lint+type+unit+integration, no quality). (2) Switched CI workflow from `make all` to `make ci` and added `--locked` to `uv sync`. (3) Added `RENTL_OPENROUTER_API_KEY: "test-key"` to all benchmark compare test `env` dicts. (4) Fixed onboarding E2E: changed `.env` to use `RENTL_LOCAL_API_KEY` and added `monkeypatch.setenv("RENTL_LOCAL_API_KEY", ...)` in the pipeline step.
+- **Files affected:** `Makefile`, `.github/workflows/ci.yml`, `tests/integration/benchmark/test_cli_command.py`, `tests/integration/cli/test_onboarding_e2e.py`

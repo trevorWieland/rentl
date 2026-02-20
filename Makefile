@@ -1,4 +1,4 @@
-.PHONY: install format lint lint-check lint-fix type unit integration quality test check all clean
+.PHONY: install format lint lint-check lint-fix type unit integration quality test check ci all clean
 
 # output styling
 ECHO_CHECK = @echo "  Checking... "
@@ -90,6 +90,16 @@ check:
 	@$(MAKE) type --no-print-directory
 	@$(MAKE) unit --no-print-directory
 	@echo "⚡ Quick Verification Passed!"
+
+# CI verification gate (format, lint, type, unit, integration) — no quality (requires API keys)
+ci:
+	@echo "🤖 Starting CI Verification..."
+	@$(MAKE) format --no-print-directory
+	@$(MAKE) lint --no-print-directory
+	@$(MAKE) type --no-print-directory
+	@$(MAKE) unit --no-print-directory
+	@$(MAKE) integration --no-print-directory
+	@echo "🤖 CI Verification Passed!"
 
 # Full verification gate (format, lint, type, unit, integration, quality)
 all:
