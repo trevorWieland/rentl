@@ -24,6 +24,10 @@ pytestmark = pytest.mark.integration
 class FakeLlmRuntime:
     """Mock LLM runtime for integration tests (no real API calls)."""
 
+    def __init__(self) -> None:
+        """Initialize with call counter."""
+        self.call_count = 0
+
     async def run_prompt(
         self, request: LlmPromptRequest, *, api_key: str
     ) -> LlmPromptResponse:
@@ -32,6 +36,7 @@ class FakeLlmRuntime:
         Returns schema-valid outputs based on the agent being called.
         Detects agent type from prompt content.
         """
+        self.call_count += 1
         prompt = request.prompt.lower()
 
         # Extract scene_id and line_id from prompt if present

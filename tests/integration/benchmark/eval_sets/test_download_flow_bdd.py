@@ -277,7 +277,7 @@ def when_download_missing_script(ctx: DownloadFlowContext) -> None:
     """
     with respx.mock:
         # Mock 404 response (Task 13: Japanese translations at game/tl/jp)
-        respx.get(
+        route = respx.get(
             "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/missing.rpy"
         ).mock(return_value=httpx.Response(404))
 
@@ -288,6 +288,9 @@ def when_download_missing_script(ctx: DownloadFlowContext) -> None:
             asyncio.run(ctx.downloader.download_scripts(["missing.rpy"]))
         except httpx.HTTPStatusError as e:
             ctx.error = e
+
+        # Assert the mocked 404 route was called
+        assert route.called
 
 
 @when("I attempt to download the excluded script")

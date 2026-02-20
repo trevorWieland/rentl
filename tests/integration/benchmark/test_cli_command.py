@@ -201,6 +201,8 @@ def then_download_succeeds(ctx: BenchmarkCLIContext) -> None:
     )
 
     # Assert mocked collaborators were invoked
+    assert ctx.mock_loader is not None
+    ctx.mock_loader.get_slice_scripts.assert_called()
     assert ctx.mock_downloader is not None
     ctx.mock_downloader.download_scripts.assert_called()
     assert ctx.mock_parser is not None
@@ -661,6 +663,7 @@ def when_run_benchmark_compare_full_overrides(
             env={"TEST_KEY": "test-key"},
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
+        ctx.mock_judge = mock_judge
 
 
 @then("the judge was configured from CLI overrides")
@@ -673,6 +676,9 @@ def then_judge_configured_from_overrides(ctx: BenchmarkCLIContext) -> None:
     # The command should succeed without needing a config file
     assert ctx.result is not None
     assert ctx.result.exit_code == 0
+    # Verify the judge mock was invoked
+    assert ctx.mock_judge is not None
+    ctx.mock_judge.compare_head_to_head.assert_called()
 
 
 @when("I run benchmark compare with OpenRouter judge overrides")
@@ -723,6 +729,7 @@ def when_run_benchmark_compare_openrouter_overrides(
         ctx.judge_constructor_args = kwargs
         mock_judge = MagicMock()
         mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
+        ctx.mock_judge = mock_judge
         return mock_judge
 
     with patch("rentl.main.RubricJudge", side_effect=capture_judge_init):
@@ -759,6 +766,10 @@ def then_judge_configured_with_openrouter(ctx: BenchmarkCLIContext) -> None:
     # Verify the judge was constructed with openrouter_require_parameters=True
     assert ctx.judge_constructor_args is not None
     assert ctx.judge_constructor_args.get("openrouter_require_parameters") is True
+
+    # Verify the judge mock was invoked
+    assert ctx.mock_judge is not None
+    ctx.mock_judge.compare_head_to_head.assert_called()
 
 
 @given(
