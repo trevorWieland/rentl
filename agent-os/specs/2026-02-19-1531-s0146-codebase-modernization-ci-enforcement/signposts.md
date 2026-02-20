@@ -75,3 +75,12 @@
 - **Tried:** Considered renaming the job back to `make all`, but `make all` includes quality tests requiring paid API keys which can't run in public CI.
 - **Solution:** Updated the GitHub ruleset via `gh api --method PUT` to set required status check context to `make ci`, matching the workflow job name. `make ci` is the CI-safe equivalent of `make all` (format+lint+type+unit+integration, excluding quality tests that need paid API access).
 - **Files affected:** GitHub ruleset 13017577 (no file changes — this was a GitHub API-only change)
+
+- **Task:** Task 7 (audit round 5)
+- **Status:** resolved
+- **Resolution:** do-task round 5 (2026-02-20) — restored `make all` as CI gate with secret-gated quality tests
+- **Problem:** CI workflow ran `make ci` instead of `make all`, violating spec acceptance criterion ("CI workflow that runs `make all` on PRs and blocks merge") and non-negotiable #4.
+- **Evidence:** `.github/workflows/ci.yml:13` job name was `make ci`, `.github/workflows/ci.yml:30` ran `make ci`; GitHub ruleset 13017577 required status check context was `make ci`. Spec requires `make all` at `spec.md:36` and `spec.md:55`.
+- **Tried:** Previous rounds switched to `make ci` to avoid quality tests running with paid API keys in public CI (fork PRs).
+- **Solution:** (1) Changed CI workflow job name to `make all` and step to run `make all`. (2) Pass `RENTL_OPENROUTER_API_KEY` as GitHub Actions secret env var. (3) Modified `quality` Makefile target to skip gracefully when API key is unset and no `.env` file contains it (fork PR scenario). (4) Updated GitHub ruleset required status check context to `make all`. When the repo owner configures the `RENTL_OPENROUTER_API_KEY` secret, quality tests run in CI. Fork PRs skip quality tests safely.
+- **Files affected:** `.github/workflows/ci.yml`, `Makefile`, GitHub ruleset 13017577

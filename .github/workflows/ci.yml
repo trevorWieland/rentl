@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   check:
-    name: make ci
+    name: make all
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -26,5 +26,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
-      - name: Run CI verification
-        run: make ci
+      - name: Run full verification
+        env:
+          RENTL_OPENROUTER_API_KEY: ${{ secrets.RENTL_OPENROUTER_API_KEY }}
+        run: make all
