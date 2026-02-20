@@ -66,3 +66,12 @@
 - **Tried:** Traced both test failures to missing env vars. Benchmark tests use `env={"OPENAI_API_KEY": "test-key"}` but the repo root `rentl.toml` config specifies `api_key_env = "RENTL_OPENROUTER_API_KEY"` (OpenRouter). Onboarding E2E test creates config via `init` which always sets `api_key_env = "RENTL_LOCAL_API_KEY"` (from `StandardEnvVar.API_KEY`), but the test only set `OPENROUTER_API_KEY` in the `.env` file.
 - **Solution:** (1) Added `make ci` target (format+lint+type+unit+integration, no quality). (2) Switched CI workflow from `make all` to `make ci` and added `--locked` to `uv sync`. (3) Added `RENTL_OPENROUTER_API_KEY: "test-key"` to all benchmark compare test `env` dicts. (4) Fixed onboarding E2E: changed `.env` to use `RENTL_LOCAL_API_KEY` and added `monkeypatch.setenv("RENTL_LOCAL_API_KEY", ...)` in the pipeline step.
 - **Files affected:** `Makefile`, `.github/workflows/ci.yml`, `tests/integration/benchmark/test_cli_command.py`, `tests/integration/cli/test_onboarding_e2e.py`
+
+- **Task:** Task 7 (audit round 4)
+- **Status:** resolved
+- **Resolution:** do-task round 4 (2026-02-20) — updated GitHub ruleset required status context from `make all` to `make ci`
+- **Problem:** GitHub ruleset "CI Required" required status check context `make all` didn't match the CI workflow job name `make ci`, so the required check would never be satisfied by the workflow.
+- **Evidence:** `gh api repos/trevorWieland/rentl/rulesets/13017577` returned `required_status_checks: [{context: "make all"}]` while `.github/workflows/ci.yml` job name is `make ci` (line 13) and runs `make ci` (line 30).
+- **Tried:** Considered renaming the job back to `make all`, but `make all` includes quality tests requiring paid API keys which can't run in public CI.
+- **Solution:** Updated the GitHub ruleset via `gh api --method PUT` to set required status check context to `make ci`, matching the workflow job name. `make ci` is the CI-safe equivalent of `make all` (format+lint+type+unit+integration, excluding quality tests that need paid API access).
+- **Files affected:** GitHub ruleset 13017577 (no file changes — this was a GitHub API-only change)
