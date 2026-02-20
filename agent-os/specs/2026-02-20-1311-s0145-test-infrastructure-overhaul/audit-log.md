@@ -24,3 +24,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 3): PASS — All 7 [RUN] steps passed post-audit re-verification (7 run, 7 verified)
 - **Spec Audit** (round 3): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count: 2
 - **Task 8** (round 4): PASS — Task 8 commit `d9f3f46` correctly removes root `debug_test.py` and keeps Task 8 cleanup state compliant.
+- **Demo** (run 4): PASS — All 7 [RUN] steps passed post-audit re-verification (7 run, 7 verified)
