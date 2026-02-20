@@ -19,7 +19,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Remove empty `packages/rentl-core/tests/` and `tests/features/` directories
   - Update `pyproject.toml` test discovery config if paths are referenced
   - Acceptance: `find packages -name 'test_*' -type f` returns nothing; `tests/features/` doesn't exist
-- [ ] Task 3: Fix mock boundaries in integration tests
+- [x] Task 3: Fix mock boundaries in integration tests
   - Refactor `tests/integration/cli/test_run_pipeline.py` — mock `ProfileAgent.run` instead of `_build_llm_runtime`
   - Refactor `tests/integration/cli/test_run_phase.py` — same fix
   - Refactor `tests/integration/benchmark/test_judge_flow.py` — mock at agent boundary instead of `pydantic_ai.Agent.run`
