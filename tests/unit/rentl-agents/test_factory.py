@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from pydantic_ai import Tool
 
 from rentl_agents.factory import AgentConfig, AgentFactory
@@ -16,15 +16,15 @@ from rentl_schemas.primitives import JsonValue
 class MockInput(BaseSchema):
     """Mock input schema for testing."""
 
-    text: str
-    target_lang: str
+    text: str = Field(description="Source text to translate")
+    target_lang: str = Field(description="Target language code")
 
 
 class MockOutput(BaseSchema):
     """Mock output schema for testing."""
 
-    result: str
-    confidence: float
+    result: str = Field(description="Translation result text")
+    confidence: float = Field(description="Confidence score for the translation")
 
 
 class MockTool(AgentTool):
