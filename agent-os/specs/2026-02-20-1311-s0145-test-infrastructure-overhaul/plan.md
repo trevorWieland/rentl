@@ -13,7 +13,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [ ] Task 2: Restructure test file locations
+- [x] Task 2: Restructure test file locations
   - Move `packages/rentl-core/tests/unit/core/test_explain.py`, `test_help.py`, `test_migrate.py` into `tests/unit/core/`
   - Move feature files from `tests/features/benchmark/` into corresponding tier directories
   - Remove empty `packages/rentl-core/tests/` and `tests/features/` directories

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from rentl_schemas.io import SourceLine
 
 # Link feature file
-scenarios("../../../features/benchmark/eval_set_download.feature")
+scenarios("../features/eval_set_download.feature")
 
 
 class DownloadFlowContext:

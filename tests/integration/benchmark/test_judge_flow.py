@@ -14,7 +14,7 @@ from rentl_core.benchmark.judge import JudgeOutput, RubricJudge
 from rentl_schemas.benchmark.rubric import RubricDimension
 from rentl_schemas.io import TranslatedLine
 
-FEATURES_DIR = Path(__file__).parent.parent.parent / "features" / "benchmark"
+FEATURES_DIR = Path(__file__).parent / "features"
 
 
 @scenario(

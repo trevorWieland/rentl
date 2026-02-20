@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     pass
 
 # Link feature file
-scenarios("../../features/benchmark/cli_command.feature")
+scenarios("features/cli_command.feature")
 
 
 class BenchmarkCLIContext:
