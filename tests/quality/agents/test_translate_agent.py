@@ -166,7 +166,7 @@ def given_translate_dataset(
                     "target_languages",
                 )
             ),
-            MaxDuration(seconds=25.0),
+            MaxDuration(seconds=20.0),
             # Multi-judge evaluation: Language/Fluency
             LLMJudge(
                 rubric=language_rubric,

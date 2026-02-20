@@ -78,9 +78,9 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         base_url=config.base_url,
         model_id=config.model_id,
         temperature=0.2,
-        timeout_s=15.0,  # Cap per-request to stay within 30s test budget
+        timeout_s=12.0,  # Cap per-request to stay within 29s budget
         max_retries=0,  # No retries — single attempt to avoid timeout amplification
-        max_output_retries=2,  # Allow 3 total validation attempts (initial + 2 retries)
+        max_output_retries=1,  # Allow 2 total validation attempts (initial + 1 retry)
         retry_base_delay=1.0,
         end_strategy="exhaustive",
         required_tool_calls=["get_game_info"],
