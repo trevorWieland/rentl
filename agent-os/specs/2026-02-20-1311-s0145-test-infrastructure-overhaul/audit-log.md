@@ -28,3 +28,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 4): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count: 1
 - **Demo** (run 5): FAIL — Pretranslation quality test timed out at 29s (5 run/pass, 1 run/fail, step 7 not attempted). Task 9 added to plan.md.
 - **Task 9** (round 1): PASS — Split pretranslation quality eval into structural + judge scenarios; targeted pytest and `make quality` both pass with timeout=29 constraints.
+- **Demo** (run 6): PASS — All 7 [RUN] steps passed post-Task-9 re-verification (7 run, 7 verified)
