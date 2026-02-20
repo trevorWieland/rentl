@@ -40,3 +40,22 @@ that demonstrates the problem.
 - **Tried:** N/A — spec non-goals explicitly say "Adding new test cases for untested features (coverage of new code is out of scope)"
 - **Solution:** Documented as a gap. Not included in integration coverage scope since no tests exercise it.
 - **Files affected:** N/A (documentation only)
+
+---
+
+## Signpost 3: Task 5 timeout markers remain at 30s
+
+- **Task:** 5
+- **Status:** unresolved
+- **Problem:** Task 5 changed quality-test timeout markers from `90` to `30`, but the standard text requires quality timing `<30s`, and the Task 5 pretranslation sub-item explicitly targets values `>=30s`.
+- **Evidence:**
+  ```
+  tests/quality/pipeline/test_golden_script_pipeline.py:38:pytestmark = pytest.mark.timeout(30)
+  tests/quality/agents/test_pretranslation_agent.py:42:    pytest.mark.timeout(30),
+  ```
+  ```
+  standards.md:7 -> quality <30s
+  plan.md:43 -> Fix tests/quality/agents/test_pretranslation_agent.py if timeout ≥ 30s
+  ```
+- **Impact:** Task 5 can be marked complete while still carrying a timing-rule violation; future rounds should use a sub-30 marker in quality test files.
+- **Files affected:** `tests/quality/pipeline/test_golden_script_pipeline.py`, `tests/quality/agents/test_pretranslation_agent.py`

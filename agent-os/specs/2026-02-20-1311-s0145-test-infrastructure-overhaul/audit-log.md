@@ -9,3 +9,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 3** (round 1): FAIL — BYOK OpenRouter integration mocks are schema-invalid, and Task 3 mock-assertion/acceptance checks are not fully satisfied.
 - **Task 3** (round 2): PASS — Mock-boundary fixes and invocation assertions are in place; Task 3 acceptance checks and targeted integration tests pass.
 - **Task 4** (round 1): PASS — Integration coverage enforcement is active (`make integration` passes with `--cov-fail-under`), version assertion brittleness is removed, and the `rentl_tui` coverage gap is documented as deferred.
+- **Task 5** (round 1): FAIL — Quality-test timeout markers are set to `30s` (not below `30s`), so Task 5 timing compliance is incomplete.
