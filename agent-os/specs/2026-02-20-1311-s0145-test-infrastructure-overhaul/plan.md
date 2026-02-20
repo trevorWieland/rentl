@@ -1,0 +1,61 @@
+spec_id: s0.1.45
+issue: https://github.com/trevorWieland/rentl/issues/132
+version: v0.1
+
+# Plan: Test Infrastructure Overhaul
+
+## Decision Record
+
+The test suite has accumulated violations across 5 testing standards due to organic growth. This spec addresses all violations systematically: restructure file locations first (least risk), then fix mock boundaries (highest impact), then coverage/timing enforcement, then BDD conversion, and finally a full sweep for any violations missed by the issue audit.
+
+Coverage enforcement is scoped to unit and integration tiers only — quality tests validate LLM behavior and adding coverage thresholds there would pollute the tier with non-LLM tests.
+
+## Tasks
+
+- [x] Task 1: Save Spec Documentation
+- [ ] Task 2: Restructure test file locations
+  - Move `packages/rentl-core/tests/unit/core/test_explain.py`, `test_help.py`, `test_migrate.py` into `tests/unit/core/`
+  - Move feature files from `tests/features/benchmark/` into corresponding tier directories
+  - Remove empty `packages/rentl-core/tests/` and `tests/features/` directories
+  - Update `pyproject.toml` test discovery config if paths are referenced
+  - Acceptance: `find packages -name 'test_*' -type f` returns nothing; `tests/features/` doesn't exist
+- [ ] Task 3: Fix mock boundaries in integration tests
+  - Refactor `tests/integration/cli/test_run_pipeline.py` — mock `ProfileAgent.run` instead of `_build_llm_runtime`
+  - Refactor `tests/integration/cli/test_run_phase.py` — same fix
+  - Refactor `tests/integration/benchmark/test_judge_flow.py` — mock at agent boundary instead of `pydantic_ai.Agent.run`
+  - Refactor `tests/integration/byok/test_openrouter_runtime.py` — fix mock target and add invocation assertion
+  - Fix `tests/integration/cli/test_onboarding_e2e.py` — add `ProfileAgent.run` invocation assertion
+  - Scan all other integration tests for internal mock targets and fix
+  - Add `assert call_count > 0` to every mock in integration tests
+  - Acceptance: grep for `_build_llm_runtime` and `pydantic_ai.Agent.run` in integration tests returns zero; all mocks have assertions
+- [ ] Task 4: Enforce coverage on integration tier
+  - Add `--cov=packages --cov=services --cov-fail-under=80` to integration Makefile target
+  - Scope coverage modules correctly for integration tier
+  - Fix `tests/unit/core/test_version.py` constant-only assertion (violation 9)
+  - Verify `rentl_tui` has test presence or document gap
+  - Acceptance: `make integration` enforces coverage threshold
+- [ ] Task 5: Fix test timing rules
+  - Change Makefile quality timeout from `--timeout=90` to `--timeout=30`
+  - Fix `tests/quality/pipeline/test_golden_script_pipeline.py` if timeout > 30s
+  - Fix `tests/quality/agents/test_pretranslation_agent.py` if timeout ≥ 30s
+  - Verify all quality tests complete within 30s
+  - Acceptance: `make quality` passes with `--timeout=30`
+- [ ] Task 6: Convert integration tests to BDD style
+  - Convert `tests/integration/core/test_deterministic_qa.py` to BDD Given/When/Then
+  - Convert `tests/integration/core/test_doctor.py` to BDD
+  - Convert `tests/integration/byok/test_openrouter_runtime.py` to BDD
+  - Convert `tests/integration/storage/test_filesystem.py` to BDD
+  - Convert `tests/integration/cli/test_init.py` to BDD
+  - Scan all other integration tests for non-BDD style and convert
+  - Create feature files in `tests/integration/` as needed
+  - Acceptance: all integration tests use pytest_bdd Given/When/Then fixtures
+- [ ] Task 7: Convert quality tests to BDD style
+  - Convert `tests/quality/cli/test_preset_validation.py` to BDD
+  - Scan all other quality tests for non-BDD style and convert
+  - Create feature files in `tests/quality/` as needed
+  - Acceptance: all quality tests use pytest_bdd Given/When/Then fixtures
+- [ ] Task 8: Full audit sweep and cleanup
+  - Scan entire test suite for any remaining violations of all 5 standards
+  - Fix all violations found
+  - Run `make all` and verify clean pass
+  - Acceptance: `make all` passes; no remaining violations of any testing standard
