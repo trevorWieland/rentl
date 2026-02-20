@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Template variable pattern: {{variable_name}}
 TEMPLATE_VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\}\}")
@@ -270,6 +270,8 @@ class TemplateContext(BaseModel):
 
     Combines variables from root, phase, and agent layers.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     root_variables: dict[str, str] = Field(
         default_factory=dict, description="Project-level template variables"

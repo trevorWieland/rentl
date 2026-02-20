@@ -13,7 +13,7 @@ import tomllib
 from pathlib import Path
 
 import aiofiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_agents.templates import (
     TemplateContext,
@@ -60,6 +60,8 @@ class PromptLayerRegistry(BaseModel):
 
     Stores root and phase layer prompts for composition.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     root: RootPromptConfig | None = Field(
         default=None, description="Root layer prompt configuration"
@@ -468,6 +470,8 @@ class PromptComposer(BaseModel):
     Combines root, phase, and agent layer prompts into the final
     system prompt used for LLM calls.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     registry: PromptLayerRegistry = Field(
         description="Prompt layer registry with root and phase configurations"

@@ -23,7 +23,7 @@ class ProviderCapabilities(BaseModel):
         supports_tool_choice_required: Whether tool_choice:required is supported.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str = Field(description="Human-readable provider name")
     is_openrouter: bool = Field(description="Whether the provider is OpenRouter")

@@ -1102,7 +1102,7 @@ def create_edit_agent_from_profile(
 class AgentPoolBundle(BaseModel):
     """Agent pools wired for pipeline execution."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     context_agents: list[tuple[str, ContextAgentPoolProtocol]] = Field(
         description="Named context-phase agent pools"
@@ -1122,7 +1122,7 @@ class AgentPoolBundle(BaseModel):
 
 
 class _AgentProfileSpec(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str = Field(description="Agent profile identifier")
     profile: AgentProfileConfig = Field(

@@ -103,7 +103,7 @@ class _AgentCacheEntry[OutputT: BaseSchema](BaseSchema):
     Stores the agent harness with runtime type information for safe retrieval.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     agent: AgentHarness[BaseSchema, OutputT] = Field(
         description="Cached agent harness instance"

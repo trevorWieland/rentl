@@ -70,7 +70,7 @@ class ToolRegistry(BaseModel):
     Stores tool implementations and provides lookup by name.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     _tools: dict[str, AgentToolProtocol] = PrivateAttr(default_factory=dict)
 

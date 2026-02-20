@@ -5,7 +5,7 @@ Provides project/game information to agents during execution.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_schemas.primitives import JsonValue
 
@@ -15,6 +15,8 @@ class ProjectContext(BaseModel):
 
     This is populated from the run configuration and passed to tools.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     game_name: str = Field(
         default="Unknown Game", description="Name of the game being localized"
