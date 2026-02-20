@@ -37,7 +37,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Fix `tests/unit/core/test_version.py` constant-only assertion (violation 9)
   - Verify `rentl_tui` has test presence or document gap
   - Acceptance: `make integration` enforces coverage threshold
-- [ ] Task 5: Fix test timing rules
+- [x] Task 5: Fix test timing rules
   - Change Makefile quality timeout from `--timeout=90` to `--timeout=30`
   - Fix `tests/quality/pipeline/test_golden_script_pipeline.py` if timeout > 30s
   - Fix `tests/quality/agents/test_pretranslation_agent.py` if timeout ≥ 30s
