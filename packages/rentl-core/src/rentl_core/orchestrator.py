@@ -6,10 +6,11 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TypeVar
 from uuid import uuid7
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_core.ports.export import (
     ExportAdapterProtocol,
@@ -235,31 +236,60 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
         return resolved
 
 
-@dataclass(slots=True)
-class PipelineRunContext:
+class PipelineRunContext(BaseModel):
     """In-memory run context for orchestration."""
 
-    run_id: RunId
-    config: RunConfig
-    progress: RunProgress
-    created_at: Timestamp
-    started_at: Timestamp | None = None
-    completed_at: Timestamp | None = None
-    status: RunStatus = RunStatus.PENDING
-    current_phase: PhaseName | None = None
-    last_error: RunError | None = None
-    artifacts: list[PhaseArtifacts] = field(default_factory=list)
-    source_lines: list[SourceLine] | None = None
-    context_output: ContextPhaseOutput | None = None
-    pretranslation_output: PretranslationPhaseOutput | None = None
-    translate_outputs: dict[LanguageCode, TranslatePhaseOutput] = field(
-        default_factory=dict
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    run_id: RunId = Field(description="Unique identifier for this pipeline run")
+    config: RunConfig = Field(description="Run configuration")
+    progress: RunProgress = Field(description="Current run progress")
+    created_at: Timestamp = Field(description="Timestamp when the run was created")
+    started_at: Timestamp | None = Field(
+        default=None, description="Timestamp when the run started executing"
     )
-    qa_outputs: dict[LanguageCode, QaPhaseOutput] = field(default_factory=dict)
-    edit_outputs: dict[LanguageCode, EditPhaseOutput] = field(default_factory=dict)
-    export_results: dict[LanguageCode, ExportResult] = field(default_factory=dict)
-    phase_history: list[PhaseRunRecord] = field(default_factory=list)
-    phase_revisions: dict[PhaseKey, int] = field(default_factory=dict)
+    completed_at: Timestamp | None = Field(
+        default=None, description="Timestamp when the run completed"
+    )
+    status: RunStatus = Field(
+        default=RunStatus.PENDING, description="Current run status"
+    )
+    current_phase: PhaseName | None = Field(
+        default=None, description="Currently executing phase"
+    )
+    last_error: RunError | None = Field(
+        default=None, description="Most recent error encountered"
+    )
+    artifacts: list[PhaseArtifacts] = Field(
+        default_factory=list, description="Collected phase artifacts"
+    )
+    source_lines: list[SourceLine] | None = Field(
+        default=None, description="Ingested source lines"
+    )
+    context_output: ContextPhaseOutput | None = Field(
+        default=None, description="Output from context phase"
+    )
+    pretranslation_output: PretranslationPhaseOutput | None = Field(
+        default=None, description="Output from pretranslation phase"
+    )
+    translate_outputs: dict[LanguageCode, TranslatePhaseOutput] = Field(
+        default_factory=dict, description="Per-language translate phase outputs"
+    )
+    qa_outputs: dict[LanguageCode, QaPhaseOutput] = Field(
+        default_factory=dict, description="Per-language QA phase outputs"
+    )
+    edit_outputs: dict[LanguageCode, EditPhaseOutput] = Field(
+        default_factory=dict, description="Per-language edit phase outputs"
+    )
+    export_results: dict[LanguageCode, ExportResult] = Field(
+        default_factory=dict, description="Per-language export results"
+    )
+    phase_history: list[PhaseRunRecord] = Field(
+        default_factory=list, description="History of phase executions"
+    )
+    phase_revisions: dict[PhaseKey, int] = Field(
+        default_factory=dict, description="Revision counts per phase key"
+    )
 
 
 class PipelineOrchestrator:
@@ -496,36 +526,37 @@ class PipelineOrchestrator:
         )
 
         try:
-            if phase == PhaseName.INGEST:
-                record = await self._run_ingest(run, ingest_source)
-            elif phase == PhaseName.CONTEXT:
-                record = await self._run_context(run, execution)
-            elif phase == PhaseName.PRETRANSLATION:
-                record = await self._run_pretranslation(run, execution)
-            elif phase == PhaseName.TRANSLATE:
-                record = await self._run_translate(
-                    run, _require_language(language, phase), execution
-                )
-            elif phase == PhaseName.QA:
-                record = await self._run_qa(
-                    run, _require_language(language, phase), execution
-                )
-            elif phase == PhaseName.EDIT:
-                record = await self._run_edit(
-                    run, _require_language(language, phase), execution
-                )
-            elif phase == PhaseName.EXPORT:
-                record = await self._run_export(
-                    run, _require_language(language, phase), export_target
-                )
-            else:
-                raise OrchestrationError(
-                    OrchestrationErrorInfo(
-                        code=OrchestrationErrorCode.INVALID_STATE,
-                        message=f"Unsupported phase {phase.value}",
-                        details=OrchestrationErrorDetails(phase=phase),
+            match phase:
+                case PhaseName.INGEST:
+                    record = await self._run_ingest(run, ingest_source)
+                case PhaseName.CONTEXT:
+                    record = await self._run_context(run, execution)
+                case PhaseName.PRETRANSLATION:
+                    record = await self._run_pretranslation(run, execution)
+                case PhaseName.TRANSLATE:
+                    record = await self._run_translate(
+                        run, _require_language(language, phase), execution
                     )
-                )
+                case PhaseName.QA:
+                    record = await self._run_qa(
+                        run, _require_language(language, phase), execution
+                    )
+                case PhaseName.EDIT:
+                    record = await self._run_edit(
+                        run, _require_language(language, phase), execution
+                    )
+                case PhaseName.EXPORT:
+                    record = await self._run_export(
+                        run, _require_language(language, phase), export_target
+                    )
+                case _:
+                    raise OrchestrationError(
+                        OrchestrationErrorInfo(
+                            code=OrchestrationErrorCode.INVALID_STATE,
+                            message=f"Unsupported phase {phase.value}",
+                            details=OrchestrationErrorDetails(phase=phase),
+                        )
+                    )
         except OrchestrationError as exc:
             await self._emit_phase_failure(
                 run,
@@ -1354,7 +1385,7 @@ class PipelineOrchestrator:
             target_language=target_language,
             format=ArtifactFormat.JSONL,
             created_at=self._clock(),
-            location=_placeholder_reference(ArtifactFormat.JSONL),
+            location=_pending_storage_reference(ArtifactFormat.JSONL),
             description=description,
             size_bytes=None,
             checksum_sha256=None,
@@ -1483,11 +1514,18 @@ def _build_run_state(run: PipelineRunContext) -> RunState:
     )
 
 
-def _placeholder_reference(format: ArtifactFormat) -> StorageReference:
+def _pending_storage_reference(format: ArtifactFormat) -> StorageReference:
+    """Build a pre-write storage reference.
+
+    The storage backend replaces this with the real location after write.
+
+    Returns:
+        StorageReference with a pending URI for the given format.
+    """
     return StorageReference(
         backend=None,
-        path=f"placeholder.{format.value}",
-        uri=None,
+        path=None,
+        uri=f"pending:artifact.{format.value}",
     )
 
 
@@ -1769,32 +1807,9 @@ def _is_phase_enabled(config: RunConfig, phase: PhaseName) -> bool:
     return bool(phase_config and phase_config.enabled)
 
 
-def _validate_phase_prereqs(
-    run: PipelineRunContext,
-    phase: PhaseName,
-    target_language: LanguageCode | None,
-) -> None:
-    if phase == PhaseName.INGEST:
-        return
-    _require_source_lines(run, phase)
-
-    if phase == PhaseName.CONTEXT:
-        return
-
-    if _is_phase_enabled(run.config, PhaseName.CONTEXT):
-        _require_context_output(run, phase)
-
-    if phase == PhaseName.PRETRANSLATION:
-        return
-
-    if phase in {PhaseName.TRANSLATE, PhaseName.EDIT} and _is_phase_enabled(
-        run.config, PhaseName.PRETRANSLATION
-    ):
-        _require_pretranslation_output(run, phase)
-
-    if phase == PhaseName.TRANSLATE:
-        return
-
+def _require_target_language(
+    target_language: LanguageCode | None, phase: PhaseName
+) -> LanguageCode:
     if target_language is None:
         raise OrchestrationError(
             OrchestrationErrorInfo(
@@ -1803,18 +1818,53 @@ def _validate_phase_prereqs(
                 details=OrchestrationErrorDetails(phase=phase),
             )
         )
+    return target_language
 
-    if phase in {PhaseName.QA, PhaseName.EDIT, PhaseName.EXPORT}:
-        _require_translation(run, target_language, phase)
 
-    if phase == PhaseName.QA:
-        return
-
-    if phase == PhaseName.EDIT and _is_phase_enabled(run.config, PhaseName.QA):
-        _require_qa_output(run, target_language, phase)
-
-    if phase == PhaseName.EXPORT and _is_phase_enabled(run.config, PhaseName.EDIT):
-        _require_edit_output(run, target_language, phase)
+def _validate_phase_prereqs(
+    run: PipelineRunContext,
+    phase: PhaseName,
+    target_language: LanguageCode | None,
+) -> None:
+    match phase:
+        case PhaseName.INGEST:
+            pass
+        case PhaseName.CONTEXT:
+            _require_source_lines(run, phase)
+        case PhaseName.PRETRANSLATION:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+        case PhaseName.TRANSLATE:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.PRETRANSLATION):
+                _require_pretranslation_output(run, phase)
+        case PhaseName.QA:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+            lang = _require_target_language(target_language, phase)
+            _require_translation(run, lang, phase)
+        case PhaseName.EDIT:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.PRETRANSLATION):
+                _require_pretranslation_output(run, phase)
+            lang = _require_target_language(target_language, phase)
+            _require_translation(run, lang, phase)
+            if _is_phase_enabled(run.config, PhaseName.QA):
+                _require_qa_output(run, lang, phase)
+        case PhaseName.EXPORT:
+            _require_source_lines(run, phase)
+            if _is_phase_enabled(run.config, PhaseName.CONTEXT):
+                _require_context_output(run, phase)
+            lang = _require_target_language(target_language, phase)
+            _require_translation(run, lang, phase)
+            if _is_phase_enabled(run.config, PhaseName.EDIT):
+                _require_edit_output(run, lang, phase)
 
 
 def _latest_completed_record(
@@ -1839,21 +1889,25 @@ def _has_phase_output(
     phase: PhaseName,
     target_language: LanguageCode | None,
 ) -> bool:
-    if phase == PhaseName.INGEST:
-        return bool(run.source_lines)
-    if phase == PhaseName.CONTEXT:
-        return run.context_output is not None
-    if phase == PhaseName.PRETRANSLATION:
-        return run.pretranslation_output is not None
-    if phase == PhaseName.TRANSLATE:
-        return target_language is not None and target_language in run.translate_outputs
-    if phase == PhaseName.QA:
-        return target_language is not None and target_language in run.qa_outputs
-    if phase == PhaseName.EDIT:
-        return target_language is not None and target_language in run.edit_outputs
-    if phase == PhaseName.EXPORT:
-        return target_language is not None and target_language in run.export_results
-    return False
+    match phase:
+        case PhaseName.INGEST:
+            return bool(run.source_lines)
+        case PhaseName.CONTEXT:
+            return run.context_output is not None
+        case PhaseName.PRETRANSLATION:
+            return run.pretranslation_output is not None
+        case PhaseName.TRANSLATE:
+            return (
+                target_language is not None and target_language in run.translate_outputs
+            )
+        case PhaseName.QA:
+            return target_language is not None and target_language in run.qa_outputs
+        case PhaseName.EDIT:
+            return target_language is not None and target_language in run.edit_outputs
+        case PhaseName.EXPORT:
+            return target_language is not None and target_language in run.export_results
+        case _:
+            return False
 
 
 def _should_skip_phase(
@@ -2003,9 +2057,12 @@ def _group_by_route(source_lines: list[SourceLine]) -> list[list[SourceLine]]:
     return groups
 
 
-@dataclass(slots=True)
-class _WorkChunk:
-    source_lines: list[SourceLine]
+class _WorkChunk(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_lines: list[SourceLine] = Field(
+        description="Source lines in this work chunk"
+    )
 
     @property
     def line_ids(self) -> set[LineId]:

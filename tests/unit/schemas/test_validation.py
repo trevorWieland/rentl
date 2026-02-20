@@ -1,10 +1,10 @@
 """Unit tests for validation entrypoint wrappers."""
 
-from typing import Any
+from typing import cast
 from uuid import UUID
 
 from rentl_schemas.events import ProgressEvent
-from rentl_schemas.primitives import PhaseName, PhaseStatus, RunStatus
+from rentl_schemas.primitives import JsonValue, PhaseName, PhaseStatus, RunStatus
 from rentl_schemas.progress import (
     ProgressPercentMode,
     ProgressTotalStatus,
@@ -33,14 +33,33 @@ from rentl_schemas.validation import (
 
 U7 = UUID("01945b78-c431-7000-8000-000000000001")
 
+# Test fixture values: JSON primitives plus Pydantic-coercible Python types
+type _FixtureValue = (
+    str
+    | int
+    | float
+    | bool
+    | UUID
+    | PhaseName
+    | PhaseStatus
+    | RunStatus
+    | ProgressEvent
+    | ProgressPercentMode
+    | ProgressUnit
+    | ProgressTotalStatus
+    | list[_FixtureValue]
+    | dict[str, _FixtureValue]
+    | None
+)
 
-def _p(d: dict[str, Any]) -> dict[str, Any]:
-    """Identity helper that narrows dict types for the type checker.
+
+def _p(d: dict[str, _FixtureValue]) -> dict[str, JsonValue]:
+    """Coerce test fixture dicts for validator consumption.
 
     Returns:
-        dict[str, Any]: The same dict, passthrough.
+        dict[str, JsonValue]: The payload typed for validator consumption.
     """
-    return d
+    return cast(dict[str, JsonValue], d)
 
 
 def test_validate_project_config() -> None:
@@ -228,11 +247,11 @@ def test_validate_edit_output() -> None:
     assert len(result.edited_lines) == 1
 
 
-def _phase_progress_dict() -> dict[str, Any]:
+def _phase_progress_dict() -> dict[str, _FixtureValue]:
     """Build a minimal phase progress dict with enum instances.
 
     Returns:
-        dict[str, Any]: Minimal PhaseProgress-compatible dict.
+        dict[str, _FixtureValue]: Minimal PhaseProgress-compatible dict.
     """
     return {
         "phase": PhaseName.TRANSLATE,
@@ -241,11 +260,11 @@ def _phase_progress_dict() -> dict[str, Any]:
     }
 
 
-def _run_progress_dict() -> dict[str, Any]:
+def _run_progress_dict() -> dict[str, _FixtureValue]:
     """Build a minimal run progress dict with enum instances.
 
     Returns:
-        dict[str, Any]: Minimal RunProgress-compatible dict.
+        dict[str, _FixtureValue]: Minimal RunProgress-compatible dict.
     """
     return {
         "phases": [_phase_progress_dict()],

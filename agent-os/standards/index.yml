@@ -56,7 +56,7 @@ testing:
   bdd-for-integration-quality:
     description: Integration and quality tests must use BDD-style (Given/When/Then)
   make-all-gate:
-    description: Require make all to pass before finalizing work
+    description: "Gate tiers: make check (task), make ci (CI PR), make all (spec); agents run make all locally, CI runs make ci"
   mandatory-coverage:
     description: Coverage mandatory for all features; tests must exercise actual behavior
   mock-execution-boundary:
@@ -64,7 +64,7 @@ testing:
   no-mocks-for-quality-tests:
     description: Quality tests use real LLMs; integration tests mock LLMs
   no-test-skipping:
-    description: Never skip tests within a tier; tests either run and pass or run and fail
+    description: Never skip tests within a tier; CI skips make quality only (paid API keys); all else runs with zero skips
   test-timing-rules:
     description: "Strict timing limits per tier: unit <250ms, integration <5s, quality <30s"
   three-tier-test-structure:

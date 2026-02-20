@@ -144,14 +144,15 @@ def build_log_sink(
     """
     sinks: list[LogSinkProtocol] = []
     for sink_config in logging_config.sinks:
-        if sink_config.type == LogSinkType.FILE:
-            sinks.append(StorageLogSink(log_store))
-        elif sink_config.type == LogSinkType.CONSOLE:
-            sinks.append(ConsoleLogSink(stream=stream))
-        elif sink_config.type == LogSinkType.NOOP:
-            sinks.append(NoopLogSink())
-        else:
-            raise ValueError(f"Unsupported log sink type: {sink_config.type}")
+        match sink_config.type:
+            case LogSinkType.FILE:
+                sinks.append(StorageLogSink(log_store))
+            case LogSinkType.CONSOLE:
+                sinks.append(ConsoleLogSink(stream=stream))
+            case LogSinkType.NOOP:
+                sinks.append(NoopLogSink())
+            case _:
+                raise ValueError(f"Unsupported log sink type: {sink_config.type}")
 
     # Wrap each sink with redaction if a redactor is provided
     if redactor is not None:

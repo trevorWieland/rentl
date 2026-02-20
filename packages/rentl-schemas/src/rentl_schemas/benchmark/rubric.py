@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from rentl_schemas.primitives import LineId
+
 
 class RubricDimension(StrEnum):
     """Dimensions on which translations are scored."""
@@ -17,7 +19,7 @@ class RubricDimension(StrEnum):
 class HeadToHeadResult(BaseModel):
     """Result of a head-to-head comparison between two translations."""
 
-    line_id: str = Field(description="Unique identifier for the evaluated line")
+    line_id: LineId = Field(description="Unique identifier for the evaluated line")
     source_text: str = Field(description="Original source language text")
     candidate_a_name: str = Field(
         description="Name of the first candidate (before randomization)"

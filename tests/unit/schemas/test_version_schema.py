@@ -99,16 +99,16 @@ def test_version_info_comparison_with_non_version() -> None:
 
     # These should raise TypeError when compared with non-VersionInfo
     with pytest.raises(TypeError):
-        _ = version < "1.2.3"
+        _ = version < "1.2.3"  # ty: ignore[unsupported-operator]
 
     with pytest.raises(TypeError):
-        _ = version <= 123
+        _ = version <= 123  # ty: ignore[unsupported-operator]
 
     with pytest.raises(TypeError):
-        _ = version > (1, 2, 3)
+        _ = version > (1, 2, 3)  # ty: ignore[unsupported-operator]
 
     with pytest.raises(TypeError):
-        _ = version >= [1, 2, 3]
+        _ = version >= [1, 2, 3]  # ty: ignore[unsupported-operator]
 
 
 def test_version_info_equality_with_non_version_notimplemented() -> None:
@@ -117,10 +117,10 @@ def test_version_info_equality_with_non_version_notimplemented() -> None:
 
     # Calling __eq__ directly should return NotImplemented for non-VersionInfo
     # This allows Python to try the reverse comparison
-    result = version.__eq__("1.2.3")  # noqa: PLC2801
+    result = version.__eq__("1.2.3")  # noqa: PLC2801  # ty: ignore[invalid-argument-type]
     assert result == NotImplemented
 
-    result = version.__eq__(123)  # noqa: PLC2801
+    result = version.__eq__(123)  # noqa: PLC2801  # ty: ignore[invalid-argument-type]
     assert result == NotImplemented
 
 

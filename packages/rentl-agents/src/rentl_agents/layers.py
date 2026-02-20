@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import tomllib
-from dataclasses import dataclass, field
 from pathlib import Path
 
 import aiofiles
+from pydantic import BaseModel, ConfigDict, Field
 
 from rentl_agents.templates import (
     TemplateContext,
@@ -55,15 +55,21 @@ class LayerLoadError(Exception):
         self.source_path = source_path
 
 
-@dataclass
-class PromptLayerRegistry:
+class PromptLayerRegistry(BaseModel):
     """Registry for prompt layer configurations.
 
     Stores root and phase layer prompts for composition.
     """
 
-    root: RootPromptConfig | None = None
-    phases: dict[PhaseName, PhasePromptConfig] = field(default_factory=dict)
+    model_config = ConfigDict(extra="forbid")
+
+    root: RootPromptConfig | None = Field(
+        default=None, description="Root layer prompt configuration"
+    )
+    phases: dict[PhaseName, PhasePromptConfig] = Field(
+        default_factory=dict,
+        description="Phase layer prompt configurations keyed by phase name",
+    )
 
     def set_root(self, config: RootPromptConfig) -> None:
         """Set the root layer configuration.
@@ -458,16 +464,21 @@ def load_layer_registry(prompts_dir: Path) -> PromptLayerRegistry:
     return registry
 
 
-@dataclass
-class PromptComposer:
+class PromptComposer(BaseModel):
     """Composes final prompts from three layers.
 
     Combines root, phase, and agent layer prompts into the final
     system prompt used for LLM calls.
     """
 
-    registry: PromptLayerRegistry
-    separator: str = "\n\n---\n\n"
+    model_config = ConfigDict(extra="forbid")
+
+    registry: PromptLayerRegistry = Field(
+        description="Prompt layer registry with root and phase configurations"
+    )
+    separator: str = Field(
+        default="\n\n---\n\n", description="Separator inserted between prompt layers"
+    )
 
     def compose_system_prompt(
         self,

@@ -328,7 +328,7 @@ def build_phase_log(
         run_id=run_id,
         phase=phase,
         message=message,
-        data={**payload.model_dump(exclude_none=True), **extra},
+        data=payload.model_dump(exclude_none=True) | extra,
     )
 
 

@@ -1,9 +1,12 @@
 """API entry point - thin adapter over rentl-core."""
 
+from datetime import UTC, datetime
+
 import uvicorn
 from fastapi import FastAPI
 
 from rentl_core import VERSION
+from rentl_schemas.responses import ApiResponse, MetaInfo
 
 app = FastAPI(
     title="rentl",
@@ -13,13 +16,20 @@ app = FastAPI(
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
+async def health() -> ApiResponse[dict[str, str]]:
     """Health check endpoint.
 
     Returns:
-        Dictionary containing status and version.
+        ApiResponse envelope containing status and version.
     """
-    return {"status": "ok", "version": str(VERSION)}
+    return ApiResponse[dict[str, str]](
+        data={"status": "ok", "version": str(VERSION)},
+        error=None,
+        meta=MetaInfo(
+            timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            request_id=None,
+        ),
+    )
 
 
 def main() -> None:

@@ -87,6 +87,9 @@ async def test_translation_with_context(given_scene, given_context):
 - Fail entire CI run if any test is skipped
 - Use `pytest --no-skips` to ensure no bypass
 
+**CI tier exception:**
+- CI skips `make quality` (requires paid API keys). All other tiers run with zero skips.
+
 **Alert on skips:**
 - CI should fail loudly if tests are skipped
 - Require explicit override to merge with skips (extremely rare)

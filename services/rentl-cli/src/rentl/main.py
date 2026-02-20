@@ -62,6 +62,7 @@ from rentl_core.init import (
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.migrate import (
     ConfigDict,
+    ConfigValue,
     apply_migrations,
     get_registry,
     plan_migrations,
@@ -927,6 +928,7 @@ def run_pipeline(
     log_sink: LogSinkProtocol | None = None
     progress: Progress | None = None
     console: Console | None = None
+    config: RunConfig | None = None
     try:
         config = _load_resolved_config(config_path)
         resolved_run_id = _resolve_run_id(run_id)
@@ -1041,6 +1043,7 @@ def run_phase(
     """  # noqa: D301, D415
     command_run_id = uuid7()
     log_sink: LogSinkProtocol | None = None
+    config: RunConfig | None = None
     try:
         config = _load_resolved_config(config_path)
         resolved_run_id = _resolve_run_id(run_id)
@@ -1175,6 +1178,7 @@ def status(
         if json_output:
             response = _error_response(error)
             print(response.model_dump_json())
+            assert response.error is not None
             raise typer.Exit(code=response.error.exit_code) from None
         rprint(f"[red]Error:[/red] {error.message}")
         exit_code = resolve_exit_code(error.code)
@@ -2765,58 +2769,57 @@ async def _hydrate_run_outputs(
         if not record.artifact_ids:
             continue
         artifact_id = record.artifact_ids[-1]
-        if phase == PhaseName.INGEST:
-            if run.source_lines:
-                continue
-            run.source_lines = await store.load_artifact_jsonl(artifact_id, SourceLine)
-            continue
-        if phase == PhaseName.CONTEXT:
-            if run.context_output is not None:
-                continue
-            payload = await _load_single_artifact(
-                store, artifact_id, ContextPhaseOutput
-            )
-            if payload is not None:
-                run.context_output = payload
-            continue
-        if phase == PhaseName.PRETRANSLATION:
-            if run.pretranslation_output is not None:
-                continue
-            payload = await _load_single_artifact(
-                store, artifact_id, PretranslationPhaseOutput
-            )
-            if payload is not None:
-                run.pretranslation_output = payload
-            continue
-        if phase == PhaseName.TRANSLATE and target_language is not None:
-            if target_language in run.translate_outputs:
-                continue
-            payload = await _load_single_artifact(
-                store, artifact_id, TranslatePhaseOutput
-            )
-            if payload is not None:
-                run.translate_outputs[target_language] = payload
-            continue
-        if phase == PhaseName.QA and target_language is not None:
-            if target_language in run.qa_outputs:
-                continue
-            payload = await _load_single_artifact(store, artifact_id, QaPhaseOutput)
-            if payload is not None:
-                run.qa_outputs[target_language] = payload
-            continue
-        if phase == PhaseName.EDIT and target_language is not None:
-            if target_language in run.edit_outputs:
-                continue
-            payload = await _load_single_artifact(store, artifact_id, EditPhaseOutput)
-            if payload is not None:
-                run.edit_outputs[target_language] = payload
-            continue
-        if phase == PhaseName.EXPORT and target_language is not None:
-            if target_language in run.export_results:
-                continue
-            payload = await _load_single_artifact(store, artifact_id, ExportResult)
-            if payload is not None:
-                run.export_results[target_language] = payload
+        match phase:
+            case PhaseName.INGEST:
+                if run.source_lines:
+                    continue
+                run.source_lines = await store.load_artifact_jsonl(
+                    artifact_id, SourceLine
+                )
+            case PhaseName.CONTEXT:
+                if run.context_output is not None:
+                    continue
+                payload = await _load_single_artifact(
+                    store, artifact_id, ContextPhaseOutput
+                )
+                if payload is not None:
+                    run.context_output = payload
+            case PhaseName.PRETRANSLATION:
+                if run.pretranslation_output is not None:
+                    continue
+                payload = await _load_single_artifact(
+                    store, artifact_id, PretranslationPhaseOutput
+                )
+                if payload is not None:
+                    run.pretranslation_output = payload
+            case PhaseName.TRANSLATE if target_language is not None:
+                if target_language in run.translate_outputs:
+                    continue
+                payload = await _load_single_artifact(
+                    store, artifact_id, TranslatePhaseOutput
+                )
+                if payload is not None:
+                    run.translate_outputs[target_language] = payload
+            case PhaseName.QA if target_language is not None:
+                if target_language in run.qa_outputs:
+                    continue
+                payload = await _load_single_artifact(store, artifact_id, QaPhaseOutput)
+                if payload is not None:
+                    run.qa_outputs[target_language] = payload
+            case PhaseName.EDIT if target_language is not None:
+                if target_language in run.edit_outputs:
+                    continue
+                payload = await _load_single_artifact(
+                    store, artifact_id, EditPhaseOutput
+                )
+                if payload is not None:
+                    run.edit_outputs[target_language] = payload
+            case PhaseName.EXPORT if target_language is not None:
+                if target_language in run.export_results:
+                    continue
+                payload = await _load_single_artifact(store, artifact_id, ExportResult)
+                if payload is not None:
+                    run.export_results[target_language] = payload
 
 
 def _build_ingest_source(
@@ -3562,65 +3565,67 @@ def _summarize_batch_error(
 
 
 def _error_from_exception(exc: Exception) -> ErrorResponse:
-    if isinstance(exc, OrchestrationError):
-        return exc.info.to_error_response()
-    if isinstance(exc, IngestBatchError):
-        error = exc.errors[0].to_error_response()
-        return _summarize_batch_error(error, len(exc.errors), "ingest")
-    if isinstance(exc, IngestError):
-        return exc.info.to_error_response()
-    if isinstance(exc, ExportBatchError):
-        error = exc.errors[0].to_error_response()
-        return _summarize_batch_error(error, len(exc.errors), "export")
-    if isinstance(exc, ExportError):
-        return exc.info.to_error_response()
-    if isinstance(exc, StorageBatchError):
-        error = exc.errors[0].to_error_response()
-        return _summarize_batch_error(error, len(exc.errors), "storage")
-    if isinstance(exc, StorageError):
-        return exc.info.to_error_response()
-    if isinstance(exc, ValidationError):
-        message = "Config validation failed"
-        errors = exc.errors()
-        if errors:
-            first = errors[0]
-            loc = first.get("loc", [])
-            label = ".".join(str(part) for part in loc) if loc else ""
-            detail = first.get("msg", "")
-            if label and detail:
-                message = f"Config validation failed: {label} - {detail}"
-            elif detail:
-                message = f"Config validation failed: {detail}"
-        exit_code = resolve_exit_code("validation_error")
-        return ErrorResponse(
-            code="validation_error",
-            message=message,
-            details=None,
-            exit_code=exit_code.value,
-        )
-    if isinstance(exc, _ConfigError):
-        exit_code = resolve_exit_code("config_error")
-        return ErrorResponse(
-            code="config_error",
-            message=str(exc),
-            details=None,
-            exit_code=exit_code.value,
-        )
-    if isinstance(exc, ValueError):
-        exit_code = resolve_exit_code("validation_error")
-        return ErrorResponse(
-            code="validation_error",
-            message=str(exc),
-            details=None,
-            exit_code=exit_code.value,
-        )
-    exit_code = resolve_exit_code("runtime_error")
-    return ErrorResponse(
-        code="runtime_error",
-        message=str(exc),
-        details=None,
-        exit_code=exit_code.value,
-    )
+    match exc:
+        case OrchestrationError():
+            return exc.info.to_error_response()
+        case IngestBatchError():
+            error = exc.errors[0].to_error_response()
+            return _summarize_batch_error(error, len(exc.errors), "ingest")
+        case IngestError():
+            return exc.info.to_error_response()
+        case ExportBatchError():
+            error = exc.errors[0].to_error_response()
+            return _summarize_batch_error(error, len(exc.errors), "export")
+        case ExportError():
+            return exc.info.to_error_response()
+        case StorageBatchError():
+            error = exc.errors[0].to_error_response()
+            return _summarize_batch_error(error, len(exc.errors), "storage")
+        case StorageError():
+            return exc.info.to_error_response()
+        case ValidationError():
+            message = "Config validation failed"
+            errors = exc.errors()
+            if errors:
+                first = errors[0]
+                loc = first.get("loc", [])
+                label = ".".join(str(part) for part in loc) if loc else ""
+                detail = first.get("msg", "")
+                if label and detail:
+                    message = f"Config validation failed: {label} - {detail}"
+                elif detail:
+                    message = f"Config validation failed: {detail}"
+            exit_code = resolve_exit_code("validation_error")
+            return ErrorResponse(
+                code="validation_error",
+                message=message,
+                details=None,
+                exit_code=exit_code.value,
+            )
+        case _ConfigError():
+            exit_code = resolve_exit_code("config_error")
+            return ErrorResponse(
+                code="config_error",
+                message=str(exc),
+                details=None,
+                exit_code=exit_code.value,
+            )
+        case ValueError():
+            exit_code = resolve_exit_code("validation_error")
+            return ErrorResponse(
+                code="validation_error",
+                message=str(exc),
+                details=None,
+                exit_code=exit_code.value,
+            )
+        case _:
+            exit_code = resolve_exit_code("runtime_error")
+            return ErrorResponse(
+                code="runtime_error",
+                message=str(exc),
+                details=None,
+                exit_code=exit_code.value,
+            )
 
 
 def _batch_error_response(exc: ExportBatchError) -> ApiResponse[ExportResult]:
@@ -4008,7 +4013,7 @@ def _dict_to_toml(data: dict) -> str:
     """
     lines: list[str] = []
 
-    def _write_value(value: object) -> str:
+    def _write_value(value: ConfigValue) -> str:
         """Serialize a single value to TOML format.
 
         Args:
@@ -4017,23 +4022,22 @@ def _dict_to_toml(data: dict) -> str:
         Returns:
             TOML-formatted string representation of the value
         """
-        if isinstance(value, bool):
-            return "true" if value else "false"
-        elif isinstance(value, int | float):
-            return str(value)
-        elif isinstance(value, str):
-            # Escape quotes and backslashes
-            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-            return f'"{escaped}"'
-        elif isinstance(value, list):
-            items = [_write_value(item) for item in value]
-            return f"[{', '.join(items)}]"
-        elif isinstance(value, dict):
-            # Inline table
-            items = [f"{k} = {_write_value(v)}" for k, v in value.items()]
-            return f"{{ {', '.join(items)} }}"
-        else:
-            return str(value)
+        match value:
+            case bool():
+                return "true" if value else "false"
+            case int() | float():
+                return str(value)
+            case str():
+                escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+                return f'"{escaped}"'
+            case list():
+                items = [_write_value(item) for item in value]
+                return f"[{', '.join(items)}]"
+            case dict():
+                items = [f"{k} = {_write_value(v)}" for k, v in value.items()]
+                return f"{{ {', '.join(items)} }}"
+            case _:
+                return str(value)
 
     def _write_table(table_data: dict, prefix: str = "") -> None:
         """Recursively write tables and their contents."""

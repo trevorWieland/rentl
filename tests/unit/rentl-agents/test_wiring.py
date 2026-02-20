@@ -374,7 +374,7 @@ def test_build_agent_pools_uses_package_defaults_when_agents_is_none(
 def test_profile_agent_config_requires_model_id() -> None:
     """Omitting model_id raises ValidationError."""
     with pytest.raises(ValidationError, match="model_id"):
-        ProfileAgentConfig(api_key="test-key")  # type: ignore[call-arg]
+        ProfileAgentConfig(api_key="test-key")
 
 
 @pytest.mark.unit

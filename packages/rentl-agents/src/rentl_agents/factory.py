@@ -5,10 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import TypeGuard
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 from pydantic_ai import Tool
 
 from rentl_agents.harness import AgentHarness
@@ -98,15 +97,20 @@ class AgentConfig(BaseSchema):
         return self
 
 
-@dataclass
-class _AgentCacheEntry[OutputT: BaseSchema]:
+class _AgentCacheEntry[OutputT: BaseSchema](BaseSchema):
     """Type-erased cache entry for agent instances.
 
     Stores the agent harness with runtime type information for safe retrieval.
     """
 
-    agent: AgentHarness[BaseSchema, OutputT]
-    output_type: type[OutputT]
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    agent: AgentHarness[BaseSchema, OutputT] = Field(
+        description="Cached agent harness instance"
+    )
+    output_type: type[OutputT] = Field(
+        description="Runtime output type for safe retrieval"
+    )
 
 
 def _entry_matches_output_type[OutputT: BaseSchema](

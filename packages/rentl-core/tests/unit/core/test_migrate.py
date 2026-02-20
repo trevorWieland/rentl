@@ -52,7 +52,7 @@ class TestMigrationRegistry:
         v010 = VersionInfo(major=0, minor=1, patch=0)
 
         def test_transform(config: dict) -> dict:
-            return {**config, "migrated": True}
+            return config | {"migrated": True}
 
         registry.register(v001, v010, "Test migration", test_transform)
 
@@ -197,7 +197,7 @@ class TestApplyMigrations:
         v010 = VersionInfo(major=0, minor=1, patch=0)
 
         def add_field_transform(config: dict) -> dict:
-            return {**config, "new_field": "added"}
+            return config | {"new_field": "added"}
 
         registry.register(v001, v010, "Add field", add_field_transform)
 
@@ -219,10 +219,10 @@ class TestApplyMigrations:
         v020 = VersionInfo(major=0, minor=2, patch=0)
 
         def step1_transform(config: dict) -> dict:
-            return {**config, "step1": "done"}
+            return config | {"step1": "done"}
 
         def step2_transform(config: dict) -> dict:
-            return {**config, "step2": "done"}
+            return config | {"step2": "done"}
 
         registry.register(v001, v010, "Step 1", step1_transform)
         registry.register(v010, v020, "Step 2", step2_transform)
@@ -242,7 +242,7 @@ class TestApplyMigrations:
         v010 = VersionInfo(major=0, minor=1, patch=0)
 
         def update_version_transform(config: dict) -> dict:
-            return {**config, "schema_version": "0.1.0"}
+            return config | {"schema_version": "0.1.0"}
 
         registry.register(v001, v010, "Update version", update_version_transform)
 
@@ -276,21 +276,21 @@ class TestApplyMigrations:
 
         # Create two distinct transform functions that have the same __name__
         # by using exec to define them in separate namespaces
-        namespace1: dict[str, object] = {}
+        namespace1: dict[str, MigrationTransform] = {}
         exec(
             """
 def transform(config: dict) -> dict:
-    return {**config, "first": True}
+    return config | {"first": True}
 """,
             namespace1,
         )
         transform1 = cast(MigrationTransform, namespace1["transform"])
 
-        namespace2: dict[str, object] = {}
+        namespace2: dict[str, MigrationTransform] = {}
         exec(
             """
 def transform(config: dict) -> dict:
-    return {**config, "second": True}
+    return config | {"second": True}
 """,
             namespace2,
         )
@@ -411,7 +411,7 @@ class TestGlobalRegistry:
         if "schema_version" in result and not isinstance(
             result["schema_version"], dict
         ):
-            pytest.fail(
+            assert False, (  # noqa: B011
                 f"Top-level schema_version should not exist as string. "
                 f"Found: {result.get('schema_version')}"
             )

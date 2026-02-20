@@ -39,7 +39,7 @@ class BenchmarkCLIContext:
         self.output_file_b: Path | None = None
         self.report_path: Path | None = None
         self.report: BenchmarkReport | None = None
-        self.judge_constructor_args: dict[str, object] | None = None
+        self.judge_constructor_args: dict[str, str | int | float | bool] | None = None
 
 
 @given("a valid rentl configuration exists", target_fixture="ctx")
@@ -277,7 +277,7 @@ def when_run_benchmark_compare_staggered(
     """
 
     # Track progress updates
-    def track_progress_update(task: object, **kwargs: int | str) -> None:
+    def track_progress_update(task: int, **kwargs: int | str) -> None:
         """Track progress update calls."""
         if "completed" in kwargs:
             ctx.progress_updates.append(int(kwargs["completed"]))
@@ -335,7 +335,10 @@ def when_run_benchmark_compare_staggered(
                 "--candidate-names",
                 "candidate-a,candidate-b",
             ],
-            env={"OPENAI_API_KEY": "test-key"},
+            env={
+                "OPENAI_API_KEY": "test-key",
+                "RENTL_OPENROUTER_API_KEY": "test-key",
+            },
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
 
@@ -436,7 +439,10 @@ def when_run_benchmark_compare_full_flow(
                 "--output",
                 str(ctx.report_path),
             ],
-            env={"OPENAI_API_KEY": "test-key"},
+            env={
+                "OPENAI_API_KEY": "test-key",
+                "RENTL_OPENROUTER_API_KEY": "test-key",
+            },
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
 
@@ -644,6 +650,7 @@ def then_judge_configured_from_overrides(ctx: BenchmarkCLIContext) -> None:
         ctx: Benchmark CLI context.
     """
     # The command should succeed without needing a config file
+    assert ctx.result is not None
     assert ctx.result.exit_code == 0
 
 
@@ -686,7 +693,7 @@ def when_run_benchmark_compare_openrouter_overrides(
     # Capture the judge constructor arguments
     ctx.judge_constructor_args = None
 
-    def capture_judge_init(*args: object, **kwargs: object) -> MagicMock:
+    def capture_judge_init(*args: str, **kwargs: str | int | float | bool) -> MagicMock:
         """Capture judge constructor arguments.
 
         Returns:
@@ -725,6 +732,7 @@ def then_judge_configured_with_openrouter(ctx: BenchmarkCLIContext) -> None:
         ctx: Benchmark CLI context.
     """
     # The command should succeed
+    assert ctx.result is not None
     assert ctx.result.exit_code == 0
 
     # Verify the judge was constructed with openrouter_require_parameters=True
@@ -815,7 +823,10 @@ def when_run_benchmark_compare_no_names(
             str(ctx.output_file_a),
             str(ctx.output_file_b),
         ],
-        env={"OPENAI_API_KEY": "test-key"},
+        env={
+            "OPENAI_API_KEY": "test-key",
+            "RENTL_OPENROUTER_API_KEY": "test-key",
+        },
     )
     ctx.stdout = ctx.result.stdout + ctx.result.stderr
 

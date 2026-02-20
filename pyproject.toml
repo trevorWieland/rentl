@@ -6,8 +6,8 @@ license = "MIT"
 requires-python = ">=3.14"
 readme = "README.md"
 dependencies = [
-    "openpyxl>=3.1.5",
-    "pandas>=3.0.0",
+    "openpyxl>=3.1.5, <4",
+    "pandas>=3.0.0, <4",
 ]
 
 [tool.uv]
@@ -59,16 +59,18 @@ known-first-party = ["rentl_schemas", "rentl_io", "rentl_core", "rentl_llm", "re
 convention = "google"
 
 [tool.ty.rules]
-# Strict typing enforcement - escalate warnings to errors
-invalid-argument-type = "error"
-call-non-callable = "error"
+# Strict typing enforcement - all rules escalated to errors
+all = "error"
+
+[tool.ty.terminal]
+error-on-warning = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 timeout = 30
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -W error::DeprecationWarning"
 markers = [
     "unit: Unit tests (<250ms, mocks allowed)",
     "integration: Integration tests (<5s, real services, no LLMs)",
@@ -102,15 +104,15 @@ dev = [
     "rentl",
     "rentl-tui",
     "rentl-api",
-    "ruff>=0.14.14",
-    "ty>=0.0.1a13",
-    "pytest>=8",
-    "pytest-asyncio>=1.0",
-    "pytest-cov>=6",
-    "pytest-xdist>=3",
-    "pytest-timeout>=2",
-    "pytest-bdd>=8",
-    "python-dotenv>=1.0.1",
-    "pydantic-evals>=0.1.0",
-    "respx>=0.22.0",
+    "ruff>=0.14.14, <1",
+    "ty>=0.0.1a13, <1",
+    "pytest>=8, <9",
+    "pytest-asyncio>=1.0, <2",
+    "pytest-cov>=6, <7",
+    "pytest-xdist>=3, <4",
+    "pytest-timeout>=2, <3",
+    "pytest-bdd>=8, <9",
+    "python-dotenv>=1.0.1, <2",
+    "pydantic-evals>=0.1.0, <2",
+    "respx>=0.22.0, <1",
 ]

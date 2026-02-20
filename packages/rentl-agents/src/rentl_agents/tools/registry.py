@@ -8,9 +8,9 @@ This module provides:
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
+from pydantic import BaseModel, ConfigDict, PrivateAttr
 from pydantic_ai import Tool
 
 from rentl_agents.tools.game_info import GameInfoTool
@@ -64,14 +64,15 @@ class ToolNotFoundError(Exception):
         self.tool_name = tool_name
 
 
-@dataclass
-class ToolRegistry:
+class ToolRegistry(BaseModel):
     """Registry for agent tools.
 
     Stores tool implementations and provides lookup by name.
     """
 
-    _tools: dict[str, AgentToolProtocol] = field(default_factory=dict)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    _tools: dict[str, AgentToolProtocol] = PrivateAttr(default_factory=dict)
 
     def register(self, tool: AgentToolProtocol) -> None:
         """Register a tool.

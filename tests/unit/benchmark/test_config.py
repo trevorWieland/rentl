@@ -1,5 +1,8 @@
 """Unit tests for benchmark configuration schemas."""
 
+import pytest
+from pydantic import ValidationError
+
 from rentl_schemas.benchmark.config import (
     BenchmarkConfig,
     EvalSetConfig,
@@ -124,11 +127,10 @@ def test_benchmark_config_minimal() -> None:
     assert config.output_path is None
 
 
-def test_benchmark_config_scoring_mode_validation() -> None:
-    """Test BenchmarkConfig scoring_mode validates against literal values."""
-    # TODO: Removed in Task 2 - benchmark is head-to-head only now
-    # This test is no longer relevant since scoring_mode was removed
-    pass
+def test_benchmark_config_requires_eval_set() -> None:
+    """Test BenchmarkConfig requires eval_set field."""
+    with pytest.raises(ValidationError):
+        BenchmarkConfig(judge_model="gpt-5-nano")  # type: ignore[call-arg]
 
 
 def test_benchmark_config_roundtrip() -> None:

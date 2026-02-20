@@ -1,4 +1,4 @@
-.PHONY: install format lint lint-check lint-fix type unit integration quality test check all clean
+.PHONY: install format lint lint-check lint-fix type unit integration quality test check ci all clean
 
 # output styling
 ECHO_CHECK = @echo "  Checking... "
@@ -40,7 +40,7 @@ endef
 # Install dependencies
 install:
 	@echo "📦 Installing dependencies..."
-	@uv sync > /dev/null
+	@uv sync --upgrade > /dev/null
 	@echo "✅ Install Complete"
 
 # Format code with ruff
@@ -66,17 +66,17 @@ type:
 # Run unit tests with coverage enforcement
 unit:
 	@echo "🧪 Running unit tests with coverage..."
-	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1 --cov=packages --cov=services --cov-fail-under=80 --cov-precision=2, .unit.log, Unit Tests)
+	$(call run_test, uv run pytest tests/unit -q --tb=short --timeout=1 -W error::DeprecationWarning --cov=packages --cov=services --cov-fail-under=80 --cov-precision=2, .unit.log, Unit Tests)
 
 # Run integration tests
 integration:
 	@echo "🔌 Running integration tests..."
-	$(call run_test, uv run pytest tests/integration -q --tb=short --timeout=5, .integration.log, Integration Tests)
+	$(call run_test, uv run pytest tests/integration -q --tb=short --timeout=5 -W error::DeprecationWarning, .integration.log, Integration Tests)
 
-# Run quality tests
+# Run quality tests (requires RENTL_OPENROUTER_API_KEY in .env or environment)
 quality:
 	@echo "💎 Running quality tests..."
-	$(call run_test, bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=90', .quality.log, Quality Tests)
+	$(call run_test, bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=90 -W error::DeprecationWarning', .quality.log, Quality Tests)
 
 # Run all tests with coverage
 test:
@@ -90,6 +90,16 @@ check:
 	@$(MAKE) type --no-print-directory
 	@$(MAKE) unit --no-print-directory
 	@echo "⚡ Quick Verification Passed!"
+
+# CI verification gate (format, lint, type, unit, integration) — no quality (requires API keys)
+ci:
+	@echo "🤖 Starting CI Verification..."
+	@$(MAKE) format --no-print-directory
+	@$(MAKE) lint --no-print-directory
+	@$(MAKE) type --no-print-directory
+	@$(MAKE) unit --no-print-directory
+	@$(MAKE) integration --no-print-directory
+	@echo "🤖 CI Verification Passed!"
 
 # Full verification gate (format, lint, type, unit, integration, quality)
 all:

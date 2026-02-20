@@ -85,7 +85,7 @@ def test_benchmark_report_valid() -> None:
     """Test BenchmarkReport with valid N-way comparison data."""
     head_to_head = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="rentl",
             candidate_b_name="mtl",
@@ -134,7 +134,7 @@ def test_benchmark_report_multiple_candidates() -> None:
     """Test BenchmarkReport with more than 2 candidates (N-way)."""
     head_to_head = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="rentl",
             candidate_b_name="mtl",
@@ -145,7 +145,7 @@ def test_benchmark_report_multiple_candidates() -> None:
             presented_as_a="rentl",
         ),
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="rentl",
             candidate_b_name="gpt4",
@@ -156,7 +156,7 @@ def test_benchmark_report_multiple_candidates() -> None:
             presented_as_a="rentl",
         ),
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="mtl",
             candidate_b_name="gpt4",
@@ -219,7 +219,7 @@ def test_benchmark_report_roundtrip() -> None:
     """Test BenchmarkReport serialization roundtrip."""
     head_to_head = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="a",
             candidate_b_name="b",
@@ -263,7 +263,7 @@ def test_benchmark_report_no_slice() -> None:
     """Test BenchmarkReport with no slice specified."""
     head_to_head = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="sys1",
             candidate_b_name="sys2",
@@ -308,7 +308,7 @@ def test_build_pairwise_summary_basic() -> None:
     """Test building pairwise summary from head-to-head results."""
     results = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源1",
             candidate_a_name="rentl",
             candidate_b_name="mtl",
@@ -324,7 +324,7 @@ def test_build_pairwise_summary_basic() -> None:
             presented_as_a="rentl",
         ),
         HeadToHeadResult(
-            line_id="line2",
+            line_id="line_2",
             source_text="源2",
             candidate_a_name="rentl",
             candidate_b_name="mtl",
@@ -366,7 +366,7 @@ def test_build_pairwise_summary_with_ties() -> None:
     """Test pairwise summary calculation with ties."""
     results = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源1",
             candidate_a_name="a",
             candidate_b_name="b",
@@ -377,7 +377,7 @@ def test_build_pairwise_summary_with_ties() -> None:
             presented_as_a="a",
         ),
         HeadToHeadResult(
-            line_id="line2",
+            line_id="line_2",
             source_text="源2",
             candidate_a_name="a",
             candidate_b_name="b",
@@ -529,7 +529,7 @@ def test_build_report() -> None:
     """Test building complete benchmark report."""
     head_to_head = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="a",
             candidate_b_name="b",
@@ -580,7 +580,7 @@ def test_build_report_derives_ranking_from_elo() -> None:
     """Test that build_report derives overall_ranking from Elo ratings."""
     head_to_head = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="worst",
             candidate_b_name="best",
@@ -626,7 +626,7 @@ def test_format_report_summary_basic() -> None:
     """Test formatting report as human-readable summary."""
     head_to_head = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="rentl",
             candidate_b_name="mtl",
@@ -687,7 +687,7 @@ def test_format_report_summary_no_slice() -> None:
     """Test formatting report with no slice."""
     head_to_head = [
         HeadToHeadResult(
-            line_id="line1",
+            line_id="line_1",
             source_text="源",
             candidate_a_name="a",
             candidate_b_name="b",

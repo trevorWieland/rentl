@@ -6,7 +6,7 @@ license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
     "rentl-core",
-    "textual>=7.3.0",
+    "textual>=7.3.0, <8",
 ]
 
 [project.scripts]

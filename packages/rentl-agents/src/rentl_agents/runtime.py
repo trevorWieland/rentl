@@ -556,6 +556,8 @@ def _extract_run_id(payload: BaseSchema) -> RunId:
         raise ValueError("payload is missing run_id")
     if not isinstance(value, UUID):
         raise ValueError("run_id must be a UUID")
+    if value.version != 7:
+        raise ValueError("run_id must be a UUIDv7")
     return value
 
 
