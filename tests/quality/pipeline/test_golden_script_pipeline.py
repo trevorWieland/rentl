@@ -34,8 +34,8 @@ if TYPE_CHECKING:
 # Link feature file
 scenarios("../features/pipeline/golden_script_pipeline.feature")
 
-# 30s timeout per scenario — standard enforces quality tests < 30s
-pytestmark = pytest.mark.timeout(30)
+# 29s timeout per scenario — standard enforces quality tests < 30s
+pytestmark = pytest.mark.timeout(29)
 
 # Single line from golden script — minimal input to validate pipeline
 # integration path. Translation quality is covered by agent quality tests.

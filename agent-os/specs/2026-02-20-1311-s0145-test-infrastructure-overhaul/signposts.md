@@ -46,7 +46,7 @@ that demonstrates the problem.
 ## Signpost 3: Task 5 timeout markers remain at 30s
 
 - **Task:** 5
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Task 5 changed quality-test timeout markers from `90` to `30`, but the standard text requires quality timing `<30s`, and the Task 5 pretranslation sub-item explicitly targets values `>=30s`.
 - **Evidence:**
   ```
@@ -57,5 +57,6 @@ that demonstrates the problem.
   standards.md:7 -> quality <30s
   plan.md:43 -> Fix tests/quality/agents/test_pretranslation_agent.py if timeout ≥ 30s
   ```
-- **Impact:** Task 5 can be marked complete while still carrying a timing-rule violation; future rounds should use a sub-30 marker in quality test files.
+- **Solution:** Reduced both markers from `timeout(30)` to `timeout(29)`, satisfying the `<30s` requirement.
+- **Resolution:** do-task round 2, Task 5 fix items
 - **Files affected:** `tests/quality/pipeline/test_golden_script_pipeline.py`, `tests/quality/agents/test_pretranslation_agent.py`

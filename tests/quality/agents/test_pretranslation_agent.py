@@ -39,7 +39,7 @@ from tests.quality.agents.tool_spy import ToolCallRecorder, build_tool_registry
 
 pytestmark = [
     pytest.mark.quality,
-    pytest.mark.timeout(30),
+    pytest.mark.timeout(29),
 ]
 
 scenarios("../features/agents/pretranslation_agent.feature")
