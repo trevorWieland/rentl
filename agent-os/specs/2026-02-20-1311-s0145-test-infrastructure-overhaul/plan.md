@@ -19,7 +19,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Remove empty `packages/rentl-core/tests/` and `tests/features/` directories
   - Update `pyproject.toml` test discovery config if paths are referenced
   - Acceptance: `find packages -name 'test_*' -type f` returns nothing; `tests/features/` doesn't exist
-- [x] Task 3: Fix mock boundaries in integration tests
+- [ ] Task 3: Fix mock boundaries in integration tests
   - Refactor `tests/integration/cli/test_run_pipeline.py` — mock `ProfileAgent.run` instead of `_build_llm_runtime`
   - Refactor `tests/integration/cli/test_run_phase.py` — same fix
   - Refactor `tests/integration/benchmark/test_judge_flow.py` — mock at agent boundary instead of `pydantic_ai.Agent.run`
@@ -40,6 +40,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - [x] Fix: Add explicit invocation assertion for the mocked 404 download route (or remove the unnecessary mock) in the HTTP-error scenario (`tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:280`) (audit round 2).
   - [x] Fix: Add explicit invocation verification for the patched `EvalSetLoader.get_slice_scripts` mock (or remove the unnecessary patch) in benchmark download BDD flow; it is mocked but never asserted (`tests/integration/benchmark/test_cli_command.py:143`, no corresponding assertion in `tests/integration/benchmark/test_cli_command.py:185-207`) (audit round 3).
   - [x] Fix: Ensure every `mock_llm_runtime` integration fixture usage is explicitly verified (or removed if unnecessary): onboarding doctor flow currently injects the fixture without any `call_count` assertion (`tests/integration/cli/test_onboarding_e2e.py:122`), and init pipeline flow includes the fixture without asserting or using it (`tests/integration/cli/test_init.py:229`) (audit round 3).
+  - [ ] Fix: Remove or explicitly verify the unused `respx` mock created in the 404 Given-step (`tests/integration/benchmark/eval_sets/test_download_flow_bdd.py:94`), which currently has no invocation assertion and violates the “all mocks verified” requirement (audit round 4).
 - [x] Task 4: Enforce coverage on integration tier
   - Add `--cov=packages --cov=services --cov-fail-under=80` to integration Makefile target
   - Scope coverage modules correctly for integration tier
