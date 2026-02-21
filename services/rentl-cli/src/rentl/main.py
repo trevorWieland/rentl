@@ -54,9 +54,13 @@ from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
 from rentl_core.init import (
     ENDPOINT_PRESETS,
+    ConfigValidationError,
     InitAnswers,
     InitResult,
+    detect_game_engine,
+    detect_source_language,
     generate_project,
+    validate_generated_config,
 )
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.migrate import (
@@ -568,17 +572,27 @@ def init() -> None:
                 rprint("[yellow]Cancelled.[/yellow]")
                 raise typer.Exit(code=ExitCode.SUCCESS.value)
 
-        # Derive defaults
+        # Derive defaults via auto-detection
         project_name_default = Path.cwd().name
         game_name_default = project_name_default
+        detected_engine = detect_game_engine(Path.cwd())
+        detected_language = detect_source_language(Path.cwd())
+        source_language_default = detected_language or "ja"
 
         # Run interview
         rprint("[bold cyan]rentl init[/bold cyan] - Project Bootstrap")
         rprint()
 
+        if detected_engine:
+            rprint(f"[green]Detected game engine:[/green] {detected_engine}")
+        if detected_language:
+            rprint(f"[green]Detected source language:[/green] {detected_language}")
+
         project_name = typer.prompt("Project name", default=project_name_default)
         game_name = typer.prompt("Game name", default=game_name_default)
-        source_language = typer.prompt("Source language code", default="ja")
+        source_language = typer.prompt(
+            "Source language code", default=source_language_default
+        )
         target_languages_input = typer.prompt(
             "Target language codes (comma-separated)", default="en"
         )
@@ -678,8 +692,44 @@ def init() -> None:
             provider_name=provider_caps.name,
         )
 
+        # Show config preview before writing
+        preview_table = Table.grid(padding=(0, 2))
+        preview_table.add_column(style="dim")
+        preview_table.add_column()
+        preview_table.add_row("Project name", project_name)
+        preview_table.add_row("Game name", game_name)
+        preview_table.add_row("Source language", source_language)
+        preview_table.add_row("Target languages", ", ".join(target_languages))
+        preview_table.add_row("Endpoint", base_url)
+        preview_table.add_row("Model", model_id)
+        preview_table.add_row("Input format", input_format_str)
+        preview_table.add_row("Include seed data", "yes" if include_seed_data else "no")
+        preview_table.add_row("Concurrency", "4 requests / 2 scenes")
+
+        preview_panel = Panel(
+            preview_table,
+            title="Config Preview",
+            border_style="cyan",
+        )
+        rprint(preview_panel)
+
+        confirmed = typer.confirm("Write this config?", default=True)
+        if not confirmed:
+            rprint("[yellow]Cancelled.[/yellow]")
+            raise typer.Exit(code=ExitCode.SUCCESS.value)
+
         # Generate project
         result = generate_project(answers, Path.cwd())
+
+        # Validate generated config before reporting success
+        config_path = Path.cwd() / "rentl.toml"
+        try:
+            validate_generated_config(config_path)
+        except ConfigValidationError as exc:
+            rprint(f"[red]Generated config failed validation: {exc}[/red]")
+            for err in exc.errors:
+                rprint(f"  [red]- {err['loc']}: {err['msg']}[/red]")
+            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from exc
 
         # Build summary panel
         files_table = Table.grid(padding=(0, 1))

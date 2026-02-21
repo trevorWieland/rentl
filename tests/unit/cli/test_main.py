@@ -1986,6 +1986,7 @@ def test_init_command_provider_preset_selection(
         "1",  # endpoint choice: OpenRouter
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
     ]
     input_str = "\n".join(inputs) + "\n"
 
@@ -2023,6 +2024,7 @@ def test_init_command_local_preset_prompts_for_model(
         "my-local-model",  # model_id (prompted because Local has no default)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
     ]
     input_str = "\n".join(inputs) + "\n"
 
@@ -2061,6 +2063,7 @@ def test_init_command_provider_custom_option(
         "my-model-v1",  # custom model ID
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
     ]
     input_str = "\n".join(inputs) + "\n"
 
@@ -2132,6 +2135,7 @@ def test_init_command_custom_url_validation_loop(
         "my-model-v1",  # custom model ID
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
     ]
     input_str = "\n".join(inputs) + "\n"
 

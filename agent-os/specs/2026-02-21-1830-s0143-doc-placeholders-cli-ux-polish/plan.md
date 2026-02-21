@@ -43,7 +43,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Guard `migrate_config` against non-table `project` values and raise `MigrateError` instead of uncaught `AttributeError` (`packages/rentl-core/src/rentl_core/migrate.py:344`; repro: `project = "oops"` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
   - [x] Fix: Guard `check_config_secrets` against non-table `endpoint`/`endpoints` values before calling `.get`, and add regression tests (`packages/rentl-core/src/rentl_core/secrets.py:53`, `packages/rentl-core/src/rentl_core/secrets.py:63`; repro: `{'endpoint': 'oops'}` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
 
-- [ ] Task 5: Improve Init UX (frictionless-by-default)
+- [x] Task 5: Improve Init UX (frictionless-by-default)
   - Add auto-detection in `init.py` and `main.py:569`: detect game engine from file patterns, source language from existing files
   - Add config preview display before write at `main.py:666`
   - Add config validation at `init.py:124` before writing generated config

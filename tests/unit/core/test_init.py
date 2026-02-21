@@ -12,10 +12,14 @@ from pydantic import ValidationError
 from rentl_agents.providers import detect_provider
 from rentl_core.init import (
     ENDPOINT_PRESETS,
+    ConfigValidationError,
     InitAnswers,
     InitResult,
     StandardEnvVar,
+    detect_game_engine,
+    detect_source_language,
     generate_project,
+    validate_generated_config,
 )
 from rentl_schemas.config import RunConfig
 from rentl_schemas.io import SourceLine
@@ -700,3 +704,77 @@ def test_seed_data_unsupported_language_falls_back_to_english(
     assert warning_found, (
         f"Expected fallback warning in next_steps, got: {result.next_steps}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Auto-detection tests
+# ---------------------------------------------------------------------------
+
+
+def test_detect_game_engine_renpy(tmp_path: Path) -> None:
+    """Test that Ren'Py engine is detected from .rpy files."""
+    (tmp_path / "script.rpy").write_text("label start:", encoding="utf-8")
+    assert detect_game_engine(tmp_path) == "Ren'Py"
+
+
+def test_detect_game_engine_rpgmaker(tmp_path: Path) -> None:
+    """Test that RPG Maker is detected from .rpgproject files."""
+    (tmp_path / "game.rpgproject").write_text("{}", encoding="utf-8")
+    assert detect_game_engine(tmp_path) == "RPG Maker"
+
+
+def test_detect_game_engine_kirikiri(tmp_path: Path) -> None:
+    """Test that Kirikiri is detected from .ks files."""
+    (tmp_path / "scene.ks").write_text("*start", encoding="utf-8")
+    assert detect_game_engine(tmp_path) == "Kirikiri"
+
+
+def test_detect_game_engine_none(tmp_path: Path) -> None:
+    """Test that None is returned when no engine is detected."""
+    (tmp_path / "readme.txt").write_text("hello", encoding="utf-8")
+    assert detect_game_engine(tmp_path) is None
+
+
+def test_detect_source_language_japanese(tmp_path: Path) -> None:
+    """Test that Japanese is detected from .rpy files."""
+    (tmp_path / "script.rpy").write_text("label start:", encoding="utf-8")
+    assert detect_source_language(tmp_path) == "ja"
+
+
+def test_detect_source_language_none(tmp_path: Path) -> None:
+    """Test that None is returned when language cannot be inferred."""
+    (tmp_path / "readme.md").write_text("hello", encoding="utf-8")
+    assert detect_source_language(tmp_path) is None
+
+
+# ---------------------------------------------------------------------------
+# Config validation tests
+# ---------------------------------------------------------------------------
+
+
+def test_validate_generated_config_passes(
+    tmp_path: Path, default_answers: InitAnswers
+) -> None:
+    """Test that validate_generated_config succeeds for a valid config."""
+    generate_project(default_answers, tmp_path)
+    config = validate_generated_config(tmp_path / "rentl.toml")
+    assert config.project.project_name == default_answers.project_name
+
+
+def test_validate_generated_config_rejects_invalid(tmp_path: Path) -> None:
+    """Test that validate_generated_config raises ConfigValidationError for bad TOML."""
+    bad_toml = tmp_path / "rentl.toml"
+    bad_toml.write_text("[project]\nproject_name = 123\n", encoding="utf-8")
+    with pytest.raises(ConfigValidationError):
+        validate_generated_config(bad_toml)
+
+
+def test_generated_config_safe_concurrency(
+    tmp_path: Path, default_answers: InitAnswers
+) -> None:
+    """Test that generated config uses safe-band concurrency defaults."""
+    generate_project(default_answers, tmp_path)
+    config = validate_generated_config(tmp_path / "rentl.toml")
+    assert config.concurrency is not None
+    assert config.concurrency.max_parallel_requests == 4
+    assert config.concurrency.max_parallel_scenes == 2
