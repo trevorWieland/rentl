@@ -88,7 +88,7 @@ Read this before starting any task to avoid repeating known issues.
 ## Signpost 5: Pre-write ConfigValidationError is still mapped to runtime_error in CLI init
 
 - **Task:** Task 5 (audit round 2)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** `generate_project` now validates TOML before write and raises `ConfigValidationError`, but `rentl init` still routes that exception to the generic runtime error path instead of the validation error path.
 - **Evidence:** `services/rentl-cli/src/rentl/main.py:722` calls `generate_project(...)`; failures from that call are handled by the broad `except Exception` block at `services/rentl-cli/src/rentl/main.py:772-774`.
 - **Evidence:** `_error_from_exception` has no `ConfigValidationError` match and falls back to `runtime_error` in the default case (`services/rentl-cli/src/rentl/main.py:3676-3683`).
@@ -107,4 +107,6 @@ Read this before starting any task to avoid repeating known issues.
   {"data":null,"error":{"code":"runtime_error","message":"Generated TOML is unparseable: Expected newline or end of document after a statement (at line 3, column 21)","details":null,"exit_code":99},...}
   ```
 - **Impact:** User input validation failures are mislabeled as runtime failures, which breaks expected CLI semantics and weakens `ux/frictionless-by-default` by returning the wrong exit code for recoverable validation errors.
-- **Solution:** Add explicit handling for `ConfigValidationError` in the `init` command exception flow (or in `_error_from_exception`) to map it to `validation_error`/exit code 11, and add a CLI regression test for this path.
+- **Solution:** Added `except ConfigValidationError` clause in the `init` command exception handling (before `except Exception`) that prints the validation error details and exits with `ExitCode.VALIDATION_ERROR` (11). Added CLI regression test `test_init_command_invalid_project_name_exits_validation_error` asserting exit code 11 and no `rentl.toml` written.
+- **Resolution:** do-task round 4, 2026-02-21
+- **Files affected:** services/rentl-cli/src/rentl/main.py, tests/unit/cli/test_main.py

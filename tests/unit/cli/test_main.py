@@ -2157,6 +2157,34 @@ def test_init_command_custom_url_validation_loop(
     assert config.endpoint.base_url == "https://api.example.com/v1"
 
 
+def test_init_command_invalid_project_name_exits_validation_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init exits with validation_error for invalid project names."""
+    monkeypatch.chdir(tmp_path)
+
+    # A project name containing a double-quote produces unparseable TOML
+    inputs = [
+        'bad"name',  # project_name (contains quote → invalid TOML)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "",  # endpoint choice (default: 1 / OpenRouter)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Must exit with VALIDATION_ERROR (11), not runtime_error (99)
+    assert result.exit_code == ExitCode.VALIDATION_ERROR.value
+
+    # Must not persist a broken rentl.toml
+    assert not (tmp_path / "rentl.toml").exists()
+
+
 def test_help_command_no_args() -> None:
     """Test help command without arguments lists all commands."""
     result = runner.invoke(app, ["help"])

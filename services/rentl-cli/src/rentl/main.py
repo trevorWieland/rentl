@@ -769,6 +769,11 @@ def init() -> None:
     except ValueError as exc:
         error = _error_from_exception(exc)
         response = _error_response(error)
+    except ConfigValidationError as exc:
+        rprint(f"[red]Generated config failed validation: {exc}[/red]")
+        for err in exc.errors:
+            rprint(f"  [red]- {err['loc']}: {err['msg']}[/red]")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from exc
     except Exception as exc:
         error = _error_from_exception(exc)
         response = _error_response(error)
