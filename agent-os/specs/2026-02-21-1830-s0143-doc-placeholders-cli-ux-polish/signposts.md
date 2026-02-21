@@ -37,3 +37,25 @@ Read this before starting any task to avoid repeating known issues.
 - **Solution:** `griffe` 2.0.0 restructured into meta-package (`griffecli` + `griffelib`) that no longer provides the `griffe` Python module. Added `constraint-dependencies = ["griffe<2"]` to `[tool.uv]` in root `pyproject.toml` and re-locked. `griffe==1.15.0` provides the expected `griffe` Python module.
 - **Resolution:** do-task round 3, 2026-02-21
 - **Files affected:** pyproject.toml, uv.lock
+
+## Signpost 3: Extracted core config handlers crash on malformed TOML shapes
+
+- **Task:** Task 4 (audit round 1)
+- **Status:** unresolved
+- **Problem:** Extracted core helpers assume nested values are TOML tables and call `.get()` on them without type checks, causing uncaught `AttributeError` on malformed-but-parseable configs.
+- **Evidence:** `packages/rentl-core/src/rentl_core/migrate.py:344` uses `config_data.get("project", {}).get("schema_version")` and crashes when `project = "oops"`:
+  ```bash
+  $ uv run python - <<'PY'
+  from pathlib import Path
+  import tempfile
+  from rentl_core.migrate import migrate_config
+  with tempfile.TemporaryDirectory() as d:
+      p = Path(d) / "rentl.toml"
+      p.write_text('project = "oops"\n', encoding="utf-8")
+      migrate_config(p)
+  PY
+  AttributeError: 'str' object has no attribute 'get'
+  ```
+- **Evidence:** `packages/rentl-core/src/rentl_core/secrets.py:53` and `packages/rentl-core/src/rentl_core/secrets.py:63` call `.get()` on `config_data["endpoint"]` / `config_data["endpoints"]` without guarding type; repro `check_config_secrets({"endpoint": "oops"}, tmp_path)` -> `AttributeError: 'str' object has no attribute 'get'`.
+- **Impact:** Violates robustness expectations for CLI boundary logic: malformed config shape produces traceback instead of controlled validation/reporting flow.
+- **Solution:** Add explicit `isinstance(..., dict)` / `isinstance(..., list)` guards in `migrate_config` and `check_config_secrets`, convert shape errors into `MigrateError` (migrate path) or non-fatal findings/skip behavior (secrets path), and add regression tests for scalar `project`, scalar `endpoint`, and scalar `endpoints`.
