@@ -16,3 +16,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 1): FAIL — Task requires ingest/export milestone progress tests, but only ingest milestone assertions were added.
 - **Task 6** (round 2): PASS — Export milestone regression coverage is implemented and verified; `PHASE_PROGRESS` asserts both "Selected ... lines for export" and "Wrote ... lines".
 - **Task 7** (round 1): PASS — Final integration fixes are valid; help registry and init-prompt test updates pass targeted tests and full `make all` gate.
+- **Demo** (run 1): PASS — All 7 [RUN] steps passed: no doc placeholders, canonical env vars, full help registry, \f gates working, zero CLI imports in core, init preview + validation working, make all green (7 run, 7 verified)
