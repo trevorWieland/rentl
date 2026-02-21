@@ -61,3 +61,24 @@ Read this before starting any task to avoid repeating known issues.
 - **Solution:** Added explicit `isinstance(..., dict)` / `isinstance(..., list)` guards in `migrate_config` and `check_config_secrets`. Scalar `project` now raises `MigrateError`; scalar `endpoint`/`endpoints` are silently skipped. Added 4 regression tests.
 - **Resolution:** do-task round 2, 2026-02-21
 - **Files affected:** packages/rentl-core/src/rentl_core/migrate.py, packages/rentl-core/src/rentl_core/secrets.py, tests/unit/core/test_migrate.py, tests/unit/core/test_secrets.py
+
+## Signpost 4: Init config validation occurs after file write and misses TOML parse errors
+
+- **Task:** Task 5 (audit round 1)
+- **Status:** unresolved
+- **Problem:** Task 5 added validation only after `generate_project` writes `rentl.toml`, so malformed values can persist broken config files. The validation helper also lets `tomllib.TOMLDecodeError` escape instead of normalizing to `ConfigValidationError`.
+- **Evidence:** `packages/rentl-core/src/rentl_core/init.py:149-150` writes raw TOML to disk (`toml_content = _generate_toml(answers)` then `config_path.write_text(...)`) before any validation step.
+- **Evidence:** `services/rentl-cli/src/rentl/main.py:721-727` calls `generate_project(...)` and only then runs `validate_generated_config(config_path)`.
+- **Evidence:** Repro command:
+  ```bash
+  $ tmpdir=$(mktemp -d) && cd "$tmpdir"
+  $ printf 'bad"name\n\n\n\n1\n\n\n\n' | uv run --project /home/trevor/github/rentl rentl init
+  ...
+  Write this config? [Y/n]: {"data":null,"error":{"code":"validation_error","message":"Expected newline or end of document after a statement (at line 3, column 21)","details":null,"exit_code":11},...}
+  $ head -n 4 rentl.toml
+  [project]
+  schema_version = { major = 0, minor = 1, patch = 0 }
+  project_name = "bad"name"
+  ```
+- **Impact:** Violates `ux/frictionless-by-default`; failed `init` runs can leave users with invalid on-disk config that requires manual cleanup and unclear recovery steps.
+- **Solution:** Validate generated TOML before writing any files and normalize parse/validation failures into `ConfigValidationError` so the CLI stays on a single predictable error path.
