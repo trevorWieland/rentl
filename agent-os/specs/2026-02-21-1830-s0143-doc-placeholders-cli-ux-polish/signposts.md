@@ -110,3 +110,12 @@ Read this before starting any task to avoid repeating known issues.
 - **Solution:** Added `except ConfigValidationError` clause in the `init` command exception handling (before `except Exception`) that prints the validation error details and exits with `ExitCode.VALIDATION_ERROR` (11). Added CLI regression test `test_init_command_invalid_project_name_exits_validation_error` asserting exit code 11 and no `rentl.toml` written.
 - **Resolution:** do-task round 4, 2026-02-21
 - **Files affected:** services/rentl-cli/src/rentl/main.py, tests/unit/cli/test_main.py
+
+## Signpost 6: Export milestone progress events lack regression coverage
+
+- **Task:** Task 6 (audit round 1)
+- **Status:** unresolved
+- **Problem:** Task 6 requires unit tests for ingest/export milestone progress events, but the test suite only asserts ingest milestone messages.
+- **Evidence:** `packages/rentl-core/src/rentl_core/orchestrator.py:1158-1200` emits export `PHASE_PROGRESS` messages (`"Selected ... lines for export"` and `"Wrote ... lines"`), while `tests/unit/core/test_orchestrator.py:1217-1260` only asserts ingest messages and there is no export milestone assertion in that file.
+- **Impact:** Leaves Task 6 incomplete and violates `testing/mandatory-coverage` for the new export observability behavior; future regressions could remove export milestone visibility undetected.
+- **Solution:** Add a dedicated export milestone test in `tests/unit/core/test_orchestrator.py` that runs `PhaseName.EXPORT` and asserts both export progress messages are emitted as `ProgressEvent.PHASE_PROGRESS`.
