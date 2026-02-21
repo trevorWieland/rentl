@@ -12,3 +12,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 2): PASS — Malformed TOML-shape guards are implemented with regression tests, and extracted core handlers now fail gracefully without uncaught `AttributeError`.
 - **Task 5** (round 1): FAIL — `init` validates config only after writing `rentl.toml`, so invalid input can leave a broken config file and bypass `ConfigValidationError` handling.
 - **Task 5** (round 2): FAIL — Pre-write `ConfigValidationError` from `generate_project` still maps to `runtime_error` (exit 99) in `rentl init` instead of `validation_error` (exit 11).
+- **Task 4** (round 3): PASS — Thin-adapter extraction remains compliant; core migration/secret checks and CLI serialization/auto-migrate regression tests pass.
