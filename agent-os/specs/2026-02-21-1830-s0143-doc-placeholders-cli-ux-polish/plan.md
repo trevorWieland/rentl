@@ -12,7 +12,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch and push
 
-- [ ] Task 2: Replace Doc Placeholders & Fix Stale References
+- [x] Task 2: Replace Doc Placeholders & Fix Stale References
   - Replace all `<placeholder>` patterns in README.md, CONTRIBUTING.md, docs/troubleshooting.md, WORKFLOW-GUIDE.md
   - Replace all `<spec-folder>` placeholders in agent-os docs (26 locations across draft-*.md and WORKFLOW-GUIDE.md)
   - Replace `<branch-name>`, `<phase>`, `<command>`, `<output-a>`, `<output-b>`, `<tmp>`, `<name>`, `<run-id>`, `<translated-lines-jsonl>`, `<topic>/<name>.md` placeholders
@@ -20,8 +20,8 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - Fix hardcoded `run-001` in `agent-os/standards/ux/copy-pasteable-examples.md:7`
   - Fix `<command>` placeholder in the standard file itself at `:10`
   - Acceptance: `grep -rn '<[a-z-]*>' README.md CONTRIBUTING.md docs/ WORKFLOW-GUIDE.md` returns zero matches (excluding legitimate HTML tags)
-  - [ ] Fix: Replace hardcoded nonexistent spec path `agent-os/specs/2026-02-15-1400-s0142-feature-name` with an executable path (or dynamic discovery snippet) in all affected docs: `agent-os/docs/WORKFLOW-GUIDE.md:139`, `agent-os/docs/draft-complete.md:133`, `agent-os/docs/draft-concise.md:78`, `agent-os/docs/draft-educational.md:139`, `agent-os/docs/draft-general.md:206` (and repeated occurrences) (audit round 1)
-  - [ ] Fix: Re-verify copy-pasteability by executing one updated orchestrator example end-to-end and confirming it no longer fails with `spec.md not found` (audit round 1)
+  - [x] Fix: Replace hardcoded nonexistent spec path `agent-os/specs/2026-02-15-1400-s0142-feature-name` with an executable path (or dynamic discovery snippet) in all affected docs: `agent-os/docs/WORKFLOW-GUIDE.md:139`, `agent-os/docs/draft-complete.md:133`, `agent-os/docs/draft-concise.md:78`, `agent-os/docs/draft-educational.md:139`, `agent-os/docs/draft-general.md:206` (and repeated occurrences) (audit round 1)
+  - [x] Fix: Re-verify copy-pasteability by executing one updated orchestrator example end-to-end and confirming it no longer fails with `spec.md not found` (audit round 1)
 
 - [ ] Task 3: Update Help Registry & Add \f Docstring Gates
   - Add `check-secrets`, `migrate`, `benchmark` to `_COMMAND_REGISTRY` in `packages/rentl-core/src/rentl_core/help.py`

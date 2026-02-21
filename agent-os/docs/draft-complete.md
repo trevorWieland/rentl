@@ -130,7 +130,7 @@ Output: A spec folder with `spec.md`, `plan.md`, `demo.md`, `standards.md`, `ref
 ### Step 2: Run the Orchestrator (Automated)
 
 ```bash
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes
 ```
 
 The orchestrator loops through:
@@ -756,8 +756,8 @@ Steps 1-11 are discussion only -- no branches, files, or git commands until Step
 ### Usage
 
 ```bash
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name --config orchestrate.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes --config orchestrate.conf
 ```
 
 The spec folder must contain `spec.md` and `plan.md` (output of shape-spec).
@@ -1380,7 +1380,7 @@ PR body format:
 Pass via `--config`:
 
 ```bash
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name --config my-config.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes --config my-config.conf
 ```
 
 The config file is sourced as bash, so any `ORCH_*` variable can be set.

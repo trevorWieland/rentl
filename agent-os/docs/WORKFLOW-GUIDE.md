@@ -136,7 +136,7 @@ orchestrator halts --> resolve-blockers --> re-run orchestrator
 /shape-spec
 
 # 2. Run the orchestrator (automated)
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes
 
 # 3. Walk and submit (interactive, in Claude Code TUI)
 /walk-spec
@@ -149,7 +149,7 @@ orchestrator halts --> resolve-blockers --> re-run orchestrator
 /resolve-blockers
 
 # 2. Re-run the orchestrator
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes
 ```
 
 ### Handle PR feedback
@@ -159,7 +159,7 @@ orchestrator halts --> resolve-blockers --> re-run orchestrator
 /handle-feedback
 
 # 2. If fix tasks were added, re-run orchestrator then walk-spec
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes
 /walk-spec
 ```
 
@@ -566,8 +566,8 @@ Loads roadmap.md and GitHub issues (`type:spec`). Classifies each spec_id: match
 ### Usage
 
 ```bash
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name --config orchestrate.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes --config orchestrate.conf
 ```
 
 Requires `spec.md` and `plan.md` in the spec folder.
@@ -823,7 +823,7 @@ Implementation and auditing use different AI models/providers -- avoid grading y
 ### Config File
 
 ```bash
-./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name --config my-config.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes --config my-config.conf
 ```
 
 Sourced as bash. Example:
