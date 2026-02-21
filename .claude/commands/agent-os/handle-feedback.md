@@ -19,16 +19,17 @@ Pull PR review comments and automated analysis feedback, evaluate their correctn
 - After a PR is created (via walk-spec) and review comments arrive
 - When automated code analysis agents leave comments on the PR
 - When community reviewers provide feedback on a PR
+- When CI checks (GitHub Actions) fail on the PR
 - Periodically during long-running PR reviews to process new comments
 
 ## Prerequisites
 
 1. A spec folder exists with `spec.md` and `plan.md`
 2. A PR exists for the current spec branch (verifiable via `gh pr view`)
-3. The PR has review comments or check annotations to process
+3. The PR has review comments, failed CI checks, or check annotations to process
 
 If no PR is found, ask the user for the PR number/URL.
-If no comments are found, exit with `handle-feedback-status: no-feedback`.
+If no comments and no failed checks are found, exit with `handle-feedback-status: no-feedback`.
 
 ## Process
 
@@ -61,11 +62,24 @@ Gather all review feedback from the PR:
    gh pr view {pr_number} --comments --json comments
    ```
 
-4. **Check run annotations** (CI/CD and automated analysis findings):
+4. **CI check failures** (GitHub Actions workflow run logs):
    ```
-   gh pr checks {pr_number} --json name,state,description
-   gh api repos/{owner}/{repo}/check-runs/{check_run_id}/annotations
+   gh pr checks {pr_number} --json name,state,bucket,link
    ```
+   For each check where `bucket` is `"fail"`:
+   - Extract the `run_id` from the `link` field (URL path segment after `/runs/`)
+   - Fetch the failure logs:
+     ```
+     gh run view {run_id} --log-failed
+     ```
+   - Parse the log output to extract individual failures:
+     - **Pytest:** Each `FAILED path/to/file.py::test_name - ErrorType: message` line in the short summary, plus the traceback for the originating file:line in project code
+     - **Ruff:** Each `path/to/file.py:line:col: RULE message` line
+     - **ty:** Each `error[code]` block with its `-->` file:line pointer
+   - If `--log-failed` returns empty output, fall back to check run annotations:
+     ```
+     gh api repos/{owner}/{repo}/check-runs/{check_run_id}/annotations
+     ```
 
 Parse each piece of feedback into a structured list:
 - **ID:** unique identifier for reference
@@ -105,6 +119,8 @@ For each piece of feedback, perform this analysis:
    - **out-of-scope** — real issue but belongs to a different spec or future work
    - **duplicate** — same issue raised by another comment already in this triage
 
+   **CI failure fast-track:** Items from CI check failures (Step 2.4) default to `valid-actionable` since CI is objective. Override to `valid-addressed` if signposts.md already tracks the issue, or `out-of-scope` if the failure is environmental (e.g., missing CI secrets, platform-specific behavior).
+
 4. **Write a brief rationale** for each classification, citing file:line evidence.
 
 ### Step 5: Present Triage to User
@@ -119,6 +135,13 @@ Present the triage as a structured summary, grouped by classification:
 1. **[Author] on [file:line]:** [brief summary of feedback]
    - **Assessment:** [why this is correct]
    - **Proposed action:** [what fix item to add]
+
+### CI Failures (N items)
+
+N. **[CI: {make_target}] {test_name or rule}** at `{file:line}`
+   - **Error:** {error message}
+   - **Assessment:** {root cause analysis}
+   - **Proposed fix item:** {description for plan.md}
 
 ### Valid but Already Addressed (N items)
 
@@ -170,6 +193,17 @@ After user approval, execute each action:
    - **Evidence:** the reviewer's comment with file:line reference
    - **Impact:** why this matters
 3. Uncheck the affected task in plan.md if a fix item is added beneath it.
+
+#### For CI failure items (valid-actionable):
+
+Follow the same process as valid-actionable items above, with these additions:
+
+1. Prefix fix items with `[CI]` for traceability:
+   ```
+   - [ ] Fix: [CI] {description} ({file}:{line}, CI run #{run_id})
+   ```
+2. Group multiple failures from the same root cause into a single fix item (e.g., three test failures caused by the same missing import).
+3. Include the exact error text in the signpost evidence if a signpost is warranted.
 
 #### For valid-addressed items:
 
@@ -285,7 +319,7 @@ Print one of these exit signals (machine-readable):
 ## Workflow
 
 ```
-walk-spec → PR created → reviewers comment → handle-feedback → [if tasks added: orchestrator → walk-spec] → merge
+walk-spec → PR created → reviewers comment / CI runs → handle-feedback → [if tasks added: orchestrator → walk-spec] → merge
 ```
 
 This command closes the feedback loop between PR reviewers and the spec implementation workflow.

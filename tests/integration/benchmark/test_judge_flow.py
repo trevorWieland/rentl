@@ -1,20 +1,67 @@
-"""Integration tests for judge evaluation flow with mocked LLM."""
+"""Integration tests for judge evaluation flow with mocked HTTP."""
 
 import asyncio
 import json
 import random
 from pathlib import Path
-from unittest.mock import MagicMock
 
+import httpx
 import pytest
-from pydantic_ai import Agent, AgentRunResult
+import respx
 from pytest_bdd import given, parsers, scenario, then, when
 
-from rentl_core.benchmark.judge import JudgeOutput, RubricJudge
+from rentl_core.benchmark.judge import RubricJudge
 from rentl_schemas.benchmark.rubric import RubricDimension
 from rentl_schemas.io import TranslatedLine
 
-FEATURES_DIR = Path(__file__).parent.parent.parent / "features" / "benchmark"
+pytestmark = pytest.mark.integration
+
+FEATURES_DIR = Path(__file__).parent / "features"
+
+# Use a local base URL for HTTP-level mocking
+_JUDGE_BASE_URL = "http://localhost:19999/v1"
+
+
+def _tool_call_response(judge_output: dict[str, str]) -> dict[str, object]:
+    """Build a chat completion response with a tool call returning JudgeOutput.
+
+    Args:
+        judge_output: Dict matching JudgeOutput schema fields.
+
+    Returns:
+        OpenAI-compatible chat completion response with tool_calls.
+    """
+    return {
+        "id": "chatcmpl-judge-mock",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "gpt-5-nano",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_judge_1",
+                            "type": "function",
+                            "function": {
+                                "name": "final_result",
+                                "arguments": json.dumps(judge_output),
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "total_tokens": 150,
+        },
+    }
 
 
 @scenario(
@@ -42,7 +89,8 @@ class JudgeContext:
         self.translations_mtl: list[TranslatedLine] = []
         self.translations_rentl: list[TranslatedLine] = []
         self.head_to_head_results: list = []
-        self.mock_responses: list[str] = []
+        self.mock_responses: list[dict[str, str]] = []
+        self.http_call_count: int = 0
 
 
 @pytest.fixture
@@ -56,54 +104,11 @@ def ctx() -> JudgeContext:
 
 
 @given("a rubric judge with mocked LLM")
-def given_judge_with_mock(ctx: JudgeContext, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Set up judge with mocked pydantic-ai Agent."""
-
-    async def mock_agent_run(
-        self: Agent[str, JudgeOutput], prompt: str, **kwargs: str | int | bool | None
-    ) -> AgentRunResult[JudgeOutput]:
-        """Mock pydantic-ai Agent.run that returns canned responses.
-
-        Args:
-            self: Agent instance (unused).
-            prompt: User prompt (unused).
-            **kwargs: Additional arguments (unused).
-
-        Returns:
-            AgentRunResult with mock JudgeOutput.
-
-        Raises:
-            RuntimeError: If no mock responses are available.
-        """
-        await asyncio.sleep(0)  # Make it truly async
-
-        # Pop next mock response from queue
-        if not ctx.mock_responses:
-            raise RuntimeError("No mock responses available")
-
-        response_text = ctx.mock_responses.pop(0)
-        response_data = json.loads(response_text)
-
-        # Create JudgeOutput from mocked JSON
-        judge_output = JudgeOutput(
-            overall_winner=response_data["overall_winner"],
-            reasoning=response_data["reasoning"],
-            accuracy_winner=response_data["accuracy_winner"],
-            style_fidelity_winner=response_data["style_fidelity_winner"],
-            consistency_winner=response_data["consistency_winner"],
-        )
-
-        # Create mock result
-        result = MagicMock(spec=AgentRunResult)
-        result.output = judge_output
-        return result
-
-    # Patch Agent.run across all instances
-    monkeypatch.setattr("pydantic_ai.Agent.run", mock_agent_run)
-
+def given_judge_with_mock(ctx: JudgeContext) -> None:
+    """Set up judge with HTTP-mocked LLM endpoint."""
     ctx.judge = RubricJudge(
         model_id="gpt-5-nano",
-        base_url="https://api.openai.com/v1",
+        base_url=_JUDGE_BASE_URL,
         api_key="test-key",
     )
 
@@ -151,14 +156,13 @@ def given_judge_comparison(ctx: JudgeContext, docstring: str) -> None:
     """Configure mock head-to-head responses for winner B."""
     # docstring contains the triple-quoted text from the feature file
     for _ in ctx.translations_mtl:
-        mock_response = json.dumps({
+        ctx.mock_responses.append({
             "overall_winner": "B",
             "reasoning": "Translation B is more natural",
             "accuracy_winner": "tie",
             "style_fidelity_winner": "B",
             "consistency_winner": "B",
         })
-        ctx.mock_responses.append(mock_response)
 
 
 @given("judge responds with winner A")
@@ -166,46 +170,67 @@ def given_judge_winner_a(ctx: JudgeContext, docstring: str) -> None:
     """Configure mock head-to-head responses for winner A."""
     # docstring contains the triple-quoted text from the feature file
     for _ in ctx.translations_mtl:
-        mock_response = json.dumps({
+        ctx.mock_responses.append({
             "overall_winner": "A",
             "reasoning": "Translation A is more accurate",
             "accuracy_winner": "A",
             "style_fidelity_winner": "B",
             "consistency_winner": "B",
         })
-        ctx.mock_responses.append(mock_response)
 
 
 @when("I compare translations head-to-head")
 def when_compare_head_to_head(ctx: JudgeContext) -> None:
-    """Execute head-to-head comparison."""
+    """Execute head-to-head comparison with HTTP-mocked LLM."""
     assert ctx.judge is not None
-    ctx.head_to_head_results = asyncio.run(
-        ctx.judge.compare_batch_head_to_head(
-            ctx.translations_mtl,
-            ctx.translations_rentl,
-            candidate_1_name="mtl",
-            candidate_2_name="rentl",
-            randomize_order=False,
+    response_queue = list(ctx.mock_responses)
+
+    def _side_effect(request: httpx.Request) -> httpx.Response:
+        ctx.http_call_count += 1
+        response_data = response_queue.pop(0)
+        return httpx.Response(200, json=_tool_call_response(response_data))
+
+    with respx.mock:
+        respx.post(f"{_JUDGE_BASE_URL}/chat/completions").mock(side_effect=_side_effect)
+        ctx.head_to_head_results = asyncio.run(
+            ctx.judge.compare_batch_head_to_head(
+                ctx.translations_mtl,
+                ctx.translations_rentl,
+                candidate_1_name="mtl",
+                candidate_2_name="rentl",
+                randomize_order=False,
+            )
         )
-    )
+
+    assert ctx.http_call_count > 0, "HTTP mock was never called"
 
 
 @when("I compare translations head-to-head with randomization")
 def when_compare_head_to_head_randomized(ctx: JudgeContext) -> None:
     """Execute head-to-head comparison with randomized order."""
     assert ctx.judge is not None
+    response_queue = list(ctx.mock_responses)
+
+    def _side_effect(request: httpx.Request) -> httpx.Response:
+        ctx.http_call_count += 1
+        response_data = response_queue.pop(0)
+        return httpx.Response(200, json=_tool_call_response(response_data))
+
     # Seed random to force swap behavior (seed(1) produces <0.5 on first call)
     random.seed(1)
-    ctx.head_to_head_results = asyncio.run(
-        ctx.judge.compare_batch_head_to_head(
-            ctx.translations_mtl,
-            ctx.translations_rentl,
-            candidate_1_name="mtl",
-            candidate_2_name="rentl",
-            randomize_order=True,
+    with respx.mock:
+        respx.post(f"{_JUDGE_BASE_URL}/chat/completions").mock(side_effect=_side_effect)
+        ctx.head_to_head_results = asyncio.run(
+            ctx.judge.compare_batch_head_to_head(
+                ctx.translations_mtl,
+                ctx.translations_rentl,
+                candidate_1_name="mtl",
+                candidate_2_name="rentl",
+                randomize_order=True,
+            )
         )
-    )
+
+    assert ctx.http_call_count > 0, "HTTP mock was never called"
 
 
 @then(parsers.parse("each comparison has a winner (A, B, or tie)"))

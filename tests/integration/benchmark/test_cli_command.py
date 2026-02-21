@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from tests.integration.conftest import write_rentl_config
@@ -21,8 +22,10 @@ from rentl_schemas.benchmark.rubric import RubricDimension
 if TYPE_CHECKING:
     pass
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
-scenarios("../../features/benchmark/cli_command.feature")
+scenarios("features/cli_command.feature")
 
 
 class BenchmarkCLIContext:
@@ -34,6 +37,9 @@ class BenchmarkCLIContext:
         self.stdout: str = ""
         self.config_dir: Path | None = None
         self.mock_loader: MagicMock | None = None
+        self.mock_downloader: MagicMock | None = None
+        self.mock_parser: MagicMock | None = None
+        self.mock_judge: MagicMock | None = None
         self.progress_updates: list[int] = []
         self.output_file_a: Path | None = None
         self.output_file_b: Path | None = None
@@ -137,7 +143,6 @@ def when_run_benchmark_download_kebab_case(
     with patch("rentl.main.EvalSetLoader") as mock_loader:
         mock_loader.load_manifest = MagicMock(return_value=mock_manifest)
         mock_loader.load_slices = MagicMock(return_value=mock_slices)
-        mock_loader.get_slice_scripts = MagicMock(return_value=["script-a1-monday.rpy"])
 
         # Mock the downloader
         with patch("rentl.main.KatawaShoujoDownloader") as mock_downloader_class:
@@ -166,8 +171,10 @@ def when_run_benchmark_download_kebab_case(
                 )
                 ctx.stdout = ctx.result.stdout + ctx.result.stderr
 
-                # Store the mock for assertion
+                # Store mocks for assertion
                 ctx.mock_loader = mock_loader
+                ctx.mock_downloader = mock_downloader
+                ctx.mock_parser = mock_parser
 
 
 @then("the command normalizes to snake_case internally")
@@ -194,6 +201,12 @@ def then_download_succeeds(ctx: BenchmarkCLIContext) -> None:
     assert ctx.result.exit_code == 0, (
         f"Expected exit code 0, got {ctx.result.exit_code}\nOutput: {ctx.stdout}"
     )
+
+    # Assert mocked collaborators were invoked
+    assert ctx.mock_downloader is not None
+    ctx.mock_downloader.download_scripts.assert_called()
+    assert ctx.mock_parser is not None
+    ctx.mock_parser.parse_script.assert_called()
 
 
 @given("two translation output files exist", target_fixture="ctx")
@@ -341,6 +354,7 @@ def when_run_benchmark_compare_staggered(
             },
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
+        ctx.mock_judge = mock_judge
 
 
 @then("progress updates are monotonically increasing")
@@ -358,6 +372,10 @@ def then_progress_updates_monotonic(ctx: BenchmarkCLIContext) -> None:
         assert curr >= prev, (
             f"Progress update regressed from {prev} to {curr} at index {i}"
         )
+
+    # Assert the judge mock was invoked
+    if ctx.mock_judge is not None:
+        ctx.mock_judge.compare_head_to_head.assert_called()
 
 
 @then("final progress reaches 100%")
@@ -445,6 +463,7 @@ def when_run_benchmark_compare_full_flow(
             },
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
+        ctx.mock_judge = mock_judge
 
     # Load the report if it was written
     if ctx.report_path and ctx.report_path.exists():
@@ -463,6 +482,10 @@ def then_command_completes_successfully(ctx: BenchmarkCLIContext) -> None:
     assert ctx.result.exit_code == 0, (
         f"Expected exit code 0, got {ctx.result.exit_code}\nOutput: {ctx.stdout}"
     )
+
+    # Assert the judge mock was invoked
+    if ctx.mock_judge is not None:
+        ctx.mock_judge.compare_head_to_head.assert_called()
 
 
 @then("the output indicates judging progress")
@@ -640,6 +663,7 @@ def when_run_benchmark_compare_full_overrides(
             env={"TEST_KEY": "test-key"},
         )
         ctx.stdout = ctx.result.stdout + ctx.result.stderr
+        ctx.mock_judge = mock_judge
 
 
 @then("the judge was configured from CLI overrides")
@@ -652,6 +676,9 @@ def then_judge_configured_from_overrides(ctx: BenchmarkCLIContext) -> None:
     # The command should succeed without needing a config file
     assert ctx.result is not None
     assert ctx.result.exit_code == 0
+    # Verify the judge mock was invoked
+    assert ctx.mock_judge is not None
+    ctx.mock_judge.compare_head_to_head.assert_called()
 
 
 @when("I run benchmark compare with OpenRouter judge overrides")
@@ -702,6 +729,7 @@ def when_run_benchmark_compare_openrouter_overrides(
         ctx.judge_constructor_args = kwargs
         mock_judge = MagicMock()
         mock_judge.compare_head_to_head.side_effect = mock_compare_head_to_head
+        ctx.mock_judge = mock_judge
         return mock_judge
 
     with patch("rentl.main.RubricJudge", side_effect=capture_judge_init):
@@ -738,6 +766,10 @@ def then_judge_configured_with_openrouter(ctx: BenchmarkCLIContext) -> None:
     # Verify the judge was constructed with openrouter_require_parameters=True
     assert ctx.judge_constructor_args is not None
     assert ctx.judge_constructor_args.get("openrouter_require_parameters") is True
+
+    # Verify the judge mock was invoked
+    assert ctx.mock_judge is not None
+    ctx.mock_judge.compare_head_to_head.assert_called()
 
 
 @given(

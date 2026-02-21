@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from click.testing import Result
+from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl.main as cli_main
@@ -26,42 +28,64 @@ from rentl_schemas.config import RunConfig
 if TYPE_CHECKING:
     pass
 
+scenarios("../features/cli/preset_validation.feature")
 
-@pytest.mark.quality
-@pytest.mark.api
-def test_openrouter_preset_validates_against_live_api(
-    tmp_path: Path,
-    cli_runner: CliRunner,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test that OpenRouter preset model ID validates against live API.
 
-    GIVEN the OpenRouter provider preset
-    WHEN I run init with OpenRouter preset
-     AND I run doctor with a valid API key
-    THEN doctor's LLM connectivity check passes
+class PresetValidationContext:
+    """Test context for preset validation BDD scenarios."""
 
-    This test requires RENTL_QUALITY_API_KEY in the environment.
+    project_dir: Path | None = None
+    config_path: Path | None = None
+    api_key: str | None = None
+    init_result: Result | None = None
+    doctor_result: Result | None = None
 
-    Args:
-        tmp_path: Temporary directory for the test project.
-        cli_runner: CliRunner for invoking CLI commands.
-        monkeypatch: Pytest monkeypatch for setting environment variables.
+
+# ---------------------------------------------------------------------------
+# Scenario: OpenRouter preset validates against live API
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ctx() -> PresetValidationContext:
+    """Create test context.
+
+    Returns:
+        PresetValidationContext: Empty context for BDD scenarios.
+    """
+    return PresetValidationContext()
+
+
+@given("the OpenRouter provider preset", target_fixture="ctx")
+def given_openrouter_preset() -> PresetValidationContext:
+    """Verify OpenRouter preset exists and API key is available.
+
+    Returns:
+        PresetValidationContext with API key loaded.
 
     Raises:
         ValueError: If RENTL_QUALITY_API_KEY is not set.
     """
-    # Require API key for quality tests
+    ctx = PresetValidationContext()
     api_key = os.environ.get("RENTL_QUALITY_API_KEY")
     if not api_key:
         raise ValueError("RENTL_QUALITY_API_KEY must be set for quality tests")
+    ctx.api_key = api_key
+    return ctx
 
-    # Create a project directory
-    project_dir = tmp_path / "preset-validation-test"
-    project_dir.mkdir()
-    config_path = project_dir / "rentl.toml"
 
-    # Automated input for init command using OpenRouter preset
+@given("a fresh project initialized with OpenRouter preset")
+def given_fresh_project(
+    ctx: PresetValidationContext,
+    tmp_path: Path,
+    cli_runner: CliRunner,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Initialize a fresh project with the OpenRouter preset."""
+    ctx.project_dir = tmp_path / "preset-validation-test"
+    ctx.project_dir.mkdir()
+    ctx.config_path = ctx.project_dir / "rentl.toml"
+
     init_input = (
         "\n".join([
             "preset-validation-test",  # project name
@@ -75,44 +99,52 @@ def test_openrouter_preset_validates_against_live_api(
         + "\n"
     )
 
-    # Change working directory to project_dir before running init
-    monkeypatch.chdir(project_dir)
+    monkeypatch.chdir(ctx.project_dir)
 
-    # Run init with OpenRouter preset
-    init_result = cli_runner.invoke(
+    ctx.init_result = cli_runner.invoke(
         cli_main.app,
         ["init"],
         input=init_input,
     )
 
-    # Assert init succeeded
-    assert init_result.exit_code == 0, (
-        f"Init failed with exit code {init_result.exit_code}\n"
-        f"Output: {init_result.stdout}\n"
-        f"Error: {init_result.stderr}"
+    assert ctx.init_result.exit_code == 0, (
+        f"Init failed with exit code {ctx.init_result.exit_code}\n"
+        f"Output: {ctx.init_result.stdout}\n"
+        f"Error: {ctx.init_result.stderr}"
     )
 
-    # Verify config was created and validates as RunConfig
-    assert config_path.exists(), f"Config file not created: {config_path}"
-    with config_path.open("rb") as f:
+    assert ctx.config_path.exists(), f"Config file not created: {ctx.config_path}"
+    with ctx.config_path.open("rb") as f:
         RunConfig.model_validate(tomllib.load(f))
 
-    # Verify .env was created by init
-    env_path = project_dir / ".env"
+    env_path = ctx.project_dir / ".env"
     assert env_path.exists(), f".env file not created by init: {env_path}"
 
-    # Run doctor with the generated config, injecting API key via environment
-    doctor_result = cli_runner.invoke(
+
+@when("I run doctor with a valid API key")
+def when_run_doctor(
+    ctx: PresetValidationContext,
+    cli_runner: CliRunner,
+) -> None:
+    """Run doctor with the generated config and valid API key."""
+    assert ctx.config_path is not None
+    assert ctx.api_key is not None
+
+    ctx.doctor_result = cli_runner.invoke(
         cli_main.app,
-        ["doctor", "--config", str(config_path)],
-        env={StandardEnvVar.API_KEY.value: api_key},
+        ["doctor", "--config", str(ctx.config_path)],
+        env={StandardEnvVar.API_KEY.value: ctx.api_key},
     )
 
-    # Assert doctor succeeded
-    assert doctor_result.exit_code == 0, (
-        f"Doctor failed with exit code {doctor_result.exit_code}\n"
-        f"Output: {doctor_result.stdout}\n"
-        f"Error: {doctor_result.stderr}\n"
+
+@then("doctor completes successfully")
+def then_doctor_succeeds(ctx: PresetValidationContext) -> None:
+    """Assert doctor exited with code 0."""
+    assert ctx.doctor_result is not None
+    assert ctx.doctor_result.exit_code == 0, (
+        f"Doctor failed with exit code {ctx.doctor_result.exit_code}\n"
+        f"Output: {ctx.doctor_result.stdout}\n"
+        f"Error: {ctx.doctor_result.stderr}\n"
         f"\n"
         f"This indicates the OpenRouter preset's model ID is invalid or "
         f"unreachable. Check the preset configuration in "
@@ -120,14 +152,17 @@ def test_openrouter_preset_validates_against_live_api(
         f"exists on OpenRouter."
     )
 
-    # Verify that doctor output contains passing LLM connectivity check
-    doctor_output = doctor_result.stdout
+
+@then("the LLM connectivity check passes")
+def then_llm_connectivity_passes(ctx: PresetValidationContext) -> None:
+    """Assert doctor output shows passing LLM connectivity."""
+    assert ctx.doctor_result is not None
+    doctor_output = ctx.doctor_result.stdout
+
     assert "LLM Connectivity" in doctor_output, (
         f"Doctor output missing LLM connectivity check:\n{doctor_output}"
     )
 
-    # The doctor output should contain "PASS" for the connectivity check
-    # or at least not contain "FAIL"
     assert "FAIL" not in doctor_output or "0/1 endpoint(s) failed" in doctor_output, (
         f"Doctor reported LLM connectivity failure:\n{doctor_output}\n"
         f"\n"
@@ -137,21 +172,24 @@ def test_openrouter_preset_validates_against_live_api(
     )
 
 
-def test_all_presets_have_valid_structure(
-    cli_runner: CliRunner,
-) -> None:
-    """Test that all endpoint presets have valid structure.
+# ---------------------------------------------------------------------------
+# Scenario: All presets have valid structure
+# ---------------------------------------------------------------------------
 
-    GIVEN the list of ENDPOINT_PRESETS
-    WHEN I inspect each preset
-    THEN each preset has required fields populated
 
-    This is a structural validation test that does not require API keys.
-    It ensures presets have non-empty values for all required fields.
+@given("the list of endpoint presets", target_fixture="ctx")
+def given_endpoint_presets() -> PresetValidationContext:
+    """Load endpoint presets for structural validation.
 
-    Args:
-        cli_runner: CliRunner (unused, but required for test signature consistency).
+    Returns:
+        PresetValidationContext (no API key needed for structural checks).
     """
+    return PresetValidationContext()
+
+
+@then("all required presets are present")
+def then_required_presets_present(ctx: PresetValidationContext) -> None:
+    """Assert all required preset names exist."""
     assert len(ENDPOINT_PRESETS) >= 3, (
         "Spec requires at least 3 endpoint presets (OpenRouter, OpenAI, Local)"
     )
@@ -164,12 +202,14 @@ def test_all_presets_have_valid_structure(
         f"Got: {available_preset_names}"
     )
 
+
+@then("each preset has required fields populated")
+def then_presets_have_fields(ctx: PresetValidationContext) -> None:
+    """Assert each preset has all required fields with valid values."""
     for preset in ENDPOINT_PRESETS:
-        # Verify all fields are populated
         assert preset.name, f"Preset missing name: {preset}"
         assert preset.base_url, f"Preset {preset.name} missing base_url"
 
-        # Local preset intentionally has no default_model (user provides their own)
         if preset.name != "Local":
             assert preset.default_model, f"Preset {preset.name} missing default_model"
         else:
@@ -178,7 +218,6 @@ def test_all_presets_have_valid_structure(
                 f"got: {preset.default_model}"
             )
 
-        # Verify base_url is a valid URL format
         assert preset.base_url.startswith("http"), (
             f"Preset {preset.name} has invalid base_url: {preset.base_url}"
         )

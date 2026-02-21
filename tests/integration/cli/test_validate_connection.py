@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
@@ -18,6 +19,8 @@ from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
     pass
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/cli/validate_connection.feature")
@@ -141,6 +144,7 @@ class ValidateConnectionContext:
     config_path: Path | None = None
     result: Result | None = None
     response: dict | None = None
+    fake_llm: FakeLlmRuntime | None = None
 
 
 @given("a rentl config with multiple endpoints", target_fixture="ctx")
@@ -187,6 +191,7 @@ def when_run_validate_connection(
     mock_llm_runtime: FakeLlmRuntime,
 ) -> None:
     """Run the validate-connection CLI command."""
+    ctx.fake_llm = mock_llm_runtime
     ctx.result = cli_runner.invoke(
         cli_main.app,
         ["validate-connection", "--config", str(ctx.config_path)],
@@ -225,6 +230,11 @@ def then_response_shows_successes(ctx: ValidateConnectionContext) -> None:
     assert ctx.response is not None
     assert ctx.response["error"] is None
     assert ctx.response["data"]["success_count"] == 2
+    # Verify the LLM runtime mock was invoked (no silent pass-through)
+    assert ctx.fake_llm is not None
+    assert ctx.fake_llm.call_count > 0, (
+        "mock_llm_runtime was never invoked — patch may have silently passed through"
+    )
 
 
 @then("the response shows skipped endpoints")

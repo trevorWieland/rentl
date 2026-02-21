@@ -1,12 +1,19 @@
-"""Integration tests for OpenRouter provider parity."""
+"""BDD integration tests for OpenRouter provider parity.
+
+Verifies that OpenAICompatibleRuntime correctly routes requests through
+the provider factory based on base_url, using HTTP-level mocking (respx)
+to avoid patching internal pydantic-ai classes.
+"""
 
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
 
-from pydantic_ai.models.openai import OpenAIChatModelSettings
-from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
+import httpx
+import pytest
+import respx
+from pytest_bdd import given, scenarios, then, when
 
 from rentl_llm.openai_runtime import OpenAICompatibleRuntime
 from rentl_schemas.config import RetryConfig
@@ -14,8 +21,14 @@ from rentl_schemas.llm import (
     LlmEndpointTarget,
     LlmModelSettings,
     LlmPromptRequest,
+    LlmPromptResponse,
     LlmRuntimeSettings,
 )
+
+pytestmark = pytest.mark.integration
+
+# Link feature file
+scenarios("../features/byok/openrouter_runtime.feature")
 
 
 def _make_request(
@@ -53,121 +66,191 @@ def _make_request(
     )
 
 
-class TestOpenRouterProviderSelection:
-    """Tests for OpenRouter provider selection in BYOK runtime."""
+def _chat_completion_response(
+    content: str, model: str = "gpt-4", *, openrouter: bool = False
+) -> dict[str, object]:
+    """Build a minimal OpenAI-compatible chat completion response.
 
-    def test_openrouter_base_url_selects_openrouter_provider(self) -> None:
-        """OpenRouter base_url should select OpenRouterProvider and OpenRouterModel."""
-        runtime = OpenAICompatibleRuntime()
+    Returns:
+        Dict matching the OpenAI chat completion response schema.
+    """
+    choice: dict[str, object] = {
+        "index": 0,
+        "message": {"role": "assistant", "content": content},
+        "finish_reason": "stop",
+    }
+    if openrouter:
+        choice["native_finish_reason"] = "stop"
 
-        request = _make_request(
-            provider_name="openrouter",
-            base_url="https://openrouter.ai/api/v1",
-            model_id="anthropic/claude-4.5-sonnet",
-        )
+    response: dict[str, object] = {
+        "id": "chatcmpl-mock-openrouter",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": model,
+        "choices": [choice],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+        },
+    }
+    if openrouter:
+        response["provider"] = "OpenAI"
 
-        mock_model = MagicMock(spec=OpenRouterModel)
-        mock_settings: OpenRouterModelSettings = {
-            "temperature": 0.7,
-            "openrouter_provider": {"require_parameters": True},
-        }
-
-        with (
-            patch(
-                "rentl_llm.openai_runtime.create_model",
-                return_value=(mock_model, mock_settings),
-            ) as mock_factory,
-            patch("rentl_llm.openai_runtime.Agent") as mock_agent,
-        ):
-            mock_agent_instance = MagicMock()
-            mock_agent_instance.run = AsyncMock()
-            mock_agent.return_value = mock_agent_instance
-
-            asyncio.run(runtime.run_prompt(request, api_key="test-key"))
-
-        # Verify factory was called with OpenRouter base_url and api_key
-        mock_factory.assert_called_once()
-        call_kwargs = mock_factory.call_args.kwargs
-        assert call_kwargs["base_url"] == "https://openrouter.ai/api/v1"
-        assert call_kwargs["api_key"] == "test-key"
-        assert call_kwargs["model_id"] == "anthropic/claude-4.5-sonnet"
-
-        # Verify model returned by factory was passed to Agent
-        mock_agent.assert_called_once()
-        assert mock_agent.call_args.args[0] is mock_model
-
-        # Verify model_settings from factory were passed to agent.run
-        run_kwargs = mock_agent_instance.run.call_args.kwargs
-        assert run_kwargs["model_settings"] is mock_settings
-
-    def test_non_openrouter_uses_openai_provider(self) -> None:
-        """Non-OpenRouter base_url should use OpenAI provider path in factory."""
-        runtime = OpenAICompatibleRuntime()
-
-        request = _make_request(
-            provider_name="local",
-            base_url="http://localhost:8000/v1",
-        )
-
-        mock_model = MagicMock()
-        mock_settings: OpenAIChatModelSettings = {"temperature": 0.7}
-
-        with (
-            patch(
-                "rentl_llm.openai_runtime.create_model",
-                return_value=(mock_model, mock_settings),
-            ) as mock_factory,
-            patch("rentl_llm.openai_runtime.Agent") as mock_agent,
-        ):
-            mock_agent_instance = MagicMock()
-            mock_agent_instance.run = AsyncMock()
-            mock_agent.return_value = mock_agent_instance
-
-            asyncio.run(runtime.run_prompt(request, api_key="test-key"))
-
-        # Verify factory was called with non-OpenRouter base_url
-        mock_factory.assert_called_once()
-        call_kwargs = mock_factory.call_args.kwargs
-        assert call_kwargs["base_url"] == "http://localhost:8000/v1"
-        assert call_kwargs["api_key"] == "test-key"
-        assert call_kwargs["model_id"] == "gpt-4"
+    return response
 
 
-class TestProviderSwitching:
-    """Tests for provider switching via config."""
+class OpenRouterContext:
+    """Context object for OpenRouter BDD scenarios."""
 
-    def test_provider_switching_requires_config_only(self) -> None:
-        """Switching providers should only require config changes."""
-        endpoints = [
-            ("openrouter", "https://openrouter.ai/api/v1"),
-            ("openai", "https://api.openai.com/v1"),
-            ("local", "http://localhost:8000/v1"),
-        ]
+    runtime: OpenAICompatibleRuntime | None = None
+    request: LlmPromptRequest | None = None
+    response: LlmPromptResponse | None = None
+    route: Any = None
+    # For multi-endpoint scenario
+    endpoints: list[tuple[str, str, str]] | None = None
+    results: list[tuple[Any, LlmPromptResponse]] | None = None
 
-        for provider_name, base_url in endpoints:
-            request = _make_request(
-                provider_name=provider_name,
-                base_url=base_url,
+
+@given("an OpenRouter endpoint configuration", target_fixture="ctx")
+def given_openrouter_config() -> OpenRouterContext:
+    """Set up an OpenRouter endpoint configuration with runtime and request.
+
+    Returns:
+        OpenRouterContext with fields initialized.
+    """
+    ctx = OpenRouterContext()
+    ctx.runtime = OpenAICompatibleRuntime()
+    ctx.request = _make_request(
+        provider_name="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        model_id="anthropic/claude-4.5-sonnet",
+    )
+    return ctx
+
+
+@given("a local endpoint configuration", target_fixture="ctx")
+def given_local_config() -> OpenRouterContext:
+    """Set up a local endpoint configuration with runtime and request.
+
+    Returns:
+        OpenRouterContext with fields initialized.
+    """
+    ctx = OpenRouterContext()
+    ctx.runtime = OpenAICompatibleRuntime()
+    ctx.request = _make_request(
+        provider_name="local",
+        base_url="http://localhost:8000/v1",
+    )
+    return ctx
+
+
+@given("multiple endpoint configurations for different providers", target_fixture="ctx")
+def given_multiple_endpoints() -> OpenRouterContext:
+    """Set up multiple endpoint configurations for provider parity testing.
+
+    Returns:
+        OpenRouterContext with fields initialized.
+    """
+    ctx = OpenRouterContext()
+    ctx.endpoints = [
+        ("openrouter", "https://openrouter.ai/api/v1", "openai/gpt-4"),
+        ("openai", "https://api.openai.com/v1", "gpt-4"),
+        ("local", "http://localhost:8000/v1", "gpt-4"),
+    ]
+    ctx.results = []
+    return ctx
+
+
+@when("I send a prompt through the runtime")
+def when_send_prompt(ctx: OpenRouterContext) -> None:
+    """Send a prompt through the runtime with mocked HTTP endpoint."""
+    assert ctx.runtime is not None
+    assert ctx.request is not None
+
+    base_url = ctx.request.runtime.endpoint.base_url
+    model_id = ctx.request.runtime.model.model_id
+    is_openrouter = "openrouter" in base_url
+
+    with respx.mock:
+        route = respx.post(f"{base_url}/chat/completions").mock(
+            return_value=httpx.Response(
+                200,
+                json=_chat_completion_response(
+                    "Test response",
+                    model_id,
+                    openrouter=is_openrouter,
+                ),
             )
+        )
+        ctx.response = asyncio.run(
+            ctx.runtime.run_prompt(ctx.request, api_key="test-key")
+        )
+        ctx.route = route
 
-            runtime = OpenAICompatibleRuntime()
 
-            mock_model = MagicMock()
-            mock_settings: OpenAIChatModelSettings = {"temperature": 0.7}
+@when("I send prompts through each endpoint")
+def when_send_prompts_through_each(ctx: OpenRouterContext) -> None:
+    """Send prompts through each configured endpoint with mocked HTTP."""
+    assert ctx.endpoints is not None
+    assert ctx.results is not None
 
-            with (
-                patch(
-                    "rentl_llm.openai_runtime.create_model",
-                    return_value=(mock_model, mock_settings),
-                ) as mock_factory,
-                patch("rentl_llm.openai_runtime.Agent") as mock_agent,
-            ):
-                mock_agent_instance = MagicMock()
-                mock_agent_instance.run = AsyncMock()
-                mock_agent.return_value = mock_agent_instance
+    for provider_name, base_url, model_id in ctx.endpoints:
+        request = _make_request(
+            provider_name=provider_name,
+            base_url=base_url,
+            model_id=model_id,
+        )
+        runtime = OpenAICompatibleRuntime()
+        is_openrouter = "openrouter" in base_url
 
-                asyncio.run(runtime.run_prompt(request, api_key="test-key"))
+        with respx.mock:
+            route = respx.post(f"{base_url}/chat/completions").mock(
+                return_value=httpx.Response(
+                    200,
+                    json=_chat_completion_response(
+                        "Response", model_id, openrouter=is_openrouter
+                    ),
+                )
+            )
+            response = asyncio.run(runtime.run_prompt(request, api_key="test-key"))
+            ctx.results.append((route, response))
 
-                # Verify factory was called with the correct base_url
-                mock_factory.assert_called_once()
-                assert mock_factory.call_args.kwargs["base_url"] == base_url
+
+@then("the request is sent to the OpenRouter endpoint")
+def then_request_sent_to_openrouter(ctx: OpenRouterContext) -> None:
+    """Assert the request was routed to the OpenRouter endpoint."""
+    assert ctx.route is not None
+    assert ctx.route.called
+
+
+@then("the request is sent to the local endpoint")
+def then_request_sent_to_local(ctx: OpenRouterContext) -> None:
+    """Assert the request was routed to the local endpoint."""
+    assert ctx.route is not None
+    assert ctx.route.called
+
+
+@then("the response contains the expected output")
+def then_response_contains_output(ctx: OpenRouterContext) -> None:
+    """Assert the response contains the expected output text."""
+    assert ctx.response is not None
+    assert ctx.response.output_text == "Test response"
+
+
+@then("each request reaches the correct endpoint")
+def then_each_request_reaches_endpoint(ctx: OpenRouterContext) -> None:
+    """Assert each request was routed to its respective endpoint."""
+    assert ctx.results is not None
+    for route, _response in ctx.results:
+        assert route.called
+
+
+@then("each response contains the correct model ID")
+def then_each_response_correct_model(ctx: OpenRouterContext) -> None:
+    """Assert each response contains the model ID matching its endpoint config."""
+    assert ctx.results is not None
+    assert ctx.endpoints is not None
+    for i, (_route, response) in enumerate(ctx.results):
+        _provider_name, _base_url, model_id = ctx.endpoints[i]
+        assert response.model_id == model_id

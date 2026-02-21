@@ -433,7 +433,7 @@ class TestGlobalRegistry:
         must have a corresponding changelog entry.
         """
         # Read the changelog from project root
-        changelog_path = Path(__file__).parents[5] / "SCHEMA_CHANGELOG.md"
+        changelog_path = Path(__file__).parents[3] / "SCHEMA_CHANGELOG.md"
         assert changelog_path.exists(), "SCHEMA_CHANGELOG.md not found at project root"
 
         changelog_text = changelog_path.read_text()

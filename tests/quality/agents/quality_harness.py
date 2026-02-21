@@ -78,9 +78,9 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         base_url=config.base_url,
         model_id=config.model_id,
         temperature=0.2,
-        timeout_s=15.0,  # Cap per-request to stay within 30s test budget
+        timeout_s=8.0,  # 2 agent + 1 judge calls x 8s = 24s max
         max_retries=0,  # No retries — single attempt to avoid timeout amplification
-        max_output_retries=2,  # Allow 3 total validation attempts (initial + 2 retries)
+        max_output_retries=0,  # Single attempt to stay within 29s
         retry_base_delay=1.0,
         end_strategy="exhaustive",
         required_tool_calls=["get_game_info"],
@@ -101,6 +101,7 @@ def build_judge_model_and_settings(
         model_id=config.judge_model_id,
         temperature=0.0,
         max_output_tokens=200,
+        timeout_s=8.0,
     )
 
 

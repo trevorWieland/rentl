@@ -35,6 +35,8 @@ from tests.integration.conftest import FakeLlmRuntime
 if TYPE_CHECKING:
     pass
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/cli/onboarding_e2e.feature")
 
@@ -50,6 +52,9 @@ class OnboardingContext:
     export_result: Result | None = None
     pipeline_response: dict | None = None
     export_response: dict | None = None
+    mock_call_count: dict[str, int] | None = None
+    preflight_called: dict[str, int] | None = None
+    mock_llm_runtime: FakeLlmRuntime | None = None
 
 
 @given("a clean temporary directory", target_fixture="ctx")
@@ -131,6 +136,9 @@ def when_run_doctor(
     env_path = ctx.project_dir / ".env"
     env_path.write_text("RENTL_LOCAL_API_KEY=fake-api-key-for-e2e-test\n")
 
+    # Store the mock LLM runtime so we can assert it was invoked
+    ctx.mock_llm_runtime = mock_llm_runtime
+
     ctx.doctor_result = cli_runner.invoke(
         cli_main.app,
         ["doctor", "--config", str(ctx.config_path)],
@@ -155,10 +163,15 @@ def when_run_pipeline(
     monkeypatch.setenv("RENTL_LOCAL_API_KEY", "fake-api-key-for-e2e-test")
 
     # Bypass preflight probe (makes real HTTP requests to provider endpoints)
-    async def _noop_preflight(endpoints: list[object]) -> None:
-        pass
+    preflight_called = {"count": 0}
+
+    async def _noop_preflight(endpoints: list[object]) -> None:  # noqa: RUF029
+        preflight_called["count"] += 1
 
     monkeypatch.setattr(cli_main, "assert_preflight", _noop_preflight)
+
+    # Store preflight tracker on context for assertion in then step
+    ctx.preflight_called = preflight_called
 
     # Track mock invocations
     mock_call_count = {"count": 0}
@@ -252,6 +265,7 @@ def when_run_pipeline(
             raise ValueError(f"Unexpected output type in E2E test mock: {output_type}")
 
     monkeypatch.setattr(ProfileAgent, "run", mock_agent_run)
+    ctx.mock_call_count = mock_call_count
 
     # Run the pipeline
     ctx.pipeline_result = cli_runner.invoke(
@@ -381,6 +395,27 @@ def then_all_commands_succeed(ctx: OnboardingContext) -> None:
         f"Export command failed with exit code {ctx.export_result.exit_code}\n"
         f"Output: {ctx.export_result.stdout}\n"
         f"Error: {ctx.export_result.stderr}"
+    )
+
+    # Verify ProfileAgent.run mock was actually invoked
+    assert ctx.mock_call_count is not None, "Mock call count not tracked"
+    assert ctx.mock_call_count["count"] > 0, (
+        "ProfileAgent.run mock was never called — "
+        "the patch may not be at the correct execution boundary"
+    )
+
+    # Verify the preflight bypass was invoked
+    assert ctx.preflight_called is not None, "Preflight call count not tracked"
+    assert ctx.preflight_called["count"] > 0, (
+        "assert_preflight mock was never called — "
+        "the monkeypatch may not be targeting the correct attribute"
+    )
+
+    # Verify the mock LLM runtime was invoked during doctor connectivity check
+    assert ctx.mock_llm_runtime is not None, "Mock LLM runtime not tracked"
+    assert ctx.mock_llm_runtime.call_count > 0, (
+        "mock_llm_runtime was never called during doctor — "
+        "the monkeypatch may not be targeting the correct execution boundary"
     )
 
 

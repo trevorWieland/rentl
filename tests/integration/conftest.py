@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import pytest
 from typer.testing import CliRunner
 
-import rentl.main as cli_main
+from rentl_llm.openai_runtime import OpenAICompatibleRuntime
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 
 if TYPE_CHECKING:
@@ -24,6 +24,10 @@ pytestmark = pytest.mark.integration
 class FakeLlmRuntime:
     """Mock LLM runtime for integration tests (no real API calls)."""
 
+    def __init__(self) -> None:
+        """Initialize with call counter."""
+        self.call_count = 0
+
     async def run_prompt(
         self, request: LlmPromptRequest, *, api_key: str
     ) -> LlmPromptResponse:
@@ -32,6 +36,7 @@ class FakeLlmRuntime:
         Returns schema-valid outputs based on the agent being called.
         Detects agent type from prompt content.
         """
+        self.call_count += 1
         prompt = request.prompt.lower()
 
         # Extract scene_id and line_id from prompt if present
@@ -145,12 +150,17 @@ def tmp_workspace(tmp_path: Path) -> Path:
 def mock_llm_runtime(
     monkeypatch: pytest.MonkeyPatch, fake_llm_runtime: FakeLlmRuntime
 ) -> Generator[FakeLlmRuntime]:
-    """Patch the CLI to use a fake LLM runtime.
+    """Patch OpenAICompatibleRuntime.run_prompt at the execution boundary.
+
+    Mocks at the agent boundary (run_prompt) instead of internal
+    factory functions.
 
     Yields:
         The fake LLM runtime instance.
     """
-    monkeypatch.setattr(cli_main, "_build_llm_runtime", lambda: fake_llm_runtime)
+    monkeypatch.setattr(
+        OpenAICompatibleRuntime, "run_prompt", fake_llm_runtime.run_prompt
+    )
     yield fake_llm_runtime
 
 

@@ -18,6 +18,8 @@ import rentl.main as cli_main
 if TYPE_CHECKING:
     pass
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/cli/exit_codes.feature")
 
@@ -267,9 +269,12 @@ def when_trigger_runtime_error(
 
     # Monkeypatch _export_async to raise an unexpected KeyError
     # This will bypass all the normal error handling paths and trigger exit 99
+    export_called = {"count": 0}
+
     async def raise_runtime_error(  # noqa: RUF029
         *args: str | Path, **kwargs: str | int | bool
     ) -> None:
+        export_called["count"] += 1
         raise KeyError("Simulated runtime error for testing exit code 99")
 
     monkeypatch.setattr(cli_main, "_export_async", raise_runtime_error)
@@ -298,6 +303,12 @@ def when_trigger_runtime_error(
     if ctx.result.stdout:
         with contextlib.suppress(json.JSONDecodeError):
             ctx.response = json.loads(ctx.result.stdout)
+
+    # Assert the patched _export_async was actually invoked
+    assert export_called["count"] > 0, (
+        "_export_async mock was never called — the monkeypatch may not be targeting "
+        "the correct attribute"
+    )
 
 
 @then("the command succeeds")

@@ -20,3 +20,21 @@ Feature: FileSystem Storage Adapters
     When I write log events to a run
     And I get the log reference
     Then the log file exists at the referenced path
+
+  Scenario: Log sink redacts secrets end to end
+    Given a log store with redaction configured
+    When I write a log entry containing secrets
+    Then the log file redacts API keys and env var values
+    And a debug entry records redaction metadata
+
+  Scenario: JSONL artifact redacts secrets before writing
+    Given an artifact store with redaction configured
+    When I write JSONL records containing secrets
+    Then the stored records have secrets redacted
+    And safe values are preserved
+
+  Scenario: JSON artifact redacts secrets before writing
+    Given an artifact store with redaction configured
+    When I write a JSON record containing secrets
+    Then the stored record has secrets redacted
+    And safe values are preserved in JSON

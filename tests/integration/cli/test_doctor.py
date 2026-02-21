@@ -16,6 +16,8 @@ from tests.integration.conftest import write_rentl_config
 if TYPE_CHECKING:
     from tests.integration.conftest import FakeLlmRuntime
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/cli/doctor.feature")
 
@@ -26,6 +28,7 @@ class DoctorContext:
     result: Result | None = None
     stdout: str = ""
     config_dir: Path | None = None
+    fake_llm: FakeLlmRuntime | None = None
 
 
 @given("a valid rentl configuration exists", target_fixture="ctx")
@@ -39,6 +42,7 @@ def given_valid_config(
     """
     ctx = DoctorContext()
     ctx.config_dir = tmp_workspace.parent
+    ctx.fake_llm = mock_llm_runtime
     write_rentl_config(ctx.config_dir, tmp_workspace)
 
     # Create necessary workspace directories inside tmp_workspace
@@ -92,6 +96,12 @@ def then_output_contains_check_results(ctx: DoctorContext) -> None:
         or "config" in ctx.stdout.lower()
         or "workspace" in ctx.stdout.lower()
     )
+    # Verify the LLM runtime mock was invoked (no silent pass-through)
+    if ctx.fake_llm is not None:
+        assert ctx.fake_llm.call_count > 0, (
+            "mock_llm_runtime was never invoked — "
+            "patch may have silently passed through"
+        )
 
 
 @then("the output contains config error details")

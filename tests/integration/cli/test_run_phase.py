@@ -15,11 +15,13 @@ from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl.main as cli_main
+from rentl_agents.runtime import ProfileAgent
 from rentl_schemas.config import RunConfig
-from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
     pass
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/cli/run_phase.feature")
@@ -144,7 +146,18 @@ def given_config_all_phases(
     ctx.workspace_dir.mkdir()
     ctx.config_path = _write_phase_config(tmp_path, ctx.workspace_dir)
     monkeypatch.setenv("PRIMARY_KEY", "fake-key")
-    monkeypatch.setattr(cli_main, "_build_llm_runtime", lambda: FakeLlmRuntime())
+
+    # Mock at agent boundary (ProfileAgent.run)
+    mock_call_count = {"count": 0}
+
+    async def mock_agent_run(  # noqa: RUF029
+        self: ProfileAgent, payload: object
+    ) -> object:  # pragma: no cover - ingest-only test doesn't invoke agents
+        mock_call_count["count"] += 1
+        raise RuntimeError("Unexpected agent invocation in ingest-only phase test")
+
+    monkeypatch.setattr(ProfileAgent, "run", mock_agent_run)
+    ctx.mock_call_count = mock_call_count  # type: ignore[attr-defined]
     return ctx
 
 
@@ -202,3 +215,9 @@ def then_response_contains_phase_data(ctx: PhaseContext) -> None:
     )
     assert ctx.response.get("data") is not None
     assert ctx.response["data"].get("run_id") is not None
+
+    # Verify agent mock was NOT called (ingest-only phase doesn't invoke agents)
+    assert ctx.mock_call_count["count"] == 0, (  # type: ignore[attr-defined]
+        f"ProfileAgent.run was called {ctx.mock_call_count['count']} times "  # type: ignore[attr-defined]
+        "in an ingest-only phase test — agents should not be invoked"
+    )
