@@ -23,13 +23,15 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Replace hardcoded nonexistent spec path `agent-os/specs/2026-02-15-1400-s0142-feature-name` with an executable path (or dynamic discovery snippet) in all affected docs: `agent-os/docs/WORKFLOW-GUIDE.md:139`, `agent-os/docs/draft-complete.md:133`, `agent-os/docs/draft-concise.md:78`, `agent-os/docs/draft-educational.md:139`, `agent-os/docs/draft-general.md:206` (and repeated occurrences) (audit round 1)
   - [x] Fix: Re-verify copy-pasteability by executing one updated orchestrator example end-to-end and confirming it no longer fails with `spec.md not found` (audit round 1)
 
-- [x] Task 3: Update Help Registry & Add \f Docstring Gates
+- [ ] Task 3: Update Help Registry & Add \f Docstring Gates
   - Add `check-secrets`, `migrate`, `benchmark` to `_COMMAND_REGISTRY` in `packages/rentl-core/src/rentl_core/help.py`
   - Add `\f` gate to `main` callback docstring at `main.py:243`
   - Add `\f` gate to `version` command docstring at `main.py:260`
   - Add `\f` gate to `benchmark download` docstring at `main.py:1200`
   - Add `\f` gate to `benchmark compare` docstring at `main.py:1351`
   - Test: `rentl help` output includes all registered commands; `rentl --help` hides internal sections
+  - [ ] Fix: Add missing `\f` gate to the `version` command docstring in `services/rentl-cli/src/rentl/main.py:262` (violates `python/cli-help-docstring-gating`; audit round 1)
+  - [ ] Fix: Complete and record Task 3 verification commands (`uv run rentl help`, `uv run rentl --help`); current run fails with `ModuleNotFoundError: No module named 'griffe'` before help output is validated (audit round 1)
 
 - [ ] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
   - Extract `migrate` workflow logic from `main.py:3712` to new core module (e.g., `rentl_core/migrate.py`)
