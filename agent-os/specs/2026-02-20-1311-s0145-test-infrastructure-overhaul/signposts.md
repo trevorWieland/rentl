@@ -107,7 +107,14 @@ that demonstrates the problem.
   pretranslation judge (1 call):           3.79s
   ```
   If pretranslation were recombined into a single test (~7.8s), it would still be well under 29s — consistent with the other agents.
-- **Actual root cause:** The original timeouts were caused by the pre-fix config: `timeout_s=15`, `max_output_retries=2` allowed worst case of 15s × 4 attempts = 60s agent budget alone. The progressive config reductions (`timeout_s` 15→12→8, `max_output_retries` 2→1→0) already fixed the underlying issue. The round 4 failure was an intermittent OpenRouter latency spike, not a structural problem. The split was an unnecessary overreaction.
-- **Solution:** Revert the split. Recombine into a single scenario with real agent run + all evaluators (structural + LLM judge) — matching the pattern used by the other 4 agent quality tests. No special treatment needed.
-- **Resolution:** do-task round 7, Task 9. Removed per-test `pytest.mark.timeout(29)` marker, recombined into single scenario matching context/translate/QA/edit pattern.
-- **Files affected:** `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/features/agents/pretranslation_agent.feature`
+- **Actual root cause:** Two compounding issues: (1) the original timeouts were caused by pre-fix config (`timeout_s=15`, `max_output_retries=2` allowed 60s+ agent budget); (2) the judge model had **no per-request timeout** — `build_judge_model_and_settings()` didn't pass `timeout_s`, so it defaulted to 60s via `create_model()` (`provider_factory.py:49`). This meant a single slow judge response could consume the entire 29s pytest budget.
+- **Evidence (round 6, walk-spec demo):** Same timeout recurred during walk-spec demo step 6, even after Task 9 recombination. Investigation revealed `build_judge_model_and_settings()` creates the judge with default `timeout_s=60.0`, while agent requests are capped at 8s. Worst case: 8s + 8s agent + 60s judge = 76s.
+  ```
+  tests/quality/agents/test_pretranslation_agent.py +++++ Timeout +++++
+  FAILED tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes
+  E   Failed: Timeout (>29.0s) from pytest-timeout.
+  1 failed, 8 passed in 68.42s (0:01:08)
+  ```
+- **Solution (final):** Added `timeout_s=8.0` to `build_judge_model_and_settings()` in `quality_harness.py`, matching the agent timeout. New worst case: 2 agent calls × 8s + 1 judge call × 8s = 24s (5s margin under 29s). Also recombined pretranslation into single scenario (Task 9 redo) matching the other 4 agent tests.
+- **Resolution:** walk-spec fix + do-task round 7 Task 9. Judge timeout added, pretranslation recombined.
+- **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/features/agents/pretranslation_agent.feature`
