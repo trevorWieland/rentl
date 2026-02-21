@@ -216,6 +216,62 @@ _COMMAND_REGISTRY: dict[str, CommandInfo] = {
             "rentl doctor --config custom/path/rentl.toml",
         ],
     ),
+    "check-secrets": CommandInfo(
+        name="check-secrets",
+        brief="Scan configuration files for hardcoded secrets",
+        detailed_help=(
+            "Scan rentl.toml for hardcoded secrets.\n\n"
+            "Checks api_key_env values that look like actual secrets rather "
+            "than environment variable names, and warns if .env files exist "
+            "and are not in .gitignore. Exit code is 1 if findings are "
+            "detected, 0 if clean."
+        ),
+        args=[],
+        options=[
+            "--config PATH  Path to rentl.toml config file (default: ./rentl.toml)",
+        ],
+        examples=[
+            "rentl check-secrets",
+            "rentl check-secrets --config custom/path/rentl.toml",
+        ],
+    ),
+    "migrate": CommandInfo(
+        name="migrate",
+        brief="Migrate rentl.toml config to the current schema version",
+        detailed_help=(
+            "Migrate rentl.toml config file to the current schema version.\n\n"
+            "Detects the current schema version in the config file, plans all "
+            "necessary migration steps to reach the current version, and applies "
+            "them. The original file is backed up to rentl.toml.bak before any "
+            "changes are written."
+        ),
+        args=[],
+        options=[
+            "--config PATH  Path to rentl.toml config file (default: ./rentl.toml)",
+            "--dry-run      Show what would change without writing",
+        ],
+        examples=[
+            "rentl migrate",
+            "rentl migrate --dry-run",
+            "rentl migrate --config custom/path/rentl.toml",
+        ],
+    ),
+    "benchmark": CommandInfo(
+        name="benchmark",
+        brief="Download and compare benchmark evaluation datasets",
+        detailed_help=(
+            "Download and compare benchmark evaluation datasets.\n\n"
+            "Subcommands:\n"
+            "  download  Download and parse evaluation set source material\n"
+            "  compare   Compare translation outputs head-to-head using LLM judge"
+        ),
+        args=[],
+        options=[],
+        examples=[
+            "rentl benchmark download --eval-set katawa-shoujo",
+            "rentl benchmark compare output1.jsonl output2.jsonl",
+        ],
+    ),
     "explain": CommandInfo(
         name="explain",
         brief="Explain what a pipeline phase does",

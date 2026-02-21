@@ -92,6 +92,7 @@ def when_run_init_with_preset(
     # 6. Model ID: (use preset default)
     # 7. Input format: jsonl
     # 8. Include seed data: y
+    # 9. Write this config? y
     init_input = (
         "\n".join([
             "onboarding-test",  # project name
@@ -102,6 +103,7 @@ def when_run_init_with_preset(
             "",  # model_id (accept default)
             "jsonl",  # input format
             "y",  # include seed data
+            "y",  # write this config (confirm preview)
         ])
         + "\n"
     )

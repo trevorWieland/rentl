@@ -65,7 +65,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - Unit tests verifying log events are emitted on retry, progress events on ingest/export
   - [x] Fix: Add export milestone regression coverage in `tests/unit/core/test_orchestrator.py` for `PhaseName.EXPORT` `PHASE_PROGRESS` events emitted by `packages/rentl-core/src/rentl_core/orchestrator.py:1158-1200` (assert both "Selected ... lines for export" and "Wrote ... lines"); current tests only cover ingest milestones at `tests/unit/core/test_orchestrator.py:1217-1260` (audit round 1)
 
-- [ ] Task 7: Final Integration & Gate Verification
+- [x] Task 7: Final Integration & Gate Verification
   - Run `make all` and fix any remaining failures
   - Verify all acceptance criteria from spec.md are met
   - Ensure demo steps will pass
