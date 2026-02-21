@@ -23,7 +23,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Replace hardcoded nonexistent spec path `agent-os/specs/2026-02-15-1400-s0142-feature-name` with an executable path (or dynamic discovery snippet) in all affected docs: `agent-os/docs/WORKFLOW-GUIDE.md:139`, `agent-os/docs/draft-complete.md:133`, `agent-os/docs/draft-concise.md:78`, `agent-os/docs/draft-educational.md:139`, `agent-os/docs/draft-general.md:206` (and repeated occurrences) (audit round 1)
   - [x] Fix: Re-verify copy-pasteability by executing one updated orchestrator example end-to-end and confirming it no longer fails with `spec.md not found` (audit round 1)
 
-- [ ] Task 3: Update Help Registry & Add \f Docstring Gates
+- [x] Task 3: Update Help Registry & Add \f Docstring Gates
   - Add `check-secrets`, `migrate`, `benchmark` to `_COMMAND_REGISTRY` in `packages/rentl-core/src/rentl_core/help.py`
   - Add `\f` gate to `main` callback docstring at `main.py:243`
   - Add `\f` gate to `version` command docstring at `main.py:260`
