@@ -222,10 +222,10 @@ class TestGetCommandHelp:
 class TestListCommands:
     """Tests for list_commands function."""
 
-    def test_list_commands_returns_all_ten(self) -> None:
-        """list_commands returns all 10 commands."""
+    def test_list_commands_returns_all_thirteen(self) -> None:
+        """list_commands returns all 13 commands."""
         commands = list_commands()
-        assert len(commands) == 10
+        assert len(commands) == 13
 
     def test_list_commands_returns_tuples(self) -> None:
         """list_commands returns list of (name, brief) tuples."""
@@ -257,6 +257,9 @@ class TestListCommands:
             "help",
             "doctor",
             "explain",
+            "check-secrets",
+            "migrate",
+            "benchmark",
         }
         assert command_names == expected_names
 

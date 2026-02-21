@@ -26,7 +26,7 @@ Read this before starting any task to avoid repeating known issues.
 ## Signpost 2: Task 3 verification currently blocked by missing runtime dependency
 
 - **Task:** Task 3 (audit round 1)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The required Task 3 verification commands cannot run because CLI startup fails before rendering help output.
 - **Evidence:** Running `uv run rentl --help` fails with:
   ```bash
@@ -34,3 +34,6 @@ Read this before starting any task to avoid repeating known issues.
   ```
 - **Evidence:** Trace includes `services/rentl-cli/src/rentl/main.py:40` importing `rentl_agents.providers`, which pulls `pydantic_ai` modules that require `griffe`.
 - **Impact:** Blocks the Task 3 acceptance check (`rentl help` and `rentl --help` behavior), so command visibility/docstring gating cannot be verified end-to-end.
+- **Solution:** `griffe` 2.0.0 restructured into meta-package (`griffecli` + `griffelib`) that no longer provides the `griffe` Python module. Added `constraint-dependencies = ["griffe<2"]` to `[tool.uv]` in root `pyproject.toml` and re-locked. `griffe==1.15.0` provides the expected `griffe` Python module.
+- **Resolution:** do-task round 3, 2026-02-21
+- **Files affected:** pyproject.toml, uv.lock

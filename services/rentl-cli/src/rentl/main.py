@@ -261,7 +261,10 @@ def main(
 
 @app.command()
 def version() -> None:
-    """Display version information."""
+    """Display version information.\f
+
+    Prints the installed rentl package version to stdout.
+    """  # noqa: D301, D415
     rprint(f"[bold]rentl[/bold] v{VERSION}")
 
 
