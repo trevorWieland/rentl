@@ -9,10 +9,12 @@ from typing import cast
 import pytest
 
 from rentl_core.migrate import (
+    MigrateError,
     MigrationRegistry,
     MigrationTransform,
     apply_migrations,
     get_registry,
+    migrate_config,
     plan_migrations,
 )
 from rentl_schemas.migration import MigrationStep
@@ -458,3 +460,74 @@ class TestGlobalRegistry:
             assert pattern.search(changelog_text), (
                 f"Missing changelog entry for migration {source} → {target}"
             )
+
+
+class TestMigrateConfig:
+    """Test suite for migrate_config workflow function."""
+
+    def _write_config(self, path: Path, version: tuple[int, int, int]) -> None:
+        """Write a minimal TOML config file with the given schema version."""
+        content = (
+            f'[project]\nproject_name = "test"\n\n'
+            f"[project.schema_version]\n"
+            f"major = {version[0]}\n"
+            f"minor = {version[1]}\n"
+            f"patch = {version[2]}\n"
+        )
+        path.write_text(content, encoding="utf-8")
+
+    def test_missing_config_raises_error(self, tmp_path: Path) -> None:
+        """Raises MigrateError when config file does not exist."""
+        config_path = tmp_path / "rentl.toml"
+        with pytest.raises(MigrateError, match="not found"):
+            migrate_config(config_path)
+
+    def test_invalid_toml_raises_error(self, tmp_path: Path) -> None:
+        """Raises MigrateError when config is invalid TOML."""
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text("[[invalid toml", encoding="utf-8")
+        with pytest.raises(MigrateError, match="Failed to parse"):
+            migrate_config(config_path)
+
+    def test_missing_schema_version_raises_error(self, tmp_path: Path) -> None:
+        """Raises MigrateError when schema_version is missing."""
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text('[project]\nname = "test"\n', encoding="utf-8")
+        with pytest.raises(MigrateError, match="schema_version"):
+            migrate_config(config_path)
+
+    def test_up_to_date_returns_flag(self, tmp_path: Path) -> None:
+        """Returns up_to_date=True when already at target version."""
+        config_path = tmp_path / "rentl.toml"
+        # Use a version that's >= current target so no migrations needed
+        self._write_config(config_path, (99, 99, 99))
+        result = migrate_config(config_path)
+        assert result.up_to_date is True
+        assert result.steps == []
+
+    def test_dry_run_does_not_modify_file(self, tmp_path: Path) -> None:
+        """Dry run returns steps without modifying the config file."""
+        config_path = tmp_path / "rentl.toml"
+        self._write_config(config_path, (0, 0, 1))
+        original = config_path.read_text()
+
+        result = migrate_config(config_path, dry_run=True)
+
+        assert result.dry_run is True
+        assert len(result.steps) > 0
+        assert result.backup_path is None
+        # File unchanged
+        assert config_path.read_text() == original
+
+    def test_successful_migration_creates_backup(self, tmp_path: Path) -> None:
+        """Successful migration creates a backup file."""
+        config_path = tmp_path / "rentl.toml"
+        self._write_config(config_path, (0, 0, 1))
+
+        result = migrate_config(config_path)
+
+        assert result.backup_path is not None
+        assert result.backup_path.exists()
+        assert result.up_to_date is False
+        assert result.dry_run is False
+        assert len(result.steps) > 0

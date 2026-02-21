@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
+import tomllib
 from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
 
 from rentl_schemas.migration import MigrationStep
-from rentl_schemas.version import VersionInfo
+from rentl_schemas.version import CURRENT_SCHEMA_VERSION, VersionInfo
 
 # Type alias for valid TOML value types (recursive for nested structures)
 type ConfigValue = (
@@ -286,6 +290,129 @@ def dict_to_toml(data: ConfigDict) -> str:
         lines.pop()
 
     return "\n".join(lines) + "\n"
+
+
+@dataclass
+class MigrateResult:
+    """Result of a config migration operation."""
+
+    current_version: VersionInfo
+    target_version: VersionInfo
+    steps: list[MigrationStep] = field(default_factory=list)
+    up_to_date: bool = False
+    dry_run: bool = False
+    backup_path: Path | None = None
+
+
+class MigrateError(Exception):
+    """Raised when a config migration operation fails."""
+
+
+def migrate_config(
+    config_path: Path,
+    *,
+    dry_run: bool = False,
+    registry: MigrationRegistry | None = None,
+) -> MigrateResult:
+    """Run the full config migration workflow: load, plan, apply, backup, write.
+
+    Args:
+        config_path: Path to the rentl.toml config file
+        dry_run: If True, plan only without writing changes
+        registry: Migration registry to use (defaults to global registry)
+
+    Returns:
+        MigrateResult with migration details
+
+    Raises:
+        MigrateError: If config cannot be loaded, parsed, or migrated
+    """
+    if registry is None:
+        registry = get_registry()
+
+    # Load TOML config
+    if not config_path.exists():
+        raise MigrateError(f"Config file not found: {config_path}")
+
+    try:
+        with config_path.open("rb") as config_file:
+            config_data = tomllib.load(config_file)
+    except Exception as exc:
+        raise MigrateError(f"Failed to parse config: {exc}") from exc
+
+    # Extract current schema version
+    schema_version_data = config_data.get("project", {}).get("schema_version")
+    if not schema_version_data:
+        raise MigrateError("No schema_version field found in config")
+
+    try:
+        current_version = VersionInfo(
+            major=schema_version_data.get("major", 0),
+            minor=schema_version_data.get("minor", 0),
+            patch=schema_version_data.get("patch", 0),
+        )
+    except Exception as exc:
+        raise MigrateError(f"Invalid schema_version format: {exc}") from exc
+
+    # Get target version
+    target_version = VersionInfo(
+        major=CURRENT_SCHEMA_VERSION[0],
+        minor=CURRENT_SCHEMA_VERSION[1],
+        patch=CURRENT_SCHEMA_VERSION[2],
+    )
+
+    # Plan migrations
+    try:
+        migration_steps = plan_migrations(current_version, target_version, registry)
+    except ValueError as exc:
+        raise MigrateError(str(exc)) from exc
+
+    # Already up to date
+    if not migration_steps:
+        return MigrateResult(
+            current_version=current_version,
+            target_version=target_version,
+            up_to_date=True,
+        )
+
+    # Dry-run: return plan without applying
+    if dry_run:
+        return MigrateResult(
+            current_version=current_version,
+            target_version=target_version,
+            steps=migration_steps,
+            dry_run=True,
+        )
+
+    # Apply migrations
+    try:
+        migrated_config = apply_migrations(config_data, migration_steps, registry)
+    except Exception as exc:
+        raise MigrateError(f"Migration failed: {exc}") from exc
+
+    # Back up original config
+    backup_path = config_path.with_suffix(".toml.bak")
+    try:
+        backup_path.write_bytes(config_path.read_bytes())
+    except Exception as exc:
+        raise MigrateError(f"Failed to create backup: {exc}") from exc
+
+    # Write migrated config
+    try:
+        migrated_toml = dict_to_toml(migrated_config)
+        config_path.write_text(migrated_toml, encoding="utf-8")
+    except Exception as exc:
+        # Attempt to restore from backup
+        with contextlib.suppress(Exception):
+            config_path.write_bytes(backup_path.read_bytes())
+        raise MigrateError(f"Failed to write migrated config: {exc}") from exc
+
+    return MigrateResult(
+        current_version=current_version,
+        target_version=target_version,
+        steps=migration_steps,
+        backup_path=backup_path,
+    )
 
 
 def auto_migrate_config(

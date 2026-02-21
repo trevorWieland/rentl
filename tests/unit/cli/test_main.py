@@ -19,6 +19,7 @@ import rentl.main as cli_main
 from rentl.main import app
 from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import StandardEnvVar
+from rentl_core.migrate import dict_to_toml
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
@@ -2591,7 +2592,7 @@ def test_dict_to_toml_simple_values() -> None:
         }
     }
 
-    result = cli_main._dict_to_toml(data)
+    result = dict_to_toml(data)
 
     # Parse the result back to verify it's valid TOML
     parsed = tomllib.loads(result)
@@ -2610,7 +2611,7 @@ def test_dict_to_toml_nested_tables() -> None:
         }
     }
 
-    result = cli_main._dict_to_toml(data)
+    result = dict_to_toml(data)
 
     # Parse the result back to verify it's valid TOML
     parsed = tomllib.loads(result)
@@ -2626,7 +2627,7 @@ def test_dict_to_toml_arrays() -> None:
         "logging": {"sinks": [{"type": "console"}, {"type": "file"}]},
     }
 
-    result = cli_main._dict_to_toml(data)
+    result = dict_to_toml(data)
 
     # Parse the result back to verify it's valid TOML
     parsed = tomllib.loads(result)
@@ -2639,7 +2640,7 @@ def test_dict_to_toml_escaping() -> None:
     """Test TOML serialization handles escaping correctly."""
     data = {"test": {"value": 'quote" and backslash\\ here'}}
 
-    result = cli_main._dict_to_toml(data)
+    result = dict_to_toml(data)
 
     # Parse the result back to verify escaping worked
     parsed = tomllib.loads(result)

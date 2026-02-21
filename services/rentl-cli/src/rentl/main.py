@@ -6,7 +6,6 @@ import asyncio
 import contextlib
 import json
 import os
-import subprocess
 import sys
 import time
 import tomllib
@@ -62,9 +61,11 @@ from rentl_core.init import (
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.migrate import (
     ConfigDict,
-    ConfigValue,
+    MigrateError,
     apply_migrations,
+    dict_to_toml,
     get_registry,
+    migrate_config,
     plan_migrations,
 )
 from rentl_core.orchestrator import (
@@ -84,6 +85,7 @@ from rentl_core.ports.storage import (
     StorageBatchError,
     StorageError,
 )
+from rentl_core.secrets import check_config_secrets
 from rentl_io import write_output
 from rentl_io.export.router import get_export_adapter
 from rentl_io.ingest.router import get_ingest_adapter
@@ -242,11 +244,11 @@ def main(
         help="Display version information",
     ),
 ) -> None:
-    """Rentl CLI.
+    """Rentl CLI.\f
 
     Raises:
         typer.Exit: When --version flag is used or no command is provided.
-    """
+    """  # noqa: D301, D415
     if version_flag:
         rprint(f"[bold]rentl[/bold] v{VERSION}")
         raise typer.Exit(0)
@@ -1202,11 +1204,11 @@ def benchmark_download(
         None, "--output-dir", help="Directory to write parsed source files"
     ),
 ) -> None:
-    """Download and parse evaluation set source material.
+    """Download and parse evaluation set source material.\f
 
     Downloads scripts from the evaluation set repository, validates hashes,
     and parses them into rentl-ingestable SourceLine format.
-    """
+    """  # noqa: D301, D415
     asyncio.run(_benchmark_download_async(eval_set, slice_name, output_dir))
 
 
@@ -1361,13 +1363,13 @@ def benchmark_compare(
         None, "--output", help="Path to write JSON report"
     ),
 ) -> None:
-    """Compare translation outputs head-to-head using LLM judge.
+    """Compare translation outputs head-to-head using LLM judge.\f
 
     Loads 2+ rentl run outputs, runs all-pairs pairwise comparison,
     computes win rates and Elo ratings, and produces a ranking report.
 
     Uses judge endpoint from rentl.toml config unless overridden.
-    """
+    """  # noqa: D301, D415
     # Parse comma-separated candidate names
     parsed_names = None
     if candidate_names:
@@ -2179,7 +2181,7 @@ def _auto_migrate_if_needed(
 
     # Write migrated config
     try:
-        migrated_toml = _dict_to_toml(migrated_config)
+        migrated_toml = dict_to_toml(migrated_config)
         config_path.write_text(migrated_toml, encoding="utf-8")
     except Exception as exc:
         # Attempt to restore from backup
@@ -3650,8 +3652,6 @@ def check_secrets(
     console = Console()
     is_tty = sys.stdout.isatty()
 
-    findings: list[str] = []
-
     # Check if config file exists
     if not config_path.exists():
         if is_tty:
@@ -3676,105 +3676,8 @@ def check_secrets(
             print(f"Error: Failed to parse config: {exc}")
         raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
 
-    # Check endpoint.api_key_env
-    if "endpoint" in config_data:
-        api_key_env = config_data["endpoint"].get("api_key_env", "")
-        if api_key_env and _looks_like_secret(api_key_env):
-            findings.append(
-                f"endpoint.api_key_env contains what looks like a secret value: "
-                f"'{api_key_env[:20]}...' (should be an env var name like "
-                "RENTL_OPENROUTER_API_KEY)"
-            )
-
-    # Check endpoints.endpoints[].api_key_env (multi-endpoint configs)
-    if "endpoints" in config_data:
-        endpoints_list = config_data["endpoints"].get("endpoints", [])
-        for idx, endpoint in enumerate(endpoints_list):
-            api_key_env = endpoint.get("api_key_env", "")
-            if api_key_env and _looks_like_secret(api_key_env):
-                provider_name = endpoint.get("provider_name", f"[{idx}]")
-                findings.append(
-                    f"endpoints.endpoints[{idx}] ({provider_name}) "
-                    f"api_key_env contains what looks like a secret value: "
-                    f"'{api_key_env[:20]}...' (should be an env var name like "
-                    "RENTL_OPENROUTER_API_KEY)"
-                )
-
-    # Check .env files in project directory
-    project_dir = config_path.parent
-    env_file = project_dir / ".env"
-
-    if env_file.exists():
-        # Check if .env is tracked in git
-        is_git_repo = False
-        try:
-            # First check if we're in a git repository
-            git_check = subprocess.run(
-                ["git", "rev-parse", "--git-dir"],
-                cwd=project_dir,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            is_git_repo = git_check.returncode == 0
-
-            if is_git_repo:
-                # Check if .env is tracked
-                result = subprocess.run(
-                    ["git", "ls-files", "--error-unmatch", ".env"],
-                    cwd=project_dir,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                # Exit code 0 means file is tracked
-                if result.returncode == 0:
-                    findings.append(
-                        f".env file at {env_file} is tracked by git "
-                        "(should be in .gitignore to avoid committing secrets)"
-                    )
-                else:
-                    # .env exists but is not tracked; use git check-ignore
-                    check_ignore = subprocess.run(
-                        ["git", "check-ignore", ".env"],
-                        cwd=project_dir,
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    # Exit code 0 means .env is ignored; non-zero means not ignored
-                    if check_ignore.returncode != 0:
-                        findings.append(
-                            f".env file exists at {env_file} but is not in "
-                            ".gitignore (risk of committing secrets)"
-                        )
-        except Exception:
-            # If git command fails, treat as non-git repo
-            is_git_repo = False
-
-        # If not a git repo, fall back to simple .gitignore substring check
-        if not is_git_repo:
-            gitignore_file = project_dir / ".gitignore"
-            if gitignore_file.exists():
-                with gitignore_file.open() as gitignore:
-                    gitignore_contents = gitignore.read()
-                    # Parse .gitignore line-by-line (no git available for check-ignore)
-                    gitignore_lines = [
-                        line.strip()
-                        for line in gitignore_contents.splitlines()
-                        if line.strip() and not line.startswith("#")
-                    ]
-                    # Match .env exactly or as a pattern (e.g., *.env)
-                    if ".env" not in gitignore_lines and "*.env" not in gitignore_lines:
-                        findings.append(
-                            f".env file exists at {env_file} but is not in .gitignore "
-                            "(risk of committing secrets)"
-                        )
-            else:
-                findings.append(
-                    f".env file exists at {env_file} but no .gitignore found "
-                    "(risk of committing secrets)"
-                )
+    # Delegate to core validation logic
+    findings = check_config_secrets(config_data, config_path.parent)
 
     # Report findings
     if findings:
@@ -3822,85 +3725,26 @@ def migrate(
     console = Console()
     is_tty = sys.stdout.isatty()
 
-    # Check if config file exists
-    if not config_path.exists():
-        if is_tty:
-            console.print(
-                f"[red]Error:[/red] Config file not found: {config_path}",
-                style="red",
-            )
-        else:
-            print(f"Error: Config file not found: {config_path}")
-        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
-
-    # Load TOML config
+    # Delegate to core migration workflow
     try:
-        with config_path.open("rb") as config_file:
-            config_data = tomllib.load(config_file)
-    except Exception as exc:
-        if is_tty:
-            console.print(
-                f"[red]Error:[/red] Failed to parse config: {exc}", style="red"
-            )
-        else:
-            print(f"Error: Failed to parse config: {exc}")
-        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
-
-    # Extract current schema version from config
-    try:
-        schema_version_data = config_data.get("project", {}).get("schema_version")
-        if not schema_version_data:
-            if is_tty:
-                console.print(
-                    "[red]Error:[/red] No schema_version field found in config",
-                    style="red",
-                )
-            else:
-                print("Error: No schema_version field found in config")
-            raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
-
-        current_version = VersionInfo(
-            major=schema_version_data.get("major", 0),
-            minor=schema_version_data.get("minor", 0),
-            patch=schema_version_data.get("patch", 0),
-        )
-    except Exception as exc:
-        if is_tty:
-            console.print(
-                f"[red]Error:[/red] Invalid schema_version format: {exc}", style="red"
-            )
-        else:
-            print(f"Error: Invalid schema_version format: {exc}")
-        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
-
-    # Get target version
-    target_version = VersionInfo(
-        major=CURRENT_SCHEMA_VERSION[0],
-        minor=CURRENT_SCHEMA_VERSION[1],
-        patch=CURRENT_SCHEMA_VERSION[2],
-    )
-
-    # Plan migrations
-    registry = get_registry()
-    try:
-        migration_steps = plan_migrations(current_version, target_version, registry)
-    except ValueError as exc:
+        result = migrate_config(config_path, dry_run=dry_run)
+    except MigrateError as exc:
         if is_tty:
             console.print(f"[red]Error:[/red] {exc}", style="red")
         else:
             print(f"Error: {exc}")
         raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
 
-    # Check if already up to date
-    if not migration_steps:
+    # Already up to date
+    if result.up_to_date:
         if is_tty:
             console.print(
                 f"[green]Already up to date:[/green] Config is at version "
-                f"{current_version}",
+                f"{result.current_version}",
                 style="bold green",
             )
         else:
-            print(f"Already up to date: Config is at version {current_version}")
+            print(f"Already up to date: Config is at version {result.current_version}")
         return
 
     # Display migration plan
@@ -3910,25 +3754,29 @@ def migrate(
         table.add_column("To", style="cyan")
         table.add_column("Description")
 
-        for step in migration_steps:
+        for step in result.steps:
             table.add_row(
                 str(step.source_version), str(step.target_version), step.description
             )
 
         console.print(table)
-        console.print(f"\n[bold]Source version:[/bold] {current_version}", style="bold")
-        console.print(f"[bold]Target version:[/bold] {target_version}", style="bold")
+        console.print(
+            f"\n[bold]Source version:[/bold] {result.current_version}", style="bold"
+        )
+        console.print(
+            f"[bold]Target version:[/bold] {result.target_version}", style="bold"
+        )
     else:
         print("Migration Plan:")
-        for step in migration_steps:
+        for step in result.steps:
             print(
                 f"  {step.source_version} → {step.target_version}: {step.description}"
             )
-        print(f"\nSource version: {current_version}")
-        print(f"Target version: {target_version}")
+        print(f"\nSource version: {result.current_version}")
+        print(f"Target version: {result.target_version}")
 
-    # Dry-run mode: exit after showing plan
-    if dry_run:
+    # Dry-run mode
+    if result.dry_run:
         if is_tty:
             console.print(
                 "\n[yellow]Dry-run mode:[/yellow] No changes written", style="bold"
@@ -3937,168 +3785,19 @@ def migrate(
             print("\nDry-run mode: No changes written")
         return
 
-    # Apply migrations
-    try:
-        migrated_config = apply_migrations(config_data, migration_steps, registry)
-    except Exception as exc:
-        if is_tty:
-            console.print(f"[red]Error:[/red] Migration failed: {exc}", style="red")
-        else:
-            print(f"Error: Migration failed: {exc}")
-        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
-
-    # Back up original config
-    backup_path = config_path.with_suffix(".toml.bak")
-    try:
-        backup_path.write_bytes(config_path.read_bytes())
-    except Exception as exc:
-        if is_tty:
-            console.print(
-                f"[red]Error:[/red] Failed to create backup: {exc}", style="red"
-            )
-        else:
-            print(f"Error: Failed to create backup: {exc}")
-        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
-
-    # Write migrated config
-    try:
-        migrated_toml = _dict_to_toml(migrated_config)
-        config_path.write_text(migrated_toml, encoding="utf-8")
-    except Exception as exc:
-        if is_tty:
-            console.print(
-                f"[red]Error:[/red] Failed to write migrated config: {exc}",
-                style="red",
-            )
-        else:
-            print(f"Error: Failed to write migrated config: {exc}")
-        # Attempt to restore from backup
-        try:
-            config_path.write_bytes(backup_path.read_bytes())
-            if is_tty:
-                console.print(
-                    "[yellow]Restored original config from backup[/yellow]",
-                    style="yellow",
-                )
-            else:
-                print("Restored original config from backup")
-        except Exception:
-            pass  # Best effort restore
-        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
-
     # Success
     if is_tty:
         console.print(
-            f"\n[green]Migration complete:[/green] {current_version} → "
-            f"{target_version}",
+            f"\n[green]Migration complete:[/green] {result.current_version} → "
+            f"{result.target_version}",
             style="bold green",
         )
-        console.print(f"[dim]Backup saved to:[/dim] {backup_path}")
+        console.print(f"[dim]Backup saved to:[/dim] {result.backup_path}")
     else:
-        print(f"\nMigration complete: {current_version} → {target_version}")
-        print(f"Backup saved to: {backup_path}")
-
-
-def _dict_to_toml(data: dict) -> str:
-    """Convert a dictionary to TOML format string.
-
-    Simple TOML serializer that handles the subset of TOML used in rentl configs.
-    Supports nested tables, strings, integers, floats, booleans, and arrays.
-
-    Args:
-        data: Dictionary to serialize to TOML
-
-    Returns:
-        TOML-formatted string
-    """
-    lines: list[str] = []
-
-    def _write_value(value: ConfigValue) -> str:
-        """Serialize a single value to TOML format.
-
-        Args:
-            value: Value to serialize
-
-        Returns:
-            TOML-formatted string representation of the value
-        """
-        match value:
-            case bool():
-                return "true" if value else "false"
-            case int() | float():
-                return str(value)
-            case str():
-                escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-                return f'"{escaped}"'
-            case list():
-                items = [_write_value(item) for item in value]
-                return f"[{', '.join(items)}]"
-            case dict():
-                items = [f"{k} = {_write_value(v)}" for k, v in value.items()]
-                return f"{{ {', '.join(items)} }}"
-            case _:
-                return str(value)
-
-    def _write_table(table_data: dict, prefix: str = "") -> None:
-        """Recursively write tables and their contents."""
-        # Separate simple values from nested tables
-        simple_keys = []
-        table_keys = []
-
-        for key, value in table_data.items():
-            if isinstance(value, dict) and not all(
-                isinstance(v, int | float | str | bool) for v in value.values()
-            ):
-                table_keys.append(key)
-            else:
-                simple_keys.append(key)
-
-        # Write simple key-value pairs
-        if simple_keys:
-            if prefix:
-                lines.append(f"[{prefix}]")
-            for key in simple_keys:
-                value = table_data[key]
-                lines.append(f"{key} = {_write_value(value)}")
-            if table_keys:
-                lines.append("")  # Blank line before nested tables
-
-        # Write nested tables
-        for key in table_keys:
-            value = table_data[key]
-            new_prefix = f"{prefix}.{key}" if prefix else key
-            _write_table(value, new_prefix)
-            lines.append("")  # Blank line between tables
-
-    _write_table(data)
-
-    # Remove trailing blank lines
-    while lines and not lines[-1]:
-        lines.pop()
-
-    return "\n".join(lines) + "\n"
-
-
-def _looks_like_secret(value: str) -> bool:
-    """Check if a string looks like a secret value rather than an env var name.
-
-    Args:
-        value: String to check
-
-    Returns:
-        True if the value matches known secret patterns
-    """
-    # Env var names are typically UPPERCASE_WITH_UNDERSCORES
-    # If it looks like an env var name, it's not a secret
-    if value.isupper() and "_" in value and not any(c in value for c in "=-: "):
-        return False
-
-    # Check against default secret patterns
-    for pattern in DEFAULT_PATTERNS:
-        if pattern.compiled and pattern.compiled.search(value):
-            return True
-
-    return False
+        print(
+            f"\nMigration complete: {result.current_version} → {result.target_version}"
+        )
+        print(f"Backup saved to: {result.backup_path}")
 
 
 if __name__ == "__main__":

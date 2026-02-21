@@ -33,7 +33,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [ ] Fix: Add missing `\f` gate to the `version` command docstring in `services/rentl-cli/src/rentl/main.py:262` (violates `python/cli-help-docstring-gating`; audit round 1)
   - [ ] Fix: Complete and record Task 3 verification commands (`uv run rentl help`, `uv run rentl --help`); current run fails with `ModuleNotFoundError: No module named 'griffe'` before help output is validated (audit round 1)
 
-- [ ] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
+- [x] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
   - Extract `migrate` workflow logic from `main.py:3712` to new core module (e.g., `rentl_core/migrate.py`)
   - Extract `check-secrets` validation from `main.py:3574` to new core module (e.g., `rentl_core/secrets.py`)
   - Extract TOML serialization from `main.py:3910` to core (e.g., `rentl_core/config/serialization.py`)
