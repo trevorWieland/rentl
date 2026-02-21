@@ -84,3 +84,27 @@ Read this before starting any task to avoid repeating known issues.
 - **Solution:** Added `_validate_toml_content` helper in `init.py` that parses and schema-validates the TOML string before any file write. Also wrapped `tomllib.TOMLDecodeError` in `validate_generated_config` as `ConfigValidationError`. Both paths now use the same error type.
 - **Resolution:** do-task round 3, 2026-02-21
 - **Files affected:** packages/rentl-core/src/rentl_core/init.py, tests/unit/core/test_init.py
+
+## Signpost 5: Pre-write ConfigValidationError is still mapped to runtime_error in CLI init
+
+- **Task:** Task 5 (audit round 2)
+- **Status:** unresolved
+- **Problem:** `generate_project` now validates TOML before write and raises `ConfigValidationError`, but `rentl init` still routes that exception to the generic runtime error path instead of the validation error path.
+- **Evidence:** `services/rentl-cli/src/rentl/main.py:722` calls `generate_project(...)`; failures from that call are handled by the broad `except Exception` block at `services/rentl-cli/src/rentl/main.py:772-774`.
+- **Evidence:** `_error_from_exception` has no `ConfigValidationError` match and falls back to `runtime_error` in the default case (`services/rentl-cli/src/rentl/main.py:3676-3683`).
+- **Evidence:** Repro command output:
+  ```bash
+  $ uv run python - <<'PY'
+  from typer.testing import CliRunner
+  from rentl.main import app
+  runner = CliRunner()
+  with runner.isolated_filesystem():
+      result = runner.invoke(app, ["init"], input='bad"name\n\n\n\n1\n\n\n\n')
+      print(result.exit_code)
+      print(result.stdout.splitlines()[-1])
+  PY
+  99
+  {"data":null,"error":{"code":"runtime_error","message":"Generated TOML is unparseable: Expected newline or end of document after a statement (at line 3, column 21)","details":null,"exit_code":99},...}
+  ```
+- **Impact:** User input validation failures are mislabeled as runtime failures, which breaks expected CLI semantics and weakens `ux/frictionless-by-default` by returning the wrong exit code for recoverable validation errors.
+- **Solution:** Add explicit handling for `ConfigValidationError` in the `init` command exception flow (or in `_error_from_exception`) to map it to `validation_error`/exit code 11, and add a CLI regression test for this path.

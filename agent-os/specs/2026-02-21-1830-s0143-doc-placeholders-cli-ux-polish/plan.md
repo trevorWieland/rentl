@@ -43,7 +43,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Guard `migrate_config` against non-table `project` values and raise `MigrateError` instead of uncaught `AttributeError` (`packages/rentl-core/src/rentl_core/migrate.py:344`; repro: `project = "oops"` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
   - [x] Fix: Guard `check_config_secrets` against non-table `endpoint`/`endpoints` values before calling `.get`, and add regression tests (`packages/rentl-core/src/rentl_core/secrets.py:53`, `packages/rentl-core/src/rentl_core/secrets.py:63`; repro: `{'endpoint': 'oops'}` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
 
-- [x] Task 5: Improve Init UX (frictionless-by-default)
+- [ ] Task 5: Improve Init UX (frictionless-by-default)
   - Add auto-detection in `init.py` and `main.py:569`: detect game engine from file patterns, source language from existing files
   - Add config preview display before write at `main.py:666`
   - Add config validation at `init.py:124` before writing generated config
@@ -51,6 +51,8 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - Unit tests for auto-detection logic and config validation
   - [x] Fix: Validate generated TOML before filesystem writes in `packages/rentl-core/src/rentl_core/init.py:149-150`; current flow only validates after `generate_project` in `services/rentl-cli/src/rentl/main.py:724`, so invalid `project_name` values can persist a broken `rentl.toml` (audit round 1; see signposts.md: Task 5, post-write validation leaves invalid config)
   - [x] Fix: Convert TOML parse failures from `tomllib.load` in `packages/rentl-core/src/rentl_core/init.py:484-485` into `ConfigValidationError`, so `rentl init` uses the intended validation error path instead of generic exception handling (audit round 1; see signposts.md: Task 5, post-write validation leaves invalid config)
+  - [ ] Fix: Handle `ConfigValidationError` raised by `generate_project` in `services/rentl-cli/src/rentl/main.py:722` so malformed generated TOML returns `validation_error` (exit 11), not `runtime_error` (exit 99); current path falls through `except Exception` at `services/rentl-cli/src/rentl/main.py:772-774` and `_error_from_exception` default mapping at `services/rentl-cli/src/rentl/main.py:3676-3683` (audit round 2; see signposts.md: Task 5, pre-write ConfigValidationError mapped to runtime_error)
+  - [ ] Fix: Add CLI regression test for invalid `project_name` (e.g., `bad\"name`) that asserts `rentl init` exits with validation error and does not write `rentl.toml` (tests/unit/cli/test_main.py; audit round 2; see signposts.md: Task 5, pre-write ConfigValidationError mapped to runtime_error)
 
 - [ ] Task 6: Add Observability (trust-through-transparency, progress-is-product)
   - Add non-TTY progress output at `main.py:936` — emit structured log events when no TTY detected
