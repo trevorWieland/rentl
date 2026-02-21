@@ -75,7 +75,7 @@ orchestrator halts --> resolve-blockers --> re-run orchestrator
 /shape-spec
 
 # 2. Run the orchestrator (automated)
-./agent-os/scripts/orchestrate.sh agent-os/specs/<your-spec-folder>
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
 
 # 3. Walk and submit (interactive, in Claude Code TUI)
 /walk-spec
@@ -88,7 +88,7 @@ orchestrator halts --> resolve-blockers --> re-run orchestrator
 /resolve-blockers
 
 # 2. Re-run the orchestrator
-./agent-os/scripts/orchestrate.sh agent-os/specs/<your-spec-folder>
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
 ```
 
 ### Handle PR feedback
@@ -98,7 +98,7 @@ orchestrator halts --> resolve-blockers --> re-run orchestrator
 /handle-feedback
 
 # 2. If fix tasks were added, re-run orchestrator then walk-spec
-./agent-os/scripts/orchestrate.sh agent-os/specs/<your-spec-folder>
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
 /walk-spec
 ```
 
@@ -387,7 +387,7 @@ Steps 1-11 are discussion only -- no branches, files, or git until Step 12.
 <details>
 <summary>Full process</summary>
 
-1. **Resolve Spec and PR.** Find via `gh pr list --head <branch>`.
+1. **Resolve Spec and PR.** Find via `gh pr list --head 130-s0143-feature-name`.
 2. **Fetch Feedback.** Four sources: inline review comments, review bodies, issue-style comments, check run annotations. Parse each into: ID, Source, File:line, Body, Is bot.
 3. **Load Context.** spec.md, plan.md, signposts.md, standards.md, audit.md.
 4. **Triage Each Item.** Read relevant code, evaluate correctness, check signposts, classify: `valid-actionable` | `valid-addressed` | `invalid` | `style-preference` | `out-of-scope` | `duplicate`.
@@ -449,7 +449,7 @@ Steps 1-11 are discussion only -- no branches, files, or git until Step 12.
 |---------|---------|------------|
 | `/plan-product` | Product docs (mission, roadmap, tech stack) | `agent-os/product/{mission,roadmap,tech-stack}.md` |
 | `/inject-standards` | Load relevant standards into context | Standards content or `@` references |
-| `/discover-standards` | Extract tribal knowledge into standards | `agent-os/standards/<topic>/<name>.md` |
+| `/discover-standards` | Extract tribal knowledge into standards | `agent-os/standards/ux/progress-is-product.md` |
 | `/index-standards` | Rebuild `agent-os/standards/index.yml` | Updated index file |
 | `/sync-roadmap` | Sync `roadmap.md` with GitHub issues (`type:spec`) | Aligned roadmap + issues |
 
@@ -495,8 +495,8 @@ Loads roadmap.md and GitHub issues (`type:spec`). Classifies each spec_id: match
 ### Usage
 
 ```bash
-./agent-os/scripts/orchestrate.sh <spec-folder>
-./agent-os/scripts/orchestrate.sh <spec-folder> --config orchestrate.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name --config orchestrate.conf
 ```
 
 Requires `spec.md` and `plan.md` in the spec folder.
@@ -744,7 +744,7 @@ Implementation and auditing use different AI models/providers -- avoid grading y
 ### Config File
 
 ```bash
-./agent-os/scripts/orchestrate.sh <spec-folder> --config my-config.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name --config my-config.conf
 ```
 
 Sourced as bash. Example:

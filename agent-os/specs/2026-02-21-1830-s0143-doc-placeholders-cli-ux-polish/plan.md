@@ -12,7 +12,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch and push
 
-- [ ] Task 2: Replace Doc Placeholders & Fix Stale References
+- [x] Task 2: Replace Doc Placeholders & Fix Stale References
   - Replace all `<placeholder>` patterns in README.md, CONTRIBUTING.md, docs/troubleshooting.md, WORKFLOW-GUIDE.md
   - Replace all `<spec-folder>` placeholders in agent-os docs (26 locations across draft-*.md and WORKFLOW-GUIDE.md)
   - Replace `<branch-name>`, `<phase>`, `<command>`, `<output-a>`, `<output-b>`, `<tmp>`, `<name>`, `<run-id>`, `<translated-lines-jsonl>`, `<topic>/<name>.md` placeholders

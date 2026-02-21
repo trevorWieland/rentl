@@ -130,7 +130,7 @@ Output: A spec folder with `spec.md`, `plan.md`, `demo.md`, `standards.md`, `ref
 ### Step 2: Run the Orchestrator (Automated)
 
 ```bash
-./agent-os/scripts/orchestrate.sh agent-os/specs/<your-spec-folder>
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
 ```
 
 The orchestrator loops through:
@@ -756,8 +756,8 @@ Steps 1-11 are discussion only -- no branches, files, or git commands until Step
 ### Usage
 
 ```bash
-./agent-os/scripts/orchestrate.sh <spec-folder>
-./agent-os/scripts/orchestrate.sh <spec-folder> --config orchestrate.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name --config orchestrate.conf
 ```
 
 The spec folder must contain `spec.md` and `plan.md` (output of shape-spec).
@@ -976,7 +976,7 @@ On success:
 
 **Process:**
 
-1. **Resolve Spec and PR.** Find the PR via `gh pr list --head <branch-name>` or user input.
+1. **Resolve Spec and PR.** Find the PR via `gh pr list --head 130-s0143-feature-name` or user input.
 
 2. **Fetch Feedback.** Four sources:
    - PR review comments (inline): `gh api repos/{owner}/{repo}/pulls/{pr_number}/comments`
@@ -1380,7 +1380,7 @@ PR body format:
 Pass via `--config`:
 
 ```bash
-./agent-os/scripts/orchestrate.sh <spec-folder> --config my-config.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-15-1400-s0142-feature-name --config my-config.conf
 ```
 
 The config file is sourced as bash, so any `ORCH_*` variable can be set.

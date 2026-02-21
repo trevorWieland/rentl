@@ -129,7 +129,7 @@ cat out/run-*/en.jsonl
 For detailed help on any command, run:
 
 ```bash
-uvx rentl <command> --help
+uvx rentl run-phase --help
 ```
 
 **Note:** If you installed from source, replace `uvx rentl` with `uv run rentl`.
@@ -179,7 +179,7 @@ target_languages = ["ja"]
 [endpoint]
 provider_name = "openrouter"
 base_url = "https://openrouter.ai/api/v1"
-api_key_env = "OPENROUTER_API_KEY"
+api_key_env = "RENTL_LOCAL_API_KEY"
 ```
 
 - **provider_name** — Provider identifier (for display and logging)
@@ -288,14 +288,8 @@ Store API keys and sensitive configuration in `.env` or `.env.local` files in yo
 #### Pipeline API keys
 
 ```bash
-# OpenRouter
-OPENROUTER_API_KEY=your_key_here
-
-# OpenAI
-OPENAI_API_KEY=your_key_here
-
-# Local endpoints (Ollama, LM Studio)
-RENTL_LOCAL_API_KEY=placeholder
+# Primary API key (used by default for all pipeline phases)
+RENTL_LOCAL_API_KEY=your_key_here
 ```
 
 #### Quality evaluation API keys (optional)
