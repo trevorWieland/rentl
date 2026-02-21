@@ -41,7 +41,7 @@ Read this before starting any task to avoid repeating known issues.
 ## Signpost 3: Extracted core config handlers crash on malformed TOML shapes
 
 - **Task:** Task 4 (audit round 1)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Extracted core helpers assume nested values are TOML tables and call `.get()` on them without type checks, causing uncaught `AttributeError` on malformed-but-parseable configs.
 - **Evidence:** `packages/rentl-core/src/rentl_core/migrate.py:344` uses `config_data.get("project", {}).get("schema_version")` and crashes when `project = "oops"`:
   ```bash
@@ -58,4 +58,6 @@ Read this before starting any task to avoid repeating known issues.
   ```
 - **Evidence:** `packages/rentl-core/src/rentl_core/secrets.py:53` and `packages/rentl-core/src/rentl_core/secrets.py:63` call `.get()` on `config_data["endpoint"]` / `config_data["endpoints"]` without guarding type; repro `check_config_secrets({"endpoint": "oops"}, tmp_path)` -> `AttributeError: 'str' object has no attribute 'get'`.
 - **Impact:** Violates robustness expectations for CLI boundary logic: malformed config shape produces traceback instead of controlled validation/reporting flow.
-- **Solution:** Add explicit `isinstance(..., dict)` / `isinstance(..., list)` guards in `migrate_config` and `check_config_secrets`, convert shape errors into `MigrateError` (migrate path) or non-fatal findings/skip behavior (secrets path), and add regression tests for scalar `project`, scalar `endpoint`, and scalar `endpoints`.
+- **Solution:** Added explicit `isinstance(..., dict)` / `isinstance(..., list)` guards in `migrate_config` and `check_config_secrets`. Scalar `project` now raises `MigrateError`; scalar `endpoint`/`endpoints` are silently skipped. Added 4 regression tests.
+- **Resolution:** do-task round 2, 2026-02-21
+- **Files affected:** packages/rentl-core/src/rentl_core/migrate.py, packages/rentl-core/src/rentl_core/secrets.py, tests/unit/core/test_migrate.py, tests/unit/core/test_secrets.py

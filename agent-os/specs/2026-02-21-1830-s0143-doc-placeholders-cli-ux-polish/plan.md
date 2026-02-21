@@ -33,15 +33,15 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Add missing `\f` gate to the `version` command docstring in `services/rentl-cli/src/rentl/main.py:262` (violates `python/cli-help-docstring-gating`; audit round 1)
   - [x] Fix: Complete and record Task 3 verification commands (`uv run rentl help`, `uv run rentl --help`); current run fails with `ModuleNotFoundError: No module named 'griffe'` before help output is validated (audit round 1)
 
-- [ ] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
+- [x] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
   - Extract `migrate` workflow logic from `main.py:3712` to new core module (e.g., `rentl_core/migrate.py`)
   - Extract `check-secrets` validation from `main.py:3574` to new core module (e.g., `rentl_core/secrets.py`)
   - Extract TOML serialization from `main.py:3910` to core (e.g., `rentl_core/config/serialization.py`)
   - Update CLI commands to be thin wrappers calling core functions
   - Unit tests for each extracted module
   - Acceptance: `grep -rn 'from rentl\.' packages/rentl-core/` returns zero matches (excluding test fixtures)
-  - [ ] Fix: Guard `migrate_config` against non-table `project` values and raise `MigrateError` instead of uncaught `AttributeError` (`packages/rentl-core/src/rentl_core/migrate.py:344`; repro: `project = "oops"` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
-  - [ ] Fix: Guard `check_config_secrets` against non-table `endpoint`/`endpoints` values before calling `.get`, and add regression tests (`packages/rentl-core/src/rentl_core/secrets.py:53`, `packages/rentl-core/src/rentl_core/secrets.py:63`; repro: `{'endpoint': 'oops'}` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
+  - [x] Fix: Guard `migrate_config` against non-table `project` values and raise `MigrateError` instead of uncaught `AttributeError` (`packages/rentl-core/src/rentl_core/migrate.py:344`; repro: `project = "oops"` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
+  - [x] Fix: Guard `check_config_secrets` against non-table `endpoint`/`endpoints` values before calling `.get`, and add regression tests (`packages/rentl-core/src/rentl_core/secrets.py:53`, `packages/rentl-core/src/rentl_core/secrets.py:63`; repro: `{'endpoint': 'oops'}` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
 
 - [ ] Task 5: Improve Init UX (frictionless-by-default)
   - Add auto-detection in `init.py` and `main.py:569`: detect game engine from file patterns, source language from existing files

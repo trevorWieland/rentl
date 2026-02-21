@@ -94,3 +94,20 @@ class TestCheckConfigSecrets:
         """Empty config dict returns no findings."""
         findings = check_config_secrets({}, tmp_path)
         assert findings == []
+
+    def test_scalar_endpoint_no_crash(self, tmp_path: Path) -> None:
+        """Scalar endpoint value is skipped without crashing."""
+        findings = check_config_secrets({"endpoint": "oops"}, tmp_path)
+        assert findings == []
+
+    def test_scalar_endpoints_no_crash(self, tmp_path: Path) -> None:
+        """Scalar endpoints value is skipped without crashing."""
+        findings = check_config_secrets({"endpoints": "oops"}, tmp_path)
+        assert findings == []
+
+    def test_scalar_endpoints_list_no_crash(self, tmp_path: Path) -> None:
+        """Non-list endpoints.endpoints is skipped without crashing."""
+        findings = check_config_secrets(
+            {"endpoints": {"endpoints": "not-a-list"}}, tmp_path
+        )
+        assert findings == []

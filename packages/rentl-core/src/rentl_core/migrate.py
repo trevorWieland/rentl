@@ -341,7 +341,13 @@ def migrate_config(
         raise MigrateError(f"Failed to parse config: {exc}") from exc
 
     # Extract current schema version
-    schema_version_data = config_data.get("project", {}).get("schema_version")
+    project_data = config_data.get("project", {})
+    if not isinstance(project_data, dict):
+        raise MigrateError(
+            "Invalid config: 'project' must be a table, "
+            f"got {type(project_data).__name__}"
+        )
+    schema_version_data = project_data.get("schema_version")
     if not schema_version_data:
         raise MigrateError("No schema_version field found in config")
 

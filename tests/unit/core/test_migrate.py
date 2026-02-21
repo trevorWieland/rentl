@@ -531,3 +531,10 @@ class TestMigrateConfig:
         assert result.up_to_date is False
         assert result.dry_run is False
         assert len(result.steps) > 0
+
+    def test_scalar_project_raises_migrate_error(self, tmp_path: Path) -> None:
+        """Raises MigrateError when project is a scalar instead of a table."""
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text('project = "oops"\n', encoding="utf-8")
+        with pytest.raises(MigrateError, match="must be a table"):
+            migrate_config(config_path)

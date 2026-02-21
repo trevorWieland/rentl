@@ -50,27 +50,34 @@ def check_config_secrets(
 
     # Check endpoint.api_key_env
     if "endpoint" in config_data:
-        api_key_env = config_data["endpoint"].get("api_key_env", "")
-        if api_key_env and looks_like_secret(api_key_env):
-            findings.append(
-                f"endpoint.api_key_env contains what looks like a secret value: "
-                f"'{api_key_env[:20]}...' (should be an env var name like "
-                "RENTL_OPENROUTER_API_KEY)"
-            )
-
-    # Check endpoints.endpoints[].api_key_env (multi-endpoint configs)
-    if "endpoints" in config_data:
-        endpoints_list = config_data["endpoints"].get("endpoints", [])
-        for idx, endpoint in enumerate(endpoints_list):
-            api_key_env = endpoint.get("api_key_env", "")
+        endpoint_val = config_data["endpoint"]
+        if isinstance(endpoint_val, dict):
+            api_key_env = endpoint_val.get("api_key_env", "")
             if api_key_env and looks_like_secret(api_key_env):
-                provider_name = endpoint.get("provider_name", f"[{idx}]")
                 findings.append(
-                    f"endpoints.endpoints[{idx}] ({provider_name}) "
-                    f"api_key_env contains what looks like a secret value: "
+                    f"endpoint.api_key_env contains what looks like a secret value: "
                     f"'{api_key_env[:20]}...' (should be an env var name like "
                     "RENTL_OPENROUTER_API_KEY)"
                 )
+
+    # Check endpoints.endpoints[].api_key_env (multi-endpoint configs)
+    if "endpoints" in config_data:
+        endpoints_val = config_data["endpoints"]
+        if isinstance(endpoints_val, dict):
+            endpoints_list = endpoints_val.get("endpoints", [])
+            if isinstance(endpoints_list, list):
+                for idx, endpoint in enumerate(endpoints_list):
+                    if not isinstance(endpoint, dict):
+                        continue
+                    api_key_env = endpoint.get("api_key_env", "")
+                    if api_key_env and looks_like_secret(api_key_env):
+                        provider_name = endpoint.get("provider_name", f"[{idx}]")
+                        findings.append(
+                            f"endpoints.endpoints[{idx}] ({provider_name}) "
+                            f"api_key_env contains what looks like a secret value: "
+                            f"'{api_key_env[:20]}...' (should be an env var name like "
+                            "RENTL_OPENROUTER_API_KEY)"
+                        )
 
     # Check .env files in project directory
     env_file = project_dir / ".env"
