@@ -14,3 +14,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 2): FAIL — Pre-write `ConfigValidationError` from `generate_project` still maps to `runtime_error` (exit 99) in `rentl init` instead of `validation_error` (exit 11).
 - **Task 4** (round 3): PASS — Thin-adapter extraction remains compliant; core migration/secret checks and CLI serialization/auto-migrate regression tests pass.
 - **Task 6** (round 1): FAIL — Task requires ingest/export milestone progress tests, but only ingest milestone assertions were added.
+- **Task 6** (round 2): PASS — Export milestone regression coverage is implemented and verified; `PHASE_PROGRESS` asserts both "Selected ... lines for export" and "Wrote ... lines".
