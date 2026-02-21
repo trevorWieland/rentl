@@ -769,6 +769,32 @@ def test_validate_generated_config_rejects_invalid(tmp_path: Path) -> None:
         validate_generated_config(bad_toml)
 
 
+def test_validate_generated_config_rejects_unparseable_toml(tmp_path: Path) -> None:
+    """Test that validate_generated_config wraps TOMLDecodeError."""
+    bad_toml = tmp_path / "rentl.toml"
+    bad_toml.write_text('project_name = "bad"name"\n', encoding="utf-8")
+    with pytest.raises(ConfigValidationError, match="unparseable"):
+        validate_generated_config(bad_toml)
+
+
+def test_generate_project_rejects_bad_project_name(tmp_path: Path) -> None:
+    """Test generate_project rejects names that produce invalid TOML."""
+    answers = InitAnswers(
+        project_name='bad"name',
+        game_name="test_game",
+        source_language="ja",
+        target_languages=["en"],
+        base_url="https://openrouter.ai/api/v1",
+        model_id="qwen/qwen3-30b-a3b",
+        input_format=FileFormat.JSONL,
+        include_seed_data=False,
+    )
+    with pytest.raises(ConfigValidationError):
+        generate_project(answers, tmp_path)
+    # rentl.toml must not exist on disk after a validation failure
+    assert not (tmp_path / "rentl.toml").exists()
+
+
 def test_generated_config_safe_concurrency(
     tmp_path: Path, default_answers: InitAnswers
 ) -> None:

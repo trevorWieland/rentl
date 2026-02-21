@@ -65,7 +65,7 @@ Read this before starting any task to avoid repeating known issues.
 ## Signpost 4: Init config validation occurs after file write and misses TOML parse errors
 
 - **Task:** Task 5 (audit round 1)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Task 5 added validation only after `generate_project` writes `rentl.toml`, so malformed values can persist broken config files. The validation helper also lets `tomllib.TOMLDecodeError` escape instead of normalizing to `ConfigValidationError`.
 - **Evidence:** `packages/rentl-core/src/rentl_core/init.py:149-150` writes raw TOML to disk (`toml_content = _generate_toml(answers)` then `config_path.write_text(...)`) before any validation step.
 - **Evidence:** `services/rentl-cli/src/rentl/main.py:721-727` calls `generate_project(...)` and only then runs `validate_generated_config(config_path)`.
@@ -81,4 +81,6 @@ Read this before starting any task to avoid repeating known issues.
   project_name = "bad"name"
   ```
 - **Impact:** Violates `ux/frictionless-by-default`; failed `init` runs can leave users with invalid on-disk config that requires manual cleanup and unclear recovery steps.
-- **Solution:** Validate generated TOML before writing any files and normalize parse/validation failures into `ConfigValidationError` so the CLI stays on a single predictable error path.
+- **Solution:** Added `_validate_toml_content` helper in `init.py` that parses and schema-validates the TOML string before any file write. Also wrapped `tomllib.TOMLDecodeError` in `validate_generated_config` as `ConfigValidationError`. Both paths now use the same error type.
+- **Resolution:** do-task round 3, 2026-02-21
+- **Files affected:** packages/rentl-core/src/rentl_core/init.py, tests/unit/core/test_init.py

@@ -144,9 +144,10 @@ def generate_project(answers: InitAnswers, target_dir: Path) -> InitResult:
         directory.mkdir(parents=True, exist_ok=True)
         created_files.append(str(directory.relative_to(target_dir)) + "/")
 
-    # Generate rentl.toml
+    # Generate rentl.toml — validate before writing to avoid persisting broken config
     config_path = target_dir / "rentl.toml"
     toml_content = _generate_toml(answers)
+    _validate_toml_content(toml_content)
     config_path.write_text(toml_content, encoding="utf-8")
     created_files.append(str(config_path.relative_to(target_dir)))
 
@@ -469,6 +470,34 @@ class ConfigValidationError(Exception):
         self.errors = errors
 
 
+def _validate_toml_content(toml_content: str) -> None:
+    """Validate a TOML string parses correctly and satisfies RunConfig schema.
+
+    Called before writing to disk so invalid config never reaches the filesystem.
+
+    Args:
+        toml_content: Raw TOML string to validate.
+
+    Raises:
+        ConfigValidationError: If the TOML is unparseable or fails schema validation.
+    """
+    try:
+        raw = tomllib.loads(toml_content)
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigValidationError(
+            f"Generated TOML is unparseable: {exc}",
+            [{"loc": (), "msg": str(exc)}],
+        ) from exc
+
+    try:
+        RunConfig.model_validate(raw, strict=True)
+    except ValidationError as exc:
+        raise ConfigValidationError(
+            f"Generated config failed validation: {exc.error_count()} error(s)",
+            [{"loc": e["loc"], "msg": e["msg"]} for e in exc.errors()],
+        ) from exc
+
+
 def validate_generated_config(config_path: Path) -> RunConfig:
     """Validate a generated rentl.toml against the RunConfig schema.
 
@@ -479,10 +508,16 @@ def validate_generated_config(config_path: Path) -> RunConfig:
         Validated RunConfig.
 
     Raises:
-        ConfigValidationError: If the config fails schema validation.
+        ConfigValidationError: If the config fails schema validation or TOML parsing.
     """
-    with config_path.open("rb") as f:
-        raw = tomllib.load(f)
+    try:
+        with config_path.open("rb") as f:
+            raw = tomllib.load(f)
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigValidationError(
+            f"Config file is unparseable TOML: {exc}",
+            [{"loc": (), "msg": str(exc)}],
+        ) from exc
 
     try:
         return RunConfig.model_validate(raw, strict=True)
