@@ -3,9 +3,11 @@
 import ast
 import asyncio
 import inspect
+import io
 import json
 import math
 import os
+import sys
 import textwrap
 import tomllib
 from pathlib import Path
@@ -2902,3 +2904,65 @@ def test_load_dotenv_handles_missing_env_files(
 
     # Should not raise an exception
     cli_main._load_dotenv(config_path)
+
+
+def _make_progress_update(
+    event: ProgressEvent,
+    phase: PhaseName,
+) -> ProgressUpdate:
+    # Build a minimal valid ProgressUpdate for testing.
+    unavailable = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+    )
+    phase_progress = PhaseProgress(
+        phase=phase,
+        status=PhaseStatus.RUNNING,
+        summary=unavailable,
+        started_at="2026-02-21T00:00:00Z",
+    )
+    run_progress = RunProgress(
+        phases=[phase_progress],
+        summary=unavailable,
+    )
+    return ProgressUpdate(
+        run_id=uuid7(),
+        event=event,
+        timestamp="2026-02-21T00:00:00Z",
+        phase=phase,
+        phase_status=PhaseStatus.RUNNING,
+        run_progress=run_progress,
+        phase_progress=phase_progress,
+    )
+
+
+def test_stderr_progress_sink_emits_lifecycle_events() -> None:
+    """_StderrProgressSink writes lifecycle events to stderr as JSONL."""
+    sink = cli_main._StderrProgressSink()
+    update = _make_progress_update(ProgressEvent.PHASE_STARTED, PhaseName.INGEST)
+    buf = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = buf
+    try:
+        asyncio.run(sink.emit_progress(update))
+    finally:
+        sys.stderr = old_stderr
+    output = buf.getvalue()
+    assert output.strip()
+    parsed = json.loads(output.strip())
+    assert parsed["event"] == "phase_started"
+    assert parsed["phase"] == "ingest"
+
+
+def test_stderr_progress_sink_skips_non_lifecycle_events() -> None:
+    """_StderrProgressSink does not write PHASE_PROGRESS events."""
+    sink = cli_main._StderrProgressSink()
+    update = _make_progress_update(ProgressEvent.PHASE_PROGRESS, PhaseName.TRANSLATE)
+    buf = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = buf
+    try:
+        asyncio.run(sink.emit_progress(update))
+    finally:
+        sys.stderr = old_stderr
+    assert not buf.getvalue()

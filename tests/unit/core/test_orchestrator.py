@@ -1210,3 +1210,91 @@ async def test_edit_validation_gate_rejects_missing_lines() -> None:
 
     # Output must not be stored on validation failure
     assert "ja" not in run.edit_outputs
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ingest_emits_milestone_progress_events() -> None:
+    """Ingest phase emits PHASE_PROGRESS events with line count messages."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f1")
+    config = _build_run_config()
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_2",
+            scene_id="scene_1",
+            speaker=None,
+            text="Bye",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    progress_sink = _StubProgressSink()
+    orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
+        ingest_adapter=ingest_adapter,
+        progress_sink=progress_sink,
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+
+    progress_messages = [
+        u.message
+        for u in progress_sink.updates
+        if u.event == ProgressEvent.PHASE_PROGRESS and u.message
+    ]
+    assert any("Loaded 2 source lines" in msg for msg in progress_messages)
+    assert any("Persisted 2 source lines" in msg for msg in progress_messages)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_phase_failure_includes_exception_type_in_message() -> None:
+    """Generic exceptions include the exception type in the failure message."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f2")
+    config = _build_run_config()
+    log_sink = _StubLogSink()
+    progress_sink = _StubProgressSink()
+
+    class _CrashingContextAgent:
+        async def run(self, payload: ContextPhaseInput) -> ContextPhaseOutput:
+            raise RuntimeError("boom")
+
+    orchestrator = PipelineOrchestrator(
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_CrashingContextAgent()])),
+        ],
+        log_sink=log_sink,
+        progress_sink=progress_sink,
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+    run.source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await orchestrator.run_phase(run, PhaseName.CONTEXT)
+
+    assert run.last_error is not None
+    assert "RuntimeError" in run.last_error.message
+    assert "boom" in run.last_error.message

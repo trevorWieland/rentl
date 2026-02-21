@@ -99,7 +99,10 @@ from rentl_io.storage.filesystem import (
     FileSystemRunStateStore,
 )
 from rentl_io.storage.log_sink import build_log_sink
-from rentl_io.storage.progress_sink import FileSystemProgressSink
+from rentl_io.storage.progress_sink import (
+    CompositeProgressSink,
+    FileSystemProgressSink,
+)
 from rentl_llm.openai_runtime import OpenAICompatibleRuntime
 from rentl_llm.provider_factory import PreflightEndpoint, assert_preflight
 from rentl_schemas.base import BaseSchema
@@ -1010,6 +1013,18 @@ def run_pipeline(
                 progress_path=bundle.progress_path,
                 redactor=bundle.redactor,
             )
+        else:
+            stderr_sink = _StderrProgressSink()
+            composite = CompositeProgressSink([bundle.progress_sink, stderr_sink])
+            bundle = _StorageBundle(
+                run_state_store=bundle.run_state_store,
+                artifact_store=bundle.artifact_store,
+                log_store=bundle.log_store,
+                log_sink=bundle.log_sink,
+                progress_sink=composite,
+                progress_path=bundle.progress_path,
+                redactor=bundle.redactor,
+            )
         log_sink = bundle.log_sink
         args: dict[str, JsonValue] = {
             "config_path": str(config_path),
@@ -1111,6 +1126,18 @@ def run_phase(
         bundle = _build_storage_bundle(
             config, resolved_run_id, allow_console_logs=False
         )
+        if not _should_render_progress():
+            stderr_sink = _StderrProgressSink()
+            composite = CompositeProgressSink([bundle.progress_sink, stderr_sink])
+            bundle = _StorageBundle(
+                run_state_store=bundle.run_state_store,
+                artifact_store=bundle.artifact_store,
+                log_store=bundle.log_store,
+                log_sink=bundle.log_sink,
+                progress_sink=composite,
+                progress_path=bundle.progress_path,
+                redactor=bundle.redactor,
+            )
         log_sink = bundle.log_sink
         args: dict[str, JsonValue] = {
             "config_path": str(config_path),
@@ -1933,6 +1960,24 @@ class _ProgressReporter(ProgressSinkProtocol):
                 completed=metric.completed_units,
             )
         self._progress.refresh()
+
+
+class _StderrProgressSink(ProgressSinkProtocol):
+    """Emit structured JSONL progress events to stderr for non-TTY runs."""
+
+    _LIFECYCLE_EVENTS = frozenset({
+        ProgressEvent.RUN_STARTED,
+        ProgressEvent.RUN_COMPLETED,
+        ProgressEvent.RUN_FAILED,
+        ProgressEvent.PHASE_STARTED,
+        ProgressEvent.PHASE_COMPLETED,
+        ProgressEvent.PHASE_FAILED,
+    })
+
+    async def emit_progress(self, update: ProgressUpdate) -> None:
+        if update.event not in self._LIFECYCLE_EVENTS:
+            return
+        print(update.model_dump_json(exclude_none=True), file=sys.stderr)
 
 
 def _should_render_progress() -> bool:
@@ -3303,6 +3348,12 @@ def _watch_status(bundle: _StorageBundle, run_id: RunId) -> None:
         RunStatus.FAILED.value,
         RunStatus.CANCELLED.value,
     }:
+        if (
+            status_result.run_state is not None
+            and status_result.run_state.last_error is not None
+        ):
+            err = status_result.run_state.last_error
+            rprint(f"[red]Error ({err.code}):[/red] {err.message}")
         raise typer.Exit(code=ExitCode.ORCHESTRATION_ERROR.value)
 
 
