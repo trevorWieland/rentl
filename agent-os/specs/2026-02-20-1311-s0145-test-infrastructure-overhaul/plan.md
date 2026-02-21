@@ -55,7 +55,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Acceptance: `make quality` passes with `--timeout=30`
   - [x] Fix: Reduce timeout marker below 30s in `tests/quality/agents/test_pretranslation_agent.py:42` (currently `pytest.mark.timeout(30)`, still `>= 30`; violates Task 5 sub-item and `test-timing-rules`) (audit round 1)
   - [x] Fix: Reduce timeout marker below 30s in `tests/quality/pipeline/test_golden_script_pipeline.py:38` (currently `pytest.mark.timeout(30)`; standard text says quality tests must be `< 30s`) (audit round 1)
-- [x] Task 6: Convert integration tests to BDD style
+- [ ] Task 6: Convert integration tests to BDD style
   - Convert `tests/integration/core/test_deterministic_qa.py` to BDD Given/When/Then
   - Convert `tests/integration/core/test_doctor.py` to BDD
   - Convert `tests/integration/byok/test_openrouter_runtime.py` to BDD
@@ -64,6 +64,7 @@ Coverage enforcement is scoped to unit and integration tiers only — quality te
   - Scan all other integration tests for non-BDD style and convert
   - Create feature files in `tests/integration/` as needed
   - Acceptance: all integration tests use pytest_bdd Given/When/Then fixtures
+  - [ ] Fix: Restore `pytest.mark.integration` marker to all integration test modules (PR #138 feedback from @chatgpt-codex-connector[bot], feedback round 1). BDD conversion removed module-level `pytestmark` from `test_deterministic_qa.py` and `test_doctor.py`, and the root `conftest.py` pytestmark doesn't propagate to pytest_bdd-generated tests. Add `pytestmark = pytest.mark.integration` directly to every `test_*.py` module under `tests/integration/`.
 - [x] Task 7: Convert quality tests to BDD style
   - Convert `tests/quality/cli/test_preset_validation.py` to BDD
   - Scan all other quality tests for non-BDD style and convert

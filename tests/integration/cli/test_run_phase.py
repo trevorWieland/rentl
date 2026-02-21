@@ -21,6 +21,8 @@ from rentl_schemas.config import RunConfig
 if TYPE_CHECKING:
     pass
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/cli/run_phase.feature")
 

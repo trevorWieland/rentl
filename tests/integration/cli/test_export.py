@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
@@ -14,6 +15,8 @@ import rentl.main as cli_main
 
 if TYPE_CHECKING:
     pass
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/cli/export.feature")

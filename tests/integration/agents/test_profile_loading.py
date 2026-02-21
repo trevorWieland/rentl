@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 from uuid import uuid7
 
+import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from rentl_agents import (
@@ -28,6 +29,8 @@ from rentl_schemas.primitives import PhaseName
 
 if TYPE_CHECKING:
     pass
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/agents/profile_loading.feature")

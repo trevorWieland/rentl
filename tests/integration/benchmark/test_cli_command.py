@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from tests.integration.conftest import write_rentl_config
@@ -20,6 +21,8 @@ from rentl_schemas.benchmark.rubric import RubricDimension
 
 if TYPE_CHECKING:
     pass
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("features/cli_command.feature")

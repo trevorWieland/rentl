@@ -16,6 +16,8 @@ from tests.integration.conftest import write_rentl_config
 if TYPE_CHECKING:
     from tests.integration.conftest import FakeLlmRuntime
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/cli/doctor.feature")
 

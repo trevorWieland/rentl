@@ -14,6 +14,7 @@ import json
 from typing import Any
 
 import httpx
+import pytest
 import respx
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
@@ -31,6 +32,8 @@ from rentl_schemas.llm import (
     LlmRuntimeSettings,
 )
 from rentl_schemas.primitives import JsonValue
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/byok/local_model_factory.feature")

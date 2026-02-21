@@ -11,6 +11,7 @@ import asyncio
 from typing import Any
 
 import httpx
+import pytest
 import respx
 from pytest_bdd import given, scenarios, then, when
 
@@ -23,6 +24,8 @@ from rentl_schemas.llm import (
     LlmPromptResponse,
     LlmRuntimeSettings,
 )
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/byok/openrouter_runtime.feature")

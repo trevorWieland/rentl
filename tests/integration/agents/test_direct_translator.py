@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from rentl_agents import (
@@ -20,6 +21,8 @@ from rentl_schemas.primitives import PhaseName
 
 if TYPE_CHECKING:
     pass
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/agents/direct_translator.feature")

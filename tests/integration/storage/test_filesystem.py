@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
+import pytest
 from pydantic import Field
 from pytest_bdd import given, scenarios, then, when
 
@@ -46,6 +47,8 @@ from rentl_schemas.storage import (
     StorageReference,
 )
 from rentl_schemas.version import VersionInfo
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/storage/filesystem.feature")

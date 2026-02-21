@@ -18,6 +18,8 @@ import rentl.main as cli_main
 if TYPE_CHECKING:
     pass
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/cli/exit_codes.feature")
 

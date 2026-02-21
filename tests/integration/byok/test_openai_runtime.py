@@ -18,6 +18,8 @@ from rentl_schemas.validation import validate_run_config
 if TYPE_CHECKING:
     pass
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/byok/openai_runtime.feature")
 

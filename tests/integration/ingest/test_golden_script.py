@@ -11,11 +11,14 @@ import json
 import re
 from pathlib import Path
 
+import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from rentl_io.ingest import JsonlIngestAdapter
 from rentl_schemas.io import IngestSource, SourceLine
 from rentl_schemas.primitives import FileFormat
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/ingest/golden_script.feature")

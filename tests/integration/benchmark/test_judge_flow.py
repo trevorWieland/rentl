@@ -14,6 +14,8 @@ from rentl_core.benchmark.judge import RubricJudge
 from rentl_schemas.benchmark.rubric import RubricDimension
 from rentl_schemas.io import TranslatedLine
 
+pytestmark = pytest.mark.integration
+
 FEATURES_DIR = Path(__file__).parent / "features"
 
 # Use a local base URL for HTTP-level mocking

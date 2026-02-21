@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from rentl_core.benchmark.eval_sets.aligner import AlignedLinePair
     from rentl_schemas.io import SourceLine
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/eval_set_download.feature")
 

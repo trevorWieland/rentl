@@ -8,12 +8,15 @@ that prevent empty and whitespace-only lines. Tests focus on checks that
 can find issues with validated TranslatedLine objects.
 """
 
+import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from rentl_core.qa.runner import DeterministicQaRunner
 from rentl_schemas.config import DeterministicQaCheckConfig, DeterministicQaConfig
 from rentl_schemas.io import TranslatedLine
 from rentl_schemas.primitives import QaCategory, QaSeverity
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/core/deterministic_qa.feature")

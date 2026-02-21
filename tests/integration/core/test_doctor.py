@@ -7,10 +7,13 @@ outdated config files before validation.
 import tomllib
 from pathlib import Path
 
+import pytest
 from pytest_bdd import given, scenarios, then, when
 
 from rentl_core.doctor import CheckResult, CheckStatus, check_config_valid
 from rentl_schemas.config import RunConfig
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/core/doctor.feature")

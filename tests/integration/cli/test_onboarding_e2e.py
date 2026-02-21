@@ -35,6 +35,8 @@ from tests.integration.conftest import FakeLlmRuntime
 if TYPE_CHECKING:
     pass
 
+pytestmark = pytest.mark.integration
+
 # Link feature file
 scenarios("../features/cli/onboarding_e2e.feature")
 

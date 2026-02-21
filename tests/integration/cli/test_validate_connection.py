@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
@@ -18,6 +19,8 @@ from tests.integration.conftest import FakeLlmRuntime
 
 if TYPE_CHECKING:
     pass
+
+pytestmark = pytest.mark.integration
 
 # Link feature file
 scenarios("../features/cli/validate_connection.feature")
