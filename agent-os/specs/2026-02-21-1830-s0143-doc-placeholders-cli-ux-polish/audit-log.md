@@ -22,3 +22,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 7** (round 2): PASS — Task 7 commit changes are consistent with CLI behavior; help registry and updated init-prompt tests pass targeted verification.
 - **Task 7** (round 3): PASS — Task 7 implementation remains clean: help-registry additions are present and targeted verification (`tests/unit/core/test_help.py`, `tests/integration/cli/test_onboarding_e2e.py`) passed.
 - **Demo** (run 2): PASS — All 7 [RUN] steps passed post-audit-loop: no doc placeholders, canonical env vars, full help registry, \f gates working, zero CLI imports in core, init preview + validation working, make all green (7 run, 7 verified)
+- **Spec Audit** (round 2): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0
