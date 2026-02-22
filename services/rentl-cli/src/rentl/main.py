@@ -64,13 +64,11 @@ from rentl_core.init import (
 )
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_core.migrate import (
+    AutoMigrateResult,
     ConfigDict,
     MigrateError,
-    apply_migrations,
-    dict_to_toml,
-    get_registry,
+    auto_migrate_file,
     migrate_config,
-    plan_migrations,
 )
 from rentl_core.orchestrator import (
     PipelineOrchestrator,
@@ -182,7 +180,6 @@ from rentl_schemas.storage import (
     StorageReference,
 )
 from rentl_schemas.validation import validate_run_config
-from rentl_schemas.version import CURRENT_SCHEMA_VERSION, VersionInfo
 
 INPUT_OPTION = typer.Option(
     ..., "--input", "-i", help="JSONL file of TranslatedLine records"
@@ -2202,6 +2199,11 @@ def _auto_migrate_if_needed(
 ) -> dict[str, JsonValue]:
     """Auto-migrate config if schema version is outdated.
 
+    Delegates to ``rentl_core.migrate.auto_migrate_file`` for business logic
+    (version detection, planning, applying, backup, write). This wrapper only
+    handles user-facing messages, routed to stderr so ``--json`` commands keep
+    stdout clean.
+
     Args:
         config_path: Path to the config file
         payload: Loaded config dict
@@ -2212,97 +2214,40 @@ def _auto_migrate_if_needed(
     Raises:
         _ConfigError: If migration fails
     """
-    console = Console()
-    is_tty = sys.stdout.isatty()
-
-    # Extract current schema version from config
     try:
-        project_data = payload.get("project")
-        if not isinstance(project_data, dict):
-            # No project section or invalid format — skip migration
-            return payload
-
-        schema_version_data = project_data.get("schema_version")
-        if not schema_version_data or not isinstance(schema_version_data, dict):
-            # No schema_version field or invalid format — skip migration
-            return payload
-
-        current_version = VersionInfo(
-            major=int(schema_version_data.get("major", 0)),
-            minor=int(schema_version_data.get("minor", 0)),
-            patch=int(schema_version_data.get("patch", 0)),
+        result: AutoMigrateResult = auto_migrate_file(
+            config_path, cast(ConfigDict, payload)
         )
-    except TypeError, ValueError:
-        # Invalid schema_version format — skip migration
+    except MigrateError as exc:
+        raise _ConfigError(str(exc)) from exc
+
+    if not result.migrated:
         return payload
 
-    # Get target version
-    target_version = VersionInfo(
-        major=CURRENT_SCHEMA_VERSION[0],
-        minor=CURRENT_SCHEMA_VERSION[1],
-        patch=CURRENT_SCHEMA_VERSION[2],
-    )
-
-    # Check if migration is needed
-    if current_version >= target_version:
-        return payload
-
-    # Plan migrations
-    registry = get_registry()
-    try:
-        migration_steps = plan_migrations(current_version, target_version, registry)
-    except ValueError as exc:
-        raise _ConfigError(f"Migration planning failed: {exc}") from exc
-
-    if not migration_steps:
-        return payload
-
-    # Log auto-migration
-    if is_tty:
+    # Emit migration notices to stderr (keeps stdout clean for --json)
+    console = Console(stderr=True)
+    if sys.stderr.isatty():
         console.print(
-            f"\n[yellow]Auto-migrating config:[/yellow] {current_version} → "
-            f"{target_version}",
+            f"\n[yellow]Auto-migrating config:[/yellow] {result.current_version} → "
+            f"{result.target_version}",
             style="bold yellow",
         )
-    else:
-        print(f"\nAuto-migrating config: {current_version} → {target_version}")
-
-    # Apply migrations
-    try:
-        # Cast to ConfigDict for migration (JsonValue is compatible with ConfigValue)
-        config_dict = cast(ConfigDict, payload)
-        migrated_config = apply_migrations(config_dict, migration_steps, registry)
-    except Exception as exc:
-        raise _ConfigError(f"Auto-migration failed: {exc}") from exc
-
-    # Back up original config
-    backup_path = config_path.with_suffix(".toml.bak")
-    try:
-        backup_path.write_bytes(config_path.read_bytes())
-    except Exception as exc:
-        raise _ConfigError(f"Failed to create backup: {exc}") from exc
-
-    # Write migrated config
-    try:
-        migrated_toml = dict_to_toml(migrated_config)
-        config_path.write_text(migrated_toml, encoding="utf-8")
-    except Exception as exc:
-        # Attempt to restore from backup
-        with contextlib.suppress(Exception):
-            config_path.write_bytes(backup_path.read_bytes())
-        raise _ConfigError(f"Failed to write migrated config: {exc}") from exc
-
-    # Log success
-    if is_tty:
         console.print(
-            f"[green]Migration complete:[/green] Backup saved to {backup_path}",
+            f"[green]Migration complete:[/green] Backup saved to {result.backup_path}",
             style="dim green",
         )
     else:
-        print(f"Migration complete: Backup saved to {backup_path}")
+        print(
+            f"\nAuto-migrating config: {result.current_version} → "
+            f"{result.target_version}",
+            file=sys.stderr,
+        )
+        print(
+            f"Migration complete: Backup saved to {result.backup_path}",
+            file=sys.stderr,
+        )
 
-    # Cast back to JsonValue dict for validation
-    return cast(dict[str, JsonValue], migrated_config)
+    return cast(dict[str, JsonValue], result.config_dict)
 
 
 def _load_run_config(config_path: Path) -> RunConfig:

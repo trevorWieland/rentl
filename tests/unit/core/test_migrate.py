@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 from typing import cast
 
@@ -13,6 +14,7 @@ from rentl_core.migrate import (
     MigrationRegistry,
     MigrationTransform,
     apply_migrations,
+    auto_migrate_file,
     get_registry,
     migrate_config,
     plan_migrations,
@@ -538,3 +540,61 @@ class TestMigrateConfig:
         config_path.write_text('project = "oops"\n', encoding="utf-8")
         with pytest.raises(MigrateError, match="must be a table"):
             migrate_config(config_path)
+
+
+class TestAutoMigrateFile:
+    """Tests for auto_migrate_file (file-level auto-migration)."""
+
+    @staticmethod
+    def _write_config(path: Path, version: tuple[int, int, int]) -> None:
+        path.write_text(
+            f"[project]\n"
+            f"schema_version = {{ major = {version[0]}, minor = {version[1]}, "
+            f"patch = {version[2]} }}\n"
+            f'project_name = "test"\n',
+            encoding="utf-8",
+        )
+
+    def test_up_to_date_returns_unchanged(self, tmp_path: Path) -> None:
+        """Returns unmigrated result when config is already at target version."""
+        config_path = tmp_path / "rentl.toml"
+        payload = {
+            "project": {
+                "schema_version": {"major": 99, "minor": 99, "patch": 99},
+                "project_name": "test",
+            }
+        }
+        result = auto_migrate_file(config_path, payload)
+        assert result.migrated is False
+        assert result.config_dict == payload
+        assert result.backup_path is None
+
+    def test_outdated_migrates_and_writes(self, tmp_path: Path) -> None:
+        """Migrates outdated config, writes to disk, and creates backup."""
+        config_path = tmp_path / "rentl.toml"
+        self._write_config(config_path, (0, 0, 1))
+
+        with config_path.open("rb") as f:
+            payload = tomllib.load(f)
+
+        result = auto_migrate_file(config_path, payload)
+
+        assert result.migrated is True
+        assert result.backup_path is not None
+        assert result.backup_path.exists()
+        assert result.current_version == VersionInfo(major=0, minor=0, patch=1)
+        # Config dict should have updated schema_version
+        migrated_sv = result.config_dict["project"]["schema_version"]  # type: ignore[index]
+        assert migrated_sv["minor"] == 1
+        # Written file should reflect migration
+        with config_path.open("rb") as f:
+            on_disk = tomllib.load(f)
+        assert on_disk["project"]["schema_version"]["minor"] == 1
+
+    def test_no_project_section_skips(self, tmp_path: Path) -> None:
+        """Skips migration when no project section exists."""
+        config_path = tmp_path / "rentl.toml"
+        payload: dict[str, object] = {"other": "data"}
+        result = auto_migrate_file(config_path, payload)  # type: ignore[arg-type]
+        assert result.migrated is False
+        assert result.config_dict == payload
