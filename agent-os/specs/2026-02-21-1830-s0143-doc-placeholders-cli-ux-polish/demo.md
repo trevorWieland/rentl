@@ -30,3 +30,13 @@ This spec brings documentation, CLI hygiene, and observability up to standard. D
 - Step 6 [RUN]: PASS — `rentl init` shows Config Preview panel, default concurrency 4 requests / 2 scenes, writes valid `rentl.toml`, exits 0
 - Step 7 [RUN]: PASS — `make all` passes: 1034 unit, 95 integration, 9 quality tests + format/lint/type checks
 - **Overall: PASS**
+
+### Run 2 — Post-audit-loop (2026-02-22 00:32)
+- Step 1 [RUN]: PASS — Zero `<placeholder>` patterns in user-facing docs (only legitimate HTML tags like `<details>`/`<summary>`)
+- Step 2 [RUN]: PASS — No stale `OPENROUTER_API_KEY`/`OPENAI_API_KEY` references; canonical `RENTL_LOCAL_API_KEY`/`RENTL_QUALITY_API_KEY` present
+- Step 3 [RUN]: PASS — `check-secrets`, `migrate`, and `benchmark` all listed in `rentl help` output
+- Step 4 [RUN]: PASS — `rentl --help` shows clean command listing with no internal implementation details visible
+- Step 5 [RUN]: PASS — Zero `from rentl.` import statements in `packages/rentl-core/src/` (one string literal match in help.py, not an import)
+- Step 6 [RUN]: PASS — `rentl init` shows Config Preview panel, default concurrency 4 requests / 2 scenes, writes valid `rentl.toml`, exits 0
+- Step 7 [RUN]: PASS — `make all` passes: 1041 unit, 95 integration, 9 quality tests + format/lint/type checks
+- **Overall: PASS**
