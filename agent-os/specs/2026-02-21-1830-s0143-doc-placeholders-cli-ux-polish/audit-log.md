@@ -20,3 +20,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 1): FAIL — Performance 4/5, Intent 3/5, Completion 3/5, Security 5/5, Stability 2/5; fix-now count 4
 - **Task 4** (round 4): FAIL — `auto_migrate_file` leaks raw `ValueError` on unsupported schema versions, so the CLI wrapper no longer consistently receives `MigrateError` for migration failures.
 - **Task 7** (round 2): PASS — Task 7 commit changes are consistent with CLI behavior; help registry and updated init-prompt tests pass targeted verification.
+- **Task 7** (round 3): PASS — Task 7 implementation remains clean: help-registry additions are present and targeted verification (`tests/unit/core/test_help.py`, `tests/integration/cli/test_onboarding_e2e.py`) passed.
