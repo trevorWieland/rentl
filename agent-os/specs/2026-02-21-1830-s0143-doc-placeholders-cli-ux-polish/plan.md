@@ -33,7 +33,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Add missing `\f` gate to the `version` command docstring in `services/rentl-cli/src/rentl/main.py:262` (violates `python/cli-help-docstring-gating`; audit round 1)
   - [x] Fix: Complete and record Task 3 verification commands (`uv run rentl help`, `uv run rentl --help`); current run fails with `ModuleNotFoundError: No module named 'griffe'` before help output is validated (audit round 1)
 
-- [x] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
+- [ ] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
   - Extract `migrate` workflow logic from `main.py:3712` to new core module (e.g., `rentl_core/migrate.py`)
   - Extract `check-secrets` validation from `main.py:3574` to new core module (e.g., `rentl_core/secrets.py`)
   - Extract TOML serialization from `main.py:3910` to core (e.g., `rentl_core/config/serialization.py`)
@@ -42,6 +42,8 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - Acceptance: `grep -rn 'from rentl\.' packages/rentl-core/` returns zero matches (excluding test fixtures)
   - [x] Fix: Guard `migrate_config` against non-table `project` values and raise `MigrateError` instead of uncaught `AttributeError` (`packages/rentl-core/src/rentl_core/migrate.py:344`; repro: `project = "oops"` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
   - [x] Fix: Guard `check_config_secrets` against non-table `endpoint`/`endpoints` values before calling `.get`, and add regression tests (`packages/rentl-core/src/rentl_core/secrets.py:53`, `packages/rentl-core/src/rentl_core/secrets.py:63`; repro: `{'endpoint': 'oops'}` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
+  - [ ] Fix: Move `_auto_migrate_if_needed` migration planning/apply/backup/serialization workflow out of CLI surface into `rentl_core.migrate` and keep CLI as a thin wrapper (`services/rentl-cli/src/rentl/main.py:2200`, `services/rentl-cli/src/rentl/main.py:2251`, `services/rentl-cli/src/rentl/main.py:2287`) (audit round 1)
+  - [ ] Fix: Preserve JSON-only stdout for `--json` commands by routing auto-migration notices to logs/stderr (or structured metadata) instead of `print(...)`; current `status --json` output prepends migration text before the JSON envelope (`services/rentl-cli/src/rentl/main.py:2268`, `services/rentl-cli/src/rentl/main.py:2302`) (audit round 1)
 
 - [x] Task 5: Improve Init UX (frictionless-by-default)
   - Add auto-detection in `init.py` and `main.py:569`: detect game engine from file patterns, source language from existing files
@@ -54,7 +56,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Handle `ConfigValidationError` raised by `generate_project` in `services/rentl-cli/src/rentl/main.py:722` so malformed generated TOML returns `validation_error` (exit 11), not `runtime_error` (exit 99); current path falls through `except Exception` at `services/rentl-cli/src/rentl/main.py:772-774` and `_error_from_exception` default mapping at `services/rentl-cli/src/rentl/main.py:3676-3683` (audit round 2; see signposts.md: Task 5, pre-write ConfigValidationError mapped to runtime_error)
   - [x] Fix: Add CLI regression test for invalid `project_name` (e.g., `bad\"name`) that asserts `rentl init` exits with validation error and does not write `rentl.toml` (tests/unit/cli/test_main.py; audit round 2; see signposts.md: Task 5, pre-write ConfigValidationError mapped to runtime_error)
 
-- [x] Task 6: Add Observability (trust-through-transparency, progress-is-product)
+- [ ] Task 6: Add Observability (trust-through-transparency, progress-is-product)
   - Add non-TTY progress output at `main.py:936` — emit structured log events when no TTY detected
   - Add failure context to watcher exit at `main.py:3137`
   - Emit visible log events on retry attempts in `connection.py:198` — log attempt number, backoff delay, error reason
@@ -64,6 +66,8 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - Add milestone progress events to export at `orchestrator.py:1083-1172`
   - Unit tests verifying log events are emitted on retry, progress events on ingest/export
   - [x] Fix: Add export milestone regression coverage in `tests/unit/core/test_orchestrator.py` for `PhaseName.EXPORT` `PHASE_PROGRESS` events emitted by `packages/rentl-core/src/rentl_core/orchestrator.py:1158-1200` (assert both "Selected ... lines for export" and "Wrote ... lines"); current tests only cover ingest milestones at `tests/unit/core/test_orchestrator.py:1217-1260` (audit round 1)
+  - [ ] Fix: Replace the dataclass-only `replace(...)` call in the no-state watch path with a valid `RunStatusResult` update so `status --watch` does not crash with `replace() should be called on dataclass instances` (`services/rentl-cli/src/rentl/main.py:3584`) (audit round 1)
+  - [ ] Fix: Ensure no-state watcher terminal exits include explicit failure context for headless diagnostics (for example, "run state not found after N polls") instead of only `Run ... failed` (`services/rentl-cli/src/rentl/main.py:3333`, `services/rentl-cli/src/rentl/main.py:3346`, `services/rentl-cli/src/rentl/main.py:3351`) (audit round 1)
 
 - [x] Task 7: Final Integration & Gate Verification
   - Run `make all` and fix any remaining failures
