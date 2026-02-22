@@ -33,7 +33,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Add missing `\f` gate to the `version` command docstring in `services/rentl-cli/src/rentl/main.py:262` (violates `python/cli-help-docstring-gating`; audit round 1)
   - [x] Fix: Complete and record Task 3 verification commands (`uv run rentl help`, `uv run rentl --help`); current run fails with `ModuleNotFoundError: No module named 'griffe'` before help output is validated (audit round 1)
 
-- [ ] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
+- [x] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
   - Extract `migrate` workflow logic from `main.py:3712` to new core module (e.g., `rentl_core/migrate.py`)
   - Extract `check-secrets` validation from `main.py:3574` to new core module (e.g., `rentl_core/secrets.py`)
   - Extract TOML serialization from `main.py:3910` to core (e.g., `rentl_core/config/serialization.py`)
@@ -44,8 +44,8 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Guard `check_config_secrets` against non-table `endpoint`/`endpoints` values before calling `.get`, and add regression tests (`packages/rentl-core/src/rentl_core/secrets.py:53`, `packages/rentl-core/src/rentl_core/secrets.py:63`; repro: `{'endpoint': 'oops'}` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
   - [x] Fix: Move `_auto_migrate_if_needed` migration planning/apply/backup/serialization workflow out of CLI surface into `rentl_core.migrate` and keep CLI as a thin wrapper (`services/rentl-cli/src/rentl/main.py:2200`, `services/rentl-cli/src/rentl/main.py:2251`, `services/rentl-cli/src/rentl/main.py:2287`) (audit round 1)
   - [x] Fix: Preserve JSON-only stdout for `--json` commands by routing auto-migration notices to logs/stderr (or structured metadata) instead of `print(...)`; current `status --json` output prepends migration text before the JSON envelope (`services/rentl-cli/src/rentl/main.py:2268`, `services/rentl-cli/src/rentl/main.py:2302`) (audit round 1)
-  - [ ] Fix: Normalize unsupported-schema auto-migration failures to `MigrateError` in `auto_migrate_file` so the CLI wrapper does not leak raw `ValueError` (`packages/rentl-core/src/rentl_core/migrate.py:528`, `services/rentl-cli/src/rentl/main.py:2221`; repro: `schema_version = { major = 0, minor = 0, patch = 2 }` -> `ValueError: No migration path from 0.0.2 to 0.1.0. Stuck at 0.0.2.`) (audit round 4; see signposts.md: Task 4, unsupported schema version leaks ValueError)
-  - [ ] Fix: Add regression tests for unsupported schema versions at both core and CLI boundaries (`tests/unit/core/test_migrate.py`, `tests/unit/cli/test_main.py`) so the path raises `MigrateError` and surfaces as `config_error` in CLI responses (audit round 4; see signposts.md: Task 4, unsupported schema version leaks ValueError)
+  - [x] Fix: Normalize unsupported-schema auto-migration failures to `MigrateError` in `auto_migrate_file` so the CLI wrapper does not leak raw `ValueError` (`packages/rentl-core/src/rentl_core/migrate.py:528`, `services/rentl-cli/src/rentl/main.py:2221`; repro: `schema_version = { major = 0, minor = 0, patch = 2 }` -> `ValueError: No migration path from 0.0.2 to 0.1.0. Stuck at 0.0.2.`) (audit round 4; see signposts.md: Task 4, unsupported schema version leaks ValueError)
+  - [x] Fix: Add regression tests for unsupported schema versions at both core and CLI boundaries (`tests/unit/core/test_migrate.py`, `tests/unit/cli/test_main.py`) so the path raises `MigrateError` and surfaces as `config_error` in CLI responses (audit round 4; see signposts.md: Task 4, unsupported schema version leaks ValueError)
 
 - [x] Task 5: Improve Init UX (frictionless-by-default)
   - Add auto-detection in `init.py` and `main.py:569`: detect game engine from file patterns, source language from existing files

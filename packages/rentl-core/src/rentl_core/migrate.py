@@ -441,6 +441,9 @@ def auto_migrate_config(
     Returns:
         Tuple of (migrated_config, was_migrated) where was_migrated is True
         if migration occurred, False if already up to date
+
+    Raises:
+        MigrateError: If no migration path exists or migration fails
     """
     if registry is None:
         registry = get_registry()
@@ -470,14 +473,19 @@ def auto_migrate_config(
     if current_version >= target_version:
         return (config_dict, False)
 
-    # Plan migrations
-    migration_steps = plan_migrations(current_version, target_version, registry)
+    # Plan and apply migrations
+    try:
+        migration_steps = plan_migrations(current_version, target_version, registry)
+    except ValueError as exc:
+        raise MigrateError(str(exc)) from exc
 
     if not migration_steps:
         return (config_dict, False)
 
-    # Apply migrations
-    migrated_config = apply_migrations(config_dict, migration_steps, registry)
+    try:
+        migrated_config = apply_migrations(config_dict, migration_steps, registry)
+    except Exception as exc:
+        raise MigrateError(f"Migration failed: {exc}") from exc
 
     return (migrated_config, True)
 

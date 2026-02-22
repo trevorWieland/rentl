@@ -2809,6 +2809,28 @@ def test_auto_migrate_if_needed_no_schema_version(tmp_path: Path) -> None:
     assert not (config_path.with_suffix(".toml.bak")).exists()
 
 
+def test_auto_migrate_if_needed_unsupported_schema_raises_config_error(
+    tmp_path: Path,
+) -> None:
+    """_ConfigError (not ValueError) for unsupported schema versions."""
+    config_path = tmp_path / "rentl.toml"
+    config_path.write_text(
+        "[project]\n"
+        "schema_version = { major = 0, minor = 0, patch = 2 }\n"
+        'project_name = "test"\n',
+        encoding="utf-8",
+    )
+    payload = {
+        "project": {
+            "schema_version": {"major": 0, "minor": 0, "patch": 2},
+            "project_name": "test",
+        }
+    }
+
+    with pytest.raises(cli_main._ConfigError, match="No migration path"):
+        cli_main._auto_migrate_if_needed(config_path, payload)
+
+
 def test_load_dotenv_loads_env_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

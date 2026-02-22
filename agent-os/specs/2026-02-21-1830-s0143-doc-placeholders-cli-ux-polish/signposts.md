@@ -125,7 +125,7 @@ Read this before starting any task to avoid repeating known issues.
 ## Signpost 7: Unsupported schema versions now leak ValueError from auto-migrate path
 
 - **Task:** Task 4 (audit round 4)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** After extracting `_auto_migrate_if_needed` business logic into `rentl_core.migrate.auto_migrate_file`, unsupported schema versions (`plan_migrations` has no chain) now raise raw `ValueError` instead of the documented `MigrateError`/CLI `_ConfigError` flow.
 - **Evidence:** `packages/rentl-core/src/rentl_core/migrate.py:528-530` calls `auto_migrate_config(...)` without wrapping `ValueError` from migration planning.
 - **Evidence:** `services/rentl-cli/src/rentl/main.py:2221-2222` only catches `MigrateError`, so `ValueError` leaks past the wrapper.
@@ -149,4 +149,6 @@ Read this before starting any task to avoid repeating known issues.
   No migration path from 0.0.2 to 0.1.0. Stuck at 0.0.2.
   ```
 - **Impact:** Weakens CLI boundary guarantees for migration failures and can route errors through generic validation handling instead of the intended config-error migration pathway.
-- **Solution:** Catch planning/apply failures inside `auto_migrate_file` and rethrow `MigrateError`; add regression tests at core and CLI layers for unsupported schema versions.
+- **Solution:** Wrapped `ValueError` from `plan_migrations` as `MigrateError` in `auto_migrate_config`, and wrapped `apply_migrations` failures similarly. Added regression tests at both core (`test_migrate.py`) and CLI (`test_main.py`) layers for unsupported schema versions.
+- **Resolution:** do-task round 5, 2026-02-21
+- **Files affected:** packages/rentl-core/src/rentl_core/migrate.py, tests/unit/core/test_migrate.py, tests/unit/cli/test_main.py

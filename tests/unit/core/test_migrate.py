@@ -14,6 +14,7 @@ from rentl_core.migrate import (
     MigrationRegistry,
     MigrationTransform,
     apply_migrations,
+    auto_migrate_config,
     auto_migrate_file,
     get_registry,
     migrate_config,
@@ -598,3 +599,37 @@ class TestAutoMigrateFile:
         result = auto_migrate_file(config_path, payload)  # type: ignore[arg-type]
         assert result.migrated is False
         assert result.config_dict == payload
+
+    def test_unsupported_schema_version_raises_migrate_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Raises MigrateError (not ValueError) for unsupported schema versions."""
+        config_path = tmp_path / "rentl.toml"
+        config_path.write_text(
+            "[project]\n"
+            "schema_version = { major = 0, minor = 0, patch = 2 }\n"
+            'project_name = "test"\n',
+            encoding="utf-8",
+        )
+        with config_path.open("rb") as f:
+            payload = tomllib.load(f)
+
+        with pytest.raises(MigrateError, match="No migration path"):
+            auto_migrate_file(config_path, payload)
+
+
+class TestAutoMigrateConfig:
+    """Tests for auto_migrate_config (in-memory auto-migration)."""
+
+    def test_unsupported_schema_version_raises_migrate_error(self) -> None:
+        """Raises MigrateError (not ValueError) for unsupported schema versions."""
+        payload = {
+            "project": {
+                "schema_version": {"major": 0, "minor": 0, "patch": 2},
+                "project_name": "test",
+            }
+        }
+        target = VersionInfo(major=0, minor=1, patch=0)
+
+        with pytest.raises(MigrateError, match="No migration path"):
+            auto_migrate_config(payload, target)
