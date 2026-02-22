@@ -2988,3 +2988,24 @@ def test_stderr_progress_sink_skips_non_lifecycle_events() -> None:
     finally:
         sys.stderr = old_stderr
     assert not buf.getvalue()
+
+
+def test_build_no_state_warning_result_uses_model_copy() -> None:
+    """_build_no_state_warning_result must not crash on Pydantic RunStatusResult.
+
+    Regression: previously used dataclasses.replace() which crashes on
+    Pydantic models with 'replace() should be called on dataclass instances'.
+    """
+    run_id = uuid7()
+    base = RunStatusResult(
+        run_id=run_id,
+        status=RunStatus.RUNNING,
+        current_phase=None,
+        updated_at="2026-02-21T00:00:00Z",
+        progress=None,
+        run_state=None,
+    )
+    result = cli_main._build_no_state_warning_result(run_id, base, iterations=25)
+    assert result.status == RunStatus.FAILED
+    assert result.run_state is None
+    assert result.run_id == run_id

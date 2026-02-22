@@ -58,7 +58,7 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - [x] Fix: Handle `ConfigValidationError` raised by `generate_project` in `services/rentl-cli/src/rentl/main.py:722` so malformed generated TOML returns `validation_error` (exit 11), not `runtime_error` (exit 99); current path falls through `except Exception` at `services/rentl-cli/src/rentl/main.py:772-774` and `_error_from_exception` default mapping at `services/rentl-cli/src/rentl/main.py:3676-3683` (audit round 2; see signposts.md: Task 5, pre-write ConfigValidationError mapped to runtime_error)
   - [x] Fix: Add CLI regression test for invalid `project_name` (e.g., `bad\"name`) that asserts `rentl init` exits with validation error and does not write `rentl.toml` (tests/unit/cli/test_main.py; audit round 2; see signposts.md: Task 5, pre-write ConfigValidationError mapped to runtime_error)
 
-- [ ] Task 6: Add Observability (trust-through-transparency, progress-is-product)
+- [x] Task 6: Add Observability (trust-through-transparency, progress-is-product)
   - Add non-TTY progress output at `main.py:936` — emit structured log events when no TTY detected
   - Add failure context to watcher exit at `main.py:3137`
   - Emit visible log events on retry attempts in `connection.py:198` — log attempt number, backoff delay, error reason
@@ -68,8 +68,8 @@ Standards audit (2026-02-17) identified ~80 violations across 7 standards. This 
   - Add milestone progress events to export at `orchestrator.py:1083-1172`
   - Unit tests verifying log events are emitted on retry, progress events on ingest/export
   - [x] Fix: Add export milestone regression coverage in `tests/unit/core/test_orchestrator.py` for `PhaseName.EXPORT` `PHASE_PROGRESS` events emitted by `packages/rentl-core/src/rentl_core/orchestrator.py:1158-1200` (assert both "Selected ... lines for export" and "Wrote ... lines"); current tests only cover ingest milestones at `tests/unit/core/test_orchestrator.py:1217-1260` (audit round 1)
-  - [ ] Fix: Replace the dataclass-only `replace(...)` call in the no-state watch path with a valid `RunStatusResult` update so `status --watch` does not crash with `replace() should be called on dataclass instances` (`services/rentl-cli/src/rentl/main.py:3584`) (audit round 1)
-  - [ ] Fix: Ensure no-state watcher terminal exits include explicit failure context for headless diagnostics (for example, "run state not found after N polls") instead of only `Run ... failed` (`services/rentl-cli/src/rentl/main.py:3333`, `services/rentl-cli/src/rentl/main.py:3346`, `services/rentl-cli/src/rentl/main.py:3351`) (audit round 1)
+  - [x] Fix: Replace the dataclass-only `replace(...)` call in the no-state watch path with a valid `RunStatusResult` update so `status --watch` does not crash with `replace() should be called on dataclass instances` (`services/rentl-cli/src/rentl/main.py:3584`) (audit round 1)
+  - [x] Fix: Ensure no-state watcher terminal exits include explicit failure context for headless diagnostics (for example, "run state not found after N polls") instead of only `Run ... failed` (`services/rentl-cli/src/rentl/main.py:3333`, `services/rentl-cli/src/rentl/main.py:3346`, `services/rentl-cli/src/rentl/main.py:3351`) (audit round 1)
 
 - [x] Task 7: Final Integration & Gate Verification
   - Run `make all` and fix any remaining failures

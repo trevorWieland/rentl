@@ -10,7 +10,6 @@ import sys
 import time
 import tomllib
 from collections.abc import Awaitable, Sequence
-from dataclasses import replace
 from datetime import UTC, datetime
 from enum import Enum
 from itertools import combinations
@@ -3299,6 +3298,12 @@ def _watch_status(bundle: _StorageBundle, run_id: RunId) -> None:
         ):
             err = status_result.run_state.last_error
             rprint(f"[red]Error ({err.code}):[/red] {err.message}")
+        elif status_result.run_state is None:
+            rprint(
+                f"[red]Error:[/red] run state not found after"
+                f" {no_state_count} polls — the run may not have started"
+                " or state storage is unreachable"
+            )
         raise typer.Exit(code=ExitCode.ORCHESTRATION_ERROR.value)
 
 
@@ -3526,10 +3531,8 @@ def _build_no_state_warning_result(
     # Instead, we'll add this to the phase summary or create a synthetic status
     if base_result.run_state is None:
         # Return result with failed status to surface the issue
-        return replace(
-            base_result,
-            status=RunStatus.FAILED,
-            run_state=None,
+        return base_result.model_copy(
+            update={"status": RunStatus.FAILED, "run_state": None},
         )
     return base_result
 
