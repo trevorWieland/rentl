@@ -306,8 +306,11 @@ def then_config_auto_migrated(ctx: MigrateContext) -> None:
 
 @then("the output shows auto-migration occurred")
 def then_output_shows_auto_migration(ctx: MigrateContext) -> None:
-    """Assert the output shows auto-migration occurred."""
-    assert (
-        "auto-migrating" in ctx.stdout.lower()
-        or "migration complete" in ctx.stdout.lower()
-    )
+    """Assert the output shows auto-migration occurred.
+
+    Migration notices are emitted to stderr (to keep --json stdout clean),
+    so we check ``result.output`` which mixes both streams.
+    """
+    assert ctx.result is not None
+    combined = ctx.result.output.lower()
+    assert "auto-migrating" in combined or "migration complete" in combined

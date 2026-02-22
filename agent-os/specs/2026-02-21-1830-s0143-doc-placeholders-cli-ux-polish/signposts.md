@@ -152,3 +152,18 @@ Read this before starting any task to avoid repeating known issues.
 - **Solution:** Wrapped `ValueError` from `plan_migrations` as `MigrateError` in `auto_migrate_config`, and wrapped `apply_migrations` failures similarly. Added regression tests at both core (`test_migrate.py`) and CLI (`test_main.py`) layers for unsupported schema versions.
 - **Resolution:** do-task round 5, 2026-02-21
 - **Files affected:** packages/rentl-core/src/rentl_core/migrate.py, tests/unit/core/test_migrate.py, tests/unit/cli/test_main.py
+
+## Signpost 8: Integration test checks stdout for auto-migration notice moved to stderr
+
+- **Task:** Task 7 (make all gate fix)
+- **Status:** resolved
+- **Problem:** `test_automigrate_on_config_load` asserts that "auto-migrating" or "migration complete" appears in `ctx.stdout`, but Task 4 intentionally moved migration notices from stdout to stderr (to keep `--json` stdout clean). Click 8.2+ separates stdout and stderr in `Result`, so migration messages no longer appear in `result.stdout`.
+- **Evidence:** Integration test failure:
+  ```
+  assert ('auto-migrating' in '{"data":{"results":[],...}\n' or 'migration complete' in '{"data":{"results":[],...}\n')
+  ```
+  `ctx.stdout` only contains the JSON envelope; migration notices are in `result.output` (mixed stream).
+- **Tried:** N/A — root cause was immediately clear from the error output and Task 4 plan notes.
+- **Solution:** Updated `then_output_shows_auto_migration` to check `ctx.result.output` (which mixes stdout and stderr) instead of `ctx.stdout`. This preserves the assertion strength (migration notice must still be emitted) while matching the intentional stderr routing.
+- **Resolution:** do-task gate-fix round, 2026-02-22
+- **Files affected:** tests/integration/cli/test_migrate.py
