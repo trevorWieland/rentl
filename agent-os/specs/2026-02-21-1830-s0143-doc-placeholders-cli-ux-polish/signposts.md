@@ -121,3 +121,32 @@ Read this before starting any task to avoid repeating known issues.
 - **Solution:** Added `test_export_emits_milestone_progress_events` in `tests/unit/core/test_orchestrator.py` with a `_StubExportAdapter` and simplified pipeline config (no edit phase). Test asserts both "Selected 2 lines for export" and "Wrote 2 lines" progress messages emitted as `ProgressEvent.PHASE_PROGRESS`.
 - **Resolution:** do-task round 5, 2026-02-21
 - **Files affected:** tests/unit/core/test_orchestrator.py
+
+## Signpost 7: Unsupported schema versions now leak ValueError from auto-migrate path
+
+- **Task:** Task 4 (audit round 4)
+- **Status:** unresolved
+- **Problem:** After extracting `_auto_migrate_if_needed` business logic into `rentl_core.migrate.auto_migrate_file`, unsupported schema versions (`plan_migrations` has no chain) now raise raw `ValueError` instead of the documented `MigrateError`/CLI `_ConfigError` flow.
+- **Evidence:** `packages/rentl-core/src/rentl_core/migrate.py:528-530` calls `auto_migrate_config(...)` without wrapping `ValueError` from migration planning.
+- **Evidence:** `services/rentl-cli/src/rentl/main.py:2221-2222` only catches `MigrateError`, so `ValueError` leaks past the wrapper.
+- **Evidence:** Repro command:
+  ```bash
+  $ uv run python - <<'PY'
+  from pathlib import Path
+  import tempfile
+  import rentl.main as cli_main
+  payload = {"project": {"schema_version": {"major": 0, "minor": 0, "patch": 2}}}
+  with tempfile.TemporaryDirectory() as d:
+      p = Path(d) / "rentl.toml"
+      p.write_text("[project]\nschema_version = { major = 0, minor = 0, patch = 2 }\n", encoding="utf-8")
+      try:
+          cli_main._auto_migrate_if_needed(p, payload)
+      except Exception as exc:
+          print(type(exc).__name__)
+          print(exc)
+  PY
+  ValueError
+  No migration path from 0.0.2 to 0.1.0. Stuck at 0.0.2.
+  ```
+- **Impact:** Weakens CLI boundary guarantees for migration failures and can route errors through generic validation handling instead of the intended config-error migration pathway.
+- **Solution:** Catch planning/apply failures inside `auto_migrate_file` and rethrow `MigrateError`; add regression tests at core and CLI layers for unsupported schema versions.
