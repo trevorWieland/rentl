@@ -24,4 +24,10 @@ In this demo, we prove the standard accurately describes the real config pattern
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — s0.1.26 declarative agent config standard (2026-02-22 23:31)
+- Step 1 [RUN]: PASS — Standard document exists at `agent-os/standards/architecture/declarative-agent-config.md` with all 8 required sections (Agent Profile Schema, TOML File Structure, Layered Prompt System, Template Variable Registry, Tool Registration & Access Control, Model Hints, Orchestration Config, Pipeline Phase Config)
+- Step 2 [RUN]: PASS — `index.yml` contains `declarative-agent-config` under `architecture` with correct description
+- Step 3 [RUN]: PASS — All fields in `AgentProfileConfig`, `AgentProfileMeta`, `AgentRequirements`, `AgentOrchestration`, `AgentPromptConfig`, `ToolAccessConfig`, `ModelHints`, `PhasePromptConfig`, `RootPromptConfig`, and `PhaseConfig` are documented with matching field names, types, and constraints
+- Step 4 [RUN]: PASS — `discover_agent_profiles()` loaded all 5 profiles (scene_summarizer, idiom_labeler, direct_translator, style_guide_critic, basic_editor) without errors
+- Step 5 [RUN]: PASS — `make all` passed: 1040 unit, 95 integration, 9 quality tests all green
+- **Overall: PASS**
