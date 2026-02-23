@@ -78,7 +78,7 @@ Both are required and non-empty. Content may contain `{{variable}}` placeholders
 | `allowed`  | `ToolAccessConfig.allowed` | `list[str]` | `[]`    |
 | `required` | `ToolAccessConfig.required`| `list[str]` | `[]`    |
 
-**Invariant:** `required` must be a subset of `allowed` (enforced by `validate_required_subset` model validator). Tool names must match `^[a-z_]+$` (alphanumeric + underscore). When `required` tools are configured, the runtime uses `end_strategy="exhaustive"` and gates output tools until all required tools have been called.
+**Invariant:** `required` must be a subset of `allowed` (enforced by `validate_required_subset` model validator). Tool names must be non-empty and satisfy `name.replace("_", "").isalnum()` — i.e., alphanumeric characters plus underscores (`ToolAccessConfig.validate_allowed_tools` in `rentl_schemas/agents.py`). When `required` tools are configured, the runtime uses `end_strategy="exhaustive"` and gates output tools until all required tools have been called.
 
 ### `[model_hints]` section
 
@@ -164,7 +164,7 @@ Tools are managed by `ToolRegistry` (`rentl_agents/tools/registry.py`). The prof
 
 1. `allowed` tools are passed to `pydantic_ai.Agent(tools=...)` as callables
 2. `required` tools trigger `end_strategy="exhaustive"` and a `prepare_output_tools` callback that hides output tools until all required tools appear in the message history
-3. Tool names must be alphanumeric + underscore, validated at load time
+3. Tool names must be non-empty and satisfy `name.replace("_", "").isalnum()` (alphanumeric + underscore), validated at load time
 
 ## Model Hints
 

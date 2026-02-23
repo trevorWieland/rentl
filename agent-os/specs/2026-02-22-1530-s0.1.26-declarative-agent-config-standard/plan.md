@@ -13,13 +13,13 @@ The declarative agent config system has been built incrementally across specs s0
 - [x] Task 1: Save Spec Documentation
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch and push
-- [ ] Task 2: Write the Declarative Agent Config Standard
+- [x] Task 2: Write the Declarative Agent Config Standard
   - Create `agent-os/standards/architecture/declarative-agent-config.md`
   - Sections: Agent Profile Schema, TOML File Structure, Layered Prompt System, Template Variable Registry, Tool Registration & Access Control, Model Hints, Orchestration Config, Pipeline Phase Config
   - Each section references actual Pydantic fields from `rentl_schemas/agents.py` and `rentl_schemas/config.py`
   - Add entry to `agent-os/standards/index.yml` under `architecture`
   - Test expectations: standard document parses cleanly, index.yml is valid YAML
-  - [ ] Fix: Align tool-name validation rule in the standard with actual schema enforcement; `declarative-agent-config.md` claims `^[a-z_]+$`, but `ToolAccessConfig.validate_allowed_tools` accepts names where `name.replace("_", "").isalnum()` (`agent-os/standards/architecture/declarative-agent-config.md:81`, `packages/rentl-schemas/src/rentl_schemas/agents.py:142`) (audit round 1)
+  - [x] Fix: Align tool-name validation rule in the standard with actual schema enforcement; `declarative-agent-config.md` claims `^[a-z_]+$`, but `ToolAccessConfig.validate_allowed_tools` accepts names where `name.replace("_", "").isalnum()` (`agent-os/standards/architecture/declarative-agent-config.md:81`, `packages/rentl-schemas/src/rentl_schemas/agents.py:142`) (audit round 1)
 - [ ] Task 3: Audit Existing Agent Profiles Against Standard
   - Load all agent TOML profiles via `discover_agent_profiles()`
   - Cross-reference each profile field against the standard
