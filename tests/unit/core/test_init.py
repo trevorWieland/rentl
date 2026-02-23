@@ -17,7 +17,6 @@ from rentl_core.init import (
     InitResult,
     StandardEnvVar,
     detect_game_engine,
-    detect_source_language,
     generate_project,
     validate_generated_config,
 )
@@ -735,16 +734,12 @@ def test_detect_game_engine_none(tmp_path: Path) -> None:
     assert detect_game_engine(tmp_path) is None
 
 
-def test_detect_source_language_japanese(tmp_path: Path) -> None:
-    """Test that Japanese is detected from .rpy files."""
-    (tmp_path / "script.rpy").write_text("label start:", encoding="utf-8")
-    assert detect_source_language(tmp_path) == "ja"
-
-
-def test_detect_source_language_none(tmp_path: Path) -> None:
-    """Test that None is returned when language cannot be inferred."""
-    (tmp_path / "readme.md").write_text("hello", encoding="utf-8")
-    assert detect_source_language(tmp_path) is None
+def test_detect_game_engine_subdirectory(tmp_path: Path) -> None:
+    """Test that engine is detected from files in immediate subdirectories."""
+    subdir = tmp_path / "game"
+    subdir.mkdir()
+    (subdir / "script.rpy").write_text("label start:", encoding="utf-8")
+    assert detect_game_engine(tmp_path) == "Ren'Py"
 
 
 # ---------------------------------------------------------------------------

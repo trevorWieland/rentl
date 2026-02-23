@@ -404,13 +404,6 @@ _ENGINE_SIGNATURES: list[tuple[str, list[str]]] = [
     ("Wolf RPG", ["*.wolf", "*.dat"]),
 ]
 
-# Source-language heuristics: ordered by specificity
-_LANGUAGE_SIGNATURES: list[tuple[str, list[str]]] = [
-    ("ja", ["*.rpy", "*.ks", "*.rpgproject"]),
-    ("zh", ["*.txt"]),
-    ("ko", ["*.txt"]),
-]
-
 
 def detect_game_engine(project_dir: Path) -> str | None:
     """Detect game engine from file patterns in the project directory.
@@ -426,28 +419,12 @@ def detect_game_engine(project_dir: Path) -> str | None:
     """
     for engine_name, patterns in _ENGINE_SIGNATURES:
         for pattern in patterns:
+            # Check root level
             if list(project_dir.glob(pattern)):
                 return engine_name
-    return None
-
-
-def detect_source_language(project_dir: Path) -> str | None:
-    """Attempt to infer source language from project file extensions.
-
-    This is a heuristic: the presence of .rpy/.ks files strongly suggests
-    Japanese source text (visual novel engines). Falls back to None if
-    nothing matches.
-
-    Args:
-        project_dir: Root of the project to inspect.
-
-    Returns:
-        ISO language code (e.g. "ja") or None if undetermined.
-    """
-    for lang_code, patterns in _LANGUAGE_SIGNATURES:
-        for pattern in patterns:
-            if list(project_dir.glob(pattern)):
-                return lang_code
+            # Check one level of subdirectories
+            if list(project_dir.glob(f"*/{pattern}")):
+                return engine_name
     return None
 
 

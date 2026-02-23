@@ -57,7 +57,6 @@ from rentl_core.init import (
     InitAnswers,
     InitResult,
     detect_game_engine,
-    detect_source_language,
     generate_project,
     validate_generated_config,
 )
@@ -575,8 +574,6 @@ def init() -> None:
         project_name_default = Path.cwd().name
         game_name_default = project_name_default
         detected_engine = detect_game_engine(Path.cwd())
-        detected_language = detect_source_language(Path.cwd())
-        source_language_default = detected_language or "ja"
 
         # Run interview
         rprint("[bold cyan]rentl init[/bold cyan] - Project Bootstrap")
@@ -584,14 +581,10 @@ def init() -> None:
 
         if detected_engine:
             rprint(f"[green]Detected game engine:[/green] {detected_engine}")
-        if detected_language:
-            rprint(f"[green]Detected source language:[/green] {detected_language}")
 
         project_name = typer.prompt("Project name", default=project_name_default)
         game_name = typer.prompt("Game name", default=game_name_default)
-        source_language = typer.prompt(
-            "Source language code", default=source_language_default
-        )
+        source_language = typer.prompt("Source language code", default="ja")
         target_languages_input = typer.prompt(
             "Target language codes (comma-separated)", default="en"
         )
