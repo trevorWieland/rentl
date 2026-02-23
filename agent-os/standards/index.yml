@@ -7,6 +7,8 @@ architecture:
     description: All responses use pydantic-based {data, error, meta} envelopes
   config-path-resolution:
     description: Config paths resolve relative to config file parent, not CWD; keep configs in-workspace
+  declarative-agent-config:
+    description: Agents are TOML config, not code; profiles validated by Pydantic schemas with layered prompts, template variables, tool access, and model hints
   id-formats:
     description: UUIDv7 vs human-readable ID formats
   log-line-format:

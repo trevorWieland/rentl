@@ -13,7 +13,7 @@ The declarative agent config system has been built incrementally across specs s0
 - [x] Task 1: Save Spec Documentation
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch and push
-- [ ] Task 2: Write the Declarative Agent Config Standard
+- [x] Task 2: Write the Declarative Agent Config Standard
   - Create `agent-os/standards/architecture/declarative-agent-config.md`
   - Sections: Agent Profile Schema, TOML File Structure, Layered Prompt System, Template Variable Registry, Tool Registration & Access Control, Model Hints, Orchestration Config, Pipeline Phase Config
   - Each section references actual Pydantic fields from `rentl_schemas/agents.py` and `rentl_schemas/config.py`
