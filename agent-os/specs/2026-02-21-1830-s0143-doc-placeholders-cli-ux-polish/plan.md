@@ -1,0 +1,79 @@
+spec_id: s0.1.43
+issue: https://github.com/trevorWieland/rentl/issues/130
+version: v0.1
+
+# Plan: Documentation Placeholders, CLI Surface & UX Polish
+
+## Decision Record
+Standards audit (2026-02-17) identified ~80 violations across 7 standards. This spec addresses all violations in a single pass since they share overlapping files (especially main.py and docs). The work is structured so documentation fixes come first (lowest risk), followed by refactoring (medium risk), then new functionality (highest risk).
+
+## Tasks
+- [x] Task 1: Save Spec Documentation
+  - Write spec.md, plan.md, demo.md, standards.md, references.md
+  - Commit on issue branch and push
+
+- [x] Task 2: Replace Doc Placeholders & Fix Stale References
+  - Replace all `<placeholder>` patterns in README.md, CONTRIBUTING.md, docs/troubleshooting.md, WORKFLOW-GUIDE.md
+  - Replace all `<spec-folder>` placeholders in agent-os docs (26 locations across draft-*.md and WORKFLOW-GUIDE.md)
+  - Replace `<branch-name>`, `<phase>`, `<command>`, `<output-a>`, `<output-b>`, `<tmp>`, `<name>`, `<run-id>`, `<translated-lines-jsonl>`, `<topic>/<name>.md` placeholders
+  - Update README.md:182 env var names from `OPENROUTER_API_KEY`/`OPENAI_API_KEY` to `RENTL_LOCAL_API_KEY`/`RENTL_QUALITY_API_KEY`
+  - Fix hardcoded `run-001` in `agent-os/standards/ux/copy-pasteable-examples.md:7`
+  - Fix `<command>` placeholder in the standard file itself at `:10`
+  - Acceptance: `grep -rn '<[a-z-]*>' README.md CONTRIBUTING.md docs/ WORKFLOW-GUIDE.md` returns zero matches (excluding legitimate HTML tags)
+  - [x] Fix: Replace hardcoded nonexistent spec path `agent-os/specs/2026-02-15-1400-s0142-feature-name` with an executable path (or dynamic discovery snippet) in all affected docs: `agent-os/docs/WORKFLOW-GUIDE.md:139`, `agent-os/docs/draft-complete.md:133`, `agent-os/docs/draft-concise.md:78`, `agent-os/docs/draft-educational.md:139`, `agent-os/docs/draft-general.md:206` (and repeated occurrences) (audit round 1)
+  - [x] Fix: Re-verify copy-pasteability by executing one updated orchestrator example end-to-end and confirming it no longer fails with `spec.md not found` (audit round 1)
+
+- [x] Task 3: Update Help Registry & Add \f Docstring Gates
+  - Add `check-secrets`, `migrate`, `benchmark` to `_COMMAND_REGISTRY` in `packages/rentl-core/src/rentl_core/help.py`
+  - Add `\f` gate to `main` callback docstring at `main.py:243`
+  - Add `\f` gate to `version` command docstring at `main.py:260`
+  - Add `\f` gate to `benchmark download` docstring at `main.py:1200`
+  - Add `\f` gate to `benchmark compare` docstring at `main.py:1351`
+  - Test: `rentl help` output includes all registered commands; `rentl --help` hides internal sections
+  - [x] Fix: Add missing `\f` gate to the `version` command docstring in `services/rentl-cli/src/rentl/main.py:262` (violates `python/cli-help-docstring-gating`; audit round 1)
+  - [x] Fix: Complete and record Task 3 verification commands (`uv run rentl help`, `uv run rentl --help`); current run fails with `ModuleNotFoundError: No module named 'griffe'` before help output is validated (audit round 1)
+
+- [x] Task 4: Extract CLI Logic to Core (thin-adapter-pattern)
+  - Extract `migrate` workflow logic from `main.py:3712` to new core module (e.g., `rentl_core/migrate.py`)
+  - Extract `check-secrets` validation from `main.py:3574` to new core module (e.g., `rentl_core/secrets.py`)
+  - Extract TOML serialization from `main.py:3910` to core (e.g., `rentl_core/config/serialization.py`)
+  - Update CLI commands to be thin wrappers calling core functions
+  - Unit tests for each extracted module
+  - Acceptance: `grep -rn 'from rentl\.' packages/rentl-core/` returns zero matches (excluding test fixtures)
+  - [x] Fix: Guard `migrate_config` against non-table `project` values and raise `MigrateError` instead of uncaught `AttributeError` (`packages/rentl-core/src/rentl_core/migrate.py:344`; repro: `project = "oops"` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
+  - [x] Fix: Guard `check_config_secrets` against non-table `endpoint`/`endpoints` values before calling `.get`, and add regression tests (`packages/rentl-core/src/rentl_core/secrets.py:53`, `packages/rentl-core/src/rentl_core/secrets.py:63`; repro: `{'endpoint': 'oops'}` -> `AttributeError: 'str' object has no attribute 'get'`) (audit round 1)
+  - [x] Fix: Move `_auto_migrate_if_needed` migration planning/apply/backup/serialization workflow out of CLI surface into `rentl_core.migrate` and keep CLI as a thin wrapper (`services/rentl-cli/src/rentl/main.py:2200`, `services/rentl-cli/src/rentl/main.py:2251`, `services/rentl-cli/src/rentl/main.py:2287`) (audit round 1)
+  - [x] Fix: Preserve JSON-only stdout for `--json` commands by routing auto-migration notices to logs/stderr (or structured metadata) instead of `print(...)`; current `status --json` output prepends migration text before the JSON envelope (`services/rentl-cli/src/rentl/main.py:2268`, `services/rentl-cli/src/rentl/main.py:2302`) (audit round 1)
+  - [x] Fix: Normalize unsupported-schema auto-migration failures to `MigrateError` in `auto_migrate_file` so the CLI wrapper does not leak raw `ValueError` (`packages/rentl-core/src/rentl_core/migrate.py:528`, `services/rentl-cli/src/rentl/main.py:2221`; repro: `schema_version = { major = 0, minor = 0, patch = 2 }` -> `ValueError: No migration path from 0.0.2 to 0.1.0. Stuck at 0.0.2.`) (audit round 4; see signposts.md: Task 4, unsupported schema version leaks ValueError)
+  - [x] Fix: Add regression tests for unsupported schema versions at both core and CLI boundaries (`tests/unit/core/test_migrate.py`, `tests/unit/cli/test_main.py`) so the path raises `MigrateError` and surfaces as `config_error` in CLI responses (audit round 4; see signposts.md: Task 4, unsupported schema version leaks ValueError)
+
+- [x] Task 5: Improve Init UX (frictionless-by-default)
+  - Add auto-detection in `init.py` and `main.py:569`: detect game engine from file patterns, source language from existing files
+  - Add config preview display before write at `main.py:666`
+  - Add config validation at `init.py:124` before writing generated config
+  - Adjust default concurrency at `init.py:260` to safe band (e.g., max_parallel_requests=4, max_parallel_scenes=2)
+  - Unit tests for auto-detection logic and config validation
+  - [x] Fix: Validate generated TOML before filesystem writes in `packages/rentl-core/src/rentl_core/init.py:149-150`; current flow only validates after `generate_project` in `services/rentl-cli/src/rentl/main.py:724`, so invalid `project_name` values can persist a broken `rentl.toml` (audit round 1; see signposts.md: Task 5, post-write validation leaves invalid config)
+  - [x] Fix: Convert TOML parse failures from `tomllib.load` in `packages/rentl-core/src/rentl_core/init.py:484-485` into `ConfigValidationError`, so `rentl init` uses the intended validation error path instead of generic exception handling (audit round 1; see signposts.md: Task 5, post-write validation leaves invalid config)
+  - [x] Fix: Handle `ConfigValidationError` raised by `generate_project` in `services/rentl-cli/src/rentl/main.py:722` so malformed generated TOML returns `validation_error` (exit 11), not `runtime_error` (exit 99); current path falls through `except Exception` at `services/rentl-cli/src/rentl/main.py:772-774` and `_error_from_exception` default mapping at `services/rentl-cli/src/rentl/main.py:3676-3683` (audit round 2; see signposts.md: Task 5, pre-write ConfigValidationError mapped to runtime_error)
+  - [x] Fix: Add CLI regression test for invalid `project_name` (e.g., `bad\"name`) that asserts `rentl init` exits with validation error and does not write `rentl.toml` (tests/unit/cli/test_main.py; audit round 2; see signposts.md: Task 5, pre-write ConfigValidationError mapped to runtime_error)
+  - [x] Fix: `detect_game_engine` only matches root-level files for simple `*.ext` patterns despite docstring claiming subdirectory coverage; added `*/{pattern}` glob to scan immediate child directories (PR #139 feedback from @chatgpt-codex-connector[bot], feedback round 1)
+  - [x] Fix: Remove `detect_source_language` entirely — file extensions cannot distinguish source languages; user always specifies language manually during init (PR #139 feedback from @chatgpt-codex-connector[bot], feedback round 1)
+
+- [x] Task 6: Add Observability (trust-through-transparency, progress-is-product)
+  - Add non-TTY progress output at `main.py:936` — emit structured log events when no TTY detected
+  - Add failure context to watcher exit at `main.py:3137`
+  - Emit visible log events on retry attempts in `connection.py:198` — log attempt number, backoff delay, error reason
+  - Add progress sink to `run-phase` at `main.py:1038-1085`
+  - Include error context in phase failure messages at `main.py:1832-1834`
+  - Add milestone progress events to ingest at `orchestrator.py:564-621`
+  - Add milestone progress events to export at `orchestrator.py:1083-1172`
+  - Unit tests verifying log events are emitted on retry, progress events on ingest/export
+  - [x] Fix: Add export milestone regression coverage in `tests/unit/core/test_orchestrator.py` for `PhaseName.EXPORT` `PHASE_PROGRESS` events emitted by `packages/rentl-core/src/rentl_core/orchestrator.py:1158-1200` (assert both "Selected ... lines for export" and "Wrote ... lines"); current tests only cover ingest milestones at `tests/unit/core/test_orchestrator.py:1217-1260` (audit round 1)
+  - [x] Fix: Replace the dataclass-only `replace(...)` call in the no-state watch path with a valid `RunStatusResult` update so `status --watch` does not crash with `replace() should be called on dataclass instances` (`services/rentl-cli/src/rentl/main.py:3584`) (audit round 1)
+  - [x] Fix: Ensure no-state watcher terminal exits include explicit failure context for headless diagnostics (for example, "run state not found after N polls") instead of only `Run ... failed` (`services/rentl-cli/src/rentl/main.py:3333`, `services/rentl-cli/src/rentl/main.py:3346`, `services/rentl-cli/src/rentl/main.py:3351`) (audit round 1)
+
+- [x] Task 7: Final Integration & Gate Verification
+  - Run `make all` and fix any remaining failures
+  - Verify all acceptance criteria from spec.md are met
+  - Ensure demo steps will pass

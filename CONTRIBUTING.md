@@ -91,7 +91,7 @@ This creates the spec folder, branch, and all planning artifacts.
 **Step 2: Run the orchestrator (automated)**
 
 ```bash
-./agent-os/scripts/orchestrate.sh agent-os/specs/<your-spec-folder>
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes
 ```
 
 The orchestrator loops through all tasks, runs verification gates, executes the demo, and performs the spec audit. It stops when everything passes or when it detects staleness (no progress between cycles).
@@ -121,7 +121,7 @@ ORCH_SPEC_GATE="make all"     # Spec-level verification command
 ORCH_MAX_CYCLES=10            # Safety limit (staleness detector is primary)
 
 # Or use a config file
-./agent-os/scripts/orchestrate.sh <spec-folder> --config my-config.conf
+./agent-os/scripts/orchestrate.sh agent-os/specs/2026-02-05-2240-s0.1.35-cli-exit-codes --config my-config.conf
 ```
 
 ## Spec Folder Structure

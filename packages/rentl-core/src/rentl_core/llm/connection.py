@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable, Sequence
 from time import monotonic
 
@@ -28,6 +29,8 @@ from rentl_schemas.llm import (
     LlmRuntimeSettings,
 )
 from rentl_schemas.primitives import PhaseName, ReasoningEffort
+
+_log = logging.getLogger(__name__)
 
 _LLM_PHASES = {
     PhaseName.CONTEXT,
@@ -221,8 +224,22 @@ async def _run_with_retry(
         except Exception as exc:
             last_error = _format_error(exc)
             if attempts >= max_attempts:
+                _log.warning(
+                    "LLM request failed after %d/%d attempts: %s",
+                    attempts,
+                    max_attempts,
+                    last_error,
+                )
                 break
-            await asyncio.sleep(min(delay, retry.max_backoff_s))
+            next_delay = min(delay, retry.max_backoff_s)
+            _log.warning(
+                "LLM request attempt %d/%d failed, retrying in %.1fs: %s",
+                attempts,
+                max_attempts,
+                next_delay,
+                last_error,
+            )
+            await asyncio.sleep(next_delay)
             delay = min(delay * 2, retry.max_backoff_s)
         else:
             duration_ms = _duration_ms(start)

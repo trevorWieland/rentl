@@ -13,6 +13,7 @@ from rentl_core.orchestrator import (
     PipelineOrchestrator,
     hydrate_run_context,
 )
+from rentl_core.ports.export import ExportResult, ExportSummary
 from rentl_core.ports.orchestrator import (
     LogSinkProtocol,
     OrchestrationError,
@@ -39,7 +40,7 @@ from rentl_schemas.config import (
     RunConfig,
 )
 from rentl_schemas.events import ProgressEvent, RunEvent
-from rentl_schemas.io import IngestSource, SourceLine, TranslatedLine
+from rentl_schemas.io import ExportTarget, IngestSource, SourceLine, TranslatedLine
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import (
     ContextPhaseInput,
@@ -1210,3 +1211,221 @@ async def test_edit_validation_gate_rejects_missing_lines() -> None:
 
     # Output must not be stored on validation failure
     assert "ja" not in run.edit_outputs
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_ingest_emits_milestone_progress_events() -> None:
+    """Ingest phase emits PHASE_PROGRESS events with line count messages."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f1")
+    config = _build_run_config()
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_2",
+            scene_id="scene_1",
+            speaker=None,
+            text="Bye",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    progress_sink = _StubProgressSink()
+    orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
+        ingest_adapter=ingest_adapter,
+        progress_sink=progress_sink,
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+
+    progress_messages = [
+        u.message
+        for u in progress_sink.updates
+        if u.event == ProgressEvent.PHASE_PROGRESS and u.message
+    ]
+    assert any("Loaded 2 source lines" in msg for msg in progress_messages)
+    assert any("Persisted 2 source lines" in msg for msg in progress_messages)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_phase_failure_includes_exception_type_in_message() -> None:
+    """Generic exceptions include the exception type in the failure message."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f2")
+    config = _build_run_config()
+    log_sink = _StubLogSink()
+    progress_sink = _StubProgressSink()
+
+    class _CrashingContextAgent:
+        async def run(self, payload: ContextPhaseInput) -> ContextPhaseOutput:
+            raise RuntimeError("boom")
+
+    orchestrator = PipelineOrchestrator(
+        context_agents=[
+            ("context_agent", PhaseAgentPool(agents=[_CrashingContextAgent()])),
+        ],
+        log_sink=log_sink,
+        progress_sink=progress_sink,
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+    run.source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await orchestrator.run_phase(run, PhaseName.CONTEXT)
+
+    assert run.last_error is not None
+    assert "RuntimeError" in run.last_error.message
+    assert "boom" in run.last_error.message
+
+
+class _StubExportAdapter:
+    """Stub export adapter for orchestrator tests."""
+
+    format = FileFormat.TXT
+
+    def __init__(self, line_count: int = 0) -> None:
+        self._line_count = line_count
+
+    async def write_output(
+        self, target: ExportTarget, lines: list[TranslatedLine]
+    ) -> ExportResult:
+        fmt = target.format
+        if not isinstance(fmt, FileFormat):
+            fmt = FileFormat(fmt)
+        return ExportResult(
+            summary=ExportSummary(
+                output_path=target.output_path,
+                format=fmt,
+                line_count=self._line_count or len(lines),
+                untranslated_count=0,
+            ),
+        )
+
+
+def _build_run_config_no_edit() -> RunConfig:
+    """Build a RunConfig without the edit phase.
+
+    Returns:
+        RunConfig without edit phase; export reads translate output.
+    """
+    project = ProjectConfig(
+        schema_version=VersionInfo(major=0, minor=1, patch=0),
+        project_name="test",
+        paths=ProjectPaths(
+            workspace_dir="/tmp",
+            input_path="/tmp/input.txt",
+            output_dir="/tmp/out",
+            logs_dir="/tmp/logs",
+        ),
+        formats=FormatConfig(input_format=FileFormat.TXT, output_format=FileFormat.TXT),
+        languages=LanguageConfig(source_language="en", target_languages=["ja"]),
+    )
+    pipeline = PipelineConfig(
+        default_model=ModelSettings(model_id="gpt-4"),
+        phases=[
+            PhaseConfig(phase=PhaseName.INGEST),
+            PhaseConfig(phase=PhaseName.TRANSLATE, agents=["direct_translator"]),
+            PhaseConfig(phase=PhaseName.EXPORT),
+        ],
+    )
+    return RunConfig(
+        project=project,
+        logging=LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.NOOP)]),
+        agents=_agents_config(),
+        endpoint=ModelEndpointConfig(
+            provider_name="test",
+            base_url="http://localhost",
+            api_key_env="TEST_KEY",
+        ),
+        pipeline=pipeline,
+        concurrency=ConcurrencyConfig(),
+        retry=RetryConfig(),
+        cache=CacheConfig(),
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_export_emits_milestone_progress_events() -> None:
+    """Export phase emits PHASE_PROGRESS events with milestones."""
+    run_id: RunId = UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5f3")
+    config = _build_run_config_no_edit()
+    source_lines = [
+        SourceLine(
+            line_id="line_1",
+            scene_id="scene_1",
+            speaker=None,
+            text="Hi",
+            metadata=None,
+            source_columns=None,
+        ),
+        SourceLine(
+            line_id="line_2",
+            scene_id="scene_1",
+            speaker=None,
+            text="Bye",
+            metadata=None,
+            source_columns=None,
+        ),
+    ]
+    ingest_adapter = _StubIngestAdapter(source_lines)
+    progress_sink = _StubProgressSink()
+    export_adapter = _StubExportAdapter()
+    orchestrator = PipelineOrchestrator(
+        log_sink=_StubLogSink(),
+        ingest_adapter=ingest_adapter,
+        progress_sink=progress_sink,
+        translate_agents=[
+            ("translate_agent", PhaseAgentPool(agents=[_StubTranslateAgent()])),
+        ],
+        export_adapter=export_adapter,
+    )
+    run = orchestrator.create_run(run_id=run_id, config=config)
+
+    await orchestrator.run_phase(
+        run,
+        PhaseName.INGEST,
+        ingest_source=IngestSource(input_path="/tmp/input.txt", format=FileFormat.TXT),
+    )
+    await orchestrator.run_phase(run, PhaseName.TRANSLATE, target_language="ja")
+    await orchestrator.run_phase(
+        run,
+        PhaseName.EXPORT,
+        target_language="ja",
+        export_target=ExportTarget(
+            output_path="/tmp/out/ja.txt", format=FileFormat.TXT
+        ),
+    )
+
+    progress_messages = [
+        u.message
+        for u in progress_sink.updates
+        if u.event == ProgressEvent.PHASE_PROGRESS
+        and u.phase == PhaseName.EXPORT
+        and u.message
+    ]
+    assert any("Selected 2 lines for export" in msg for msg in progress_messages)
+    assert any("Wrote 2 lines" in msg for msg in progress_messages)

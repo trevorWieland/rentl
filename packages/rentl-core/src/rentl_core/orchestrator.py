@@ -567,7 +567,9 @@ class PipelineOrchestrator:
             )
             raise
         except Exception as exc:
-            await self._emit_phase_failure(run, phase, str(exc), language, None)
+            exc_type = type(exc).__qualname__
+            message = f"{exc_type}: {exc}" if str(exc) else exc_type
+            await self._emit_phase_failure(run, phase, message, language, None)
             raise
 
         completed_at = self._clock()
@@ -638,12 +640,24 @@ class PipelineOrchestrator:
             )
             raise
         line_count = len(run.source_lines)
+        await self._emit_progress(
+            run,
+            PhaseName.INGEST,
+            ProgressEvent.PHASE_PROGRESS,
+            message=f"Loaded {line_count} source lines",
+        )
         artifact_ids = await self._persist_phase_artifact(
             run,
             PhaseName.INGEST,
             run.source_lines,
             None,
             description="Ingest source lines",
+        )
+        await self._emit_progress(
+            run,
+            PhaseName.INGEST,
+            ProgressEvent.PHASE_PROGRESS,
+            message=f"Persisted {line_count} source lines",
         )
         await self._emit_log(
             build_ingest_completed_log(
@@ -1141,6 +1155,14 @@ class PipelineOrchestrator:
                 )
             )
         translated_lines = _select_export_lines(run, target_language)
+        await self._emit_progress(
+            run,
+            PhaseName.EXPORT,
+            ProgressEvent.PHASE_PROGRESS,
+            message=(
+                f"Selected {len(translated_lines)} lines for export ({target_language})"
+            ),
+        )
         await self._emit_log(
             build_export_started_log(self._clock(), run.run_id, export_target)
         )
@@ -1168,6 +1190,14 @@ class PipelineOrchestrator:
             )
             raise
         run.export_results[target_language] = export_result
+        await self._emit_progress(
+            run,
+            PhaseName.EXPORT,
+            ProgressEvent.PHASE_PROGRESS,
+            message=(
+                f"Wrote {export_result.summary.line_count} lines ({target_language})"
+            ),
+        )
         artifact_ids = await self._persist_phase_artifact(
             run,
             PhaseName.EXPORT,

@@ -95,6 +95,7 @@ def given_fresh_project(
             "1",  # endpoint choice (OpenRouter preset)
             "jsonl",  # input format
             "y",  # include seed data
+            "y",  # write this config (confirm preview)
         ])
         + "\n"
     )

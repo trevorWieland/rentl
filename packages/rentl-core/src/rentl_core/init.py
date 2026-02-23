@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import tomllib
 from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationError, field_validator
 
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.config import RunConfig
 from rentl_schemas.primitives import FileFormat
 
 
@@ -142,9 +144,10 @@ def generate_project(answers: InitAnswers, target_dir: Path) -> InitResult:
         directory.mkdir(parents=True, exist_ok=True)
         created_files.append(str(directory.relative_to(target_dir)) + "/")
 
-    # Generate rentl.toml
+    # Generate rentl.toml — validate before writing to avoid persisting broken config
     config_path = target_dir / "rentl.toml"
     toml_content = _generate_toml(answers)
+    _validate_toml_content(toml_content)
     config_path.write_text(toml_content, encoding="utf-8")
     created_files.append(str(config_path.relative_to(target_dir)))
 
@@ -257,8 +260,8 @@ agents = ["basic_editor"]
 phase = "export"
 
 [concurrency]
-max_parallel_requests = 8
-max_parallel_scenes = 4
+max_parallel_requests = 4
+max_parallel_scenes = 2
 
 [retry]
 max_retries = 3
@@ -386,3 +389,117 @@ def _generate_seed_data(answers: InitAnswers) -> tuple[str, bool]:
     else:
         # Exhaustive match - this branch should never execute
         raise ValueError(f"Unsupported file format: {answers.input_format}")
+
+
+# ---------------------------------------------------------------------------
+# Auto-detection helpers
+# ---------------------------------------------------------------------------
+
+# Game engine detection: map file-glob patterns to engine names
+_ENGINE_SIGNATURES: list[tuple[str, list[str]]] = [
+    ("Ren'Py", ["*.rpy", "*.rpyc"]),
+    ("RPG Maker", ["*.rpgproject", "*.rvproj2", "data/*.json"]),
+    ("Kirikiri", ["*.ks", "*.tjs"]),
+    ("Unity", ["*.unity", "ProjectSettings/ProjectSettings.asset"]),
+    ("Wolf RPG", ["*.wolf", "*.dat"]),
+]
+
+
+def detect_game_engine(project_dir: Path) -> str | None:
+    """Detect game engine from file patterns in the project directory.
+
+    Scans top-level and one level of subdirectories for known engine
+    signature files.
+
+    Args:
+        project_dir: Root of the project to inspect.
+
+    Returns:
+        Engine name string (e.g. "Ren'Py") or None if no match.
+    """
+    for engine_name, patterns in _ENGINE_SIGNATURES:
+        for pattern in patterns:
+            # Check root level
+            if list(project_dir.glob(pattern)):
+                return engine_name
+            # Check one level of subdirectories
+            if list(project_dir.glob(f"*/{pattern}")):
+                return engine_name
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Config validation
+# ---------------------------------------------------------------------------
+
+
+class ConfigValidationError(Exception):
+    """Raised when generated config fails schema validation."""
+
+    def __init__(self, message: str, errors: list[dict[str, object]]) -> None:
+        """Initialize with a message and structured error list.
+
+        Args:
+            message: Human-readable summary.
+            errors: List of dicts with ``loc`` and ``msg`` keys from Pydantic.
+        """
+        super().__init__(message)
+        self.errors = errors
+
+
+def _validate_toml_content(toml_content: str) -> None:
+    """Validate a TOML string parses correctly and satisfies RunConfig schema.
+
+    Called before writing to disk so invalid config never reaches the filesystem.
+
+    Args:
+        toml_content: Raw TOML string to validate.
+
+    Raises:
+        ConfigValidationError: If the TOML is unparseable or fails schema validation.
+    """
+    try:
+        raw = tomllib.loads(toml_content)
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigValidationError(
+            f"Generated TOML is unparseable: {exc}",
+            [{"loc": (), "msg": str(exc)}],
+        ) from exc
+
+    try:
+        RunConfig.model_validate(raw, strict=True)
+    except ValidationError as exc:
+        raise ConfigValidationError(
+            f"Generated config failed validation: {exc.error_count()} error(s)",
+            [{"loc": e["loc"], "msg": e["msg"]} for e in exc.errors()],
+        ) from exc
+
+
+def validate_generated_config(config_path: Path) -> RunConfig:
+    """Validate a generated rentl.toml against the RunConfig schema.
+
+    Args:
+        config_path: Path to the rentl.toml file.
+
+    Returns:
+        Validated RunConfig.
+
+    Raises:
+        ConfigValidationError: If the config fails schema validation or TOML parsing.
+    """
+    try:
+        with config_path.open("rb") as f:
+            raw = tomllib.load(f)
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigValidationError(
+            f"Config file is unparseable TOML: {exc}",
+            [{"loc": (), "msg": str(exc)}],
+        ) from exc
+
+    try:
+        return RunConfig.model_validate(raw, strict=True)
+    except ValidationError as exc:
+        raise ConfigValidationError(
+            f"Generated config failed validation: {exc.error_count()} error(s)",
+            [{"loc": e["loc"], "msg": e["msg"]} for e in exc.errors()],
+        ) from exc

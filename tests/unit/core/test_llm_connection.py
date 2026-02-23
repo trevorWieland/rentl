@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+
+import pytest
+
 from rentl_core.llm.connection import build_connection_plan, validate_connections
 from rentl_schemas.config import (
     AgentsConfig,
@@ -238,3 +242,104 @@ def _model_settings(model_id: str, endpoint_ref: str) -> ModelSettings:
         presence_penalty=0.0,
         frequency_penalty=0.0,
     )
+
+
+class _FailingRuntime:
+    """Runtime that always raises on the first call, then succeeds."""
+
+    def __init__(self, fail_count: int = 1) -> None:
+        self._fail_count = fail_count
+        self._calls = 0
+
+    async def run_prompt(
+        self, request: LlmPromptRequest, *, api_key: str
+    ) -> LlmPromptResponse:
+        self._calls += 1
+        if self._calls <= self._fail_count:
+            raise ConnectionError("simulated connection error")
+        return LlmPromptResponse(
+            model_id=request.runtime.model.model_id,
+            output_text="ok",
+        )
+
+
+def _build_fast_retry_config() -> RunConfig:
+    # Near-zero backoff so retry tests complete within 1s timeout.
+    return RunConfig(
+        project=_base_project_config(),
+        logging=_logging_config(),
+        agents=_agents_config(),
+        endpoint=None,
+        endpoints=_endpoints_config(),
+        pipeline=_pipeline_config(),
+        concurrency=ConcurrencyConfig(
+            max_parallel_requests=1,
+            max_parallel_scenes=1,
+        ),
+        retry=RetryConfig(
+            max_retries=1,
+            backoff_s=0.01,
+            max_backoff_s=0.02,
+        ),
+        cache=CacheConfig(
+            enabled=False,
+            cache_dir=None,
+            ttl_s=None,
+            max_entries=None,
+        ),
+    )
+
+
+async def test_retry_emits_warning_logs(caplog: pytest.LogCaptureFixture) -> None:
+    """Verify that retry attempts emit visible warning-level log events."""
+    config = _build_fast_retry_config()
+    targets, _ = build_connection_plan(config)
+    runtime = _FailingRuntime(fail_count=1)
+
+    def lookup(_: LlmEndpointTarget) -> str | None:
+        return "fake-key"
+
+    with caplog.at_level(logging.WARNING, logger="rentl_core.llm.connection"):
+        await validate_connections(
+            runtime,
+            targets,
+            prompt="Hello",
+            system_prompt=None,
+            api_key_lookup=lookup,
+            skipped_endpoints=[],
+        )
+
+    retry_warnings = [r for r in caplog.records if "retrying in" in r.message.lower()]
+    assert len(retry_warnings) >= 1, (
+        f"Expected at least one retry warning, got {len(retry_warnings)}"
+    )
+    assert "simulated connection error" in retry_warnings[0].message
+
+
+async def test_retry_all_fail_emits_final_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Verify the final failure emits a warning with attempt count."""
+    config = _build_fast_retry_config()
+    targets, _ = build_connection_plan(config)
+    # config has max_retries=1, so 2 attempts total; fail all of them
+    runtime = _FailingRuntime(fail_count=10)
+
+    def lookup(_: LlmEndpointTarget) -> str | None:
+        return "fake-key"
+
+    with caplog.at_level(logging.WARNING, logger="rentl_core.llm.connection"):
+        report = await validate_connections(
+            runtime,
+            targets,
+            prompt="Hello",
+            system_prompt=None,
+            api_key_lookup=lookup,
+            skipped_endpoints=[],
+        )
+
+    final_warnings = [r for r in caplog.records if "failed after" in r.message.lower()]
+    assert len(final_warnings) >= 1, (
+        f"Expected final failure warning, got {len(final_warnings)}"
+    )
+    assert report.failure_count >= 1

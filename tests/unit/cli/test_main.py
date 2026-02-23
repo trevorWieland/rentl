@@ -3,9 +3,11 @@
 import ast
 import asyncio
 import inspect
+import io
 import json
 import math
 import os
+import sys
 import textwrap
 import tomllib
 from pathlib import Path
@@ -19,6 +21,7 @@ import rentl.main as cli_main
 from rentl.main import app
 from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import StandardEnvVar
+from rentl_core.migrate import dict_to_toml
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
@@ -1985,6 +1988,7 @@ def test_init_command_provider_preset_selection(
         "1",  # endpoint choice: OpenRouter
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
     ]
     input_str = "\n".join(inputs) + "\n"
 
@@ -2022,6 +2026,7 @@ def test_init_command_local_preset_prompts_for_model(
         "my-local-model",  # model_id (prompted because Local has no default)
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
     ]
     input_str = "\n".join(inputs) + "\n"
 
@@ -2060,6 +2065,7 @@ def test_init_command_provider_custom_option(
         "my-model-v1",  # custom model ID
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
     ]
     input_str = "\n".join(inputs) + "\n"
 
@@ -2131,6 +2137,7 @@ def test_init_command_custom_url_validation_loop(
         "my-model-v1",  # custom model ID
         "",  # input_format (default: jsonl)
         "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
     ]
     input_str = "\n".join(inputs) + "\n"
 
@@ -2150,6 +2157,34 @@ def test_init_command_custom_url_validation_loop(
     config = RunConfig.model_validate(config_dict)
     assert config.endpoint is not None
     assert config.endpoint.base_url == "https://api.example.com/v1"
+
+
+def test_init_command_invalid_project_name_exits_validation_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test init exits with validation_error for invalid project names."""
+    monkeypatch.chdir(tmp_path)
+
+    # A project name containing a double-quote produces unparseable TOML
+    inputs = [
+        'bad"name',  # project_name (contains quote → invalid TOML)
+        "",  # game_name (default)
+        "",  # source_language (default: ja)
+        "",  # target_languages (default: en)
+        "",  # endpoint choice (default: 1 / OpenRouter)
+        "",  # input_format (default: jsonl)
+        "",  # include_seed_data (default: yes)
+        "",  # write this config? (default: yes)
+    ]
+    input_str = "\n".join(inputs) + "\n"
+
+    result = runner.invoke(app, ["init"], input=input_str)
+
+    # Must exit with VALIDATION_ERROR (11), not runtime_error (99)
+    assert result.exit_code == ExitCode.VALIDATION_ERROR.value
+
+    # Must not persist a broken rentl.toml
+    assert not (tmp_path / "rentl.toml").exists()
 
 
 def test_help_command_no_args() -> None:
@@ -2591,7 +2626,7 @@ def test_dict_to_toml_simple_values() -> None:
         }
     }
 
-    result = cli_main._dict_to_toml(data)
+    result = dict_to_toml(data)
 
     # Parse the result back to verify it's valid TOML
     parsed = tomllib.loads(result)
@@ -2610,7 +2645,7 @@ def test_dict_to_toml_nested_tables() -> None:
         }
     }
 
-    result = cli_main._dict_to_toml(data)
+    result = dict_to_toml(data)
 
     # Parse the result back to verify it's valid TOML
     parsed = tomllib.loads(result)
@@ -2626,7 +2661,7 @@ def test_dict_to_toml_arrays() -> None:
         "logging": {"sinks": [{"type": "console"}, {"type": "file"}]},
     }
 
-    result = cli_main._dict_to_toml(data)
+    result = dict_to_toml(data)
 
     # Parse the result back to verify it's valid TOML
     parsed = tomllib.loads(result)
@@ -2639,7 +2674,7 @@ def test_dict_to_toml_escaping() -> None:
     """Test TOML serialization handles escaping correctly."""
     data = {"test": {"value": 'quote" and backslash\\ here'}}
 
-    result = cli_main._dict_to_toml(data)
+    result = dict_to_toml(data)
 
     # Parse the result back to verify escaping worked
     parsed = tomllib.loads(result)
@@ -2774,6 +2809,28 @@ def test_auto_migrate_if_needed_no_schema_version(tmp_path: Path) -> None:
     assert not (config_path.with_suffix(".toml.bak")).exists()
 
 
+def test_auto_migrate_if_needed_unsupported_schema_raises_config_error(
+    tmp_path: Path,
+) -> None:
+    """_ConfigError (not ValueError) for unsupported schema versions."""
+    config_path = tmp_path / "rentl.toml"
+    config_path.write_text(
+        "[project]\n"
+        "schema_version = { major = 0, minor = 0, patch = 2 }\n"
+        'project_name = "test"\n',
+        encoding="utf-8",
+    )
+    payload = {
+        "project": {
+            "schema_version": {"major": 0, "minor": 0, "patch": 2},
+            "project_name": "test",
+        }
+    }
+
+    with pytest.raises(cli_main._ConfigError, match="No migration path"):
+        cli_main._auto_migrate_if_needed(config_path, payload)
+
+
 def test_load_dotenv_loads_env_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2869,3 +2926,86 @@ def test_load_dotenv_handles_missing_env_files(
 
     # Should not raise an exception
     cli_main._load_dotenv(config_path)
+
+
+def _make_progress_update(
+    event: ProgressEvent,
+    phase: PhaseName,
+) -> ProgressUpdate:
+    # Build a minimal valid ProgressUpdate for testing.
+    unavailable = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+    )
+    phase_progress = PhaseProgress(
+        phase=phase,
+        status=PhaseStatus.RUNNING,
+        summary=unavailable,
+        started_at="2026-02-21T00:00:00Z",
+    )
+    run_progress = RunProgress(
+        phases=[phase_progress],
+        summary=unavailable,
+    )
+    return ProgressUpdate(
+        run_id=uuid7(),
+        event=event,
+        timestamp="2026-02-21T00:00:00Z",
+        phase=phase,
+        phase_status=PhaseStatus.RUNNING,
+        run_progress=run_progress,
+        phase_progress=phase_progress,
+    )
+
+
+def test_stderr_progress_sink_emits_lifecycle_events() -> None:
+    """_StderrProgressSink writes lifecycle events to stderr as JSONL."""
+    sink = cli_main._StderrProgressSink()
+    update = _make_progress_update(ProgressEvent.PHASE_STARTED, PhaseName.INGEST)
+    buf = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = buf
+    try:
+        asyncio.run(sink.emit_progress(update))
+    finally:
+        sys.stderr = old_stderr
+    output = buf.getvalue()
+    assert output.strip()
+    parsed = json.loads(output.strip())
+    assert parsed["event"] == "phase_started"
+    assert parsed["phase"] == "ingest"
+
+
+def test_stderr_progress_sink_skips_non_lifecycle_events() -> None:
+    """_StderrProgressSink does not write PHASE_PROGRESS events."""
+    sink = cli_main._StderrProgressSink()
+    update = _make_progress_update(ProgressEvent.PHASE_PROGRESS, PhaseName.TRANSLATE)
+    buf = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = buf
+    try:
+        asyncio.run(sink.emit_progress(update))
+    finally:
+        sys.stderr = old_stderr
+    assert not buf.getvalue()
+
+
+def test_build_no_state_warning_result_uses_model_copy() -> None:
+    """_build_no_state_warning_result must not crash on Pydantic RunStatusResult.
+
+    Regression: previously used dataclasses.replace() which crashes on
+    Pydantic models with 'replace() should be called on dataclass instances'.
+    """
+    run_id = uuid7()
+    base = RunStatusResult(
+        run_id=run_id,
+        status=RunStatus.RUNNING,
+        current_phase=None,
+        updated_at="2026-02-21T00:00:00Z",
+        progress=None,
+        run_state=None,
+    )
+    result = cli_main._build_no_state_warning_result(run_id, base, iterations=25)
+    assert result.status == RunStatus.FAILED
+    assert result.run_state is None
+    assert result.run_id == run_id

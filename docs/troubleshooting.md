@@ -111,6 +111,6 @@ Your `rentl.toml` configuration file was created with an older version of rentl 
 ## Need More Help?
 
 - Run `rentl doctor` for automated diagnostics
-- Check command-specific help: `rentl <command> --help`
+- Check command-specific help: `rentl run-phase --help`
 - Review the [README](../README.md) for configuration details
 - Report issues at: https://github.com/trevorWieland/rentl/issues

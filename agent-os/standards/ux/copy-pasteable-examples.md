@@ -3,11 +3,14 @@
 All command examples in documentation must be executable without modification.
 
 ```bash
-# Good: complete path
-uv run rentl export --input out/run-001/edited_lines.jsonl --output translations.csv --format csv
+# Good: use dynamic path from rentl status
+uv run rentl export --input "$(uv run rentl status --json | jq -r '.latest_run.output_dir')/edited_lines.jsonl" --output translations.csv --format csv
+
+# Also good: concrete example path with realistic run ID
+uv run rentl export --input out/run-a1b2c3/edited_lines.jsonl --output translations.csv --format csv
 
 # Bad: placeholder path
-uv run rentl export --input <translated-lines.jsonl> --output translations.csv --format csv
+uv run rentl export --input out/REPLACE_WITH_RUN_ID/edited_lines.jsonl --output translations.csv --format csv
 ```
 
 - No `<placeholder>` paths or arguments
