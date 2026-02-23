@@ -51,7 +51,7 @@
 - ✅ (s0.1.23) Unit Test Coverage Gate (>80%) — Enforce unit test coverage threshold across core and CLI packages. **Depends on:** s0.1.01–s0.1.13.
 - ✅ (s0.1.24) Integration Test Suite — Validate CLI workflows and runtime wiring across storage and BYOK endpoints. **Depends on:** s0.1.11, s0.1.12, s0.1.13, s0.1.23.
 - ✅ (s0.1.25) Quality Test Suite — Real-LLM smoke tests for runtime and agent behaviors. **Depends on:** s0.1.14, s0.1.15–s0.1.20, s0.1.23.
-- (s0.1.26) Standards Review: Declarative Agent Config — Lock in agent configuration conventions and documentation. **Depends on:** s0.1.14–s0.1.16.
+- ✅ (s0.1.26) Standards Review: Declarative Agent Config — Lock in agent configuration conventions and documentation. **Depends on:** s0.1.14–s0.1.16.
 - ✅ (s0.1.27) End-to-End Logging & Error Surfacing — Ensure full logging coverage and raise actionable errors instead of silent failures. **Depends on:** s0.1.06, s0.1.07, s0.1.14–s0.1.16.
 - ✅ (s0.1.28) OpenRouter Full Support - Ensure that both local models and openrouter models are fully capable, using tools, and work reliantly. **Depends on:** s0.1.12, s0.1.13, s0.1.14.
 - ✅ (s0.1.29) Project Bootstrap Command — Add `rentl init` to create a project from the template with sample data and config defaults. **Depends on:** s0.1.01, s0.1.03, s0.1.11.
