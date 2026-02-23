@@ -54,7 +54,7 @@ The declarative agent config system has been built incrementally across specs s0
 
 **Result: Zero deviations found.** All 5 agent profiles and all 6 prompt layer configs are fully compliant with the declarative agent config standard.
 
-- [ ] Task 4: Fix Deviations and Verify No Regressions
+- [x] Task 4: Fix Deviations and Verify No Regressions
   - Fix any deviations found in Task 3
   - Verify fixes don't change runtime behavior (existing tests pass)
   - Run `make check` to confirm task gate passes
