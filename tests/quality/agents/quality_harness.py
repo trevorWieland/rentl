@@ -81,6 +81,7 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         timeout_s=8.0,  # 2 agent + 1 judge calls x 8s = 24s max
         max_retries=0,  # No retries — single attempt to avoid timeout amplification
         max_output_retries=0,  # Single attempt to stay within 29s
+        max_requests_per_run=6,  # Bound total requests to prevent runaway loops
         retry_base_delay=1.0,
         end_strategy="exhaustive",
         required_tool_calls=["get_game_info"],
