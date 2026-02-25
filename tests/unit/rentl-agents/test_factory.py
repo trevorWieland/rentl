@@ -86,7 +86,7 @@ class TestAgentConfig:
         )
 
         assert config.max_retries == 5
-        assert config.retry_base_delay == 2.0
+        assert config.retry_base_delay == pytest.approx(2.0)
 
     def test_create_config_with_empty_system_prompt(self) -> None:
         """Test creating config raises error for empty system prompt."""

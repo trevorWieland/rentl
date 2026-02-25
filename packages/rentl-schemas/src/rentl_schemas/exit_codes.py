@@ -62,7 +62,6 @@ ERROR_CODE_TO_EXIT_CODE: dict[str, ExitCode] = {
     "export.invalid_format": ExitCode.EXPORT_ERROR,
     "export.validation_error": ExitCode.EXPORT_ERROR,
     "export.io_error": ExitCode.EXPORT_ERROR,
-    "export.untranslated_text": ExitCode.EXPORT_ERROR,
     "export.dropped_column": ExitCode.EXPORT_ERROR,
     # --- Storage domain ---
     "storage.not_found": ExitCode.STORAGE_ERROR,

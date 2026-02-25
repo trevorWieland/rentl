@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.pipeline import RunError, RunMetadata, RunState
@@ -78,6 +78,16 @@ class ArtifactMetadata(BaseSchema):
     run_id: RunId = Field(..., description="Run identifier")
     role: ArtifactRole = Field(..., description="Artifact role")
     phase: PhaseName | None = Field(None, description="Phase name if applicable")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName | None) -> PhaseName | None:
+        if value is None:
+            return None
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     target_language: LanguageCode | None = Field(
         None, description="Target language for language-specific artifacts"
     )

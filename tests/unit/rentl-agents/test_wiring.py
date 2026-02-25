@@ -272,7 +272,7 @@ def test_build_agent_pools_resolves_endpoint_and_retry(
     assert isinstance(translate_agent, TranslateDirectTranslatorAgent)
     assert translate_agent._config.base_url == "http://localhost:9999/v1"
     assert translate_agent._config.max_retries == 5
-    assert translate_agent._config.retry_base_delay == 2.0
+    assert translate_agent._config.retry_base_delay == pytest.approx(2.0)
     context_pool = pools.context_agents[0][1]
     assert isinstance(context_pool, PhaseAgentPool)
     assert context_pool._max_parallel is None

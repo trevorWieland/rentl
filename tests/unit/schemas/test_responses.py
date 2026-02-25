@@ -1,6 +1,15 @@
 """Unit tests for API response schemas."""
 
-from rentl_schemas.responses import ApiResponse, ErrorDetails, ErrorResponse, MetaInfo
+from uuid import UUID
+
+from rentl_schemas.primitives import PhaseName, RunStatus
+from rentl_schemas.responses import (
+    ApiResponse,
+    ErrorDetails,
+    ErrorResponse,
+    MetaInfo,
+    RunStatusResult,
+)
 
 
 def test_api_response_with_error() -> None:
@@ -23,3 +32,14 @@ def test_api_response_with_error() -> None:
     payload = response.model_dump()
     assert payload["error"]["code"] == "VAL_001"
     assert payload["error"]["exit_code"] == 11
+
+
+def test_run_status_result_coerces_current_phase_string() -> None:
+    """Ensure RunStatusResult coerces current_phase string to PhaseName."""
+    result = RunStatusResult(
+        run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0"),
+        status=RunStatus.RUNNING,
+        current_phase="translate",  # type: ignore[arg-type]
+        updated_at="2026-01-26T00:00:00Z",
+    )
+    assert result.current_phase == PhaseName.TRANSLATE

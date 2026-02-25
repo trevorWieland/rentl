@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import (
@@ -25,5 +25,15 @@ class LogEntry(BaseSchema):
     event: EventName = Field(..., description="Event name")
     run_id: RunId = Field(..., description="Pipeline run identifier")
     phase: PhaseName | None = Field(None, description="Pipeline phase if applicable")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName | None) -> PhaseName | None:
+        if value is None:
+            return None
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     message: str = Field(..., min_length=1, description="Log message")
     data: dict[str, JsonValue] | None = Field(None, description="Structured event data")

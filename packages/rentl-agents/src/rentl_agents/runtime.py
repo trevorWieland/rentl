@@ -7,6 +7,8 @@ defined by TOML profiles.
 from __future__ import annotations
 
 import asyncio
+import logging
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal, TypeVar
 from uuid import UUID, uuid7
@@ -14,7 +16,13 @@ from uuid import UUID, uuid7
 from pydantic import Field
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
-from pydantic_ai.messages import ModelResponse, ToolCallPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    RetryPromptPart,
+    ToolCallPart,
+)
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.usage import RunUsage, UsageLimits
 
@@ -35,12 +43,96 @@ from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import OpenRouterProviderRoutingConfig
 from rentl_schemas.events import ProgressEvent
 from rentl_schemas.primitives import PhaseName, RunId
-from rentl_schemas.progress import AgentStatus, AgentTelemetry, AgentUsageTotals
+from rentl_schemas.progress import (
+    AgentStatus,
+    AgentTelemetry,
+    AgentUsageTotals,
+    OutputValidationDiagnostic,
+)
+
+_logger = logging.getLogger(__name__)
 
 InputT = TypeVar("InputT", bound=BaseSchema)
 OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
 
 DEFAULT_MAX_OUTPUT_TOKENS = 4096
+_MAX_DIAGNOSTIC_ENTRIES = 3
+_MAX_MODEL_OUTPUT_CHARS = 2000
+
+
+@dataclass
+class _ValidationFailureInfo:
+    """Diagnostics extracted from pydantic-ai message history on failure."""
+
+    diagnostics: list[OutputValidationDiagnostic] = field(default_factory=list)
+    usage: AgentUsageTotals | None = None
+
+
+def _extract_validation_diagnostics(
+    messages: list[ModelMessage],
+) -> list[OutputValidationDiagnostic]:
+    """Scan pydantic-ai message history for RetryPromptPart entries.
+
+    Pairs each retry with the preceding ModelResponse tool call args to capture
+    what the model produced and why it was rejected.
+
+    Returns:
+        Up to the last ``_MAX_DIAGNOSTIC_ENTRIES`` entries, with model output
+        truncated to ``_MAX_MODEL_OUTPUT_CHARS``.
+    """
+    entries: list[OutputValidationDiagnostic] = []
+    retry_index = 0
+    prev_response: ModelResponse | None = None
+
+    for msg in messages:
+        if isinstance(msg, ModelResponse):
+            prev_response = msg
+        elif isinstance(msg, ModelRequest):
+            for part in msg.parts:
+                if not isinstance(part, RetryPromptPart):
+                    continue
+                retry_index += 1
+
+                # Extract model output from the preceding response
+                model_output: str | None = None
+                if prev_response is not None:
+                    # Prefer tool call args (structured output attempt)
+                    for resp_part in prev_response.parts:
+                        if isinstance(resp_part, ToolCallPart):
+                            raw = resp_part.args_as_json_str()
+                            model_output = raw[:_MAX_MODEL_OUTPUT_CHARS]
+                            break
+                    # Fall back to text response
+                    if model_output is None and prev_response.parts:
+                        text = getattr(prev_response.parts[0], "content", None)
+                        if isinstance(text, str):
+                            model_output = text[:_MAX_MODEL_OUTPUT_CHARS]
+
+                # Extract validation errors
+                validation_errors: list[str] | None = None
+                if isinstance(part.content, list):
+                    validation_errors = [
+                        f"{e.get('loc', '')}: {e.get('msg', '')} [{e.get('type', '')}]"
+                        for e in part.content
+                    ]
+                elif isinstance(part.content, str):
+                    validation_errors = [part.content]
+
+                _logger.debug(
+                    "Retry %d: errors=%s, model_output=%s",
+                    retry_index,
+                    validation_errors,
+                    model_output,
+                )
+                entries.append(
+                    OutputValidationDiagnostic(
+                        retry_index=retry_index,
+                        model_output=model_output,
+                        validation_errors=validation_errors,
+                    )
+                )
+
+    return entries[-_MAX_DIAGNOSTIC_ENTRIES:]
 
 
 class ProfileAgentConfig(BaseSchema):
@@ -82,10 +174,14 @@ class ProfileAgentConfig(BaseSchema):
         ),
     )
     max_output_retries: int = Field(
-        10,
+        5,
         description=(
             "Output validation retries where pydantic-ai provides feedback to model"
         ),
+    )
+    strict_tools: bool = Field(
+        False,
+        description="Whether to send strict tool definitions to the provider",
     )
     end_strategy: Literal["early", "exhaustive"] = Field(
         "early",
@@ -165,8 +261,9 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             OutputT: Agent output matching output_type.
 
         Raises:
-            RuntimeError: If execution fails (transient errors, validation failures,
-                or usage limits exceeded). Error message indicates the cause.
+            UsageLimitExceeded: If the model hits the request limit.
+            UnexpectedModelBehavior: If the model produces invalid output.
+            RuntimeError: If execution fails after all retries on transient errors.
         """
         last_error: Exception | None = None
         run_id = _extract_run_id(payload) if self._telemetry_emitter else None
@@ -237,10 +334,36 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                     )
                 return output
             except UsageLimitExceeded as e:
+                failure_info: _ValidationFailureInfo | None = getattr(
+                    e, "_validation_failure_info", None
+                )
+                failure_usage = failure_info.usage if failure_info else None
+                failure_diagnostics = (
+                    failure_info.diagnostics if failure_info else None
+                ) or None
                 _, required_tools_satisfied = _build_tool_reliability_markers(
-                    usage=None,
+                    usage=failure_usage,
                     required_tool_calls=self._config.required_tool_calls,
                 )
+                if failure_diagnostics:
+                    last_diag = failure_diagnostics[-1]
+                    _logger.debug(
+                        "Agent %s hit request limit (attempt %d/%d): "
+                        "last retry_index=%d, validation_errors=%s, "
+                        "model_output=%.200s",
+                        self.name,
+                        attempt,
+                        max_attempts,
+                        last_diag.retry_index,
+                        last_diag.validation_errors,
+                        last_diag.model_output,
+                    )
+                if required_tools_satisfied is False:
+                    _logger.debug(
+                        "Agent %s: required tools not called — expected %s",
+                        self.name,
+                        self._config.required_tool_calls,
+                    )
                 completed_at = _now_timestamp()
                 if self._telemetry_emitter is not None:
                     await _emit_agent_update(
@@ -256,30 +379,48 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             attempt=attempt,
                             started_at=started_at,
                             completed_at=completed_at,
-                            usage=None,
+                            usage=failure_usage,
                             provider_detected=provider_detected,
                             endpoint_type=endpoint_type,
                             tool_calls_observed=None,
                             required_tools_satisfied=required_tools_satisfied,
+                            diagnostics=failure_diagnostics,
                             message=f"Agent hit request limit: {e}",
                         ),
                         timestamp=completed_at,
                     )
                 # Model failed to produce valid output within request limit
-                # This is a LOUD failure - don't retry, report clearly
-                limit = self._config.max_requests_per_run
-                raise RuntimeError(
-                    f"Agent {self.name} FAILED: Hit request limit ({limit}). "
-                    f"Model repeatedly failed to produce valid structured output. "
-                    f"The model may not be capable enough for this task. "
-                    f"Try a more capable model (e.g., gpt-5-nano, qwen/qwen3-30b-a3b). "
-                    f"Details: {e}"
-                ) from e
+                # Re-raise so pool layer can decide whether to retry
+                raise
             except UnexpectedModelBehavior as e:
+                failure_info = getattr(e, "_validation_failure_info", None)
+                failure_usage = failure_info.usage if failure_info else None
+                failure_diagnostics = (
+                    failure_info.diagnostics if failure_info else None
+                ) or None
                 _, required_tools_satisfied = _build_tool_reliability_markers(
-                    usage=None,
+                    usage=failure_usage,
                     required_tool_calls=self._config.required_tool_calls,
                 )
+                if failure_diagnostics:
+                    last_diag = failure_diagnostics[-1]
+                    _logger.debug(
+                        "Agent %s produced invalid output (attempt %d/%d): "
+                        "last retry_index=%d, validation_errors=%s, "
+                        "model_output=%.200s",
+                        self.name,
+                        attempt,
+                        max_attempts,
+                        last_diag.retry_index,
+                        last_diag.validation_errors,
+                        last_diag.model_output,
+                    )
+                if required_tools_satisfied is False:
+                    _logger.debug(
+                        "Agent %s: required tools not called — expected %s",
+                        self.name,
+                        self._config.required_tool_calls,
+                    )
                 completed_at = _now_timestamp()
                 if self._telemetry_emitter is not None:
                     await _emit_agent_update(
@@ -295,22 +436,19 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             attempt=attempt,
                             started_at=started_at,
                             completed_at=completed_at,
-                            usage=None,
+                            usage=failure_usage,
                             provider_detected=provider_detected,
                             endpoint_type=endpoint_type,
                             tool_calls_observed=None,
                             required_tools_satisfied=required_tools_satisfied,
+                            diagnostics=failure_diagnostics,
                             message=f"Agent produced invalid output: {e}",
                         ),
                         timestamp=completed_at,
                     )
                 # Model produced invalid output that couldn't be parsed
-                # This is a LOUD failure - don't retry, report clearly
-                raise RuntimeError(
-                    f"Agent {self.name} FAILED: Model produced invalid output. "
-                    f"The model response did not match the expected schema. "
-                    f"Details: {e}"
-                ) from e
+                # Re-raise so pool layer can decide whether to retry
+                raise
             except Exception as exc:
                 # Transient errors (network, rate limits) - retry with backoff
                 last_error = exc
@@ -392,6 +530,8 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
         Raises:
             RuntimeError: If provider is incompatible with tool-only runtime
                 requirements.
+            UnexpectedModelBehavior: If model output fails validation after
+                retries.
         """
         # Build prompts from layers
         system_prompt = self._composer.compose_system_prompt(
@@ -407,6 +547,15 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             "you MUST use the function named 'final_result'. "
             "Do not create your own function names."
         )
+
+        if self._config.required_tool_calls:
+            tool_names = ", ".join(self._config.required_tool_calls)
+            system_prompt += (
+                f"\n\nIMPORTANT: The following tools are required and must be called "
+                f"during this task: {tool_names}. Your output will be rejected if "
+                f"any required tool has not been called. Call them at the appropriate "
+                f"point during your work."
+            )
 
         user_prompt = self._composer.render_user_prompt(
             self._profile,
@@ -442,10 +591,12 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             timeout_s=self._config.timeout_s,
             max_output_tokens=max_output_tokens,
             openrouter_provider=self._config.openrouter_provider,
+            strict_tools=self._config.strict_tools,
         )
 
         prepare_output_tools = None
         end_strategy: Literal["early", "exhaustive"] = self._config.end_strategy
+        required_tools: set[str] | None = None
         if self._config.required_tool_calls:
             required_tools = set(self._config.required_tool_calls)
             end_strategy = "exhaustive"
@@ -480,10 +631,44 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             prepare_output_tools=prepare_output_tools,
         )
 
-        # Note: We rely on pydantic-ai's built-in validation with output_retries
-        # Custom output validators can cause extra validation failures
-        # The combination of extra="ignore" and output_retries=3 provides
-        # the best balance of strictness and reliability
+        if required_tools is not None:
+            required_captured = required_tools  # capture for closure
+
+            @agent.instructions
+            def _required_tools_recovery(ctx: RunContext[None]) -> str | None:
+                # Only activate when there are retry messages in history
+                has_retries = any(
+                    isinstance(msg, ModelRequest)
+                    and any(isinstance(p, RetryPromptPart) for p in msg.parts)
+                    for msg in ctx.messages
+                )
+                if not has_retries:
+                    return None
+
+                called: set[str] = set()
+                for msg in ctx.messages:
+                    if isinstance(msg, ModelResponse):
+                        for part in msg.parts:
+                            if (
+                                isinstance(part, ToolCallPart)
+                                and part.tool_name in required_captured
+                            ):
+                                called.add(part.tool_name)
+                missing = required_captured - called
+                if not missing:
+                    return None
+
+                tool_list = ", ".join(sorted(missing))
+                _logger.info(
+                    "Recovery instructions activated: missing tools %s (called: %s)",
+                    tool_list,
+                    ", ".join(sorted(called)) or "none",
+                )
+                return (
+                    f"RECOVERY: You have not yet called the required tool(s): "
+                    f"{tool_list}. You MUST call these tools before you can "
+                    f"produce your final output. Call them now."
+                )
 
         # Set usage limits to prevent infinite loops
         # pydantic-ai default is 50 requests which can burn through tokens
@@ -491,13 +676,32 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             request_limit=self._config.max_requests_per_run,
         )
 
-        result = await agent.run(
+        async with agent.iter(
             user_prompt,
             model_settings=model_settings,
             usage_limits=usage_limits,
-        )
-        usage = _build_usage_totals(result.usage())
-        return result.output, usage
+        ) as agent_run:
+            try:
+                async for _node in agent_run:
+                    pass
+                result = agent_run.result
+                if result is None:
+                    raise UnexpectedModelBehavior(
+                        "Agent iteration completed without producing a result"
+                    )
+                usage = _build_usage_totals(agent_run.usage())
+                return result.output, usage
+            except (UnexpectedModelBehavior, UsageLimitExceeded) as e:
+                # Extract diagnostics from message history before re-raising
+                info = _ValidationFailureInfo()
+                try:
+                    all_msgs = agent_run.all_messages()
+                    info.diagnostics = _extract_validation_diagnostics(all_msgs)
+                    info.usage = _build_usage_totals(agent_run.usage())
+                except Exception:
+                    pass  # Best-effort extraction
+                e._validation_failure_info = info  # type: ignore[attr-defined]
+                raise
 
 
 def _build_usage_totals(usage: RunUsage | None) -> AgentUsageTotals | None:

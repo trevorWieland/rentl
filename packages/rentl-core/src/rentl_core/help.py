@@ -75,9 +75,8 @@ _COMMAND_REGISTRY: dict[str, CommandInfo] = {
             "Export translated lines from the workspace to CSV, JSONL, or TXT "
             "format.\n\n"
             "This command reads translated data from the workspace and writes "
-            "it to the specified output format. You can control how untranslated "
-            "lines are handled, which columns to include, and the order of "
-            "columns in the output."
+            "it to the specified output format. You can control which columns to "
+            "include and the order of columns in the output."
         ),
         args=[],
         options=[
@@ -87,8 +86,6 @@ _COMMAND_REGISTRY: dict[str, CommandInfo] = {
             "--output PATH            Output file path",
             "--format FORMAT          Output format: csv, jsonl, or txt "
             "(default: jsonl)",
-            "--untranslated-policy    How to handle untranslated lines: "
-            "error, warn, or allow",
             "--include-source-text    Include source text in output",
             "--include-scene-id       Include scene ID in output",
             "--include-speaker        Include speaker name in output",
@@ -98,7 +95,7 @@ _COMMAND_REGISTRY: dict[str, CommandInfo] = {
         examples=[
             "rentl export --output translations.jsonl",
             "rentl export --format csv --output translations.csv --include-source-text",
-            "rentl export --untranslated-policy warn --output output.txt",
+            "rentl export --format txt --output output.txt",
         ],
     ),
     "run-pipeline": CommandInfo(

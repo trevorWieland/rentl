@@ -146,7 +146,6 @@ from rentl_schemas.primitives import (
     PhaseStatus,
     RunId,
     RunStatus,
-    UntranslatedPolicy,
 )
 from rentl_schemas.progress import (
     AgentStatus,
@@ -186,11 +185,6 @@ OUTPUT_OPTION = typer.Option(
     ..., "--output", "-o", help="Path to write exported output"
 )
 FORMAT_OPTION = typer.Option(..., "--format", "-f", help="Output file format")
-UNTRANSLATED_POLICY_OPTION = typer.Option(
-    UntranslatedPolicy.ERROR,
-    "--untranslated-policy",
-    help="Policy for untranslated lines (error|warn|allow)",
-)
 INCLUDE_SOURCE_TEXT_OPTION = typer.Option(
     False, "--include-source-text", help="Include source_text column in CSV"
 )
@@ -842,7 +836,6 @@ def export(
     input_path: Path = INPUT_OPTION,
     output_path: Path = OUTPUT_OPTION,
     format: FileFormat = FORMAT_OPTION,
-    untranslated_policy: UntranslatedPolicy = UNTRANSLATED_POLICY_OPTION,
     include_source_text: bool = INCLUDE_SOURCE_TEXT_OPTION,
     include_scene_id: bool = INCLUDE_SCENE_ID_OPTION,
     include_speaker: bool = INCLUDE_SPEAKER_OPTION,
@@ -864,7 +857,6 @@ def export(
             "input_path": str(input_path),
             "output_path": str(output_path),
             "format": format.value,
-            "untranslated_policy": untranslated_policy.value,
             "include_source_text": include_source_text,
             "include_scene_id": include_scene_id,
             "include_speaker": include_speaker,
@@ -885,7 +877,6 @@ def export(
                 input_path=input_path,
                 output_path=output_path,
                 format=format,
-                untranslated_policy=untranslated_policy,
                 column_order=column_order,
                 include_source_text=include_source_text,
                 include_scene_id=include_scene_id,
@@ -1082,7 +1073,12 @@ def run_pipeline(
     if progress is not None:
         _render_run_execution_summary(response.data, console=console, config=config)
         if response.error is not None:
-            _render_run_error(response.error, console=console)
+            log_file = (
+                str(Path(config.project.paths.logs_dir) / f"{command_run_id}.jsonl")
+                if config
+                else None
+            )
+            _render_run_error(response.error, console=console, log_file=log_file)
             raise typer.Exit(code=response.error.exit_code)
         return
     if response.error is not None:
@@ -1190,7 +1186,12 @@ def run_phase(
     if _should_render_progress():
         _render_run_execution_summary(response.data, console=None, config=config)
         if response.error is not None:
-            _render_run_error(response.error, console=None)
+            log_file = (
+                str(Path(config.project.paths.logs_dir) / f"{command_run_id}.jsonl")
+                if config
+                else None
+            )
+            _render_run_error(response.error, console=None, log_file=log_file)
             raise typer.Exit(code=response.error.exit_code)
         return
     if response.error is not None:
@@ -2144,7 +2145,6 @@ async def _export_async(
     input_path: Path,
     output_path: Path,
     format: FileFormat,
-    untranslated_policy: UntranslatedPolicy,
     include_source_text: bool,
     include_scene_id: bool,
     include_speaker: bool,
@@ -2155,7 +2155,6 @@ async def _export_async(
     target = ExportTarget(
         output_path=str(output_path),
         format=format,
-        untranslated_policy=untranslated_policy,
         column_order=column_order,
         include_source_text=include_source_text,
         include_scene_id=include_scene_id,
@@ -2448,10 +2447,12 @@ def _build_preflight_endpoints(
             base_url = ep_config.base_url
             api_key_env = ep_config.api_key_env
             openrouter_provider = ep_config.openrouter_provider
+            strict_tools = ep_config.strict_tools
         elif config.endpoint is not None:
             base_url = config.endpoint.base_url
             api_key_env = config.endpoint.api_key_env
             openrouter_provider = config.endpoint.openrouter_provider
+            strict_tools = config.endpoint.strict_tools
         else:
             continue
 
@@ -2470,6 +2471,7 @@ def _build_preflight_endpoints(
                 phase_label=phase,
                 endpoint_ref=endpoint_ref,
                 openrouter_provider=openrouter_provider,
+                strict_tools=strict_tools,
             )
         )
 
@@ -2701,8 +2703,15 @@ def _render_run_execution_summary(
         rprint(panel)
 
 
-def _render_run_error(error: ErrorResponse, *, console: Console | None) -> None:
+def _render_run_error(
+    error: ErrorResponse,
+    *,
+    console: Console | None,
+    log_file: str | None = None,
+) -> None:
     message = f"[red]Error:[/red] {error.message}"
+    if log_file is not None:
+        message += f"\n[dim]Log file:[/dim] {log_file}"
     if console is not None:
         console.print(message)
     else:

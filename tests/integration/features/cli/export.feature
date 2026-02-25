@@ -14,9 +14,3 @@ Feature: Export Command
     When I export to TXT format
     Then the command succeeds
     And the output file contains all lines in TXT format
-
-  Scenario: Export with untranslated lines errors by default
-    Given a JSONL file with untranslated lines
-    When I export with default untranslated policy
-    Then the command returns an error response
-    And the error code is "validation_error"

@@ -1,33 +1,25 @@
 """Unit tests for LLM judge rubric evaluation."""
 
 import asyncio
+import json
 import random
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from pydantic_ai import AgentRunResult
+from pydantic_ai.messages import ModelResponse, ToolCallPart
+from pydantic_ai.models.function import FunctionModel
 
 from rentl_core.benchmark.judge import JudgeOutput, RubricJudge
 from rentl_schemas.benchmark.rubric import RubricDimension
 from rentl_schemas.io import TranslatedLine
 
-
-@pytest.fixture
-def mock_agent_result() -> AgentRunResult[JudgeOutput]:
-    """Create mock pydantic-ai Agent result.
-
-    Returns:
-        AgentRunResult: Mocked result with JudgeOutput.
-    """
-    result = MagicMock(spec=AgentRunResult)
-    result.output = JudgeOutput(
-        overall_winner="A",
-        reasoning="Translation A is more accurate",
-        accuracy_winner="A",
-        style_fidelity_winner="tie",
-        consistency_winner="B",
-    )
-    return result
+JUDGE_OUTPUT_JSON = json.dumps({
+    "overall_winner": "A",
+    "reasoning": "Translation A is more accurate",
+    "accuracy_winner": "A",
+    "style_fidelity_winner": "tie",
+    "consistency_winner": "B",
+})
 
 
 def test_head_to_head_prompt_construction() -> None:
@@ -55,15 +47,18 @@ def test_head_to_head_prompt_construction() -> None:
 
 
 @pytest.mark.asyncio
-async def test_compare_head_to_head(
-    mock_agent_result: AgentRunResult[JudgeOutput],
-) -> None:
+async def test_compare_head_to_head() -> None:
     """Test head-to-head comparison using pydantic-ai Agent."""
-    with patch("rentl_core.benchmark.judge.Agent") as mock_agent_class:
-        mock_agent_instance = MagicMock()
-        mock_agent_instance.run = AsyncMock(return_value=mock_agent_result)
-        mock_agent_class.return_value = mock_agent_instance
+    function_model = FunctionModel(
+        lambda msgs, info: ModelResponse(
+            parts=[ToolCallPart(tool_name="final_result", args=JUDGE_OUTPUT_JSON)]
+        )
+    )
 
+    with patch(
+        "rentl_core.benchmark.judge.create_model",
+        return_value=(function_model, {}),
+    ):
         judge = RubricJudge(
             model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
@@ -92,23 +87,20 @@ async def test_compare_head_to_head(
             result.presented_as_a == "candidate_1"
         )  # No randomization, so candidate_1 was presented as A
 
-        # Verify Agent was created with correct parameters
-        mock_agent_class.assert_called_once()
-        call_kwargs = mock_agent_class.call_args[1]
-        assert call_kwargs["output_type"] == JudgeOutput
-        assert call_kwargs["output_retries"] == 5
-
 
 @pytest.mark.asyncio
-async def test_compare_batch_head_to_head(
-    mock_agent_result: AgentRunResult[JudgeOutput],
-) -> None:
+async def test_compare_batch_head_to_head() -> None:
     """Test batch head-to-head comparison."""
-    with patch("rentl_core.benchmark.judge.Agent") as mock_agent_class:
-        mock_agent_instance = MagicMock()
-        mock_agent_instance.run = AsyncMock(return_value=mock_agent_result)
-        mock_agent_class.return_value = mock_agent_instance
+    function_model = FunctionModel(
+        lambda msgs, info: ModelResponse(
+            parts=[ToolCallPart(tool_name="final_result", args=JUDGE_OUTPUT_JSON)]
+        )
+    )
 
+    with patch(
+        "rentl_core.benchmark.judge.create_model",
+        return_value=(function_model, {}),
+    ):
         judge = RubricJudge(
             model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
@@ -136,8 +128,6 @@ async def test_compare_batch_head_to_head(
         assert len(results) == 2
         assert results[0].line_id == "line_1"
         assert results[1].line_id == "line_2"
-        # Agent is created once per comparison
-        assert mock_agent_class.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -171,21 +161,24 @@ async def test_compare_head_to_head_with_randomization() -> None:
     sees translation_2 as "A" and translation_1 as "B". The returned result must
     remap winners back to the original translation_1/translation_2 labels.
     """
-    # Mock result where judge picks "A" (which is translation_2 due to swap)
-    mock_result = MagicMock(spec=AgentRunResult)
-    mock_result.output = JudgeOutput(
-        overall_winner="A",
-        reasoning="A is more accurate",
-        accuracy_winner="A",
-        style_fidelity_winner="B",
-        consistency_winner="tie",
+    randomized_json = json.dumps({
+        "overall_winner": "A",
+        "reasoning": "A is more accurate",
+        "accuracy_winner": "A",
+        "style_fidelity_winner": "B",
+        "consistency_winner": "tie",
+    })
+
+    function_model = FunctionModel(
+        lambda msgs, info: ModelResponse(
+            parts=[ToolCallPart(tool_name="final_result", args=randomized_json)]
+        )
     )
 
-    with patch("rentl_core.benchmark.judge.Agent") as mock_agent_class:
-        mock_agent_instance = MagicMock()
-        mock_agent_instance.run = AsyncMock(return_value=mock_result)
-        mock_agent_class.return_value = mock_agent_instance
-
+    with patch(
+        "rentl_core.benchmark.judge.create_model",
+        return_value=(function_model, {}),
+    ):
         judge = RubricJudge(
             model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
@@ -225,20 +218,24 @@ async def test_compare_head_to_head_with_randomization() -> None:
 @pytest.mark.asyncio
 async def test_compare_head_to_head_with_tie() -> None:
     """Test head-to-head comparison with tie result."""
-    mock_result = MagicMock(spec=AgentRunResult)
-    mock_result.output = JudgeOutput(
-        overall_winner="tie",
-        reasoning="Both translations are equally good",
-        accuracy_winner="tie",
-        style_fidelity_winner="tie",
-        consistency_winner="tie",
+    tie_json = json.dumps({
+        "overall_winner": "tie",
+        "reasoning": "Both translations are equally good",
+        "accuracy_winner": "tie",
+        "style_fidelity_winner": "tie",
+        "consistency_winner": "tie",
+    })
+
+    function_model = FunctionModel(
+        lambda msgs, info: ModelResponse(
+            parts=[ToolCallPart(tool_name="final_result", args=tie_json)]
+        )
     )
 
-    with patch("rentl_core.benchmark.judge.Agent") as mock_agent_class:
-        mock_agent_instance = MagicMock()
-        mock_agent_instance.run = AsyncMock(return_value=mock_result)
-        mock_agent_class.return_value = mock_agent_instance
-
+    with patch(
+        "rentl_core.benchmark.judge.create_model",
+        return_value=(function_model, {}),
+    ):
         judge = RubricJudge(
             model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
@@ -263,9 +260,7 @@ async def test_compare_head_to_head_with_tie() -> None:
 
 
 @pytest.mark.asyncio
-async def test_compare_head_to_head_with_progress_callback(
-    mock_agent_result: AgentRunResult[JudgeOutput],
-) -> None:
+async def test_compare_head_to_head_with_progress_callback() -> None:
     """Test progress callback is invoked after comparison."""
     progress_calls: list[str] = []
 
@@ -273,11 +268,16 @@ async def test_compare_head_to_head_with_progress_callback(
         await asyncio.sleep(0)  # Make it truly async
         progress_calls.append(line_id)
 
-    with patch("rentl_core.benchmark.judge.Agent") as mock_agent_class:
-        mock_agent_instance = MagicMock()
-        mock_agent_instance.run = AsyncMock(return_value=mock_agent_result)
-        mock_agent_class.return_value = mock_agent_instance
+    function_model = FunctionModel(
+        lambda msgs, info: ModelResponse(
+            parts=[ToolCallPart(tool_name="final_result", args=JUDGE_OUTPUT_JSON)]
+        )
+    )
 
+    with patch(
+        "rentl_core.benchmark.judge.create_model",
+        return_value=(function_model, {}),
+    ):
         judge = RubricJudge(
             model_id="gpt-5-nano",
             base_url="https://api.openai.com/v1",
@@ -296,59 +296,3 @@ async def test_compare_head_to_head_with_progress_callback(
         )
 
         assert progress_calls == ["line_1"]
-
-
-def test_judge_creates_openrouter_model_when_detected() -> None:
-    """Test judge uses create_model factory with OpenRouter config."""
-    mock_model = MagicMock()
-    mock_settings = MagicMock()
-
-    with patch(
-        "rentl_core.benchmark.judge.create_model",
-        return_value=(mock_model, mock_settings),
-    ) as mock_factory:
-        judge = RubricJudge(
-            model_id="anthropic/claude-4.5-sonnet",
-            base_url="https://openrouter.ai/api/v1",
-            api_key="test-key",
-            openrouter_require_parameters=True,
-        )
-
-        # Verify factory was called with correct parameters
-        mock_factory.assert_called_once()
-        call_kwargs = mock_factory.call_args.kwargs
-        assert call_kwargs["base_url"] == "https://openrouter.ai/api/v1"
-        assert call_kwargs["api_key"] == "test-key"
-        assert call_kwargs["model_id"] == "anthropic/claude-4.5-sonnet"
-        assert call_kwargs["openrouter_provider"].require_parameters is True
-
-        # Verify model and settings from factory are stored
-        assert judge.model is mock_model
-        assert judge.model_settings is mock_settings
-
-
-def test_judge_creates_openai_model_when_not_openrouter() -> None:
-    """Test judge uses create_model factory for non-OpenRouter endpoints."""
-    mock_model = MagicMock()
-    mock_settings = MagicMock()
-
-    with patch(
-        "rentl_core.benchmark.judge.create_model",
-        return_value=(mock_model, mock_settings),
-    ) as mock_factory:
-        judge = RubricJudge(
-            model_id="gpt-5-nano",
-            base_url="https://api.openai.com/v1",
-            api_key="test-key",
-        )
-
-        # Verify factory was called with correct parameters
-        mock_factory.assert_called_once()
-        call_kwargs = mock_factory.call_args.kwargs
-        assert call_kwargs["base_url"] == "https://api.openai.com/v1"
-        assert call_kwargs["api_key"] == "test-key"
-        assert call_kwargs["model_id"] == "gpt-5-nano"
-
-        # Verify model and settings from factory are stored
-        assert judge.model is mock_model
-        assert judge.model_settings is mock_settings

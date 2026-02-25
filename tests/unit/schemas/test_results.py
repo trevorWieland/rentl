@@ -105,3 +105,18 @@ def test_phase_result_summary_requires_qa_summary_for_qa() -> None:
         dimensions=None,
     )
     assert summary.qa_summary is not None
+
+
+def test_phase_result_summary_coerces_phase_string() -> None:
+    """Ensure PhaseResultSummary coerces phase string to PhaseName."""
+    summary = PhaseResultSummary(
+        phase="ingest",  # type: ignore[arg-type]
+        metrics=[
+            PhaseResultMetric(
+                metric_key="line_count",
+                unit=ResultMetricUnit.LINES,
+                value=100,
+            ),
+        ],
+    )
+    assert summary.phase == PhaseName.INGEST

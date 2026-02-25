@@ -189,7 +189,6 @@ _PHASE_REGISTRY: dict[PhaseName, PhaseInfo] = {
             "pipeline.phases[phase=export].enabled",
             "export.format (csv|jsonl|txt)",
             "export.output_path",
-            "export.untranslated_policy (error|warn|allow)",
         ],
     ),
 }

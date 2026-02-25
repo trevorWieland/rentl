@@ -11,7 +11,6 @@ from rentl_schemas.primitives import (
     LineId,
     RouteId,
     SceneId,
-    UntranslatedPolicy,
 )
 
 
@@ -29,10 +28,6 @@ class ExportTarget(BaseSchema):
 
     output_path: str = Field(..., min_length=1, description="Path for exported output")
     format: FileFormat = Field(..., description="Output file format")
-    untranslated_policy: UntranslatedPolicy = Field(
-        UntranslatedPolicy.ERROR,
-        description="Policy for handling untranslated lines during export",
-    )
     column_order: list[str] | None = Field(
         None, description="Optional CSV column ordering override"
     )

@@ -17,6 +17,7 @@ from rentl_core.doctor import (
     check_config_file,
     check_config_valid,
     check_llm_connectivity,
+    check_pipeline_readiness,
     check_python_version,
     check_workspace_dirs,
     run_doctor,
@@ -750,6 +751,18 @@ class TestCheckLlmConnectivity:
             assert result.fix_suggestion is not None
 
 
+class TestCheckPipelineReadiness:
+    """Tests for check_pipeline_readiness."""
+
+    def test_pipeline_readiness_pass(self, mock_config: RunConfig) -> None:
+        """Test that valid config passes pipeline readiness check."""
+        result = check_pipeline_readiness(mock_config)
+        assert result.name == "Pipeline Readiness"
+        assert result.status == CheckStatus.PASS
+        assert result.fix_suggestion is None
+        assert "7" in result.message  # 7 phases in mock_config
+
+
 class TestRunDoctor:
     """Tests for run_doctor orchestration."""
 
@@ -786,7 +799,7 @@ class TestRunDoctor:
             report = await run_doctor(config_path, runtime=mock_runtime)
             assert report.overall_status == CheckStatus.PASS
             assert report.exit_code == ExitCode.SUCCESS
-            assert len(report.checks) == 6
+            assert len(report.checks) == 7
 
     @pytest.mark.asyncio
     async def test_config_failure_cascades(self, tmp_path: Path) -> None:

@@ -136,7 +136,6 @@ from rentl_schemas.primitives import (
     RunStatus,
     SceneId,
     Timestamp,
-    UntranslatedPolicy,
 )
 from rentl_schemas.progress import (
     PHASE_METRIC_DEFINITIONS,
@@ -146,6 +145,7 @@ from rentl_schemas.progress import (
     AgentTelemetry,
     AgentTelemetrySummary,
     AgentUsageTotals,
+    OutputValidationDiagnostic,
     PhaseProgress,
     ProgressMetric,
     ProgressMetricKey,
@@ -315,6 +315,7 @@ __all__ = [
     "OpenRouterProviderRoutingConfig",
     "OpenRouterProviderSort",
     "OpenRouterQuantization",
+    "OutputValidationDiagnostic",
     "PhaseArtifacts",
     "PhaseConfig",
     "PhaseDependency",
@@ -391,7 +392,6 @@ __all__ = [
     "TranslatePhaseInput",
     "TranslatePhaseOutput",
     "TranslatedLine",
-    "UntranslatedPolicy",
     "VersionInfo",
     "build_redactor",
     "compute_phase_summary",

@@ -7,6 +7,7 @@ from uuid import UUID
 
 import pytest
 from pydantic import Field
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 
 from rentl_core.orchestrator import (
     PhaseAgentPool,
@@ -456,6 +457,34 @@ def _build_run_state(run_id: RunId) -> RunState:
     )
 
 
+class _FlakeyAgent:
+    """Agent that fails N times then succeeds."""
+
+    def __init__(self, fail_count: int = 1) -> None:
+        self._fail_count = fail_count
+        self._calls = 0
+
+    async def run(self, payload: _NumberInput) -> _NumberOutput:
+        self._calls += 1
+        if self._calls <= self._fail_count:
+            raise UsageLimitExceeded("token limit")
+        return _NumberOutput(value=payload.value)
+
+
+class _AlwaysFailAgent:
+    """Agent that always raises a retryable error."""
+
+    async def run(self, payload: _NumberInput) -> _NumberOutput:
+        raise UnexpectedModelBehavior("schema mismatch")
+
+
+class _NonRetryableAgent:
+    """Agent that raises a non-retryable error."""
+
+    async def run(self, payload: _NumberInput) -> _NumberOutput:
+        raise ValueError("bad config")
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_agent_pool_preserves_order() -> None:
@@ -464,6 +493,69 @@ async def test_agent_pool_preserves_order() -> None:
     inputs = [_NumberInput(value=value) for value in [3, 1, 2]]
     outputs = await pool.run_batch(inputs)
     assert [output.value for output in outputs] == [3, 1, 2]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_pool_retries_on_retryable_error() -> None:
+    """Flakey agent fails once then succeeds — pool retries successfully."""
+    agent = _FlakeyAgent(fail_count=1)
+    pool: PhaseAgentPool[_NumberInput, _NumberOutput] = PhaseAgentPool(
+        agents=[agent], max_consecutive_failures=3
+    )
+    inputs = [_NumberInput(value=42)]
+    outputs = await pool.run_batch(inputs)
+    assert [o.value for o in outputs] == [42]
+    assert agent._calls == 2
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_pool_aborts_on_consecutive_failures() -> None:
+    """Always-failing agent hits threshold — pool raises RuntimeError."""
+    pool: PhaseAgentPool[_NumberInput, _NumberOutput] = PhaseAgentPool(
+        agents=[_AlwaysFailAgent()], max_consecutive_failures=2
+    )
+    inputs = [_NumberInput(value=1)]
+    with pytest.raises(RuntimeError, match="consecutive failures"):
+        await pool.run_batch(inputs)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_pool_success_resets_failure_counter() -> None:
+    """Interleaved successes/failures don't breach threshold."""
+    call_count = {"n": 0}
+
+    class _AlternatingAgent:
+        async def run(self, payload: _NumberInput) -> _NumberOutput:
+            call_count["n"] += 1
+            # Fail on odd calls, succeed on even
+            if call_count["n"] % 2 == 1 and call_count["n"] < 4:
+                raise UsageLimitExceeded("transient")
+            return _NumberOutput(value=payload.value)
+
+    pool: PhaseAgentPool[_NumberInput, _NumberOutput] = PhaseAgentPool(
+        agents=[_AlternatingAgent(), _NumberAgent()],
+        max_consecutive_failures=2,
+    )
+    # Two payloads: one uses the alternating agent (index 0), one uses the
+    # normal agent (index 1). The success from agent 1 resets the counter.
+    inputs = [_NumberInput(value=10), _NumberInput(value=20)]
+    outputs = await pool.run_batch(inputs)
+    assert {o.value for o in outputs} == {10, 20}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_agent_pool_non_retryable_error_aborts_immediately() -> None:
+    """Non-retryable error (e.g. ValueError) aborts without retry."""
+    pool: PhaseAgentPool[_NumberInput, _NumberOutput] = PhaseAgentPool(
+        agents=[_NonRetryableAgent()], max_consecutive_failures=5
+    )
+    inputs = [_NumberInput(value=1)]
+    with pytest.raises(RuntimeError, match="non-retryable"):
+        await pool.run_batch(inputs)
 
 
 @pytest.mark.unit
@@ -1320,7 +1412,6 @@ class _StubExportAdapter:
                 output_path=target.output_path,
                 format=fmt,
                 line_count=self._line_count or len(lines),
-                untranslated_count=0,
             ),
         )
 

@@ -231,6 +231,14 @@ class ModelEndpointConfig(BaseSchema):
         None,
         description="OpenRouter provider routing controls",
     )
+    strict_tools: bool = Field(
+        False,
+        description=(
+            "Send strict tool definitions to the provider. "
+            "Rentl validates all structured output client-side; "
+            "enable only if the provider benefits from server-side strict enforcement."
+        ),
+    )
 
     @field_validator("base_url")
     @classmethod
@@ -353,6 +361,14 @@ class RetryConfig(BaseSchema):
     max_backoff_s: float = Field(
         30.0, gt=0, description="Maximum backoff delay in seconds"
     )
+    max_output_retries: int | None = Field(
+        None,
+        ge=0,
+        description=(
+            "Override output validation retries for this phase. "
+            "When set, pydantic-ai will use this instead of the default."
+        ),
+    )
 
 
 class ConcurrencyConfig(BaseSchema):
@@ -363,6 +379,14 @@ class ConcurrencyConfig(BaseSchema):
     )
     max_parallel_scenes: int = Field(
         4, ge=1, description="Max concurrent scene processing"
+    )
+    max_consecutive_failures: int = Field(
+        3,
+        ge=1,
+        description=(
+            "Max consecutive task failures before agent pool aborts. "
+            "Successes reset the counter."
+        ),
     )
 
 

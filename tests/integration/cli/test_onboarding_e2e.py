@@ -6,7 +6,6 @@ to verify that a new user can complete the onboarding without manual edits.
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import json
 from pathlib import Path
@@ -14,23 +13,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 from click.testing import Result
-from pydantic import BaseModel
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
 import rentl.main as cli_main
 from rentl_agents.runtime import ProfileAgent
-from rentl_schemas.phases import (
-    IdiomAnnotation,
-    IdiomAnnotationList,
-    IdiomReviewLine,
-    SceneSummary,
-    StyleGuideReviewLine,
-    StyleGuideReviewList,
-    TranslationResultLine,
-    TranslationResultList,
-)
-from tests.integration.conftest import FakeLlmRuntime
+from tests.integration.conftest import FakeLlmRuntime, make_mock_agent_run
 
 if TYPE_CHECKING:
     pass
@@ -175,97 +163,8 @@ def when_run_pipeline(
     # Store preflight tracker on context for assertion in then step
     ctx.preflight_called = preflight_called
 
-    # Track mock invocations
-    mock_call_count = {"count": 0}
-    edit_line_index = {"index": 0}
-
     # Mock ProfileAgent.run() to return deterministic schema-valid outputs
-    async def mock_agent_run(self: ProfileAgent, payload: BaseModel) -> BaseModel:
-        """Return schema-valid output based on agent's output_type.
-
-        Args:
-            self: ProfileAgent instance (patched method).
-            payload: Input payload for the agent (phase-specific schema).
-
-        Returns:
-            Schema-valid output matching the agent's output_type.
-
-        Raises:
-            ValueError: If the agent's output_type is unexpected.
-        """
-        await asyncio.sleep(0)
-        mock_call_count["count"] += 1
-
-        output_type = self._output_type
-
-        if output_type == SceneSummary:
-            scene_id = getattr(payload, "scene_id", "scene_001")
-            return SceneSummary(
-                scene_id=scene_id,
-                summary="Test scene summary from E2E mock agent",
-                characters=["Character A", "Character B"],
-            )
-        elif output_type == IdiomAnnotationList:
-            # Return one review per source line (per-line wrapper pattern)
-            # (alignment check requires output IDs to match input IDs)
-            source_lines = getattr(payload, "source_lines", [])
-            reviews = [
-                IdiomReviewLine(
-                    line_id=line.line_id,
-                    idioms=[
-                        IdiomAnnotation(
-                            idiom_text="test idiom",
-                            explanation="Test explanation",
-                        )
-                    ],
-                )
-                for line in source_lines
-            ]
-            return IdiomAnnotationList(reviews=reviews)
-        elif output_type == TranslationResultList:
-            source_lines = getattr(payload, "source_lines", [])
-            if not source_lines:
-                translations = [
-                    TranslationResultLine(
-                        line_id="line_001",
-                        text="Test translation",
-                    )
-                ]
-            else:
-                translations = [
-                    TranslationResultLine(
-                        line_id=line.line_id,
-                        text=f"E2E test translation for {line.line_id}",
-                    )
-                    for line in source_lines
-                ]
-            return TranslationResultList(translations=translations)
-        elif output_type == StyleGuideReviewList:
-            translation_results = getattr(payload, "translation_results", [])
-            reviews = [
-                StyleGuideReviewLine(
-                    line_id=result.line_id,
-                    violations=[],
-                )
-                for result in translation_results
-            ]
-            return StyleGuideReviewList(reviews=reviews)
-        elif output_type == TranslationResultLine:
-            translated_lines = getattr(payload, "translated_lines", [])
-            if not translated_lines:
-                line_id = getattr(payload, "line_id", "line_001")
-            else:
-                current_index = edit_line_index["index"] % len(translated_lines)
-                line_id = translated_lines[current_index].line_id
-                edit_line_index["index"] += 1
-
-            return TranslationResultLine(
-                line_id=line_id,
-                text="Final E2E edited translation",
-            )
-        else:
-            raise ValueError(f"Unexpected output type in E2E test mock: {output_type}")
-
+    mock_agent_run, mock_call_count, _edit_line_index = make_mock_agent_run()
     monkeypatch.setattr(ProfileAgent, "run", mock_agent_run)
     ctx.mock_call_count = mock_call_count
 

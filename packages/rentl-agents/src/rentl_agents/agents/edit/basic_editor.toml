@@ -31,9 +31,7 @@ Alignment requirements:
 - Return EXACTLY one output for the provided line_id
 - Do not change the line_id
 
-IMPORTANT: Before you produce the edited line, you MUST call the get_game_info
-tool once to confirm the project context. Do not include tool output in your
-final response.
+Call the get_game_info tool to review the project context before producing the edited line.
 
 IMPORTANT: Return ONLY the line object with line_id and text fields.
 """

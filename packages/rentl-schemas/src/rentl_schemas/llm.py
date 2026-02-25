@@ -35,6 +35,10 @@ class LlmEndpointTarget(BaseSchema):
         None,
         description="Optional OpenRouter provider routing controls",
     )
+    strict_tools: bool = Field(
+        False,
+        description="Whether to send strict tool definitions",
+    )
 
 
 class LlmModelSettings(BaseSchema):

@@ -132,8 +132,8 @@ def test_domain_prefix_coverage() -> None:
 
 
 def test_total_registry_entries() -> None:
-    """Registry has 24 entries (3 CLI + 21 domain)."""
-    assert len(ERROR_CODE_TO_EXIT_CODE) == 24
+    """Registry has 23 entries (3 CLI + 20 domain)."""
+    assert len(ERROR_CODE_TO_EXIT_CODE) == 23
 
 
 # --- resolve_exit_code tests ---

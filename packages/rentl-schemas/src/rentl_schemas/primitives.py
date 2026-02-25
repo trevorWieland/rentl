@@ -89,14 +89,6 @@ class FileFormat(StrEnum):
     TXT = "txt"
 
 
-class UntranslatedPolicy(StrEnum):
-    """Policy for handling untranslated lines during export."""
-
-    ERROR = "error"
-    WARN = "warn"
-    ALLOW = "allow"
-
-
 class RunStatus(StrEnum):
     """Overall run status values."""
 

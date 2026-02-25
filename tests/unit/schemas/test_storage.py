@@ -194,3 +194,17 @@ def test_run_state_revisions_require_unique_pairs() -> None:
             last_error=None,
             qa_summary=None,
         )
+
+
+def test_artifact_metadata_coerces_phase_string() -> None:
+    """Ensure ArtifactMetadata coerces phase string to PhaseName."""
+    metadata = ArtifactMetadata(
+        artifact_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0"),
+        run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b1"),
+        role=ArtifactRole.PHASE_OUTPUT,
+        phase="ingest",  # type: ignore[arg-type]
+        format=ArtifactFormat.JSON,
+        created_at="2026-01-26T00:00:00Z",
+        location=StorageReference(path="/tmp/artifact.json"),
+    )
+    assert metadata.phase == PhaseName.INGEST

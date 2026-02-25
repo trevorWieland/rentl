@@ -61,32 +61,6 @@ def given_jsonl_with_translated_lines(tmp_path: Path) -> ExportContext:
     return ctx
 
 
-@given("a JSONL file with untranslated lines", target_fixture="ctx")
-def given_jsonl_with_untranslated_lines(tmp_path: Path) -> ExportContext:
-    """Create a JSONL file with untranslated lines.
-
-    Returns:
-        ExportContext with input and output paths set.
-    """
-    ctx = ExportContext()
-    ctx.input_path = tmp_path / "untranslated.jsonl"
-    ctx.output_path = tmp_path / "output"
-
-    # Empty text is untranslated (text is required and min_length=1). We use a line
-    # without text field - this triggers validation error.
-    lines = [
-        {
-            "line_id": "line_001",
-            "source_text": "こんにちは",
-            "scene_id": "scene_01",
-            # text field missing - this should fail validation
-        },
-    ]
-    content = "\n".join(json.dumps(line) for line in lines) + "\n"
-    ctx.input_path.write_text(content, encoding="utf-8")
-    return ctx
-
-
 @when("I export to CSV format")
 def when_export_to_csv(ctx: ExportContext, cli_runner: CliRunner) -> None:
     """Run the export command with CSV format."""
@@ -124,28 +98,6 @@ def when_export_to_txt(ctx: ExportContext, cli_runner: CliRunner) -> None:
             str(output),
             "--format",
             "txt",
-        ],
-    )
-    ctx.output_path = output
-    if ctx.result.stdout:
-        ctx.response = json.loads(ctx.result.stdout)
-
-
-@when("I export with default untranslated policy")
-def when_export_with_default_policy(ctx: ExportContext, cli_runner: CliRunner) -> None:
-    """Run the export command with default (error) untranslated policy."""
-    assert ctx.output_path is not None
-    output = ctx.output_path.with_suffix(".csv")
-    ctx.result = cli_runner.invoke(
-        cli_main.app,
-        [
-            "export",
-            "--input",
-            str(ctx.input_path),
-            "--output",
-            str(output),
-            "--format",
-            "csv",
         ],
     )
     ctx.output_path = output

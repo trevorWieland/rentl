@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 import textwrap
-from collections.abc import Generator
+from collections.abc import Awaitable, Callable, Generator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from pydantic import BaseModel
 from typer.testing import CliRunner
 
+from rentl_agents.runtime import ProfileAgent
 from rentl_llm.openai_runtime import OpenAICompatibleRuntime
 from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
+from rentl_schemas.phases import (
+    IdiomAnnotation,
+    IdiomAnnotationList,
+    IdiomReviewLine,
+    SceneSummary,
+    StyleGuideReviewLine,
+    StyleGuideReviewList,
+    TranslationResultLine,
+    TranslationResultList,
+)
 
 if TYPE_CHECKING:
     pass
@@ -117,6 +130,109 @@ class FakeLlmRuntime:
             model_id=request.runtime.model.model_id,
             output_text=output_text,
         )
+
+
+def make_mock_agent_run() -> tuple[
+    Callable[[ProfileAgent, BaseModel], Awaitable[BaseModel]],
+    dict[str, int],
+    dict[str, int],
+]:
+    """Create a mock_agent_run function with its own counters.
+
+    Returns:
+        Tuple of (mock_agent_run function, call_count dict, edit_line_index dict).
+    """
+    mock_call_count: dict[str, int] = {"count": 0}
+    edit_line_index: dict[str, int] = {"index": 0}
+
+    async def mock_agent_run(self: ProfileAgent, payload: BaseModel) -> BaseModel:
+        """Return schema-valid output based on agent's output_type.
+
+        For batch operations, returns outputs matching all input IDs to satisfy
+        the pipeline's alignment requirements.
+
+        Args:
+            self: ProfileAgent instance (patched method).
+            payload: Input payload for the agent (phase-specific schema).
+
+        Returns:
+            Schema-valid output matching the agent's output_type.
+
+        Raises:
+            ValueError: If the agent's output_type is unexpected.
+        """
+        await asyncio.sleep(0)
+        mock_call_count["count"] += 1
+
+        output_type = self._output_type
+
+        if output_type == SceneSummary:
+            scene_id = getattr(payload, "scene_id", "scene_001")
+            return SceneSummary(
+                scene_id=scene_id,
+                summary="Test scene summary from mock agent",
+                characters=["Character A", "Character B"],
+            )
+        elif output_type == IdiomAnnotationList:
+            source_lines = getattr(payload, "source_lines", [])
+            reviews = [
+                IdiomReviewLine(
+                    line_id=line.line_id,
+                    idioms=[
+                        IdiomAnnotation(
+                            idiom_text="test idiom",
+                            explanation="Test explanation",
+                        )
+                    ],
+                )
+                for line in source_lines
+            ]
+            return IdiomAnnotationList(reviews=reviews)
+        elif output_type == TranslationResultList:
+            source_lines = getattr(payload, "source_lines", [])
+            if not source_lines:
+                translations = [
+                    TranslationResultLine(
+                        line_id="line_001",
+                        text="Test translation",
+                    )
+                ]
+            else:
+                translations = [
+                    TranslationResultLine(
+                        line_id=line.line_id,
+                        text=f"Test translation for {line.line_id}",
+                    )
+                    for line in source_lines
+                ]
+            return TranslationResultList(translations=translations)
+        elif output_type == StyleGuideReviewList:
+            translation_results = getattr(payload, "translation_results", [])
+            reviews = [
+                StyleGuideReviewLine(
+                    line_id=result.line_id,
+                    violations=[],
+                )
+                for result in translation_results
+            ]
+            return StyleGuideReviewList(reviews=reviews)
+        elif output_type == TranslationResultLine:
+            translated_lines = getattr(payload, "translated_lines", [])
+            if not translated_lines:
+                line_id = getattr(payload, "line_id", "line_001")
+            else:
+                current_index = edit_line_index["index"] % len(translated_lines)
+                line_id = translated_lines[current_index].line_id
+                edit_line_index["index"] += 1
+
+            return TranslationResultLine(
+                line_id=line_id,
+                text="Final edited translation",
+            )
+        else:
+            raise ValueError(f"Unexpected output type in test mock: {output_type}")
+
+    return mock_agent_run, mock_call_count, edit_line_index
 
 
 # --- Pytest fixtures ---

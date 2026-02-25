@@ -513,3 +513,47 @@ class ToolInputStringMinLength(Evaluator[BaseSchema, AgentEvalOutput]):
                 )
 
         return EvaluationReason(value=True, reason=None)
+
+
+@dataclass
+class RequiredToolCalledBeforeOutput(Evaluator[BaseSchema, AgentEvalOutput]):
+    """Verify required tool was called (appears in tool_calls list)."""
+
+    required_tool: str
+
+    def evaluate(
+        self, ctx: EvaluatorContext[BaseSchema, AgentEvalOutput]
+    ) -> EvaluationReason:
+        """Evaluate that required tool appears in tool calls.
+
+        Args:
+            ctx: Evaluator context.
+
+        Returns:
+            Evaluation result with reason on failure.
+        """
+        tool_calls = None
+        if isinstance(ctx.output, AgentEvalOutput):
+            tool_calls = ctx.output.tool_calls
+        elif isinstance(ctx.output, dict):
+            maybe_calls = ctx.output.get("tool_calls")
+            if isinstance(maybe_calls, list):
+                tool_calls = maybe_calls
+        if not tool_calls:
+            return EvaluationReason(
+                value=False,
+                reason="No tool calls recorded",
+            )
+        tool_names = [
+            call.tool_name if hasattr(call, "tool_name") else str(call)
+            for call in tool_calls
+        ]
+        if self.required_tool not in tool_names:
+            return EvaluationReason(
+                value=False,
+                reason=(
+                    f"Required tool '{self.required_tool}' not found in "
+                    f"tool calls: {tool_names}"
+                ),
+            )
+        return EvaluationReason(value=True, reason=None)

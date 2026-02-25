@@ -38,9 +38,7 @@ Alignment requirements:
 Remember: Your summaries help translators understand context. Focus on what
 matters for translation decisions.
 
-IMPORTANT: Before you produce the summary, you MUST call the get_game_info tool
-once to confirm the project context. Do not include tool output in your final
-response.
+Call the get_game_info tool to review the project context before producing your summary.
 
 ## Example Output
 
@@ -55,9 +53,7 @@ IMPORTANT: Return ONLY the scene summary object with scene_id, summary, and char
 
 [prompts.user_template]
 content = """
-Before you analyze the scene, call the get_game_info tool once.
-
-Analyze and summarize the following scene.
+Use the get_game_info tool to confirm the project context, then analyze and summarize the following scene.
 
 Scene ID: {{scene_id}}
 Number of lines: {{line_count}}

@@ -33,7 +33,6 @@ class ExportErrorCode(StrEnum):
     INVALID_FORMAT = "invalid_format"
     VALIDATION_ERROR = "validation_error"
     IO_ERROR = "io_error"
-    UNTRANSLATED_TEXT = "untranslated_text"
     DROPPED_COLUMN = "dropped_column"
 
 
@@ -143,9 +142,6 @@ class ExportSummary(BaseSchema):
     output_path: str = Field(..., min_length=1, description="Export output path")
     format: FileFormat = Field(..., description="Export output format")
     line_count: int = Field(..., ge=0, description="Number of lines exported")
-    untranslated_count: int = Field(
-        ..., ge=0, description="Number of untranslated lines detected"
-    )
     column_count: int | None = Field(
         None, ge=0, description="Number of CSV columns if applicable"
     )
@@ -195,7 +191,6 @@ def build_export_completed_log(
     run_id: RunId,
     target: ExportTarget,
     line_count: int,
-    untranslated_count: int | None = None,
     column_count: int | None = None,
 ) -> LogEntry:
     """Build a log entry for export completion.
@@ -205,7 +200,6 @@ def build_export_completed_log(
         run_id: Pipeline run identifier.
         target: Export target descriptor.
         line_count: Number of lines exported.
-        untranslated_count: Optional untranslated line count.
         column_count: Optional CSV column count.
 
     Returns:
@@ -215,7 +209,6 @@ def build_export_completed_log(
         output_path=target.output_path,
         format=_coerce_file_format(target.format),
         line_count=line_count,
-        untranslated_count=untranslated_count,
         column_count=column_count,
     ).model_dump(exclude_none=True)
 

@@ -17,7 +17,14 @@ depends_on = []
 
 [prompts.agent]
 content = """
-Your specific role is Idiom Identification.
+FIRST STEP: Call the get_game_info tool to retrieve the project context. You MUST call this tool before doing anything else.
+
+Your specific role is Idiom Identification. Follow these steps in order:
+
+1. Call the get_game_info tool to retrieve project context
+2. Read the returned context to understand the project
+3. Analyze each input line for idiomatic expressions
+4. Return your analysis via the final_result tool
 
 For each batch of lines you analyze, identify expressions that require special
 attention during translation, including:
@@ -45,10 +52,6 @@ or straightforward text by returning an empty idioms list for that line.
 
 IMPORTANT: This phase is target-language unaware. Do not suggest translations
 or translation strategies. Just identify and explain challenging expressions.
-
-IMPORTANT: Before you produce the reviews list, you MUST call the get_game_info
-tool once to confirm the project context. Do not include tool output in your
-final response.
 
 ## Example Output
 
@@ -79,9 +82,8 @@ IMPORTANT: Return ONLY the object with the "reviews" field. Each review must hav
 
 [prompts.user_template]
 content = """
-Before you analyze the lines, call the get_game_info tool once.
-
-Analyze the following {{line_count}} lines for idiomatic expressions and translation challenges.
+STEP 1: Call the get_game_info tool now to retrieve project context.
+STEP 2: Then analyze the following {{line_count}} lines for idiomatic expressions and translation challenges.
 
 Lines to analyze:
 ---

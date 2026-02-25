@@ -20,6 +20,7 @@ from pydantic_ai.models.openrouter import (
     OpenRouterModelSettings,
     OpenRouterProviderConfig,
 )
+from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.settings import ModelSettings
@@ -52,6 +53,7 @@ def create_model(
     frequency_penalty: float = 0.0,
     reasoning_effort: ReasoningEffort | str | None = None,
     openrouter_provider: OpenRouterProviderRoutingConfig | None = None,
+    strict_tools: bool = False,
 ) -> tuple[Model, ModelSettings]:
     """Create the correct provider/model pair from configuration.
 
@@ -70,6 +72,7 @@ def create_model(
         frequency_penalty: Frequency penalty.
         reasoning_effort: Reasoning effort level when supported.
         openrouter_provider: OpenRouter provider routing config.
+        strict_tools: Send strict tool definitions to the provider.
 
     Returns:
         Tuple of (Model, ModelSettings) ready for pydantic-ai Agent.
@@ -88,6 +91,7 @@ def create_model(
             frequency_penalty=frequency_penalty,
             reasoning_effort=reasoning_effort,
             openrouter_provider=openrouter_provider,
+            strict_tools=strict_tools,
         )
     return _create_openai_model(
         base_url=base_url,
@@ -100,6 +104,7 @@ def create_model(
         presence_penalty=presence_penalty,
         frequency_penalty=frequency_penalty,
         reasoning_effort=reasoning_effort,
+        strict_tools=strict_tools,
     )
 
 
@@ -162,6 +167,9 @@ class PreflightEndpoint(BaseSchema):
     )
     openrouter_provider: OpenRouterProviderRoutingConfig | None = Field(
         None, description="OpenRouter provider routing config"
+    )
+    strict_tools: bool = Field(
+        False, description="Whether to send strict tool definitions"
     )
 
 
@@ -271,8 +279,9 @@ async def _probe_endpoint(
             model_id=endpoint.model_id,
             temperature=0.0,
             timeout_s=_PROBE_TIMEOUT_S,
-            max_output_tokens=16,
+            max_output_tokens=128,
             openrouter_provider=endpoint.openrouter_provider,
+            strict_tools=endpoint.strict_tools,
         )
         agent = Agent(
             model,
@@ -408,6 +417,7 @@ def _create_openrouter_model(
     frequency_penalty: float,
     reasoning_effort: ReasoningEffort | str | None,
     openrouter_provider: OpenRouterProviderRoutingConfig | None,
+    strict_tools: bool = False,
 ) -> tuple[Model, ModelSettings]:
     """Create an OpenRouter model and settings.
 
@@ -418,7 +428,10 @@ def _create_openrouter_model(
     enforce_provider_allowlist(model_id, openrouter_provider)
 
     provider = OpenRouterProvider(api_key=api_key)
-    model = OpenRouterModel(model_id, provider=provider)
+    profile = OpenAIModelProfile(
+        openai_supports_strict_tool_definition=strict_tools,
+    )
+    model = OpenRouterModel(model_id, provider=provider, profile=profile)
 
     settings: OpenRouterModelSettings = {
         "temperature": temperature,
@@ -429,9 +442,9 @@ def _create_openrouter_model(
 
     # Only include penalty parameters when non-default to avoid sending
     # extra parameters that trigger require_parameters filtering on OpenRouter
-    if presence_penalty != 0.0:
+    if presence_penalty:
         settings["presence_penalty"] = presence_penalty
-    if frequency_penalty != 0.0:
+    if frequency_penalty:
         settings["frequency_penalty"] = frequency_penalty
 
     effort_value = _resolve_reasoning_effort(reasoning_effort)
@@ -456,6 +469,7 @@ def _create_openai_model(
     presence_penalty: float,
     frequency_penalty: float,
     reasoning_effort: ReasoningEffort | str | None,
+    strict_tools: bool = False,
 ) -> tuple[Model, ModelSettings]:
     """Create a generic OpenAI-compatible model and settings.
 
@@ -463,7 +477,10 @@ def _create_openai_model(
         Tuple of (Model, ModelSettings) for OpenAI-compatible endpoint.
     """
     provider = OpenAIProvider(base_url=base_url, api_key=api_key)
-    model = OpenAIChatModel(model_id, provider=provider)
+    profile = OpenAIModelProfile(
+        openai_supports_strict_tool_definition=strict_tools,
+    )
+    model = OpenAIChatModel(model_id, provider=provider, profile=profile)
 
     settings: OpenAIChatModelSettings = {
         "temperature": temperature,
@@ -473,9 +490,9 @@ def _create_openai_model(
 
     # Only include penalty parameters when non-default to avoid unnecessary
     # parameters in API requests
-    if presence_penalty != 0.0:
+    if presence_penalty:
         settings["presence_penalty"] = presence_penalty
-    if frequency_penalty != 0.0:
+    if frequency_penalty:
         settings["frequency_penalty"] = frequency_penalty
 
     effort_value = _resolve_reasoning_effort(reasoning_effort)
