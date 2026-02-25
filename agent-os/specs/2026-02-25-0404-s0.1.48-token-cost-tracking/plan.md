@@ -58,7 +58,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - [x] Fix: Align `phase_status` and `phase_progress.status` in status-cost fixtures to satisfy `ProgressUpdate` validation (`tests/integration/cli/test_status_cost.py:203`, `tests/integration/cli/test_status_cost.py:258`) (audit round 1; see signposts.md: Task 6, status/phase mismatch in BDD fixtures)
   - [x] Fix: Add integration assertions for non-JSON `rentl status` display rows (`cost` and `waste`), including `"N/A"` when cost is unavailable, to cover Task 6 display requirements (`tests/integration/cli/test_status_cost.py`, `services/rentl-cli/src/rentl/main.py:3473`) (audit round 1)
 
-- [ ] Task 7: Integration Tests for End-to-End Cost Flow
+- [x] Task 7: Integration Tests for End-to-End Cost Flow
   - BDD-style integration test: pipeline run with mocked LLM responses containing cost data → verify full flow from response → telemetry → report
   - BDD-style integration test: pipeline run without cost data → verify tokens tracked, cost fields null, no errors
   - Verify `waste_ratio` correct in report after mixed-status pipeline run
