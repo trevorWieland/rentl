@@ -18,3 +18,4 @@ Future auditors: check this log for regressions and patterns.
 - **Demo** (run 2): PASS — All 4 [RUN] steps passed post-Task 9: make check (1132 unit + 103 integration), qwen3 pilot (322 lines, cost null, cache/reasoning fields present), deepseek pilot (322 lines, cost $0.0337, cache_read_tokens 101632), status display verified (4 run, 4 verified)
 - **Spec Audit** (round 2): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 1 (status retry/failure aggregation undercount in `rentl_core.status`).
 - **Task 9** (round 1): FAIL — Task 9 commit updated report serialization/tests but did not implement schema/runtime/status cache+reasoning fields; targeted Task 9 tests fail with missing `AgentUsageTotals` attributes.
+- **Task 9** (round 2): PASS — Schema and runtime now map cache/reasoning tokens (`progress.py`, `_build_usage_totals`), with targeted unit and integration tests passing.
