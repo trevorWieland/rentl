@@ -14,3 +14,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 6** (round 2): PASS — Resolved fixture status mismatch and added non-JSON display assertions for `cost` (including `N/A`) and `waste`; verified with `pytest -q tests/integration/cli/test_status_cost.py` (4 passed).
 - **Demo** (run 1): PASS — All 4 [RUN] steps passed: make all (1121 unit + 103 integration), qwen3 pilot (322 lines, cost null), deepseek pilot (322 lines, cost $0.046), status display verified (4 run, 4 verified)
 - **Spec Audit** (round 1): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0.
+- **Task 8** (round 1): FAIL — `deepseek-mtl-pilot.toml` pricing overrides (`0.30/0.88`) do not match current OpenRouter DeepSeek V3.2 pricing (`0.25/0.40`), so Task 8 pricing verification is incomplete.

@@ -95,3 +95,15 @@ that demonstrates the problem.
   - Discovered during walk-spec demo walkthrough: reviewing `_build_usage_totals` mapping against `RunUsage` definition
 - **Impact:** Token visibility is incomplete — cache hit/miss ratios and reasoning token overhead are invisible in run reports, which matters for cost optimization and model comparison in the benchmark suite.
 - **Solution:** Add the three fields to `AgentUsageTotals`, map them in `_build_usage_totals`, sum them in aggregation helpers, and include them in report JSON serialization. No CLI display changes needed (total_tokens is the right summary). No tiered cache pricing (future work).
+
+## Signpost 7: DeepSeek V3.2 pricing drift after Task 8
+
+- **Task:** 8
+- **Status:** unresolved
+- **Problem:** Task 8 requires verifying current OpenRouter pricing before setting config overrides, but the benchmark config still uses stale rates (`0.30` input / `0.88` output) instead of the current model-page rates.
+- **Evidence:**
+  - `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:50-51` and `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:129-130` set `input_cost_per_mtok = 0.30` and `output_cost_per_mtok = 0.88`
+  - OpenRouter model page `https://openrouter.ai/deepseek/deepseek-v3.2` (checked 2026-02-25) shows `Input: $0.25/M` and `Output: $0.40/M`
+  - DeepSeek run report `benchmark/karetoshi/runs/deepseek-mtl-pilot/logs/reports/019c9520-adec-77cc-a75e-2145afdd0744.json` currently computes `total_cost_usd = 0.045994780000000006` from the stale overrides
+- **Impact:** Cost totals are overstated relative to current provider pricing, reducing benchmark comparability across model configs.
+- **Solution:** Update the config overrides to the current OpenRouter rates, rerun the DeepSeek pilot pipeline, and capture the new report evidence.
