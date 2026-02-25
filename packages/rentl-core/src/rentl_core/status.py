@@ -119,11 +119,13 @@ def _select_run_progress(
 def _aggregate_agents(
     updates: Iterable[ProgressUpdate],
 ) -> tuple[list[AgentTelemetry], AgentTelemetrySummary | None]:
-    latest: dict[str, AgentTelemetry] = {}
+    latest: dict[tuple[str, int], AgentTelemetry] = {}
     for update in updates:
         if update.agent_update is None:
             continue
-        latest[update.agent_update.agent_run_id] = update.agent_update
+        agent = update.agent_update
+        key = (agent.agent_run_id, agent.attempt or 1)
+        latest[key] = agent
     agents = list(latest.values())
     if not agents:
         return [], None
@@ -172,6 +174,9 @@ def _add_usage(
         input_tokens=total.input_tokens + usage.input_tokens,
         output_tokens=total.output_tokens + usage.output_tokens,
         total_tokens=total.total_tokens + usage.total_tokens,
+        cache_read_tokens=total.cache_read_tokens + usage.cache_read_tokens,
+        cache_write_tokens=total.cache_write_tokens + usage.cache_write_tokens,
+        reasoning_tokens=total.reasoning_tokens + usage.reasoning_tokens,
         request_count=total.request_count + usage.request_count,
         tool_calls=total.tool_calls + usage.tool_calls,
         cost_usd=cost,
