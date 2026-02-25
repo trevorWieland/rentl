@@ -21,3 +21,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 9** (round 2): PASS — Schema and runtime now map cache/reasoning tokens (`progress.py`, `_build_usage_totals`), with targeted unit and integration tests passing.
 - **Demo** (run 3): PASS — All 4 [RUN] steps passed post-audit fixes: make all (1133 unit + 103 integration), qwen3 pilot (322 lines, cost null, cache/reasoning fields present), deepseek pilot (322 lines, cost $0.0337, cache_read_tokens 112576), status display verified (4 run, 4 verified)
 - **Spec Audit** (round 3): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0.
+- **Feedback** (round 1): 2 items — 1 actionable (CI hash mismatch, fixed by pinning KSRE to commit SHA), 0 addressed, 1 invalid (Codex bot retry undercount claim refuted with evidence), 0 out-of-scope
