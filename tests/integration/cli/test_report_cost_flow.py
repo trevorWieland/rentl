@@ -122,6 +122,9 @@ def given_mixed_status_with_cost(tmp_path: Path) -> ReportCostContext:
             input_tokens=1000,
             output_tokens=500,
             total_tokens=1500,
+            cache_read_tokens=200,
+            cache_write_tokens=50,
+            reasoning_tokens=100,
             request_count=2,
             tool_calls=0,
             cost_usd=0.0060,
@@ -292,6 +295,15 @@ def then_report_on_disk(ctx: ReportCostContext) -> None:
     assert "waste_ratio" in parsed
     assert "tokens_failed" in parsed
     assert "tokens_retried" in parsed
+    # Cache and reasoning fields present in report JSON
+    token_usage = parsed.get("token_usage")
+    if token_usage is not None:
+        assert "cache_read_tokens" in token_usage
+        assert "cache_write_tokens" in token_usage
+        assert "reasoning_tokens" in token_usage
+    tokens_failed = parsed["tokens_failed"]
+    assert "cache_read_tokens" in tokens_failed
+    assert "reasoning_tokens" in tokens_failed
 
 
 # --- Scenario 2: no cost data ---

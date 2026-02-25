@@ -86,7 +86,7 @@ that demonstrates the problem.
 ## Signpost 6: AgentUsageTotals drops cache and reasoning tokens from RunUsage
 
 - **Task:** 9
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** `AgentUsageTotals` only captures `input_tokens`, `output_tokens`, `total_tokens`, `request_count`, `tool_calls`, and `cost_usd`. pydantic-ai's `RunUsage` also provides `cache_read_tokens`, `cache_write_tokens` (top-level fields), and `reasoning_tokens` (in the `details` dict). These are silently dropped in `_build_usage_totals`, meaning cost reports understate cache savings and reasoning overhead.
 - **Evidence:**
   - `AgentUsageTotals` fields at `packages/rentl-schemas/src/rentl_schemas/progress.py:45-55`: only `input_tokens`, `output_tokens`, `total_tokens`, `request_count`, `tool_calls`, `cost_usd`
@@ -95,15 +95,19 @@ that demonstrates the problem.
   - Discovered during walk-spec demo walkthrough: reviewing `_build_usage_totals` mapping against `RunUsage` definition
 - **Impact:** Token visibility is incomplete — cache hit/miss ratios and reasoning token overhead are invisible in run reports, which matters for cost optimization and model comparison in the benchmark suite.
 - **Solution:** Add the three fields to `AgentUsageTotals`, map them in `_build_usage_totals`, sum them in aggregation helpers, and include them in report JSON serialization. No CLI display changes needed (total_tokens is the right summary). No tiered cache pricing (future work).
+- **Resolution:** do-task round 1 (Task 9)
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/progress.py`, `packages/rentl-agents/src/rentl_agents/runtime.py`, `packages/rentl-core/src/rentl_core/status.py`, `services/rentl-cli/src/rentl/main.py`
 
 ## Signpost 7: DeepSeek V3.2 pricing drift after Task 8
 
 - **Task:** 8
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Task 8 requires verifying current OpenRouter pricing before setting config overrides, but the benchmark config still uses stale rates (`0.30` input / `0.88` output) instead of the current model-page rates.
 - **Evidence:**
   - `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:50-51` and `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:129-130` set `input_cost_per_mtok = 0.30` and `output_cost_per_mtok = 0.88`
   - OpenRouter model page `https://openrouter.ai/deepseek/deepseek-v3.2` (checked 2026-02-25) shows `Input: $0.25/M` and `Output: $0.40/M`
   - DeepSeek run report `benchmark/karetoshi/runs/deepseek-mtl-pilot/logs/reports/019c9520-adec-77cc-a75e-2145afdd0744.json` currently computes `total_cost_usd = 0.045994780000000006` from the stale overrides
 - **Impact:** Cost totals are overstated relative to current provider pricing, reducing benchmark comparability across model configs.
-- **Solution:** Update the config overrides to the current OpenRouter rates, rerun the DeepSeek pilot pipeline, and capture the new report evidence.
+- **Solution:** Updated config overrides to `input_cost_per_mtok = 0.25` and `output_cost_per_mtok = 0.40` at all 4 locations. Re-ran pipeline — new report `019c95b9-a766-76c9-bd89-4ad3e826a927.json` shows `total_cost_usd = 0.0367315` (down from `0.045994780000000006` with stale rates).
+- **Resolution:** do-task round 2 (Task 8)
+- **Files affected:** `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml`

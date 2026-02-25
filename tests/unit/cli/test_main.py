@@ -1092,6 +1092,91 @@ def test_aggregate_usage_cost_usd_summed() -> None:
     assert segmented.retry.cost_usd is None
 
 
+def test_aggregate_usage_sums_cache_and_reasoning_tokens() -> None:
+    """Usage aggregation sums cache_read, cache_write, and reasoning tokens."""
+    run_id = uuid7()
+    updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_a",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=100,
+                    output_tokens=50,
+                    total_tokens=150,
+                    cache_read_tokens=30,
+                    cache_write_tokens=10,
+                    reasoning_tokens=20,
+                    request_count=1,
+                    tool_calls=0,
+                ),
+                message="done",
+            ),
+            message="agent",
+        ),
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:06Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_b",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:05Z",
+                completed_at="2026-02-03T10:00:06Z",
+                usage=AgentUsageTotals(
+                    input_tokens=200,
+                    output_tokens=100,
+                    total_tokens=300,
+                    cache_read_tokens=70,
+                    cache_write_tokens=40,
+                    reasoning_tokens=55,
+                    request_count=2,
+                    tool_calls=1,
+                ),
+                message="done",
+            ),
+            message="agent",
+        ),
+    ]
+
+    total, by_phase, segmented, _waste_ratio = cli_main._aggregate_usage(updates)
+
+    assert total is not None
+    assert total.cache_read_tokens == 100
+    assert total.cache_write_tokens == 50
+    assert total.reasoning_tokens == 75
+    assert segmented.completed.cache_read_tokens == 100
+    assert segmented.completed.cache_write_tokens == 50
+    assert segmented.completed.reasoning_tokens == 75
+    # by-phase should also have summed values
+    phase_key = (PhaseName.TRANSLATE, "ja")
+    assert by_phase[phase_key].cache_read_tokens == 100
+    assert by_phase[phase_key].reasoning_tokens == 75
+
+
 def test_build_run_report_data_without_run_state() -> None:
     """Report data handles missing run state."""
     run_id = uuid7()
@@ -3385,3 +3470,70 @@ def test_build_run_report_data_without_cost_data() -> None:
     tokens_retried = cast(dict, data["tokens_retried"])
     assert tokens_retried["total_tokens"] == 0
     assert tokens_retried["cost_usd"] is None
+
+
+def test_build_run_report_data_includes_cache_and_reasoning_fields() -> None:
+    """Report data serializes cache_read, cache_write, reasoning in all sections."""
+    run_id = uuid7()
+    progress_updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_cache",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=200,
+                    output_tokens=100,
+                    total_tokens=300,
+                    cache_read_tokens=80,
+                    cache_write_tokens=40,
+                    reasoning_tokens=60,
+                    request_count=2,
+                    tool_calls=1,
+                ),
+                message="done",
+            ),
+            message="agent",
+        ),
+    ]
+
+    data = cli_main._build_run_report_data(
+        run_id=run_id,
+        run_state=None,
+        progress_updates=progress_updates,
+    )
+
+    # token_usage includes new fields
+    token_usage = cast(dict, data["token_usage"])
+    assert token_usage["cache_read_tokens"] == 80
+    assert token_usage["cache_write_tokens"] == 40
+    assert token_usage["reasoning_tokens"] == 60
+
+    # usage_by_phase includes new fields
+    by_phase = cast(list[dict], data["token_usage_by_phase"])
+    assert len(by_phase) == 1
+    assert by_phase[0]["cache_read_tokens"] == 80
+    assert by_phase[0]["cache_write_tokens"] == 40
+    assert by_phase[0]["reasoning_tokens"] == 60
+
+    # segment dicts include new fields
+    tokens_failed = cast(dict, data["tokens_failed"])
+    assert tokens_failed["cache_read_tokens"] == 0
+    assert tokens_failed["reasoning_tokens"] == 0
+
+    tokens_retried = cast(dict, data["tokens_retried"])
+    assert tokens_retried["cache_read_tokens"] == 0
+    assert tokens_retried["reasoning_tokens"] == 0

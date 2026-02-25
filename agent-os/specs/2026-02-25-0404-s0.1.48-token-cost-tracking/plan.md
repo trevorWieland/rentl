@@ -63,15 +63,15 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - BDD-style integration test: pipeline run without cost data → verify tokens tracked, cost fields null, no errors
   - Verify `waste_ratio` correct in report after mixed-status pipeline run
 
-- [ ] Task 8: Add cost pricing to deepseek benchmark config
+- [x] Task 8: Add cost pricing to deepseek benchmark config
   - Add `input_cost_per_mtok` and `output_cost_per_mtok` to `deepseek-mtl-pilot.toml` model settings for `deepseek/deepseek-v3.2`
   - Look up current DeepSeek V3.2 pricing on OpenRouter (input: $0.30/Mtok, output: $0.88/Mtok as of Feb 2026 — verify before setting)
   - After adding pricing, re-run `uv run rentl run-pipeline -c benchmark/karetoshi/configs/deepseek-mtl-pilot.toml` to verify `total_cost_usd` is populated in the run report
   - See signposts.md Signpost 5 for full context
-  - [ ] Fix: Update DeepSeek V3.2 pricing overrides in `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:50`, `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:51`, `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:129`, and `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:130` to match current OpenRouter rates (audit round 1; see signposts.md: Signpost 7, pricing drift)
-  - [ ] Fix: Re-run `uv run rentl run-pipeline -c benchmark/karetoshi/configs/deepseek-mtl-pilot.toml` and record the new run report evidence for `total_cost_usd` in `signposts.md` (audit round 1; see signposts.md: Signpost 7, pricing drift)
+  - [x] Fix: Update DeepSeek V3.2 pricing overrides in `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:50`, `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:51`, `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:129`, and `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:130` to match current OpenRouter rates (audit round 1; see signposts.md: Signpost 7, pricing drift)
+  - [x] Fix: Re-run `uv run rentl run-pipeline -c benchmark/karetoshi/configs/deepseek-mtl-pilot.toml` and record the new run report evidence for `total_cost_usd` in `signposts.md` (audit round 1; see signposts.md: Signpost 7, pricing drift)
 
-- [ ] Task 9: Add cache and reasoning token tracking to AgentUsageTotals
+- [x] Task 9: Add cache and reasoning token tracking to AgentUsageTotals
   - Add `cache_read_tokens`, `cache_write_tokens`, `reasoning_tokens` fields to `AgentUsageTotals` schema (`packages/rentl-schemas/src/rentl_schemas/progress.py:45`)
   - Map fields in `_build_usage_totals` from pydantic-ai's `RunUsage` (`packages/rentl-agents/src/rentl_agents/runtime.py:728`): `cache_read_tokens` and `cache_write_tokens` are top-level fields; `reasoning_tokens` is in `usage.details` dict
   - Update `_add_usage_totals` (`services/rentl-cli/src/rentl/main.py:3139`) and `_add_usage` (`packages/rentl-core/src/rentl_core/status.py:162`) to sum new fields

@@ -116,3 +116,51 @@ def test_build_usage_totals_partial_cost_config() -> None:
     )
     assert result is not None
     assert result.cost_usd is None
+
+
+# --- cache and reasoning token mapping ---
+
+
+def test_build_usage_totals_maps_cache_tokens() -> None:
+    """Map cache_read_tokens and cache_write_tokens from RunUsage."""
+    usage = RunUsage(
+        input_tokens=100,
+        output_tokens=50,
+        requests=1,
+        cache_read_tokens=30,
+        cache_write_tokens=20,
+    )
+    result = _build_usage_totals(usage)
+    assert result is not None
+    assert result.cache_read_tokens == 30
+    assert result.cache_write_tokens == 20
+
+
+def test_build_usage_totals_maps_reasoning_tokens_from_details() -> None:
+    """Build usage totals extracts reasoning_tokens from RunUsage.details dict."""
+    usage = RunUsage(
+        input_tokens=100,
+        output_tokens=50,
+        requests=1,
+        details={"reasoning_tokens": 42},
+    )
+    result = _build_usage_totals(usage)
+    assert result is not None
+    assert result.reasoning_tokens == 42
+
+
+def test_build_usage_totals_reasoning_defaults_zero_when_absent() -> None:
+    """Build usage totals defaults reasoning_tokens to 0 when not in details."""
+    usage = RunUsage(input_tokens=100, output_tokens=50, requests=1)
+    result = _build_usage_totals(usage)
+    assert result is not None
+    assert result.reasoning_tokens == 0
+
+
+def test_build_usage_totals_cache_defaults_zero() -> None:
+    """Build usage totals defaults cache tokens to 0 when RunUsage has defaults."""
+    usage = RunUsage(input_tokens=100, output_tokens=50, requests=1)
+    result = _build_usage_totals(usage)
+    assert result is not None
+    assert result.cache_read_tokens == 0
+    assert result.cache_write_tokens == 0

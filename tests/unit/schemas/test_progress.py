@@ -826,6 +826,74 @@ def test_agent_telemetry_rejects_negative_cost() -> None:
         )
 
 
+# --- AgentUsageTotals cache/reasoning token tests ---
+
+
+def test_agent_usage_totals_cache_and_reasoning_defaults() -> None:
+    """AgentUsageTotals cache and reasoning fields default to 0."""
+    usage = AgentUsageTotals(input_tokens=10, output_tokens=20, total_tokens=30)
+    assert usage.cache_read_tokens == 0
+    assert usage.cache_write_tokens == 0
+    assert usage.reasoning_tokens == 0
+
+
+def test_agent_usage_totals_cache_and_reasoning_accepts_values() -> None:
+    """AgentUsageTotals accepts cache and reasoning token values."""
+    usage = AgentUsageTotals(
+        input_tokens=100,
+        output_tokens=200,
+        total_tokens=300,
+        cache_read_tokens=50,
+        cache_write_tokens=25,
+        reasoning_tokens=75,
+    )
+    assert usage.cache_read_tokens == 50
+    assert usage.cache_write_tokens == 25
+    assert usage.reasoning_tokens == 75
+
+
+def test_agent_usage_totals_cache_and_reasoning_roundtrip() -> None:
+    """AgentUsageTotals with cache/reasoning tokens serializes and deserializes."""
+    usage = AgentUsageTotals(
+        input_tokens=100,
+        output_tokens=200,
+        total_tokens=300,
+        cache_read_tokens=50,
+        cache_write_tokens=25,
+        reasoning_tokens=75,
+        request_count=2,
+        tool_calls=1,
+        cost_usd=0.05,
+    )
+    json_str = usage.model_dump_json()
+    restored = AgentUsageTotals.model_validate_json(json_str)
+    assert restored.cache_read_tokens == 50
+    assert restored.cache_write_tokens == 25
+    assert restored.reasoning_tokens == 75
+
+
+def test_agent_usage_totals_rejects_negative_cache_read() -> None:
+    """AgentUsageTotals rejects negative cache_read_tokens."""
+    with pytest.raises(ValidationError):
+        AgentUsageTotals(
+            input_tokens=10,
+            output_tokens=20,
+            total_tokens=30,
+            cache_read_tokens=-1,
+        )
+
+
+def test_agent_usage_totals_rejects_negative_reasoning() -> None:
+    """AgentUsageTotals rejects negative reasoning_tokens."""
+    with pytest.raises(ValidationError):
+        AgentUsageTotals(
+            input_tokens=10,
+            output_tokens=20,
+            total_tokens=30,
+            reasoning_tokens=-1,
+        )
+
+
 def test_segmented_usage_totals_mixed_cost_availability() -> None:
     """SegmentedUsageTotals handles mixed cost availability gracefully."""
     segmented = SegmentedUsageTotals(
