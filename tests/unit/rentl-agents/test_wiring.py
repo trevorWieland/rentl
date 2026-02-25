@@ -16,6 +16,9 @@ from rentl_agents.wiring import (
     PretranslationIdiomLabelerAgent,
     QaStyleGuideCriticAgent,
     TranslateDirectTranslatorAgent,
+    _merge_config,  # noqa: PLC2701
+    _resolve_max_consecutive_failures,  # noqa: PLC2701
+    _resolve_phase_retry,  # noqa: PLC2701
     build_agent_pools,
     create_context_agent_from_profile,
     create_edit_agent_from_profile,
@@ -504,3 +507,144 @@ class TestResolveAgentPath:
         workspace.mkdir()
         with pytest.raises(ValueError, match="escapes workspace"):
             resolve_agent_path("../../etc/passwd", workspace)
+
+
+# ---------------------------------------------------------------------------
+# _merge_config / resolver merge tests
+# ---------------------------------------------------------------------------
+
+
+def _minimal_run_config(
+    *,
+    global_retry: RetryConfig | None = None,
+    global_concurrency: ConcurrencyConfig | None = None,
+    phase_overrides: list[PhaseConfig] | None = None,
+) -> RunConfig:
+    """Build a minimal RunConfig for resolver tests.
+
+    Returns:
+        A RunConfig suitable for testing resolver functions.
+    """
+    repo_root = Path(__file__).resolve().parents[3]
+    project = ProjectConfig(
+        schema_version=VersionInfo(major=0, minor=1, patch=0),
+        project_name="test",
+        paths=ProjectPaths(
+            workspace_dir=str(repo_root),
+            input_path="input.txt",
+            output_dir="out",
+            logs_dir="logs",
+        ),
+        formats=FormatConfig(input_format=FileFormat.TXT, output_format=FileFormat.TXT),
+        languages=LanguageConfig(source_language="ja", target_languages=["en"]),
+    )
+    pipeline = PipelineConfig(
+        default_model=ModelSettings(model_id="gpt-4"),
+        phases=phase_overrides or [],
+    )
+    return RunConfig(
+        project=project,
+        logging=LoggingConfig(sinks=[LogSinkConfig(type=LogSinkType.NOOP)]),
+        agents=None,
+        endpoint=ModelEndpointConfig(
+            provider_name="test",
+            base_url="http://localhost",
+            api_key_env="TEST_KEY",
+        ),
+        pipeline=pipeline,
+        concurrency=global_concurrency or ConcurrencyConfig(),
+        retry=global_retry or RetryConfig(),
+        cache=CacheConfig(),
+    )
+
+
+class TestMergeConfig:
+    """Tests for _merge_config helper."""
+
+    def test_only_overrides_explicit_fields(self) -> None:
+        """Fields not explicitly set in phase config inherit from global."""
+        global_cfg = RetryConfig(max_retries=5, backoff_s=2.0, max_output_retries=20)
+        phase_cfg = RetryConfig(max_retries=10)
+
+        merged = _merge_config(global_cfg, phase_cfg)
+
+        assert merged.max_retries == 10  # overridden
+        assert merged.backoff_s == pytest.approx(2.0)  # inherited
+        assert merged.max_output_retries == 20  # inherited
+
+
+class TestResolvePhaseRetryMerge:
+    """Tests for _resolve_phase_retry merge behavior."""
+
+    def test_inherits_global_max_output_retries(self) -> None:
+        """Phase sets max_retries only; global max_output_retries is inherited."""
+        config = _minimal_run_config(
+            global_retry=RetryConfig(max_retries=3, max_output_retries=20),
+            phase_overrides=[
+                PhaseConfig(
+                    phase=PhaseName.TRANSLATE,
+                    agents=["direct_translator"],
+                    retry=RetryConfig(max_retries=10),
+                ),
+            ],
+        )
+
+        result = _resolve_phase_retry(config, PhaseName.TRANSLATE)
+
+        assert result.max_retries == 10
+        assert result.max_output_retries == 20
+
+    def test_falls_through_without_phase_override(self) -> None:
+        """No phase retry: global values pass through unchanged."""
+        config = _minimal_run_config(
+            global_retry=RetryConfig(max_retries=7, backoff_s=3.0),
+            phase_overrides=[
+                PhaseConfig(
+                    phase=PhaseName.TRANSLATE,
+                    agents=["direct_translator"],
+                ),
+            ],
+        )
+
+        result = _resolve_phase_retry(config, PhaseName.TRANSLATE)
+
+        assert result.max_retries == 7
+        assert result.backoff_s == pytest.approx(3.0)
+
+
+class TestResolveMaxConsecutiveFailuresMerge:
+    """Tests for _resolve_max_consecutive_failures merge behavior."""
+
+    def test_inherits_global(self) -> None:
+        """Phase sets max_parallel_requests; global failures inherited."""
+        config = _minimal_run_config(
+            global_concurrency=ConcurrencyConfig(max_consecutive_failures=10),
+            phase_overrides=[
+                PhaseConfig(
+                    phase=PhaseName.TRANSLATE,
+                    agents=["direct_translator"],
+                    concurrency=ConcurrencyConfig(max_parallel_requests=4),
+                ),
+            ],
+        )
+
+        result = _resolve_max_consecutive_failures(config, PhaseName.TRANSLATE)
+
+        assert result == 10
+
+    def test_phase_explicit_wins(self) -> None:
+        """Phase explicitly sets max_consecutive_failures; overrides global."""
+        config = _minimal_run_config(
+            global_concurrency=ConcurrencyConfig(max_consecutive_failures=10),
+            phase_overrides=[
+                PhaseConfig(
+                    phase=PhaseName.TRANSLATE,
+                    agents=["direct_translator"],
+                    concurrency=ConcurrencyConfig(max_consecutive_failures=1),
+                ),
+            ],
+        )
+
+        result = _resolve_max_consecutive_failures(config, PhaseName.TRANSLATE)
+
+        assert result == 1

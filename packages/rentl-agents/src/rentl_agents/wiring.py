@@ -1393,6 +1393,18 @@ def _resolve_phase_agent_specs(
     return resolved
 
 
+def _merge_config[M: BaseModel](global_config: M, phase_config: M) -> M:
+    """Merge phase config over global, overriding only explicitly-set fields.
+
+    Returns:
+        A copy of *global_config* with explicitly-set *phase_config* fields applied.
+    """
+    overrides = {
+        field: getattr(phase_config, field) for field in phase_config.model_fields_set
+    }
+    return global_config.model_copy(update=overrides)
+
+
 def _resolve_max_consecutive_failures(config: RunConfig, phase: PhaseName) -> int:
     """Resolve max_consecutive_failures: phase override then global default.
 
@@ -1401,7 +1413,8 @@ def _resolve_max_consecutive_failures(config: RunConfig, phase: PhaseName) -> in
     """
     phase_config = _resolve_phase_config(config, phase)
     if phase_config is not None and phase_config.concurrency is not None:
-        return phase_config.concurrency.max_consecutive_failures
+        merged = _merge_config(config.concurrency, phase_config.concurrency)
+        return merged.max_consecutive_failures
     return config.concurrency.max_consecutive_failures
 
 
@@ -1570,7 +1583,7 @@ def _resolve_phase_model(config: RunConfig, phase: PhaseName) -> ModelSettings:
 def _resolve_phase_retry(config: RunConfig, phase: PhaseName) -> RetryConfig:
     phase_config = _resolve_phase_config(config, phase)
     if phase_config is not None and phase_config.retry is not None:
-        return phase_config.retry
+        return _merge_config(config.retry, phase_config.retry)
     return config.retry
 
 
