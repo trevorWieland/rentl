@@ -48,6 +48,11 @@ class AgentUsageTotals(BaseSchema):
     input_tokens: int = Field(0, ge=0, description="Input tokens consumed")
     output_tokens: int = Field(0, ge=0, description="Output tokens consumed")
     total_tokens: int = Field(0, ge=0, description="Total tokens consumed")
+    cache_read_tokens: int = Field(0, ge=0, description="Tokens read from cache")
+    cache_write_tokens: int = Field(0, ge=0, description="Tokens written to cache")
+    reasoning_tokens: int = Field(
+        0, ge=0, description="Reasoning/thinking tokens consumed"
+    )
     request_count: int = Field(0, ge=0, description="Total requests made")
     tool_calls: int = Field(0, ge=0, description="Total tool calls issued")
     cost_usd: float | None = Field(

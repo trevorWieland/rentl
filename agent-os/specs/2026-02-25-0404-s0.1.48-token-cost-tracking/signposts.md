@@ -86,7 +86,7 @@ that demonstrates the problem.
 ## Signpost 6: AgentUsageTotals drops cache and reasoning tokens from RunUsage
 
 - **Task:** 9
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** `AgentUsageTotals` only captures `input_tokens`, `output_tokens`, `total_tokens`, `request_count`, `tool_calls`, and `cost_usd`. pydantic-ai's `RunUsage` also provides `cache_read_tokens`, `cache_write_tokens` (top-level fields), and `reasoning_tokens` (in the `details` dict). These are silently dropped in `_build_usage_totals`, meaning cost reports understate cache savings and reasoning overhead.
 - **Evidence:**
   - `AgentUsageTotals` fields at `packages/rentl-schemas/src/rentl_schemas/progress.py:45-55`: only `input_tokens`, `output_tokens`, `total_tokens`, `request_count`, `tool_calls`, `cost_usd`
@@ -97,7 +97,7 @@ that demonstrates the problem.
   - Audit round 1 (Task 9): `uv run pytest -q tests/unit/rentl-agents/test_runtime_cost.py -k 'maps_cache_tokens or maps_reasoning_tokens'` fails with missing `cache_read_tokens` and `reasoning_tokens` (2 failed)
 - **Impact:** Token visibility is incomplete — cache hit/miss ratios and reasoning token overhead are invisible in run reports, which matters for cost optimization and model comparison in the benchmark suite.
 - **Solution:** Add the three fields to `AgentUsageTotals`, map them in `_build_usage_totals`, sum them in aggregation helpers, and include them in report JSON serialization. No CLI display changes needed (total_tokens is the right summary). No tiered cache pricing (future work).
-- **Resolution:** Pending implementation. A prior `resolved` mark was invalidated by Task 9 audit round 1 evidence.
+- **Resolution:** do-task round 3 (Task 9). Added fields to schema, mapped in `_build_usage_totals`, summed in `_add_usage`/`_add_usage_totals`, serialized in report JSON. All tests pass.
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/progress.py`, `packages/rentl-agents/src/rentl_agents/runtime.py`, `packages/rentl-core/src/rentl_core/status.py`, `services/rentl-cli/src/rentl/main.py`
 
 ## Signpost 7: DeepSeek V3.2 pricing drift after Task 8

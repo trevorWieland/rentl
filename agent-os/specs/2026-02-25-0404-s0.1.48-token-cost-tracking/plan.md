@@ -72,7 +72,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - [x] Fix: Update DeepSeek V3.2 pricing overrides in `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:50`, `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:51`, `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:129`, and `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml:130` to match current OpenRouter rates (audit round 1; see signposts.md: Signpost 7, pricing drift)
   - [x] Fix: Re-run `uv run rentl run-pipeline -c benchmark/karetoshi/configs/deepseek-mtl-pilot.toml` and record the new run report evidence for `total_cost_usd` in `signposts.md` (audit round 1; see signposts.md: Signpost 7, pricing drift)
 
-- [ ] Task 9: Add cache and reasoning token tracking to AgentUsageTotals
+- [x] Task 9: Add cache and reasoning token tracking to AgentUsageTotals
   - Add `cache_read_tokens`, `cache_write_tokens`, `reasoning_tokens` fields to `AgentUsageTotals` schema (`packages/rentl-schemas/src/rentl_schemas/progress.py:45`)
   - Map fields in `_build_usage_totals` from pydantic-ai's `RunUsage` (`packages/rentl-agents/src/rentl_agents/runtime.py:728`): `cache_read_tokens` and `cache_write_tokens` are top-level fields; `reasoning_tokens` is in `usage.details` dict
   - Update `_add_usage_totals` (`services/rentl-cli/src/rentl/main.py:3139`) and `_add_usage` (`packages/rentl-core/src/rentl_core/status.py:162`) to sum new fields
@@ -82,6 +82,6 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Do NOT change CLI status display (total_tokens is the right summary)
   - Do NOT add tiered cache pricing logic (track fields for visibility, cost accuracy is future work)
   - See signposts.md Signpost 6 for full context
-  - [ ] Fix: Add `cache_read_tokens`, `cache_write_tokens`, and `reasoning_tokens` fields to `AgentUsageTotals` with non-negative validation in `packages/rentl-schemas/src/rentl_schemas/progress.py:45-55` (audit round 1; see signposts.md: Signpost 6, missing cache/reasoning token mapping).
-  - [ ] Fix: Map cache/reasoning fields in `_build_usage_totals` (`packages/rentl-agents/src/rentl_agents/runtime.py:728-749`) and sum them in `_add_usage` (`packages/rentl-core/src/rentl_core/status.py:162-178`) so retry/failure summaries include the new usage dimensions (audit round 1; see signposts.md: Signpost 6).
-  - [ ] Fix: Re-run Task 9 tests and confirm they pass after code changes (`uv run pytest -q tests/unit/schemas/test_progress.py -k cache_and_reasoning` and `uv run pytest -q tests/unit/rentl-agents/test_runtime_cost.py -k 'maps_cache_tokens or maps_reasoning_tokens'`) (audit round 1).
+  - [x] Fix: Add `cache_read_tokens`, `cache_write_tokens`, and `reasoning_tokens` fields to `AgentUsageTotals` with non-negative validation in `packages/rentl-schemas/src/rentl_schemas/progress.py:45-55` (audit round 1; see signposts.md: Signpost 6, missing cache/reasoning token mapping).
+  - [x] Fix: Map cache/reasoning fields in `_build_usage_totals` (`packages/rentl-agents/src/rentl_agents/runtime.py:728-749`) and sum them in `_add_usage` (`packages/rentl-core/src/rentl_core/status.py:162-178`) so retry/failure summaries include the new usage dimensions (audit round 1; see signposts.md: Signpost 6).
+  - [x] Fix: Re-run Task 9 tests and confirm they pass after code changes (`uv run pytest -q tests/unit/schemas/test_progress.py -k cache_and_reasoning` and `uv run pytest -q tests/unit/rentl-agents/test_runtime_cost.py -k 'maps_cache_tokens or maps_reasoning_tokens'`) (audit round 1).
