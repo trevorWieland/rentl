@@ -18,7 +18,6 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
 from click.testing import Result
 from dotenv import load_dotenv
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -34,8 +33,9 @@ if TYPE_CHECKING:
 # Link feature file
 scenarios("../features/pipeline/golden_script_pipeline.feature")
 
-# 29s timeout per scenario — standard enforces quality tests < 30s
-pytestmark = pytest.mark.timeout(29)
+# Global timeout (30s) from pyproject.toml enforces quality test < 30s standard.
+# No module-level override — prior 29s was needlessly tight and caused
+# intermittent failures on slow API responses.
 
 # Single line from golden script — minimal input to validate pipeline
 # integration path. Translation quality is covered by agent quality tests.
