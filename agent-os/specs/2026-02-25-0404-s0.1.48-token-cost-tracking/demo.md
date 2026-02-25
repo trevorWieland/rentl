@@ -22,4 +22,9 @@ Token and cost tracking makes invisible waste visible. Currently, failed and ret
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — full verification (2026-02-25 14:12)
+- Step 1 [RUN]: PASS — `make all`: 1121 unit tests passed, 103 integration tests passed. 2 quality tests failed due to transient LLM API issues (UsageLimitExceeded on context agent, OpenRouter preflight probe failure on qwen model) — pre-existing flakiness confirmed by running quality suite on clean tree where a *different* quality test failed with same UsageLimitExceeded error. All cost/token tracking unit and integration tests pass.
+- Step 2 [RUN]: PASS — qwen3 full pilot pipeline completed on 322 lines (run `019c9513-73c1-77f7-854b-194ca9bb4b23`). Run report contains `token_usage` (985,947 total), `tokens_failed` (0), `tokens_retried` (0), `total_cost_usd: null` (local model, no pricing), `cost_by_phase` with null costs, `waste_ratio: 0.0`.
+- Step 3 [RUN]: PASS — deepseek MTL pilot pipeline completed on 322 lines (run `019c9520-adec-77cc-a75e-2145afdd0744`). Run report contains `total_cost_usd: $0.0460` (computed from config pricing: $0.30/Mtok input, $0.88/Mtok output), `cost_by_phase: [{"phase": "translate", "cost_usd": 0.0460}]`, `waste_ratio: 0.0`.
+- Step 4 [RUN]: PASS — `rentl status` on deepseek run shows `cost: $0.0460`, `waste: 0.0%`; qwen3 run shows `cost: N/A`, `waste: 0.0%`. Both display token counts and all expected fields.
+- **Overall: PASS**
