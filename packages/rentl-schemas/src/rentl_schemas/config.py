@@ -340,6 +340,16 @@ class ModelSettings(BaseSchema):
     top_p: float = Field(1.0, ge=0, le=1, description="Top-p sampling")
     presence_penalty: float = Field(0.0, ge=-2, le=2, description="Presence penalty")
     frequency_penalty: float = Field(0.0, ge=-2, le=2, description="Frequency penalty")
+    input_cost_per_mtok: float | None = Field(
+        None,
+        ge=0,
+        description="Input cost per million tokens (USD)",
+    )
+    output_cost_per_mtok: float | None = Field(
+        None,
+        ge=0,
+        description="Output cost per million tokens (USD)",
+    )
 
     @field_validator("reasoning_effort", mode="before")
     @classmethod

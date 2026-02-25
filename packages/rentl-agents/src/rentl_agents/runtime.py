@@ -191,6 +191,16 @@ class ProfileAgentConfig(BaseSchema):
         None,
         description="Tool names that must be called before output tools are allowed",
     )
+    input_cost_per_mtok: float | None = Field(
+        None,
+        ge=0,
+        description="Input cost per million tokens (USD)",
+    )
+    output_cost_per_mtok: float | None = Field(
+        None,
+        ge=0,
+        description="Output cost per million tokens (USD)",
+    )
 
 
 class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
@@ -328,6 +338,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             endpoint_type=endpoint_type,
                             tool_calls_observed=tool_calls_observed,
                             required_tools_satisfied=required_tools_satisfied,
+                            cost_usd=usage.cost_usd if usage else None,
                             message="Agent completed",
                         ),
                         timestamp=completed_at,
@@ -385,6 +396,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             tool_calls_observed=None,
                             required_tools_satisfied=required_tools_satisfied,
                             diagnostics=failure_diagnostics,
+                            cost_usd=failure_usage.cost_usd if failure_usage else None,
                             message=f"Agent hit request limit: {e}",
                         ),
                         timestamp=completed_at,
@@ -442,6 +454,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                             tool_calls_observed=None,
                             required_tools_satisfied=required_tools_satisfied,
                             diagnostics=failure_diagnostics,
+                            cost_usd=failure_usage.cost_usd if failure_usage else None,
                             message=f"Agent produced invalid output: {e}",
                         ),
                         timestamp=completed_at,
@@ -689,7 +702,11 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                     raise UnexpectedModelBehavior(
                         "Agent iteration completed without producing a result"
                     )
-                usage = _build_usage_totals(agent_run.usage())
+                usage = _build_usage_totals(
+                    agent_run.usage(),
+                    input_cost_per_mtok=self._config.input_cost_per_mtok,
+                    output_cost_per_mtok=self._config.output_cost_per_mtok,
+                )
                 return result.output, usage
             except (UnexpectedModelBehavior, UsageLimitExceeded) as e:
                 # Extract diagnostics from message history before re-raising
@@ -697,23 +714,58 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                 try:
                     all_msgs = agent_run.all_messages()
                     info.diagnostics = _extract_validation_diagnostics(all_msgs)
-                    info.usage = _build_usage_totals(agent_run.usage())
+                    info.usage = _build_usage_totals(
+                        agent_run.usage(),
+                        input_cost_per_mtok=self._config.input_cost_per_mtok,
+                        output_cost_per_mtok=self._config.output_cost_per_mtok,
+                    )
                 except Exception:
                     pass  # Best-effort extraction
                 e._validation_failure_info = info  # type: ignore[attr-defined]
                 raise
 
 
-def _build_usage_totals(usage: RunUsage | None) -> AgentUsageTotals | None:
+def _build_usage_totals(
+    usage: RunUsage | None,
+    *,
+    input_cost_per_mtok: float | None = None,
+    output_cost_per_mtok: float | None = None,
+) -> AgentUsageTotals | None:
     if usage is None or not usage.has_values():
         return None
+    cost_usd = _compute_cost_usd(
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        input_cost_per_mtok=input_cost_per_mtok,
+        output_cost_per_mtok=output_cost_per_mtok,
+    )
     return AgentUsageTotals(
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
         total_tokens=usage.total_tokens,
         request_count=usage.requests,
         tool_calls=usage.tool_calls,
+        cost_usd=cost_usd,
     )
+
+
+def _compute_cost_usd(
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    input_cost_per_mtok: float | None,
+    output_cost_per_mtok: float | None,
+) -> float | None:
+    """Compute USD cost from token counts and per-million-token pricing.
+
+    Returns:
+        Cost in USD, or None when pricing config is not available.
+    """
+    if input_cost_per_mtok is None or output_cost_per_mtok is None:
+        return None
+    return (
+        input_tokens * input_cost_per_mtok + output_tokens * output_cost_per_mtok
+    ) / 1_000_000
 
 
 def _build_provider_detected(provider: ProviderCapabilities) -> str:

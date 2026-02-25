@@ -30,7 +30,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Unit tests for aggregation with mixed-status agents (completed, failed, retry combinations)
   - Unit tests for waste_ratio edge cases (zero total, all failed, all completed)
 
-- [ ] Task 4: Capture Cost Data from OpenRouter Responses
+- [x] Task 4: Capture Cost Data from OpenRouter Responses
   - Investigate pydantic-ai's `RunResult` / `RunUsage` for cost metadata propagation
   - Extract cost from OpenRouter response and propagate through `AgentTelemetry.cost_usd`
   - Add optional per-model cost config fields (`input_cost_per_mtok`, `output_cost_per_mtok`) to run config schema
