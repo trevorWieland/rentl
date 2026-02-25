@@ -73,7 +73,7 @@
 - ✅ (s0.1.45) Test Infrastructure Overhaul — Fix mock boundaries, extend coverage enforcement, fix timing limits, consolidate test tree, adopt BDD style. **Depends on:** s0.1.23, s0.1.24, s0.1.25.
 - ✅ (s0.1.46) Codebase Modernization & CI Enforcement — Migrate dataclasses to Pydantic, adopt match/case, enable strict typing, create CI gate, fix minor compliance gaps. **Depends on:** s0.1.01, s0.1.23.
 - (s0.1.47) Recalibrate Naming Conventions Standard — Update naming-conventions standard to allow SCREAMING_SNAKE_CASE for module-level constants per PEP 8. **Depends on:** None.
-- (s0.1.48) Comprehensive Token & Cost Tracking — Track all agent invocations (including failed/retried), compute USD costs from model pricing data, enhance run reports with cost breakdown and waste ratio. **Depends on:** s0.1.06, s0.1.10, s0.1.27.
+- ✅ (s0.1.48) Comprehensive Token & Cost Tracking — Track all agent invocations (including failed/retried), compute USD costs from model pricing data, enhance run reports with cost breakdown and waste ratio. **Depends on:** s0.1.06, s0.1.10, s0.1.27.
 
 **Success Criteria:**
 - A new user can run `rentl init` → full pipeline → export without manual edits

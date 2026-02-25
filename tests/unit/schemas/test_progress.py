@@ -10,6 +10,7 @@ from rentl_schemas.primitives import PhaseName, PhaseStatus, RunId, RunStatus
 from rentl_schemas.progress import (
     AgentStatus,
     AgentTelemetry,
+    AgentUsageTotals,
     OutputValidationDiagnostic,
     PhaseProgress,
     ProgressMetric,
@@ -20,6 +21,7 @@ from rentl_schemas.progress import (
     ProgressUnit,
     ProgressUpdate,
     RunProgress,
+    SegmentedUsageTotals,
     compute_phase_summary,
     compute_run_summary,
 )
@@ -665,3 +667,246 @@ def test_agent_telemetry_without_diagnostics() -> None:
         status=AgentStatus.COMPLETED,
     )
     assert telemetry.diagnostics is None
+
+
+# --- SegmentedUsageTotals tests ---
+
+
+def test_segmented_usage_totals_defaults() -> None:
+    """SegmentedUsageTotals initializes with zero-value defaults."""
+    segmented = SegmentedUsageTotals()
+    assert segmented.completed.total_tokens == 0
+    assert segmented.failed.total_tokens == 0
+    assert segmented.retry.total_tokens == 0
+
+
+def test_segmented_usage_totals_with_values() -> None:
+    """SegmentedUsageTotals accepts explicit usage values per segment."""
+    segmented = SegmentedUsageTotals(
+        completed=AgentUsageTotals(
+            input_tokens=100, output_tokens=200, total_tokens=300
+        ),
+        failed=AgentUsageTotals(input_tokens=10, output_tokens=20, total_tokens=30),
+        retry=AgentUsageTotals(input_tokens=5, output_tokens=10, total_tokens=15),
+    )
+    assert segmented.completed.input_tokens == 100
+    assert segmented.failed.total_tokens == 30
+    assert segmented.retry.output_tokens == 10
+
+
+def test_segmented_usage_totals_roundtrip() -> None:
+    """SegmentedUsageTotals serializes and deserializes correctly."""
+    segmented = SegmentedUsageTotals(
+        completed=AgentUsageTotals(
+            input_tokens=500,
+            output_tokens=1000,
+            total_tokens=1500,
+            request_count=5,
+            tool_calls=3,
+            cost_usd=0.05,
+        ),
+        failed=AgentUsageTotals(
+            input_tokens=50, output_tokens=100, total_tokens=150, cost_usd=0.005
+        ),
+        retry=AgentUsageTotals(input_tokens=25, output_tokens=50, total_tokens=75),
+    )
+    json_str = segmented.model_dump_json()
+    restored = SegmentedUsageTotals.model_validate_json(json_str)
+    assert restored.completed.total_tokens == 1500
+    assert restored.completed.cost_usd == pytest.approx(0.05)
+    assert restored.failed.cost_usd == pytest.approx(0.005)
+    assert restored.retry.cost_usd is None
+
+
+# --- AgentUsageTotals cost_usd tests ---
+
+
+def test_agent_usage_totals_cost_usd_defaults_none() -> None:
+    """AgentUsageTotals.cost_usd defaults to None."""
+    usage = AgentUsageTotals(input_tokens=10, output_tokens=20, total_tokens=30)
+    assert usage.cost_usd is None
+
+
+def test_agent_usage_totals_cost_usd_accepts_value() -> None:
+    """AgentUsageTotals accepts cost_usd when provided."""
+    usage = AgentUsageTotals(
+        input_tokens=10, output_tokens=20, total_tokens=30, cost_usd=0.0123
+    )
+    assert usage.cost_usd == pytest.approx(0.0123)
+
+
+def test_agent_usage_totals_rejects_negative_cost() -> None:
+    """AgentUsageTotals rejects negative cost_usd."""
+    with pytest.raises(ValidationError):
+        AgentUsageTotals(
+            input_tokens=10, output_tokens=20, total_tokens=30, cost_usd=-0.01
+        )
+
+
+def test_agent_usage_totals_cost_usd_roundtrip() -> None:
+    """AgentUsageTotals with cost_usd serializes and deserializes correctly."""
+    usage = AgentUsageTotals(
+        input_tokens=100,
+        output_tokens=200,
+        total_tokens=300,
+        request_count=2,
+        tool_calls=1,
+        cost_usd=0.042,
+    )
+    json_str = usage.model_dump_json()
+    restored = AgentUsageTotals.model_validate_json(json_str)
+    assert restored.cost_usd == pytest.approx(0.042)
+    assert restored.total_tokens == 300
+
+
+# --- AgentTelemetry cost_usd tests ---
+
+
+def test_agent_telemetry_cost_usd_defaults_none() -> None:
+    """AgentTelemetry.cost_usd defaults to None."""
+    telemetry = AgentTelemetry(
+        agent_run_id="cost_test_001",
+        agent_name="scene_summarizer",
+        phase=PhaseName.CONTEXT,
+        status=AgentStatus.COMPLETED,
+    )
+    assert telemetry.cost_usd is None
+
+
+def test_agent_telemetry_cost_usd_accepts_value() -> None:
+    """AgentTelemetry accepts cost_usd from OpenRouter or config."""
+    telemetry = AgentTelemetry(
+        agent_run_id="cost_test_002",
+        agent_name="scene_summarizer",
+        phase=PhaseName.CONTEXT,
+        status=AgentStatus.COMPLETED,
+        cost_usd=0.0567,
+        usage=AgentUsageTotals(
+            input_tokens=100, output_tokens=200, total_tokens=300, cost_usd=0.0567
+        ),
+    )
+    assert telemetry.cost_usd == pytest.approx(0.0567)
+    assert telemetry.usage is not None
+    assert telemetry.usage.cost_usd == pytest.approx(0.0567)
+
+
+def test_agent_telemetry_cost_usd_roundtrip() -> None:
+    """AgentTelemetry with cost_usd serializes and deserializes correctly."""
+    telemetry = AgentTelemetry(
+        agent_run_id="cost_test_003",
+        agent_name="translator",
+        phase=PhaseName.TRANSLATE,
+        status=AgentStatus.COMPLETED,
+        cost_usd=0.123,
+        usage=AgentUsageTotals(
+            input_tokens=1000,
+            output_tokens=2000,
+            total_tokens=3000,
+            request_count=3,
+            tool_calls=2,
+            cost_usd=0.123,
+        ),
+    )
+    json_str = telemetry.model_dump_json()
+    restored = AgentTelemetry.model_validate_json(json_str)
+    assert restored.cost_usd == pytest.approx(0.123)
+    assert restored.usage is not None
+    assert restored.usage.cost_usd == pytest.approx(0.123)
+
+
+def test_agent_telemetry_rejects_negative_cost() -> None:
+    """AgentTelemetry rejects negative cost_usd."""
+    with pytest.raises(ValidationError):
+        AgentTelemetry(
+            agent_run_id="cost_test_004",
+            agent_name="scene_summarizer",
+            phase=PhaseName.CONTEXT,
+            status=AgentStatus.COMPLETED,
+            cost_usd=-0.01,
+        )
+
+
+# --- AgentUsageTotals cache/reasoning token tests ---
+
+
+def test_agent_usage_totals_cache_and_reasoning_defaults() -> None:
+    """AgentUsageTotals cache and reasoning fields default to 0."""
+    usage = AgentUsageTotals(input_tokens=10, output_tokens=20, total_tokens=30)
+    assert usage.cache_read_tokens == 0
+    assert usage.cache_write_tokens == 0
+    assert usage.reasoning_tokens == 0
+
+
+def test_agent_usage_totals_cache_and_reasoning_accepts_values() -> None:
+    """AgentUsageTotals accepts cache and reasoning token values."""
+    usage = AgentUsageTotals(
+        input_tokens=100,
+        output_tokens=200,
+        total_tokens=300,
+        cache_read_tokens=50,
+        cache_write_tokens=25,
+        reasoning_tokens=75,
+    )
+    assert usage.cache_read_tokens == 50
+    assert usage.cache_write_tokens == 25
+    assert usage.reasoning_tokens == 75
+
+
+def test_agent_usage_totals_cache_and_reasoning_roundtrip() -> None:
+    """AgentUsageTotals with cache/reasoning tokens serializes and deserializes."""
+    usage = AgentUsageTotals(
+        input_tokens=100,
+        output_tokens=200,
+        total_tokens=300,
+        cache_read_tokens=50,
+        cache_write_tokens=25,
+        reasoning_tokens=75,
+        request_count=2,
+        tool_calls=1,
+        cost_usd=0.05,
+    )
+    json_str = usage.model_dump_json()
+    restored = AgentUsageTotals.model_validate_json(json_str)
+    assert restored.cache_read_tokens == 50
+    assert restored.cache_write_tokens == 25
+    assert restored.reasoning_tokens == 75
+
+
+def test_agent_usage_totals_rejects_negative_cache_read() -> None:
+    """AgentUsageTotals rejects negative cache_read_tokens."""
+    with pytest.raises(ValidationError):
+        AgentUsageTotals(
+            input_tokens=10,
+            output_tokens=20,
+            total_tokens=30,
+            cache_read_tokens=-1,
+        )
+
+
+def test_agent_usage_totals_rejects_negative_reasoning() -> None:
+    """AgentUsageTotals rejects negative reasoning_tokens."""
+    with pytest.raises(ValidationError):
+        AgentUsageTotals(
+            input_tokens=10,
+            output_tokens=20,
+            total_tokens=30,
+            reasoning_tokens=-1,
+        )
+
+
+def test_segmented_usage_totals_mixed_cost_availability() -> None:
+    """SegmentedUsageTotals handles mixed cost availability gracefully."""
+    segmented = SegmentedUsageTotals(
+        completed=AgentUsageTotals(
+            input_tokens=100, output_tokens=200, total_tokens=300, cost_usd=0.05
+        ),
+        failed=AgentUsageTotals(
+            input_tokens=10, output_tokens=20, total_tokens=30, cost_usd=None
+        ),
+        retry=AgentUsageTotals(
+            input_tokens=5, output_tokens=10, total_tokens=15, cost_usd=None
+        ),
+    )
+    assert segmented.completed.cost_usd == pytest.approx(0.05)
+    assert segmented.failed.cost_usd is None
+    assert segmented.retry.cost_usd is None

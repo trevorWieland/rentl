@@ -171,6 +171,45 @@ def test_model_settings_coerces_reasoning_effort() -> None:
     assert config.reasoning_effort == "medium"
 
 
+def test_model_settings_cost_overrides_default_none() -> None:
+    """Cost override fields default to None."""
+    config = ModelSettings(model_id="gpt-4")
+    assert config.input_cost_per_mtok is None
+    assert config.output_cost_per_mtok is None
+
+
+def test_model_settings_cost_overrides_accept_values() -> None:
+    """Cost override fields accept valid pricing."""
+    config = ModelSettings(
+        model_id="gpt-4",
+        input_cost_per_mtok=3.0,
+        output_cost_per_mtok=15.0,
+    )
+    assert config.input_cost_per_mtok == pytest.approx(3.0)
+    assert config.output_cost_per_mtok == pytest.approx(15.0)
+
+
+def test_model_settings_cost_overrides_reject_negative() -> None:
+    """Cost override fields reject negative values."""
+    with pytest.raises(ValidationError):
+        ModelSettings(model_id="gpt-4", input_cost_per_mtok=-1.0)
+    with pytest.raises(ValidationError):
+        ModelSettings(model_id="gpt-4", output_cost_per_mtok=-1.0)
+
+
+def test_model_settings_cost_overrides_roundtrip() -> None:
+    """Cost override fields survive serialization roundtrip."""
+    config = ModelSettings(
+        model_id="gpt-4",
+        input_cost_per_mtok=2.5,
+        output_cost_per_mtok=10.0,
+    )
+    data = config.model_dump()
+    restored = ModelSettings.model_validate(data)
+    assert restored.input_cost_per_mtok == pytest.approx(2.5)
+    assert restored.output_cost_per_mtok == pytest.approx(10.0)
+
+
 def _base_run_config(phases: list[PhaseConfig]) -> RunConfig:
     return RunConfig(
         project=ProjectConfig(

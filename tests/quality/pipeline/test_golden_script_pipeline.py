@@ -18,7 +18,6 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
 from click.testing import Result
 from dotenv import load_dotenv
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -34,8 +33,9 @@ if TYPE_CHECKING:
 # Link feature file
 scenarios("../features/pipeline/golden_script_pipeline.feature")
 
-# 29s timeout per scenario — standard enforces quality tests < 30s
-pytestmark = pytest.mark.timeout(29)
+# Global timeout (30s) from pyproject.toml enforces quality test < 30s standard.
+# Endpoint timeout_s = 8 (matching quality_harness) leaves ~22s headroom for
+# pipeline overhead (ingest, export, setup) within the 30s budget.
 
 # Single line from golden script — minimal input to validate pipeline
 # integration path. Translation quality is covered by agent quality tests.
@@ -141,7 +141,7 @@ def _write_pipeline_config(
         'provider_name = "primary"\n'
         f'base_url = "{base_url}"\n'
         'api_key_env = "RENTL_QUALITY_API_KEY"\n'
-        "timeout_s = 10\n"
+        "timeout_s = 8\n"
         "\n"
         "[pipeline.default_model]\n"
         f'model_id = "{model_id}"\n'

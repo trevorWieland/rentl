@@ -155,7 +155,7 @@ def when_download_with_correct_hash(ctx: DownloadFlowContext) -> None:
     with respx.mock:
         # Mock the HTTP request (Task 13: Japanese translations at game/tl/jp)
         route = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/test.rpy"
+            f"{KatawaShoujoDownloader.KSRE_RAW_BASE}/test.rpy"
         ).mock(return_value=httpx.Response(200, content=ctx.script_content))
 
         assert ctx.temp_cache is not None
@@ -185,7 +185,7 @@ def when_download_with_wrong_hash(ctx: DownloadFlowContext) -> None:
     with respx.mock:
         # Mock the HTTP request (Task 13: Japanese translations at game/tl/jp)
         route = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/test.rpy"
+            f"{KatawaShoujoDownloader.KSRE_RAW_BASE}/test.rpy"
         ).mock(return_value=httpx.Response(200, content=ctx.script_content))
 
         assert ctx.temp_cache is not None
@@ -216,7 +216,7 @@ def when_attempt_download_cached(ctx: DownloadFlowContext) -> None:
         # Mock should NOT be called if cache is used
         # (Task 13: Japanese translations at game/tl/jp)
         ctx.mock_route = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/test.rpy"
+            f"{KatawaShoujoDownloader.KSRE_RAW_BASE}/test.rpy"
         ).mock(return_value=httpx.Response(200, content=ctx.script_content))
 
         assert ctx.temp_cache is not None
@@ -243,10 +243,10 @@ def when_download_all_scripts(ctx: DownloadFlowContext) -> None:
     with respx.mock:
         # Mock HTTP requests (Task 13: Japanese translations at game/tl/jp)
         route1 = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/script1.rpy"
+            f"{KatawaShoujoDownloader.KSRE_RAW_BASE}/script1.rpy"
         ).mock(return_value=httpx.Response(200, content=script1_content))
         route2 = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/script2.rpy"
+            f"{KatawaShoujoDownloader.KSRE_RAW_BASE}/script2.rpy"
         ).mock(return_value=httpx.Response(200, content=script2_content))
 
         def track_progress(file_name: str, current: int, total: int) -> None:
@@ -277,7 +277,7 @@ def when_download_missing_script(ctx: DownloadFlowContext) -> None:
     with respx.mock:
         # Mock 404 response (Task 13: Japanese translations at game/tl/jp)
         route = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/missing.rpy"
+            f"{KatawaShoujoDownloader.KSRE_RAW_BASE}/missing.rpy"
         ).mock(return_value=httpx.Response(404))
 
         assert ctx.temp_cache is not None
@@ -337,10 +337,10 @@ emi "Hey!"
     with respx.mock:
         # Mock HTTP requests (Task 13: Japanese translations at game/tl/jp)
         ja_route = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/ja-script.rpy"
+            f"{KatawaShoujoDownloader.KSRE_RAW_BASE}/ja-script.rpy"
         ).mock(return_value=httpx.Response(200, content=ja_content))
         en_route = respx.get(
-            "https://raw.githubusercontent.com/fleetingheart/ksre/master/game/tl/jp/en-script.rpy"
+            f"{KatawaShoujoDownloader.KSRE_RAW_BASE}/en-script.rpy"
         ).mock(return_value=httpx.Response(200, content=en_content))
 
         # Download

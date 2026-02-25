@@ -48,8 +48,36 @@ class AgentUsageTotals(BaseSchema):
     input_tokens: int = Field(0, ge=0, description="Input tokens consumed")
     output_tokens: int = Field(0, ge=0, description="Output tokens consumed")
     total_tokens: int = Field(0, ge=0, description="Total tokens consumed")
+    cache_read_tokens: int = Field(0, ge=0, description="Tokens read from cache")
+    cache_write_tokens: int = Field(0, ge=0, description="Tokens written to cache")
+    reasoning_tokens: int = Field(
+        0, ge=0, description="Reasoning/thinking tokens consumed"
+    )
     request_count: int = Field(0, ge=0, description="Total requests made")
     tool_calls: int = Field(0, ge=0, description="Total tool calls issued")
+    cost_usd: float | None = Field(
+        None, ge=0, description="USD cost for this usage segment, null when unavailable"
+    )
+
+
+class SegmentedUsageTotals(BaseSchema):
+    """Status-segmented usage totals for token and cost tracking.
+
+    Breaks down usage by agent completion status: completed, failed, and retry.
+    """
+
+    completed: AgentUsageTotals = Field(
+        default_factory=AgentUsageTotals,
+        description="Tokens from successfully completed agents",
+    )
+    failed: AgentUsageTotals = Field(
+        default_factory=AgentUsageTotals,
+        description="Tokens from failed agents",
+    )
+    retry: AgentUsageTotals = Field(
+        default_factory=AgentUsageTotals,
+        description="Tokens from retried agent attempts (non-final attempts)",
+    )
 
 
 class OutputValidationDiagnostic(BaseSchema):
@@ -108,6 +136,11 @@ class AgentTelemetry(BaseSchema):
         None,
         description="Whether required tools were satisfied before output",
     )
+    cost_usd: float | None = Field(
+        None,
+        ge=0,
+        description="USD cost for this invocation, from OpenRouter or config override",
+    )
     diagnostics: list[OutputValidationDiagnostic] | None = Field(
         None, description="Output validation retry diagnostics (failure only)"
     )
@@ -122,6 +155,17 @@ class AgentTelemetrySummary(BaseSchema):
         default_factory=dict, description="Counts by status"
     )
     usage: AgentUsageTotals | None = Field(None, description="Aggregate usage totals")
+    total_cost_usd: float | None = Field(
+        None,
+        ge=0,
+        description="Total USD cost across all agents, null when unavailable",
+    )
+    waste_ratio: float = Field(
+        0.0,
+        ge=0,
+        le=1,
+        description="Ratio of wasted tokens (failed+retry) to total tokens",
+    )
 
 
 PHASE_METRIC_DEFINITIONS: dict[PhaseName, dict[ProgressMetricKey, ProgressUnit]] = {

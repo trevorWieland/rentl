@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
+from rentl_core.cost import aggregate_total_cost
 from rentl_schemas.events import ProgressEvent
 from rentl_schemas.pipeline import RunState
 from rentl_schemas.primitives import PhaseName, RunId, RunStatus, Timestamp
@@ -118,11 +119,13 @@ def _select_run_progress(
 def _aggregate_agents(
     updates: Iterable[ProgressUpdate],
 ) -> tuple[list[AgentTelemetry], AgentTelemetrySummary | None]:
-    latest: dict[str, AgentTelemetry] = {}
+    latest: dict[tuple[str, int], AgentTelemetry] = {}
     for update in updates:
         if update.agent_update is None:
             continue
-        latest[update.agent_update.agent_run_id] = update.agent_update
+        agent = update.agent_update
+        key = (agent.agent_run_id, agent.attempt or 1)
+        latest[key] = agent
     agents = list(latest.values())
     if not agents:
         return [], None
@@ -131,15 +134,29 @@ def _aggregate_agents(
         Counter(AgentStatus(agent.status) for agent in agents)
     )
     usage_total: AgentUsageTotals | None = None
+    finalized_tokens = 0
+    waste_tokens = 0
     for agent in agents:
         if agent.usage is None:
             continue
         usage_total = _add_usage(usage_total, agent.usage)
+        if agent.status == AgentStatus.RUNNING:
+            continue
+        finalized_tokens += agent.usage.total_tokens
+        if agent.status == AgentStatus.FAILED or (
+            agent.attempt is not None and agent.attempt > 1
+        ):
+            waste_tokens += agent.usage.total_tokens
+
+    waste_ratio = waste_tokens / finalized_tokens if finalized_tokens > 0 else 0.0
+    total_cost_usd = aggregate_total_cost(agents)
 
     summary = AgentTelemetrySummary(
         total=len(agents),
         by_status=by_status,
         usage=usage_total,
+        total_cost_usd=total_cost_usd,
+        waste_ratio=waste_ratio,
     )
     return agents, summary
 
@@ -150,12 +167,19 @@ def _add_usage(
 ) -> AgentUsageTotals:
     if total is None:
         return usage
+    cost: float | None = None
+    if total.cost_usd is not None or usage.cost_usd is not None:
+        cost = (total.cost_usd or 0.0) + (usage.cost_usd or 0.0)
     return AgentUsageTotals(
         input_tokens=total.input_tokens + usage.input_tokens,
         output_tokens=total.output_tokens + usage.output_tokens,
         total_tokens=total.total_tokens + usage.total_tokens,
+        cache_read_tokens=total.cache_read_tokens + usage.cache_read_tokens,
+        cache_write_tokens=total.cache_write_tokens + usage.cache_write_tokens,
+        reasoning_tokens=total.reasoning_tokens + usage.reasoning_tokens,
         request_count=total.request_count + usage.request_count,
         tool_calls=total.tool_calls + usage.tool_calls,
+        cost_usd=cost,
     )
 
 

@@ -48,6 +48,7 @@ from rentl_core.benchmark.output_loader import (
     validate_matching_line_ids,
 )
 from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_summary
+from rentl_core.cost import aggregate_cost_by_phase, aggregate_total_cost
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
@@ -149,12 +150,14 @@ from rentl_schemas.primitives import (
 )
 from rentl_schemas.progress import (
     AgentStatus,
+    AgentTelemetry,
     AgentUsageTotals,
     PhaseProgress,
     ProgressMetric,
     ProgressSummary,
     ProgressUpdate,
     RunProgress,
+    SegmentedUsageTotals,
 )
 from rentl_schemas.redaction import (
     DEFAULT_PATTERNS,
@@ -3138,13 +3141,33 @@ def _add_usage_totals(
 ) -> AgentUsageTotals:
     if total is None:
         return usage
+    cost: float | None = None
+    if total.cost_usd is not None or usage.cost_usd is not None:
+        cost = (total.cost_usd or 0.0) + (usage.cost_usd or 0.0)
     return AgentUsageTotals(
         input_tokens=total.input_tokens + usage.input_tokens,
         output_tokens=total.output_tokens + usage.output_tokens,
         total_tokens=total.total_tokens + usage.total_tokens,
+        cache_read_tokens=total.cache_read_tokens + usage.cache_read_tokens,
+        cache_write_tokens=total.cache_write_tokens + usage.cache_write_tokens,
+        reasoning_tokens=total.reasoning_tokens + usage.reasoning_tokens,
         request_count=total.request_count + usage.request_count,
         tool_calls=total.tool_calls + usage.tool_calls,
+        cost_usd=cost,
     )
+
+
+def _classify_agent_segment(agent: AgentTelemetry) -> str:
+    """Classify an agent telemetry entry into a usage segment.
+
+    Returns:
+        str: One of 'completed', 'failed', or 'retry'.
+    """
+    if agent.status == AgentStatus.FAILED:
+        return "failed"
+    if agent.attempt is not None and agent.attempt > 1:
+        return "retry"
+    return "completed"
 
 
 def _aggregate_usage(
@@ -3152,19 +3175,43 @@ def _aggregate_usage(
 ) -> tuple[
     AgentUsageTotals | None,
     dict[tuple[PhaseName, LanguageCode | None], AgentUsageTotals],
+    SegmentedUsageTotals,
+    float,
 ]:
+    """Aggregate token usage from all agent statuses.
+
+    Returns:
+        Tuple of (grand total, by-phase totals, segmented totals, waste ratio).
+    """
     total: AgentUsageTotals | None = None
     by_phase: dict[tuple[PhaseName, LanguageCode | None], AgentUsageTotals] = {}
+    segments: dict[str, AgentUsageTotals | None] = {
+        "completed": None,
+        "failed": None,
+        "retry": None,
+    }
     for update in updates:
         agent = update.agent_update
         if agent is None or agent.usage is None:
             continue
-        if agent.status != AgentStatus.COMPLETED:
+        if agent.status == AgentStatus.RUNNING:
             continue
         total = _add_usage_totals(total, agent.usage)
         key = (PhaseName(agent.phase), agent.target_language)
         by_phase[key] = _add_usage_totals(by_phase.get(key), agent.usage)
-    return total, by_phase
+        segment = _classify_agent_segment(agent)
+        segments[segment] = _add_usage_totals(segments[segment], agent.usage)
+
+    segmented = SegmentedUsageTotals(
+        completed=segments["completed"] or AgentUsageTotals(),
+        failed=segments["failed"] or AgentUsageTotals(),
+        retry=segments["retry"] or AgentUsageTotals(),
+    )
+    grand_total = total.total_tokens if total else 0
+    waste_tokens = segmented.failed.total_tokens + segmented.retry.total_tokens
+    waste_ratio = waste_tokens / grand_total if grand_total > 0 else 0.0
+
+    return total, by_phase, segmented, waste_ratio
 
 
 def _build_run_report_data(
@@ -3176,7 +3223,18 @@ def _build_run_report_data(
     started_at = run_state.metadata.started_at if run_state else None
     completed_at = run_state.metadata.completed_at if run_state else None
     total_runtime_s = _duration_seconds(started_at, completed_at)
-    usage_total, usage_by_phase = _aggregate_usage(progress_updates)
+    usage_total, usage_by_phase, segmented, waste_ratio = _aggregate_usage(
+        progress_updates
+    )
+
+    # Extract agents for cost aggregation
+    agents = [
+        update.agent_update
+        for update in progress_updates
+        if update.agent_update is not None
+    ]
+    total_cost_usd = aggregate_total_cost(agents)
+    phase_costs = aggregate_cost_by_phase(agents)
 
     phase_durations: list[dict[str, JsonValue]] = []
     if run_state and run_state.phase_history:
@@ -3198,11 +3256,31 @@ def _build_run_report_data(
             "input_tokens": usage.input_tokens,
             "output_tokens": usage.output_tokens,
             "total_tokens": usage.total_tokens,
+            "cache_read_tokens": usage.cache_read_tokens,
+            "cache_write_tokens": usage.cache_write_tokens,
+            "reasoning_tokens": usage.reasoning_tokens,
             "request_count": usage.request_count,
             "tool_calls": usage.tool_calls,
         }
         for (phase, target_language), usage in usage_by_phase.items()
     ]
+
+    cost_by_phase_entries: list[dict[str, JsonValue]] = [
+        {"phase": str(phase), "cost_usd": cost} for phase, cost in phase_costs.items()
+    ]
+
+    def _usage_segment_dict(totals: AgentUsageTotals) -> dict[str, JsonValue]:
+        return {
+            "input_tokens": totals.input_tokens,
+            "output_tokens": totals.output_tokens,
+            "total_tokens": totals.total_tokens,
+            "cache_read_tokens": totals.cache_read_tokens,
+            "cache_write_tokens": totals.cache_write_tokens,
+            "reasoning_tokens": totals.reasoning_tokens,
+            "request_count": totals.request_count,
+            "tool_calls": totals.tool_calls,
+            "cost_usd": totals.cost_usd,
+        }
 
     data = cast(
         dict[str, JsonValue],
@@ -3215,6 +3293,11 @@ def _build_run_report_data(
             "token_usage": None,
             "token_usage_by_phase": usage_by_phase_entries,
             "phase_durations_s": phase_durations,
+            "total_cost_usd": total_cost_usd,
+            "cost_by_phase": cost_by_phase_entries,
+            "waste_ratio": waste_ratio,
+            "tokens_failed": _usage_segment_dict(segmented.failed),
+            "tokens_retried": _usage_segment_dict(segmented.retry),
         },
     )
     if usage_total is not None:
@@ -3222,6 +3305,9 @@ def _build_run_report_data(
             "input_tokens": usage_total.input_tokens,
             "output_tokens": usage_total.output_tokens,
             "total_tokens": usage_total.total_tokens,
+            "cache_read_tokens": usage_total.cache_read_tokens,
+            "cache_write_tokens": usage_total.cache_write_tokens,
+            "reasoning_tokens": usage_total.reasoning_tokens,
             "request_count": usage_total.request_count,
             "tool_calls": usage_total.tool_calls,
         }
@@ -3396,6 +3482,12 @@ def _build_agent_summary_table(result: RunStatusResult) -> Table | None:
             "requests",
             str(result.agent_summary.usage.request_count),
         )
+    summary = result.agent_summary
+    if summary.total_cost_usd is not None:
+        table.add_row("cost", f"${summary.total_cost_usd:.4f}")
+    else:
+        table.add_row("cost", "N/A")
+    table.add_row("waste", f"{summary.waste_ratio:.1%}")
     return table
 
 

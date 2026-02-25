@@ -1628,6 +1628,8 @@ def _build_profile_agent_config(
         max_output_tokens=model_settings.max_output_tokens,
         max_retries=retry_config.max_retries,
         retry_base_delay=retry_config.backoff_s,
+        input_cost_per_mtok=model_settings.input_cost_per_mtok,
+        output_cost_per_mtok=model_settings.output_cost_per_mtok,
     )
     if retry_config.max_output_retries is not None:
         agent_config = agent_config.model_copy(
