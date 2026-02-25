@@ -156,6 +156,7 @@ from rentl_schemas.progress import (
     ProgressUnit,
     ProgressUpdate,
     RunProgress,
+    SegmentedUsageTotals,
     compute_phase_summary,
     compute_run_summary,
 )
@@ -383,6 +384,7 @@ __all__ = [
     "SceneId",
     "SceneSummary",
     "SecretPattern",
+    "SegmentedUsageTotals",
     "SourceLine",
     "StorageBackend",
     "StorageReference",

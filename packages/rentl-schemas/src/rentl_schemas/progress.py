@@ -50,6 +50,29 @@ class AgentUsageTotals(BaseSchema):
     total_tokens: int = Field(0, ge=0, description="Total tokens consumed")
     request_count: int = Field(0, ge=0, description="Total requests made")
     tool_calls: int = Field(0, ge=0, description="Total tool calls issued")
+    cost_usd: float | None = Field(
+        None, ge=0, description="USD cost for this usage segment, null when unavailable"
+    )
+
+
+class SegmentedUsageTotals(BaseSchema):
+    """Status-segmented usage totals for token and cost tracking.
+
+    Breaks down usage by agent completion status: completed, failed, and retry.
+    """
+
+    completed: AgentUsageTotals = Field(
+        default_factory=AgentUsageTotals,
+        description="Tokens from successfully completed agents",
+    )
+    failed: AgentUsageTotals = Field(
+        default_factory=AgentUsageTotals,
+        description="Tokens from failed agents",
+    )
+    retry: AgentUsageTotals = Field(
+        default_factory=AgentUsageTotals,
+        description="Tokens from retried agent attempts (non-final attempts)",
+    )
 
 
 class OutputValidationDiagnostic(BaseSchema):
@@ -107,6 +130,11 @@ class AgentTelemetry(BaseSchema):
     required_tools_satisfied: bool | None = Field(
         None,
         description="Whether required tools were satisfied before output",
+    )
+    cost_usd: float | None = Field(
+        None,
+        ge=0,
+        description="USD cost for this invocation, from OpenRouter or config override",
     )
     diagnostics: list[OutputValidationDiagnostic] | None = Field(
         None, description="Output validation retry diagnostics (failure only)"

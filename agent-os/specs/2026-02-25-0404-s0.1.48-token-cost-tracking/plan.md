@@ -14,7 +14,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit on issue branch and push
 
-- [ ] Task 2: Extend Token Schemas for Status-Segmented Tracking
+- [x] Task 2: Extend Token Schemas for Status-Segmented Tracking
   - Add `SegmentedUsageTotals` schema to `packages/rentl-schemas/src/rentl_schemas/progress.py` with `completed`, `failed`, `retry` fields (each `AgentUsageTotals`)
   - Add optional `cost_usd: float | None` field to `AgentTelemetry`
   - Add optional `cost_usd: float | None` field to `AgentUsageTotals` for per-invocation cost
