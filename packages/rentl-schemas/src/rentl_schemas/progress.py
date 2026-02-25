@@ -150,6 +150,17 @@ class AgentTelemetrySummary(BaseSchema):
         default_factory=dict, description="Counts by status"
     )
     usage: AgentUsageTotals | None = Field(None, description="Aggregate usage totals")
+    total_cost_usd: float | None = Field(
+        None,
+        ge=0,
+        description="Total USD cost across all agents, null when unavailable",
+    )
+    waste_ratio: float = Field(
+        0.0,
+        ge=0,
+        le=1,
+        description="Ratio of wasted tokens (failed+retry) to total tokens",
+    )
 
 
 PHASE_METRIC_DEFINITIONS: dict[PhaseName, dict[ProgressMetricKey, ProgressUnit]] = {

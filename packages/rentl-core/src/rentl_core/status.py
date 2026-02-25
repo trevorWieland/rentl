@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
+from rentl_core.cost import aggregate_total_cost
 from rentl_schemas.events import ProgressEvent
 from rentl_schemas.pipeline import RunState
 from rentl_schemas.primitives import PhaseName, RunId, RunStatus, Timestamp
@@ -131,15 +132,29 @@ def _aggregate_agents(
         Counter(AgentStatus(agent.status) for agent in agents)
     )
     usage_total: AgentUsageTotals | None = None
+    finalized_tokens = 0
+    waste_tokens = 0
     for agent in agents:
         if agent.usage is None:
             continue
         usage_total = _add_usage(usage_total, agent.usage)
+        if agent.status == AgentStatus.RUNNING:
+            continue
+        finalized_tokens += agent.usage.total_tokens
+        if agent.status == AgentStatus.FAILED or (
+            agent.attempt is not None and agent.attempt > 1
+        ):
+            waste_tokens += agent.usage.total_tokens
+
+    waste_ratio = waste_tokens / finalized_tokens if finalized_tokens > 0 else 0.0
+    total_cost_usd = aggregate_total_cost(agents)
 
     summary = AgentTelemetrySummary(
         total=len(agents),
         by_status=by_status,
         usage=usage_total,
+        total_cost_usd=total_cost_usd,
+        waste_ratio=waste_ratio,
     )
     return agents, summary
 

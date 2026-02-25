@@ -3470,6 +3470,12 @@ def _build_agent_summary_table(result: RunStatusResult) -> Table | None:
             "requests",
             str(result.agent_summary.usage.request_count),
         )
+    summary = result.agent_summary
+    if summary.total_cost_usd is not None:
+        table.add_row("cost", f"${summary.total_cost_usd:.4f}")
+    else:
+        table.add_row("cost", "N/A")
+    table.add_row("waste", f"{summary.waste_ratio:.1%}")
     return table
 
 

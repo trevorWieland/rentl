@@ -49,7 +49,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Ensure cost data written to run report JSON artifact on disk
   - Unit tests for report structure with and without cost data
 
-- [ ] Task 6: Update CLI Status Display
+- [x] Task 6: Update CLI Status Display
   - Update `rentl status` token display to show cost summary when available
   - Show waste ratio in status output
   - Display "N/A" for cost when unavailable (local models)
