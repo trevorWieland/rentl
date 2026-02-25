@@ -48,8 +48,8 @@ that demonstrates the problem.
   - Re-run with 60s timeout passed in 3.82s — confirming intermittent API latency, not a regression
   - `git diff` of all spec changes confirmed no modifications to async pipeline execution path
 - **Tried:** Investigated whether spec changes caused a regression — confirmed they did not
-- **Solution:** Removed the module-level `pytestmark = pytest.mark.timeout(29)`. The global `timeout = 30` from `pyproject.toml` already enforces the <30s quality test standard. The extra 1s of headroom eliminates the intermittent failure without violating the standard.
-- **Resolution:** do-task fix round (post-Task 7)
+- **Solution:** Removed the module-level `pytestmark = pytest.mark.timeout(29)`. The global `timeout = 30` from `pyproject.toml` already enforces the <30s quality test standard. Additionally, reduced endpoint `timeout_s` from 10 to 8 (matching `quality_harness` pattern) to leave ~22s headroom for pipeline overhead within the 30s budget.
+- **Resolution:** do-task fix rounds (post-Task 7, third pass)
 - **Files affected:** `tests/quality/pipeline/test_golden_script_pipeline.py`
 
 ## Signpost 4: Makefile quality target timeout 1s too tight
