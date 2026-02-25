@@ -3236,3 +3236,152 @@ def test_build_no_state_warning_result_uses_model_copy() -> None:
     assert result.status == RunStatus.FAILED
     assert result.run_state is None
     assert result.run_id == run_id
+
+
+def test_build_run_report_data_includes_cost_and_waste() -> None:
+    """Report data includes cost, waste_ratio, and segmented token fields."""
+    run_id = uuid7()
+    summary = ProgressSummary(
+        percent_complete=None,
+        percent_mode=ProgressPercentMode.UNAVAILABLE,
+        eta_seconds=None,
+        notes=None,
+    )
+    phase_progress = PhaseProgress(
+        phase=PhaseName.TRANSLATE,
+        status=PhaseStatus.COMPLETED,
+        summary=summary,
+        metrics=None,
+        started_at=None,
+        completed_at=None,
+    )
+    run_state = RunState(
+        metadata=RunMetadata(
+            run_id=run_id,
+            schema_version=VersionInfo(major=0, minor=1, patch=0),
+            status=RunStatus.COMPLETED,
+            current_phase=None,
+            created_at="2026-02-03T10:00:00Z",
+            started_at="2026-02-03T10:00:00Z",
+            completed_at="2026-02-03T10:00:10Z",
+        ),
+        progress=RunProgress(
+            phases=[phase_progress],
+            summary=summary,
+            phase_weights=None,
+        ),
+        artifacts=[],
+        phase_history=[],
+        phase_revisions=None,
+        last_error=None,
+        qa_summary=None,
+    )
+    progress_updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_ok",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=200,
+                    output_tokens=100,
+                    total_tokens=300,
+                    request_count=1,
+                    tool_calls=0,
+                    cost_usd=0.05,
+                ),
+                cost_usd=0.05,
+                message="done",
+            ),
+            message="agent",
+        ),
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_FAILED,
+            timestamp="2026-02-03T10:00:03Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=None,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_fail",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.FAILED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:03Z",
+                usage=AgentUsageTotals(
+                    input_tokens=50,
+                    output_tokens=10,
+                    total_tokens=60,
+                    request_count=1,
+                    tool_calls=0,
+                    cost_usd=0.01,
+                ),
+                cost_usd=0.01,
+                message="error",
+            ),
+            message="agent",
+        ),
+    ]
+
+    data = cli_main._build_run_report_data(
+        run_id=run_id,
+        run_state=run_state,
+        progress_updates=progress_updates,
+    )
+
+    # Cost fields present
+    assert data["total_cost_usd"] == pytest.approx(0.06)
+    cost_by_phase = cast(list[dict], data["cost_by_phase"])
+    assert len(cost_by_phase) == 1
+    assert cost_by_phase[0]["phase"] == "translate"
+    assert cost_by_phase[0]["cost_usd"] == pytest.approx(0.06)
+
+    # Waste ratio = failed / total = 60 / 360
+    assert data["waste_ratio"] == pytest.approx(60 / 360)
+
+    # Segmented token fields
+    tokens_failed = cast(dict, data["tokens_failed"])
+    assert tokens_failed["total_tokens"] == 60
+    assert tokens_failed["cost_usd"] == pytest.approx(0.01)
+
+    tokens_retried = cast(dict, data["tokens_retried"])
+    assert tokens_retried["total_tokens"] == 0
+    assert tokens_retried["cost_usd"] is None
+
+
+def test_build_run_report_data_without_cost_data() -> None:
+    """Report data has null cost but still reports waste_ratio and token segments."""
+    run_id = uuid7()
+    data = cli_main._build_run_report_data(
+        run_id=run_id,
+        run_state=None,
+        progress_updates=[],
+    )
+
+    assert data["total_cost_usd"] is None
+    assert data["cost_by_phase"] == []
+    assert data["waste_ratio"] == pytest.approx(0.0)
+    tokens_failed = cast(dict, data["tokens_failed"])
+    assert tokens_failed["total_tokens"] == 0
+    assert tokens_failed["cost_usd"] is None
+    tokens_retried = cast(dict, data["tokens_retried"])
+    assert tokens_retried["total_tokens"] == 0
+    assert tokens_retried["cost_usd"] is None

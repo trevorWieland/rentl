@@ -40,7 +40,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Unit tests for config-based cost calculation with known prices
   - Unit tests for graceful `null` cost when no pricing available
 
-- [ ] Task 5: Enhance Run Reports with Cost & Waste Data
+- [x] Task 5: Enhance Run Reports with Cost & Waste Data
   - Update `_build_run_report_data()` in `services/rentl-cli/src/rentl/main.py` to include:
     - `total_cost_usd` (float | null)
     - `cost_by_phase` (list of phase/cost breakdowns)

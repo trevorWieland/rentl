@@ -48,6 +48,7 @@ from rentl_core.benchmark.output_loader import (
     validate_matching_line_ids,
 )
 from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_summary
+from rentl_core.cost import aggregate_cost_by_phase, aggregate_total_cost
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
 from rentl_core.help import get_command_help, list_commands
@@ -3219,7 +3220,18 @@ def _build_run_report_data(
     started_at = run_state.metadata.started_at if run_state else None
     completed_at = run_state.metadata.completed_at if run_state else None
     total_runtime_s = _duration_seconds(started_at, completed_at)
-    usage_total, usage_by_phase, _segmented, _waste = _aggregate_usage(progress_updates)
+    usage_total, usage_by_phase, segmented, waste_ratio = _aggregate_usage(
+        progress_updates
+    )
+
+    # Extract agents for cost aggregation
+    agents = [
+        update.agent_update
+        for update in progress_updates
+        if update.agent_update is not None
+    ]
+    total_cost_usd = aggregate_total_cost(agents)
+    phase_costs = aggregate_cost_by_phase(agents)
 
     phase_durations: list[dict[str, JsonValue]] = []
     if run_state and run_state.phase_history:
@@ -3247,6 +3259,20 @@ def _build_run_report_data(
         for (phase, target_language), usage in usage_by_phase.items()
     ]
 
+    cost_by_phase_entries: list[dict[str, JsonValue]] = [
+        {"phase": str(phase), "cost_usd": cost} for phase, cost in phase_costs.items()
+    ]
+
+    def _usage_segment_dict(totals: AgentUsageTotals) -> dict[str, JsonValue]:
+        return {
+            "input_tokens": totals.input_tokens,
+            "output_tokens": totals.output_tokens,
+            "total_tokens": totals.total_tokens,
+            "request_count": totals.request_count,
+            "tool_calls": totals.tool_calls,
+            "cost_usd": totals.cost_usd,
+        }
+
     data = cast(
         dict[str, JsonValue],
         {
@@ -3258,6 +3284,11 @@ def _build_run_report_data(
             "token_usage": None,
             "token_usage_by_phase": usage_by_phase_entries,
             "phase_durations_s": phase_durations,
+            "total_cost_usd": total_cost_usd,
+            "cost_by_phase": cost_by_phase_entries,
+            "waste_ratio": waste_ratio,
+            "tokens_failed": _usage_segment_dict(segmented.failed),
+            "tokens_retried": _usage_segment_dict(segmented.retry),
         },
     )
     if usage_total is not None:
