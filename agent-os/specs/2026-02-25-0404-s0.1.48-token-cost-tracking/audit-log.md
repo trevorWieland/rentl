@@ -16,3 +16,4 @@ Future auditors: check this log for regressions and patterns.
 - **Spec Audit** (round 1): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0.
 - **Task 8** (round 1): FAIL — `deepseek-mtl-pilot.toml` pricing overrides (`0.30/0.88`) do not match current OpenRouter DeepSeek V3.2 pricing (`0.25/0.40`), so Task 8 pricing verification is incomplete.
 - **Demo** (run 2): PASS — All 4 [RUN] steps passed post-Task 9: make check (1132 unit + 103 integration), qwen3 pilot (322 lines, cost null, cache/reasoning fields present), deepseek pilot (322 lines, cost $0.0337, cache_read_tokens 101632), status display verified (4 run, 4 verified)
+- **Spec Audit** (round 2): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 4/5; fix-now count 1 (status retry/failure aggregation undercount in `rentl_core.status`).

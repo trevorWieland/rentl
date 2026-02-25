@@ -21,7 +21,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Unit tests for new schema construction and serialization
   - Acceptance: schemas validate with all combinations of present/absent cost data
 
-- [x] Task 3: Update Usage Aggregation to Include All Statuses
+- [ ] Task 3: Update Usage Aggregation to Include All Statuses
   - Modify `_aggregate_usage()` in `services/rentl-cli/src/rentl/main.py` to count ALL agent statuses
   - Segment tokens into completed/failed/retry buckets based on `AgentTelemetry.status` and `attempt`
   - Update `_add_usage_totals()` helper to support segmented totals
@@ -29,6 +29,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Compute `waste_ratio` = (failed_tokens.total_tokens + retry_tokens.total_tokens) / grand_total_tokens
   - Unit tests for aggregation with mixed-status agents (completed, failed, retry combinations)
   - Unit tests for waste_ratio edge cases (zero total, all failed, all completed)
+  - [ ] Fix: Remove `agent_run_id` latest-only deduplication in status aggregation so retries/failed attempts are fully counted in `agent_summary` totals and waste/cost calculations (`packages/rentl-core/src/rentl_core/status.py:122-127`); add a regression test covering retry updates that reuse the same `agent_run_id` (`tests/unit/core/test_status_result.py`) (audit round 2)
 
 - [x] Task 4: Capture Cost Data from OpenRouter Responses
   - Investigate pydantic-ai's `RunResult` / `RunUsage` for cost metadata propagation
