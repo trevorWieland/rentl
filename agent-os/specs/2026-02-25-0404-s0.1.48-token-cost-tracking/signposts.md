@@ -22,3 +22,14 @@ that demonstrates the problem.
 - **Solution:** Implemented config-based cost calculation via `input_cost_per_mtok` / `output_cost_per_mtok` fields on `ModelSettings`. When both are set, cost is computed as `(input_tokens * input_price + output_tokens * output_price) / 1M`. When neither is set, `cost_usd` is `None` (graceful degradation). The code is structured so that if pydantic-ai adds cost propagation in the future, it can be easily integrated.
 - **Resolution:** do-task round 1 (Task 4)
 - **Files affected:** `packages/rentl-agents/src/rentl_agents/runtime.py`, `packages/rentl-schemas/src/rentl_schemas/config.py`
+
+## Signpost 2: Status-cost BDD fixtures violate ProgressUpdate validator
+
+- **Task:** 6
+- **Status:** unresolved
+- **Problem:** The new Task 6 integration fixtures construct `ProgressUpdate` with `phase_status=running` while the attached `phase_progress.status` is `completed`. `ProgressUpdate` validates these fields must match, so both scenarios fail before executing CLI assertions.
+- **Evidence:**
+  - Command: `pytest -q tests/integration/cli/test_status_cost.py`
+  - Error: `Value error, phase_status does not match phase_progress.status`
+  - Mismatch locations: `tests/integration/cli/test_status_cost.py:203` and `tests/integration/cli/test_status_cost.py:258` (`phase_status=PhaseStatus.RUNNING`) with `tests/integration/cli/test_status_cost.py:111` (`status=PhaseStatus.COMPLETED`)
+- **Impact:** Task 6 integration coverage is currently broken, so cost/waste status behavior is not verified and the task cannot be considered complete.

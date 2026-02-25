@@ -10,3 +10,4 @@ Future auditors: check this log for regressions and patterns.
 
 - **Task 4** (round 1): PASS — Cost overrides are wired end-to-end with runtime telemetry propagation; OpenRouter cost propagation constraint documented in signpost and verified against pydantic-ai usage mapping.
 - **Task 5** (round 1): PASS — Run report data now includes total/phase cost, waste ratio, and failed/retried token segments, and persists to JSON report artifacts.
+- **Task 6** (round 1): FAIL — New status-cost integration tests fail validation (`phase_status` does not match `phase_progress.status`), and non-JSON status display assertions are missing.

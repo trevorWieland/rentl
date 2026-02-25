@@ -49,12 +49,14 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Ensure cost data written to run report JSON artifact on disk
   - Unit tests for report structure with and without cost data
 
-- [x] Task 6: Update CLI Status Display
+- [ ] Task 6: Update CLI Status Display
   - Update `rentl status` token display to show cost summary when available
   - Show waste ratio in status output
   - Display "N/A" for cost when unavailable (local models)
   - Integration test for status display with cost data present
   - Integration test for status display with cost data absent (graceful degradation)
+  - [ ] Fix: Align `phase_status` and `phase_progress.status` in status-cost fixtures to satisfy `ProgressUpdate` validation (`tests/integration/cli/test_status_cost.py:203`, `tests/integration/cli/test_status_cost.py:258`) (audit round 1; see signposts.md: Task 6, status/phase mismatch in BDD fixtures)
+  - [ ] Fix: Add integration assertions for non-JSON `rentl status` display rows (`cost` and `waste`), including `"N/A"` when cost is unavailable, to cover Task 6 display requirements (`tests/integration/cli/test_status_cost.py`, `services/rentl-cli/src/rentl/main.py:3473`) (audit round 1)
 
 - [ ] Task 7: Integration Tests for End-to-End Cost Flow
   - BDD-style integration test: pipeline run with mocked LLM responses containing cost data → verify full flow from response → telemetry → report
