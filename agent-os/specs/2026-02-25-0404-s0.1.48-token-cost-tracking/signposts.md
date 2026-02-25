@@ -82,3 +82,16 @@ that demonstrates the problem.
 - **Solution:** Added `input_cost_per_mtok = 0.30` and `output_cost_per_mtok = 0.88` to both `[pipeline.default_model]` and `[pipeline.phases.model]` (translate phase) in the benchmark config.
 - **Resolution:** do-task round 1 (Task 8)
 - **Files affected:** `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml`
+
+## Signpost 6: AgentUsageTotals drops cache and reasoning tokens from RunUsage
+
+- **Task:** 9
+- **Status:** unresolved
+- **Problem:** `AgentUsageTotals` only captures `input_tokens`, `output_tokens`, `total_tokens`, `request_count`, `tool_calls`, and `cost_usd`. pydantic-ai's `RunUsage` also provides `cache_read_tokens`, `cache_write_tokens` (top-level fields), and `reasoning_tokens` (in the `details` dict). These are silently dropped in `_build_usage_totals`, meaning cost reports understate cache savings and reasoning overhead.
+- **Evidence:**
+  - `AgentUsageTotals` fields at `packages/rentl-schemas/src/rentl_schemas/progress.py:45-55`: only `input_tokens`, `output_tokens`, `total_tokens`, `request_count`, `tool_calls`, `cost_usd`
+  - `_build_usage_totals` at `packages/rentl-agents/src/rentl_agents/runtime.py:728-749`: maps only `usage.input_tokens`, `usage.output_tokens`, `usage.total_tokens`, `usage.requests`, `usage.tool_calls`
+  - pydantic-ai `RunUsage` at `.venv/lib/python3.14/site-packages/pydantic_ai/usage.py:169-201`: defines `cache_write_tokens: int = 0`, `cache_read_tokens: int = 0` as top-level fields, plus `details: dict[str, int]` which contains `reasoning_tokens` when present
+  - Discovered during walk-spec demo walkthrough: reviewing `_build_usage_totals` mapping against `RunUsage` definition
+- **Impact:** Token visibility is incomplete — cache hit/miss ratios and reasoning token overhead are invisible in run reports, which matters for cost optimization and model comparison in the benchmark suite.
+- **Solution:** Add the three fields to `AgentUsageTotals`, map them in `_build_usage_totals`, sum them in aggregation helpers, and include them in report JSON serialization. No CLI display changes needed (total_tokens is the right summary). No tiered cache pricing (future work).
