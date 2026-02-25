@@ -20,3 +20,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 9** (round 1): FAIL — Task 9 commit updated report serialization/tests but did not implement schema/runtime/status cache+reasoning fields; targeted Task 9 tests fail with missing `AgentUsageTotals` attributes.
 - **Task 9** (round 2): PASS — Schema and runtime now map cache/reasoning tokens (`progress.py`, `_build_usage_totals`), with targeted unit and integration tests passing.
 - **Demo** (run 3): PASS — All 4 [RUN] steps passed post-audit fixes: make all (1133 unit + 103 integration), qwen3 pilot (322 lines, cost null, cache/reasoning fields present), deepseek pilot (322 lines, cost $0.0337, cache_read_tokens 112576), status display verified (4 run, 4 verified)
+- **Spec Audit** (round 3): PASS — Performance 5/5, Intent 5/5, Completion 5/5, Security 5/5, Stability 5/5; fix-now count 0.
