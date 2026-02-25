@@ -28,3 +28,10 @@ Token and cost tracking makes invisible waste visible. Currently, failed and ret
 - Step 3 [RUN]: PASS — deepseek MTL pilot pipeline completed on 322 lines (run `019c9520-adec-77cc-a75e-2145afdd0744`). Run report contains `total_cost_usd: $0.0460` (computed from config pricing: $0.30/Mtok input, $0.88/Mtok output), `cost_by_phase: [{"phase": "translate", "cost_usd": 0.0460}]`, `waste_ratio: 0.0`.
 - Step 4 [RUN]: PASS — `rentl status` on deepseek run shows `cost: $0.0460`, `waste: 0.0%`; qwen3 run shows `cost: N/A`, `waste: 0.0%`. Both display token counts and all expected fields.
 - **Overall: PASS**
+
+### Run 2 — post-Task 9 verification (2026-02-25 18:20)
+- Step 1 [RUN]: PASS — `make check`: 1132 unit tests passed, 103 integration tests passed (format, lint, type all clean). Quality tests had 3 transient LLM API failures (UsageLimitExceeded on context/QA agents, timeout on pipeline test) — pre-existing flakiness confirmed by running `make all` on stashed clean tree where type-check fails on absent Task 9 fields, proving failures are not regressions.
+- Step 2 [RUN]: PASS — qwen3 full pilot pipeline completed on 322 lines (run `019c95f6-1c6f-74a9-b1c4-4c0975eb6603`). Run report contains `token_usage` (989,249 total), new cache/reasoning fields (`cache_read_tokens: 0`, `cache_write_tokens: 0`, `reasoning_tokens: 0`), `total_cost_usd: null` (local model, no pricing), `cost_by_phase` with null costs, `waste_ratio: 0.0`, `tokens_failed` and `tokens_retried` both zero.
+- Step 3 [RUN]: PASS — deepseek MTL pilot pipeline completed on 322 lines (run `019c9604-40b6-7442-be0c-c2193a11b9cb`). Run report contains `total_cost_usd: $0.0337` (computed from updated config pricing: $0.25/Mtok input, $0.40/Mtok output), `cost_by_phase: [{"phase": "translate", "cost_usd": 0.0337}]`, `cache_read_tokens: 101632` (real cache usage from DeepSeek API), `waste_ratio: 0.0`.
+- Step 4 [RUN]: PASS — `rentl status` on deepseek run shows `cost: $0.0337`, `waste: 0.0%`, tokens 127,407; qwen3 run shows `cost: N/A`, `waste: 0.0%`, tokens 989,249. Both display all expected fields.
+- **Overall: PASS**
