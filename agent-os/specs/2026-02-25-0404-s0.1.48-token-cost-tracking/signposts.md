@@ -86,16 +86,18 @@ that demonstrates the problem.
 ## Signpost 6: AgentUsageTotals drops cache and reasoning tokens from RunUsage
 
 - **Task:** 9
-- **Status:** resolved
+- **Status:** unresolved
 - **Problem:** `AgentUsageTotals` only captures `input_tokens`, `output_tokens`, `total_tokens`, `request_count`, `tool_calls`, and `cost_usd`. pydantic-ai's `RunUsage` also provides `cache_read_tokens`, `cache_write_tokens` (top-level fields), and `reasoning_tokens` (in the `details` dict). These are silently dropped in `_build_usage_totals`, meaning cost reports understate cache savings and reasoning overhead.
 - **Evidence:**
   - `AgentUsageTotals` fields at `packages/rentl-schemas/src/rentl_schemas/progress.py:45-55`: only `input_tokens`, `output_tokens`, `total_tokens`, `request_count`, `tool_calls`, `cost_usd`
   - `_build_usage_totals` at `packages/rentl-agents/src/rentl_agents/runtime.py:728-749`: maps only `usage.input_tokens`, `usage.output_tokens`, `usage.total_tokens`, `usage.requests`, `usage.tool_calls`
   - pydantic-ai `RunUsage` at `.venv/lib/python3.14/site-packages/pydantic_ai/usage.py:169-201`: defines `cache_write_tokens: int = 0`, `cache_read_tokens: int = 0` as top-level fields, plus `details: dict[str, int]` which contains `reasoning_tokens` when present
   - Discovered during walk-spec demo walkthrough: reviewing `_build_usage_totals` mapping against `RunUsage` definition
+  - Audit round 1 (Task 9): `uv run pytest -q tests/unit/schemas/test_progress.py -k cache_and_reasoning` fails with `AttributeError: 'AgentUsageTotals' object has no attribute 'cache_read_tokens'` (3 failed)
+  - Audit round 1 (Task 9): `uv run pytest -q tests/unit/rentl-agents/test_runtime_cost.py -k 'maps_cache_tokens or maps_reasoning_tokens'` fails with missing `cache_read_tokens` and `reasoning_tokens` (2 failed)
 - **Impact:** Token visibility is incomplete — cache hit/miss ratios and reasoning token overhead are invisible in run reports, which matters for cost optimization and model comparison in the benchmark suite.
 - **Solution:** Add the three fields to `AgentUsageTotals`, map them in `_build_usage_totals`, sum them in aggregation helpers, and include them in report JSON serialization. No CLI display changes needed (total_tokens is the right summary). No tiered cache pricing (future work).
-- **Resolution:** do-task round 1 (Task 9)
+- **Resolution:** Pending implementation. A prior `resolved` mark was invalidated by Task 9 audit round 1 evidence.
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/progress.py`, `packages/rentl-agents/src/rentl_agents/runtime.py`, `packages/rentl-core/src/rentl_core/status.py`, `services/rentl-cli/src/rentl/main.py`
 
 ## Signpost 7: DeepSeek V3.2 pricing drift after Task 8
