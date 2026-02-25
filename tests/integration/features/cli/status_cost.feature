@@ -15,3 +15,17 @@ Feature: Status command cost display
     Then the command succeeds
     And the JSON response has null total_cost_usd
     And the JSON response includes waste_ratio as 0.0
+
+  Scenario: Status display shows cost and waste when cost data is present
+    Given a workspace with progress data containing cost
+    When I run status without --json
+    Then the command succeeds
+    And the display output includes a cost row with a dollar amount
+    And the display output includes a waste row with a percentage
+
+  Scenario: Status display shows N/A for cost when cost data is absent
+    Given a workspace with progress data without cost
+    When I run status without --json
+    Then the command succeeds
+    And the display output includes a cost row showing N/A
+    And the display output includes a waste row with a percentage

@@ -26,10 +26,13 @@ that demonstrates the problem.
 ## Signpost 2: Status-cost BDD fixtures violate ProgressUpdate validator
 
 - **Task:** 6
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The new Task 6 integration fixtures construct `ProgressUpdate` with `phase_status=running` while the attached `phase_progress.status` is `completed`. `ProgressUpdate` validates these fields must match, so both scenarios fail before executing CLI assertions.
 - **Evidence:**
   - Command: `pytest -q tests/integration/cli/test_status_cost.py`
   - Error: `Value error, phase_status does not match phase_progress.status`
   - Mismatch locations: `tests/integration/cli/test_status_cost.py:203` and `tests/integration/cli/test_status_cost.py:258` (`phase_status=PhaseStatus.RUNNING`) with `tests/integration/cli/test_status_cost.py:111` (`status=PhaseStatus.COMPLETED`)
 - **Impact:** Task 6 integration coverage is currently broken, so cost/waste status behavior is not verified and the task cannot be considered complete.
+- **Solution:** Changed `phase_status=PhaseStatus.RUNNING` to `phase_status=PhaseStatus.COMPLETED` in both fixture functions to match the `phase_progress.status`. Also added two new BDD scenarios for non-JSON display: verifying cost row with dollar amount, cost row with N/A, and waste row with percentage.
+- **Resolution:** do-task round 2 (Task 6)
+- **Files affected:** `tests/integration/cli/test_status_cost.py`, `tests/integration/features/cli/status_cost.feature`

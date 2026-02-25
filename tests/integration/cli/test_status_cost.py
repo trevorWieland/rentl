@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -200,7 +201,7 @@ def given_workspace_with_cost(tmp_path: Path) -> StatusCostContext:
             else ProgressEvent.AGENT_FAILED,
             timestamp="2026-02-03T12:01:00Z",
             phase=PhaseName.CONTEXT,
-            phase_status=PhaseStatus.RUNNING,
+            phase_status=PhaseStatus.COMPLETED,
             run_progress=run_progress,
             phase_progress=phase_progress,
             metric=None,
@@ -256,7 +257,7 @@ def given_workspace_without_cost(tmp_path: Path) -> StatusCostContext:
         event=ProgressEvent.AGENT_COMPLETED,
         timestamp="2026-02-03T12:01:00Z",
         phase=PhaseName.CONTEXT,
-        phase_status=PhaseStatus.RUNNING,
+        phase_status=PhaseStatus.COMPLETED,
         run_progress=run_progress,
         phase_progress=phase_progress,
         metric=None,
@@ -328,3 +329,48 @@ def then_waste_ratio_zero(ctx: StatusCostContext) -> None:
     assert ctx.response is not None
     summary = ctx.response.get("agent_summary", {})
     assert math.isclose(summary["waste_ratio"], 0.0, abs_tol=1e-9)
+
+
+@when("I run status without --json")
+def when_run_status_display(ctx: StatusCostContext, cli_runner: CliRunner) -> None:
+    """Invoke the status command without JSON output (Rich panel display)."""
+    ctx.result = cli_runner.invoke(
+        cli_main.app,
+        [
+            "status",
+            "--config",
+            str(ctx.config_path),
+            "--run-id",
+            ctx.run_id,
+        ],
+    )
+
+
+@then("the display output includes a cost row with a dollar amount")
+def then_display_cost_dollar(ctx: StatusCostContext) -> None:
+    """Assert the display output contains a cost row with a dollar amount."""
+    assert ctx.result is not None
+    output = ctx.result.stdout
+    assert re.search(r"cost.*\$\d+\.\d+", output, re.IGNORECASE), (
+        f"Expected cost row with dollar amount in output:\n{output}"
+    )
+
+
+@then("the display output includes a waste row with a percentage")
+def then_display_waste_percentage(ctx: StatusCostContext) -> None:
+    """Assert the display output contains a waste row with a percentage."""
+    assert ctx.result is not None
+    output = ctx.result.stdout
+    assert re.search(r"waste.*\d+\.\d+%", output, re.IGNORECASE), (
+        f"Expected waste row with percentage in output:\n{output}"
+    )
+
+
+@then("the display output includes a cost row showing N/A")
+def then_display_cost_na(ctx: StatusCostContext) -> None:
+    """Assert the display output contains a cost row showing N/A."""
+    assert ctx.result is not None
+    output = ctx.result.stdout
+    assert re.search(r"cost.*N/A", output, re.IGNORECASE), (
+        f"Expected cost row with N/A in output:\n{output}"
+    )
