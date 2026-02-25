@@ -1,6 +1,10 @@
 """Unit tests for event taxonomy schemas."""
 
+from uuid import UUID
+
 from rentl_schemas.events import (
+    ArtifactPersistedData,
+    ArtifactPersistFailedData,
     ExportCompletedData,
     IngestCompletedData,
     PhaseEventData,
@@ -54,9 +58,37 @@ def test_export_completed_data_optional_counts() -> None:
         output_path="/tmp/output.jsonl",
         format=FileFormat.JSONL,
         line_count=3,
-        untranslated_count=None,
         column_count=None,
     )
     payload = data.model_dump(exclude_none=True)
     assert payload["format"] == FileFormat.JSONL
     assert payload["line_count"] == 3
+
+
+def test_phase_event_data_coerces_phase_string() -> None:
+    """Ensure PhaseEventData coerces phase string to PhaseName."""
+    data = PhaseEventData(phase="translate")  # type: ignore[arg-type]
+    assert data.phase == PhaseName.TRANSLATE
+
+
+def test_artifact_persisted_data_coerces_phase_string() -> None:
+    """Ensure ArtifactPersistedData coerces phase string to PhaseName."""
+    data = ArtifactPersistedData(
+        artifact_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0"),
+        role="phase_output",
+        phase="qa",  # type: ignore[arg-type]
+        format="json",
+    )
+    assert data.phase == PhaseName.QA
+
+
+def test_artifact_persist_failed_data_coerces_phase_string() -> None:
+    """Ensure ArtifactPersistFailedData coerces phase string to PhaseName."""
+    data = ArtifactPersistFailedData(
+        artifact_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0"),
+        role="phase_output",
+        phase="edit",  # type: ignore[arg-type]
+        format="json",
+        error_message="disk full",
+    )
+    assert data.phase == PhaseName.EDIT

@@ -20,7 +20,7 @@ from rentl_io.export import (
 )
 from rentl_schemas.io import ExportTarget, TranslatedLine
 from rentl_schemas.phases import EditPhaseOutput, TranslatePhaseOutput
-from rentl_schemas.primitives import FileFormat, RunId, UntranslatedPolicy
+from rentl_schemas.primitives import FileFormat, RunId
 from rentl_schemas.qa import LineEdit
 
 
@@ -77,81 +77,6 @@ def test_csv_export_expands_metadata_extra(tmp_path: Path) -> None:
 
     metadata = json.loads(rows[0]["metadata"])
     assert metadata == {"tone": "calm"}
-
-
-def test_csv_export_rejects_untranslated_by_default(tmp_path: Path) -> None:
-    """CSV export blocks untranslated text by default."""
-    output = tmp_path / "blocked.csv"
-    target = ExportTarget(output_path=str(output), format=FileFormat.CSV)
-    adapter = CsvExportAdapter()
-
-    lines = [
-        TranslatedLine(
-            line_id="line_1",
-            source_text="Hello",  # Required for untranslated detection
-            text="Hello",
-            metadata=None,
-        )
-    ]
-
-    with pytest.raises(ExportBatchError) as exc:
-        asyncio.run(adapter.write_output(target, lines))
-
-    assert len(exc.value.errors) == 1
-    assert exc.value.errors[0].code == ExportErrorCode.UNTRANSLATED_TEXT
-    assert exc.value.errors[0].details is not None
-    assert exc.value.errors[0].details.row_number == 2
-
-
-def test_csv_export_warns_on_untranslated(tmp_path: Path) -> None:
-    """CSV export warns but continues for untranslated lines."""
-    output = tmp_path / "warn.csv"
-    target = ExportTarget(
-        output_path=str(output),
-        format=FileFormat.CSV,
-        untranslated_policy=UntranslatedPolicy.WARN,
-        include_source_text=True,
-    )
-    adapter = CsvExportAdapter()
-
-    lines = [
-        TranslatedLine(
-            line_id="line_1",
-            source_text="Hello",  # Required for untranslated detection
-            text="Hello",
-            metadata=None,
-        )
-    ]
-
-    result = asyncio.run(adapter.write_output(target, lines))
-    assert result.warnings is not None
-    assert result.warnings[0].code == ExportErrorCode.UNTRANSLATED_TEXT
-    assert output.exists()
-
-
-def test_csv_export_allows_untranslated_with_policy(tmp_path: Path) -> None:
-    """CSV export allows untranslated text with allow policy."""
-    output = tmp_path / "allowed.csv"
-    target = ExportTarget(
-        output_path=str(output),
-        format=FileFormat.CSV,
-        untranslated_policy=UntranslatedPolicy.ALLOW,
-        include_source_text=True,
-    )
-    adapter = CsvExportAdapter()
-
-    lines = [
-        TranslatedLine(
-            line_id="line_1",
-            text="Hello",
-            metadata=None,
-        )
-    ]
-
-    result = asyncio.run(adapter.write_output(target, lines))
-    assert result.warnings is None
-    rows = _read_csv(output)
-    assert rows[0]["text"] == "Hello"
 
 
 def test_csv_export_rejects_reserved_extra_columns(tmp_path: Path) -> None:

@@ -6,6 +6,7 @@ and wire them to the pipeline orchestrator.
 
 from __future__ import annotations
 
+import logging
 import os
 from collections import Counter
 from collections.abc import Sequence
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 
 from rentl_agents.context.scene import (
     format_scene_lines,
@@ -95,6 +97,8 @@ from rentl_schemas.qa import LineEdit, QaIssue
 
 if TYPE_CHECKING:
     pass
+
+_logger = logging.getLogger(__name__)
 
 
 def _format_id_list(values: list[str], limit: int = 5) -> str:
@@ -190,6 +194,10 @@ class ContextSceneSummarizerAgent:
         Raises:
             RuntimeError: If the scene_id in output does not match the input
                 after retries.
+            UnexpectedModelBehavior: If the model produces invalid output after
+                all chunk-level retries.
+            UsageLimitExceeded: If the model hits the request limit after all
+                chunk-level retries.
         """
         # Validate all lines have scene_id
         validate_scene_input(payload.source_lines)
@@ -222,7 +230,19 @@ class ContextSceneSummarizerAgent:
 
                 # Run the profile agent for this scene
                 # Note: ProfileAgent returns SceneSummary directly
-                summary = await self._profile_agent.run(payload)
+                try:
+                    summary = await self._profile_agent.run(payload)
+                except (UnexpectedModelBehavior, UsageLimitExceeded) as exc:
+                    _logger.debug(
+                        "Context agent model failure on scene %s (attempt %d/%d): %s",
+                        scene_id,
+                        attempt,
+                        max_attempts,
+                        exc,
+                    )
+                    if attempt == max_attempts:
+                        raise
+                    continue
                 if summary.scene_id != scene_id:
                     alignment_feedback = (
                         "Alignment error: scene_id must match the input scene. "
@@ -385,6 +405,10 @@ class PretranslationIdiomLabelerAgent:
 
         Raises:
             RuntimeError: If idiom line_ids do not align with input lines after retries.
+            UnexpectedModelBehavior: If the model produces invalid output after
+                all chunk-level retries.
+            UsageLimitExceeded: If the model hits the request limit after all
+                chunk-level retries.
         """
         # Chunk lines for batch processing
         chunks = chunk_pretranslation_lines(payload.source_lines, self._chunk_size)
@@ -420,7 +444,19 @@ class PretranslationIdiomLabelerAgent:
 
                 # Run the profile agent for this chunk
                 # ProfileAgent returns IdiomAnnotationList with per-line reviews
-                result = await self._profile_agent.run(payload)
+                try:
+                    result = await self._profile_agent.run(payload)
+                except (UnexpectedModelBehavior, UsageLimitExceeded) as exc:
+                    _logger.debug(
+                        "Pretranslation agent model failure on chunk "
+                        "(attempt %d/%d): %s",
+                        attempt,
+                        max_attempts,
+                        exc,
+                    )
+                    if attempt == max_attempts:
+                        raise
+                    continue
                 actual_ids = [review.line_id for review in result.reviews]
                 feedback = _alignment_feedback(
                     expected_ids=expected_ids,
@@ -552,6 +588,10 @@ class TranslateDirectTranslatorAgent:
         Raises:
             RuntimeError: If translated line_ids do not align with input lines
                 after retries.
+            UnexpectedModelBehavior: If the model produces invalid output after
+                all chunk-level retries.
+            UsageLimitExceeded: If the model hits the request limit after all
+                chunk-level retries.
         """
         # Chunk lines for batch processing
         chunks = chunk_translate_lines(payload.source_lines, self._chunk_size)
@@ -589,7 +629,18 @@ class TranslateDirectTranslatorAgent:
 
                 # Run the profile agent for this chunk
                 # ProfileAgent returns TranslationResultList with translated lines
-                result = await self._profile_agent.run(payload)
+                try:
+                    result = await self._profile_agent.run(payload)
+                except (UnexpectedModelBehavior, UsageLimitExceeded) as exc:
+                    _logger.debug(
+                        "Translate agent model failure on chunk (attempt %d/%d): %s",
+                        attempt,
+                        max_attempts,
+                        exc,
+                    )
+                    if attempt == max_attempts:
+                        raise
+                    continue
                 actual_ids = [
                     translation.line_id for translation in result.translations
                 ]
@@ -730,6 +781,10 @@ class QaStyleGuideCriticAgent:
 
         Raises:
             RuntimeError: If QA reviews do not align with input lines after retries.
+            UnexpectedModelBehavior: If the model produces invalid output after
+                all chunk-level retries.
+            UsageLimitExceeded: If the model hits the request limit after all
+                chunk-level retries.
         """
         # Return empty output if no style guide provided
         if not payload.style_guide or not payload.style_guide.strip():
@@ -771,7 +826,18 @@ class QaStyleGuideCriticAgent:
 
                 # Run the profile agent for this chunk
                 # ProfileAgent returns StyleGuideReviewList with all reviews found
-                result = await self._profile_agent.run(payload)
+                try:
+                    result = await self._profile_agent.run(payload)
+                except (UnexpectedModelBehavior, UsageLimitExceeded) as exc:
+                    _logger.debug(
+                        "QA agent model failure on chunk (attempt %d/%d): %s",
+                        attempt,
+                        max_attempts,
+                        exc,
+                    )
+                    if attempt == max_attempts:
+                        raise
+                    continue
                 actual_ids = [review.line_id for review in result.reviews]
                 feedback = _alignment_feedback(
                     expected_ids=expected_ids,
@@ -905,6 +971,10 @@ class EditBasicEditorAgent:
 
         Raises:
             RuntimeError: If edited line_ids do not match input line_ids after retries.
+            UnexpectedModelBehavior: If the model produces invalid output after
+                all chunk-level retries.
+            UsageLimitExceeded: If the model hits the request limit after all
+                chunk-level retries.
         """
         edited_lines: list[TranslatedLine] = []
         change_log: list[LineEdit] = []
@@ -935,7 +1005,19 @@ class EditBasicEditorAgent:
                 )
                 self._profile_agent.update_context(context)
 
-                result = await self._profile_agent.run(payload)
+                try:
+                    result = await self._profile_agent.run(payload)
+                except (UnexpectedModelBehavior, UsageLimitExceeded) as exc:
+                    _logger.debug(
+                        "Edit agent model failure on line %s (attempt %d/%d): %s",
+                        line.line_id,
+                        attempt,
+                        max_attempts,
+                        exc,
+                    )
+                    if attempt == max_attempts:
+                        raise
+                    continue
                 if result.line_id != line.line_id:
                     alignment_feedback = (
                         "Alignment error: line_id must match the input line. "
@@ -1311,6 +1393,31 @@ def _resolve_phase_agent_specs(
     return resolved
 
 
+def _merge_config[M: BaseModel](global_config: M, phase_config: M) -> M:
+    """Merge phase config over global, overriding only explicitly-set fields.
+
+    Returns:
+        A copy of *global_config* with explicitly-set *phase_config* fields applied.
+    """
+    overrides = {
+        field: getattr(phase_config, field) for field in phase_config.model_fields_set
+    }
+    return global_config.model_copy(update=overrides)
+
+
+def _resolve_max_consecutive_failures(config: RunConfig, phase: PhaseName) -> int:
+    """Resolve max_consecutive_failures: phase override then global default.
+
+    Returns:
+        The max consecutive failures threshold for the given phase.
+    """
+    phase_config = _resolve_phase_config(config, phase)
+    if phase_config is not None and phase_config.concurrency is not None:
+        merged = _merge_config(config.concurrency, phase_config.concurrency)
+        return merged.max_consecutive_failures
+    return config.concurrency.max_consecutive_failures
+
+
 def _build_phase_agent_entries(
     phase: PhaseName,
     phases_to_load: set[PhaseName],
@@ -1329,6 +1436,7 @@ def _build_phase_agent_entries(
         return []
     execution = _resolve_phase_execution(config, phase)
     agent_config = _build_profile_agent_config(config, phase)
+    max_consecutive = _resolve_max_consecutive_failures(config, phase)
 
     entries: list[tuple[str, PhaseAgentPoolProtocol]] = []
     for spec in resolved:
@@ -1347,6 +1455,7 @@ def _build_phase_agent_entries(
                     ),
                     count=_resolve_agent_pool_size(execution),
                     max_parallel=_resolve_agent_pool_max_parallel(execution),
+                    max_consecutive_failures=max_consecutive,
                 )
             case PhaseName.PRETRANSLATION:
                 pool = PhaseAgentPool.from_factory(
@@ -1364,6 +1473,7 @@ def _build_phase_agent_entries(
                     ),
                     count=_resolve_agent_pool_size(execution),
                     max_parallel=_resolve_agent_pool_max_parallel(execution),
+                    max_consecutive_failures=max_consecutive,
                 )
             case PhaseName.TRANSLATE:
                 pool = PhaseAgentPool.from_factory(
@@ -1379,6 +1489,7 @@ def _build_phase_agent_entries(
                     ),
                     count=_resolve_agent_pool_size(execution),
                     max_parallel=_resolve_agent_pool_max_parallel(execution),
+                    max_consecutive_failures=max_consecutive,
                 )
             case PhaseName.QA:
                 pool = PhaseAgentPool.from_factory(
@@ -1394,6 +1505,7 @@ def _build_phase_agent_entries(
                     ),
                     count=_resolve_agent_pool_size(execution),
                     max_parallel=_resolve_agent_pool_max_parallel(execution),
+                    max_consecutive_failures=max_consecutive,
                 )
             case PhaseName.EDIT:
                 pool = PhaseAgentPool.from_factory(
@@ -1408,6 +1520,7 @@ def _build_phase_agent_entries(
                     ),
                     count=_resolve_agent_pool_size(execution),
                     max_parallel=_resolve_agent_pool_max_parallel(execution),
+                    max_consecutive_failures=max_consecutive,
                 )
             case _:
                 raise ValueError(f"Unsupported phase: {phase.value}")
@@ -1470,7 +1583,7 @@ def _resolve_phase_model(config: RunConfig, phase: PhaseName) -> ModelSettings:
 def _resolve_phase_retry(config: RunConfig, phase: PhaseName) -> RetryConfig:
     phase_config = _resolve_phase_config(config, phase)
     if phase_config is not None and phase_config.retry is not None:
-        return phase_config.retry
+        return _merge_config(config.retry, phase_config.retry)
     return config.retry
 
 
@@ -1503,7 +1616,7 @@ def _build_profile_agent_config(
         )
     retry_config = _resolve_phase_retry(config, phase)
 
-    return ProfileAgentConfig(
+    agent_config = ProfileAgentConfig(
         api_key=api_key,
         base_url=endpoint.base_url,
         model_id=model_settings.model_id,
@@ -1511,7 +1624,13 @@ def _build_profile_agent_config(
         top_p=model_settings.top_p,
         timeout_s=endpoint.timeout_s,
         openrouter_provider=endpoint.openrouter_provider,
+        strict_tools=endpoint.strict_tools,
         max_output_tokens=model_settings.max_output_tokens,
         max_retries=retry_config.max_retries,
         retry_base_delay=retry_config.backoff_s,
     )
+    if retry_config.max_output_retries is not None:
+        agent_config = agent_config.model_copy(
+            update={"max_output_retries": retry_config.max_output_retries}
+        )
+    return agent_config

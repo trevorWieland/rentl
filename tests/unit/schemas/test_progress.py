@@ -6,13 +6,15 @@ import pytest
 from pydantic import ValidationError
 
 from rentl_schemas.events import ProgressEvent
-from rentl_schemas.primitives import PhaseName, PhaseStatus, RunId
+from rentl_schemas.primitives import PhaseName, PhaseStatus, RunId, RunStatus
 from rentl_schemas.progress import (
     AgentStatus,
     AgentTelemetry,
+    OutputValidationDiagnostic,
     PhaseProgress,
     ProgressMetric,
     ProgressPercentMode,
+    ProgressSnapshot,
     ProgressSummary,
     ProgressTotalStatus,
     ProgressUnit,
@@ -437,7 +439,7 @@ def test_compute_phase_summary_uses_min_percent() -> None:
     )
 
     summary = compute_phase_summary([metric_low, metric_high])
-    assert summary.percent_complete == 20.0
+    assert summary.percent_complete == pytest.approx(20.0)
     assert summary.percent_mode == ProgressPercentMode.FINAL
 
 
@@ -479,7 +481,7 @@ def test_compute_run_summary_defaults_to_equal_weights() -> None:
     )
 
     run_summary = compute_run_summary([translate, qa])
-    assert run_summary.percent_complete == 75.0
+    assert run_summary.percent_complete == pytest.approx(75.0)
 
 
 def test_validate_progress_monotonic_raises_on_regression() -> None:
@@ -531,3 +533,135 @@ def test_validate_progress_monotonic_raises_on_regression() -> None:
 
     with pytest.raises(ValueError):
         validate_progress_monotonic(previous, current)
+
+
+def test_agent_telemetry_coerces_phase_string() -> None:
+    """Ensure AgentTelemetry coerces phase string to PhaseName."""
+    telemetry = AgentTelemetry(
+        agent_run_id="test_run_001",
+        agent_name="scene_summarizer",
+        phase="context",  # type: ignore[arg-type]
+        status=AgentStatus.RUNNING,
+    )
+    assert telemetry.phase == PhaseName.CONTEXT
+
+
+def test_phase_progress_coerces_phase_string() -> None:
+    """Ensure PhaseProgress coerces phase string to PhaseName."""
+    progress = PhaseProgress(
+        phase="translate",  # type: ignore[arg-type]
+        status=PhaseStatus.PENDING,
+        summary=build_summary(None, ProgressPercentMode.UNAVAILABLE),
+    )
+    assert progress.phase == PhaseName.TRANSLATE
+
+
+def test_progress_snapshot_coerces_current_phase_string() -> None:
+    """Ensure ProgressSnapshot coerces current_phase string to PhaseName."""
+    snapshot = ProgressSnapshot(
+        run_id=RUN_ID,
+        status=RunStatus.PENDING,
+        current_phase="qa",  # type: ignore[arg-type]
+        progress=RunProgress(
+            phases=[
+                PhaseProgress(
+                    phase=PhaseName.QA,
+                    status=PhaseStatus.PENDING,
+                    summary=build_summary(None, ProgressPercentMode.UNAVAILABLE),
+                )
+            ],
+            summary=build_summary(None, ProgressPercentMode.UNAVAILABLE),
+        ),
+        updated_at="2026-01-26T00:00:00Z",
+    )
+    assert snapshot.current_phase == PhaseName.QA
+
+
+def test_progress_update_coerces_phase_string() -> None:
+    """Ensure ProgressUpdate coerces phase string to PhaseName."""
+    update = ProgressUpdate(
+        run_id=RUN_ID,
+        event=ProgressEvent.PHASE_STARTED,
+        timestamp="2026-01-26T00:00:00Z",
+        phase="translate",  # type: ignore[arg-type]
+        run_progress=RunProgress(
+            phases=[
+                PhaseProgress(
+                    phase=PhaseName.TRANSLATE,
+                    status=PhaseStatus.RUNNING,
+                    summary=build_summary(None, ProgressPercentMode.UNAVAILABLE),
+                )
+            ],
+            summary=build_summary(None, ProgressPercentMode.UNAVAILABLE),
+        ),
+    )
+    assert update.phase == PhaseName.TRANSLATE
+
+
+def test_output_validation_diagnostic_roundtrip() -> None:
+    """OutputValidationDiagnostic serializes and deserializes correctly."""
+    diag = OutputValidationDiagnostic(
+        retry_index=3,
+        model_output='{"reviews": []}',
+        validation_errors=[
+            "('reviews',): List should have at least 1 item [too_short]"
+        ],
+    )
+    json_str = diag.model_dump_json()
+    restored = OutputValidationDiagnostic.model_validate_json(json_str)
+    assert restored.retry_index == 3
+    assert restored.model_output == '{"reviews": []}'
+    assert restored.validation_errors == diag.validation_errors
+
+
+def test_output_validation_diagnostic_minimal() -> None:
+    """OutputValidationDiagnostic accepts None for optional fields."""
+    diag = OutputValidationDiagnostic(
+        retry_index=1,
+        model_output=None,
+        validation_errors=None,
+    )
+    assert diag.retry_index == 1
+    assert diag.model_output is None
+    assert diag.validation_errors is None
+
+
+def test_agent_telemetry_with_diagnostics_roundtrip() -> None:
+    """AgentTelemetry with diagnostics serializes and deserializes correctly."""
+    diagnostics = [
+        OutputValidationDiagnostic(
+            retry_index=1,
+            model_output='{"bad": "data"}',
+            validation_errors=["field required"],
+        ),
+        OutputValidationDiagnostic(
+            retry_index=2,
+            model_output=None,
+            validation_errors=["Plain text response when structured output expected"],
+        ),
+    ]
+    telemetry = AgentTelemetry(
+        agent_run_id="test_run_001",
+        agent_name="scene_summarizer",
+        phase=PhaseName.CONTEXT,
+        status=AgentStatus.FAILED,
+        diagnostics=diagnostics,
+        message="Agent produced invalid output",
+    )
+    json_str = telemetry.model_dump_json()
+    restored = AgentTelemetry.model_validate_json(json_str)
+    assert restored.diagnostics is not None
+    assert len(restored.diagnostics) == 2
+    assert restored.diagnostics[0].retry_index == 1
+    assert restored.diagnostics[1].model_output is None
+
+
+def test_agent_telemetry_without_diagnostics() -> None:
+    """AgentTelemetry defaults diagnostics to None."""
+    telemetry = AgentTelemetry(
+        agent_run_id="test_run_002",
+        agent_name="scene_summarizer",
+        phase=PhaseName.CONTEXT,
+        status=AgentStatus.COMPLETED,
+    )
+    assert telemetry.diagnostics is None

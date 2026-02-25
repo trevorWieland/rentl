@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import TypeVar
 from uuid import uuid7
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 
 from rentl_core.ports.export import (
     ExportAdapterProtocol,
@@ -140,19 +142,24 @@ OutputT_co = TypeVar("OutputT_co", bound=BaseSchema, covariant=True)
 PhaseKey = tuple[PhaseName, LanguageCode | None]
 
 
+_pool_logger = logging.getLogger(__name__ + ".PhaseAgentPool")
+
+
 class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
-    """Simple concurrent agent pool for phase execution."""
+    """Concurrent agent pool with retry logic for transient failures."""
 
     def __init__(
         self,
         agents: list[PhaseAgentProtocol[InputT, OutputT_co]],
         max_parallel: int | None = None,
+        max_consecutive_failures: int = 3,
     ) -> None:
         """Initialize the agent pool.
 
         Args:
             agents: Agent instances used for execution.
             max_parallel: Optional cap on concurrent tasks.
+            max_consecutive_failures: Consecutive task failures before aborting.
 
         Raises:
             ValueError: If agents are empty or max_parallel is not positive.
@@ -163,6 +170,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
             raise ValueError("max_parallel must be positive")
         self._agents: list[PhaseAgentProtocol[InputT, OutputT_co]] = agents
         self._max_parallel: int | None = max_parallel
+        self._max_consecutive_failures = max_consecutive_failures
 
     @classmethod
     def from_factory(
@@ -170,6 +178,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
         factory: Callable[[], PhaseAgentProtocol[InputT, OutputT_co]],
         count: int,
         max_parallel: int | None = None,
+        max_consecutive_failures: int = 3,
     ) -> PhaseAgentPool[InputT, OutputT_co]:
         """Create a pool by instantiating agents from a factory.
 
@@ -177,6 +186,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
             factory: Callable that creates new agent instances.
             count: Number of agents to create.
             max_parallel: Optional cap on concurrent tasks.
+            max_consecutive_failures: Consecutive task failures before aborting.
 
         Returns:
             PhaseAgentPool: Constructed agent pool.
@@ -187,10 +197,25 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
         if count <= 0:
             raise ValueError("count must be positive")
         agents = [factory() for _ in range(count)]
-        return cls(agents=agents, max_parallel=max_parallel)
+        return cls(
+            agents=agents,
+            max_parallel=max_parallel,
+            max_consecutive_failures=max_consecutive_failures,
+        )
+
+    @staticmethod
+    def _is_retryable(exc: BaseException) -> bool:
+        """Return True for transient errors that should be retried."""
+        if isinstance(exc, (UsageLimitExceeded, UnexpectedModelBehavior)):
+            return True
+        if isinstance(exc, RuntimeError):
+            msg = str(exc)
+            if "FAILED" in msg or "execution failed" in msg:
+                return True
+        return False
 
     async def run_batch(self, payloads: list[InputT]) -> list[OutputT_co]:
-        """Execute a batch of payloads concurrently.
+        """Execute a batch of payloads concurrently with retry on transient failures.
 
         Args:
             payloads: Phase input payloads.
@@ -200,30 +225,101 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
 
         Raises:
             OrchestrationError: If agent pool produces empty result.
-            RuntimeError: If a task in the agent pool fails.
+            RuntimeError: If consecutive failures exceed threshold or
+                a non-retryable error occurs.
         """
         if not payloads:
             return []
         max_parallel = self._max_parallel or len(self._agents)
         max_parallel = min(max_parallel, len(self._agents))
         semaphore = asyncio.Semaphore(max_parallel)
-        results: list[OutputT_co | None] = [None] * len(payloads)
+        results: dict[int, OutputT_co] = {}
 
-        async def _run(index: int, payload: InputT) -> None:
+        # Pending items: list of (original_index, payload)
+        pending: list[tuple[int, InputT]] = list(enumerate(payloads))
+        consecutive_failures = 0
+
+        async def _run(
+            index: int, payload: InputT
+        ) -> tuple[int, OutputT_co | None, BaseException | None]:
             agent = self._agents[index % len(self._agents)]
             async with semaphore:
-                results[index] = await agent.run(payload)
+                try:
+                    result = await agent.run(payload)
+                    return (index, result, None)
+                except Exception as exc:
+                    return (index, None, exc)
 
-        try:
-            async with asyncio.TaskGroup() as group:
-                for index, payload in enumerate(payloads):
-                    group.create_task(_run(index, payload))
-        except* Exception as exc_group:
-            messages = "; ".join(str(exc) for exc in exc_group.exceptions)
-            raise RuntimeError(f"Agent pool task failed: {messages}") from exc_group
+        while pending:
+            batch = list(pending)
+            pending.clear()
 
+            tasks = [asyncio.ensure_future(_run(idx, pl)) for idx, pl in batch]
+            done = await asyncio.gather(*tasks)
+
+            # Separate successes and failures
+            successes: list[tuple[int, OutputT_co]] = []
+            failures: list[tuple[int, InputT, BaseException]] = []
+            payload_by_index = dict(batch)
+
+            for index, result, exc in done:
+                if exc is None and result is not None:
+                    successes.append((index, result))
+                elif exc is not None:
+                    failures.append((index, payload_by_index[index], exc))
+                else:
+                    # result is None with no exception — treat as error
+                    failures.append((
+                        index,
+                        payload_by_index[index],
+                        RuntimeError("Agent returned None"),
+                    ))
+
+            # Process successes first — each resets the failure counter
+            for index, result in successes:
+                results[index] = result
+                consecutive_failures = 0
+
+            # Process failures
+            for index, payload, exc in failures:
+                if not self._is_retryable(exc):
+                    raise RuntimeError(
+                        f"Agent pool task failed (non-retryable): {exc}"
+                    ) from exc
+
+                consecutive_failures += 1
+                _pool_logger.debug(
+                    "Retryable failure on payload %d (%d/%d consecutive): %s",
+                    index,
+                    consecutive_failures,
+                    self._max_consecutive_failures,
+                    exc,
+                )
+                # Surface last validation diagnostic if available
+                diag_info = getattr(exc, "_validation_failure_info", None)
+                if diag_info is not None and getattr(diag_info, "diagnostics", None):
+                    last_diag = diag_info.diagnostics[-1]
+                    _pool_logger.debug(
+                        "  Last diagnostic: retry_index=%d, errors=%s, output=%.200s",
+                        last_diag.retry_index,
+                        last_diag.validation_errors,
+                        last_diag.model_output,
+                    )
+
+                if consecutive_failures >= self._max_consecutive_failures:
+                    raise RuntimeError(
+                        f"Agent pool aborted: {consecutive_failures} consecutive "
+                        f"failures (threshold={self._max_consecutive_failures}). "
+                        f"Last error: {exc}"
+                    ) from exc
+
+                # Re-queue for retry
+                pending.append((index, payload))
+
+        # Assemble ordered results
         resolved: list[OutputT_co] = []
-        for result in results:
+        for i in range(len(payloads)):
+            result = results.get(i)
             if result is None:
                 raise OrchestrationError(
                     OrchestrationErrorInfo(
@@ -1211,7 +1307,6 @@ class PipelineOrchestrator:
                 run.run_id,
                 export_target,
                 export_result.summary.line_count,
-                untranslated_count=export_result.summary.untranslated_count,
                 column_count=export_result.summary.column_count,
             )
         )
@@ -2111,7 +2206,7 @@ class _WorkChunk(BaseModel):
         }
 
 
-async def _run_agent_pool(
+async def _run_agent_pool[InputT: BaseSchema, OutputT_co: BaseSchema](
     pool: PhaseAgentPoolProtocol[InputT, OutputT_co],
     payloads: list[InputT],
     max_parallel: int | None,
@@ -3419,11 +3514,6 @@ def _build_export_summary(
     metrics = [
         _build_result_metric(
             "exported_line_count", ResultMetricUnit.LINES, summary.line_count
-        ),
-        _build_result_metric(
-            "untranslated_line_count",
-            ResultMetricUnit.LINES,
-            summary.untranslated_count,
         ),
     ]
     if summary.column_count is not None:

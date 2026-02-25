@@ -5,8 +5,15 @@ from __future__ import annotations
 import asyncio
 from uuid import uuid7
 
+import pytest
+from pydantic_ai.exceptions import UnexpectedModelBehavior
+
 from rentl_agents.layers import PromptLayerRegistry
-from rentl_agents.runtime import ProfileAgent, ProfileAgentConfig
+from rentl_agents.runtime import (
+    ProfileAgent,
+    ProfileAgentConfig,
+    _ValidationFailureInfo,  # noqa: PLC2701
+)
 from rentl_agents.tools.registry import ToolRegistry
 from rentl_core.telemetry import AgentTelemetryEmitter
 from rentl_io.storage import InMemoryProgressSink
@@ -21,7 +28,7 @@ from rentl_schemas.io import SourceLine
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import ContextPhaseInput, SceneSummary
 from rentl_schemas.primitives import PhaseName, RunId
-from rentl_schemas.progress import AgentUsageTotals
+from rentl_schemas.progress import AgentUsageTotals, OutputValidationDiagnostic
 
 
 class _StubLogSink:
@@ -242,3 +249,60 @@ def test_profile_agent_emits_required_tool_satisfaction_marker() -> None:
     assert completed_update.agent_update is not None
     assert completed_update.agent_update.tool_calls_observed is True
     assert completed_update.agent_update.required_tools_satisfied is True
+
+
+def test_profile_agent_emits_diagnostics_on_unexpected_model_behavior() -> None:
+    """ProfileAgent failure telemetry includes diagnostics."""
+    progress_sink = InMemoryProgressSink()
+    log_sink = _StubLogSink()
+    emitter = AgentTelemetryEmitter(
+        progress_sink=progress_sink,
+        log_sink=log_sink,
+        clock=lambda: "2026-02-03T12:00:00Z",
+    )
+
+    class FailingAgent(ProfileAgent[ContextPhaseInput, SceneSummary]):
+        async def _execute(
+            self, payload: ContextPhaseInput
+        ) -> tuple[SceneSummary, AgentUsageTotals | None]:
+            exc = UnexpectedModelBehavior("Exceeded maximum retries (10)")
+            exc._validation_failure_info = _ValidationFailureInfo(  # type: ignore[attr-defined]
+                diagnostics=[
+                    OutputValidationDiagnostic(
+                        retry_index=9,
+                        model_output='{"reviews": []}',
+                        validation_errors=["too_short"],
+                    ),
+                    OutputValidationDiagnostic(
+                        retry_index=10,
+                        model_output=None,
+                        validation_errors=[
+                            "Plain text response when structured output expected"
+                        ],
+                    ),
+                ],
+                usage=AgentUsageTotals(
+                    input_tokens=5000,
+                    output_tokens=1500,
+                    total_tokens=6500,
+                    request_count=10,
+                    tool_calls=0,
+                ),
+            )
+            raise exc
+
+    agent = _build_agent(emitter, FailingAgent)
+    payload = _build_payload(uuid7())
+
+    with pytest.raises(UnexpectedModelBehavior):
+        asyncio.run(agent.run(payload))
+
+    failed_update = progress_sink.updates[-1]
+    assert failed_update.event == ProgressEvent.AGENT_FAILED
+    assert failed_update.agent_update is not None
+    assert failed_update.agent_update.diagnostics is not None
+    assert len(failed_update.agent_update.diagnostics) == 2
+    assert failed_update.agent_update.diagnostics[0].retry_index == 9
+    assert failed_update.agent_update.diagnostics[1].model_output is None
+    assert failed_update.agent_update.usage is not None
+    assert failed_update.agent_update.usage.input_tokens == 5000

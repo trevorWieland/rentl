@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import (
@@ -116,6 +116,14 @@ class PhaseEventData(BaseSchema):
     """Payload for phase lifecycle events."""
 
     phase: PhaseName = Field(..., description="Phase name")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     revision: int | None = Field(None, ge=1, description="Phase revision number")
     target_language: LanguageCode | None = Field(
         None, description="Target language if applicable"
@@ -156,9 +164,6 @@ class ExportCompletedData(ExportStartedData):
     """Payload for export completion events."""
 
     line_count: int = Field(..., ge=0, description="Number of lines exported")
-    untranslated_count: int | None = Field(
-        None, ge=0, description="Number of untranslated lines detected"
-    )
     column_count: int | None = Field(
         None, ge=0, description="Number of CSV columns if applicable"
     )
@@ -204,6 +209,14 @@ class ArtifactPersistedData(BaseSchema):
     artifact_id: ArtifactId = Field(..., description="Artifact identifier")
     role: str = Field(..., min_length=1, description="Artifact role")
     phase: PhaseName = Field(..., description="Phase that produced the artifact")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     target_language: LanguageCode | None = Field(
         None, description="Target language if applicable"
     )
@@ -216,6 +229,14 @@ class ArtifactPersistFailedData(BaseSchema):
     artifact_id: ArtifactId = Field(..., description="Artifact identifier")
     role: str = Field(..., min_length=1, description="Artifact role")
     phase: PhaseName = Field(..., description="Phase that produced the artifact")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     target_language: LanguageCode | None = Field(
         None, description="Target language if applicable"
     )

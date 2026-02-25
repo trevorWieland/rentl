@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.pipeline import PhaseRunRecord, RunState
@@ -84,6 +84,16 @@ class RunStatusResult(BaseSchema):
     run_id: RunId = Field(..., description="Run identifier")
     status: RunStatus = Field(..., description="Run status")
     current_phase: PhaseName | None = Field(None, description="Current phase")
+
+    @field_validator("current_phase", mode="before")
+    @classmethod
+    def _coerce_current_phase(cls, value: str | PhaseName | None) -> PhaseName | None:
+        if value is None:
+            return None
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     updated_at: Timestamp = Field(..., description="Status snapshot timestamp")
     progress: RunProgress | None = Field(
         None, description="Latest run progress snapshot"

@@ -62,6 +62,10 @@ class AgentHarnessConfig(BaseSchema):
             "Retries for output validation failures (pydantic-ai feedback loop)"
         ),
     )
+    strict_tools: bool = Field(
+        False,
+        description="Whether to send strict tool definitions to the provider",
+    )
 
 
 class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
@@ -243,6 +247,7 @@ class AgentHarness(PhaseAgentProtocol[InputT, OutputT_co]):
             top_p=self._config.top_p,
             timeout_s=self._config.timeout_s,
             max_output_tokens=self._config.max_output_tokens,
+            strict_tools=self._config.strict_tools,
         )
 
         output_retries = self._config.output_retries

@@ -101,7 +101,7 @@ def _build_agent_args() -> _AgentArgs:
 
 
 def test_profile_agent_run_raises_on_usage_limit() -> None:
-    """UsageLimitExceeded raises a descriptive RuntimeError."""
+    """UsageLimitExceeded is re-raised for pool-level retry decisions."""
 
     class UsageLimitAgent(ProfileAgent[ContextPhaseInput, SceneSummary]):
         async def _execute(
@@ -112,12 +112,12 @@ def test_profile_agent_run_raises_on_usage_limit() -> None:
     agent = UsageLimitAgent(**_build_agent_args())
     payload = _build_payload()
 
-    with pytest.raises(RuntimeError, match="Hit request limit"):
+    with pytest.raises(UsageLimitExceeded):
         asyncio.run(agent.run(payload))
 
 
 def test_profile_agent_run_raises_on_invalid_output() -> None:
-    """UnexpectedModelBehavior raises a descriptive RuntimeError."""
+    """UnexpectedModelBehavior is re-raised for pool-level retry decisions."""
 
     class InvalidOutputAgent(ProfileAgent[ContextPhaseInput, SceneSummary]):
         async def _execute(
@@ -128,7 +128,7 @@ def test_profile_agent_run_raises_on_invalid_output() -> None:
     agent = InvalidOutputAgent(**_build_agent_args())
     payload = _build_payload()
 
-    with pytest.raises(RuntimeError, match="Model produced invalid output"):
+    with pytest.raises(UnexpectedModelBehavior):
         asyncio.run(agent.run(payload))
 
 

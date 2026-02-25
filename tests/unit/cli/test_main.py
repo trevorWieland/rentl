@@ -89,46 +89,6 @@ def test_version_flag() -> None:
     assert "0.1.8" in result.stdout
 
 
-def test_export_command_outputs_warnings(tmp_path: Path) -> None:
-    """Export command surfaces warnings in the response."""
-    input_path = tmp_path / "translated.jsonl"
-    output_path = tmp_path / "output.csv"
-    config_path = _write_config(tmp_path, tmp_path)
-
-    payload = {
-        "line_id": "line_1",
-        "source_text": "Hello",
-        "text": "Hello",
-        "metadata": None,
-    }
-    input_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
-
-    result = runner.invoke(
-        app,
-        [
-            "export",
-            "--config",
-            str(config_path),
-            "--input",
-            str(input_path),
-            "--output",
-            str(output_path),
-            "--format",
-            "csv",
-            "--untranslated-policy",
-            "warn",
-            "--include-source-text",
-        ],
-    )
-
-    assert result.exit_code == 0
-    response = json.loads(result.stdout)
-    assert response["error"] is None
-    assert response["data"]["summary"]["line_count"] == 1
-    assert response["data"]["warnings"][0]["code"] == "untranslated_text"
-    assert output_path.exists()
-
-
 def test_export_emits_command_logs(tmp_path: Path) -> None:
     """Export emits command_started and command_completed logs."""
     workspace_dir = tmp_path / "workspace"
@@ -157,8 +117,6 @@ def test_export_emits_command_logs(tmp_path: Path) -> None:
             str(output_path),
             "--format",
             "csv",
-            "--untranslated-policy",
-            "warn",
         ],
     )
 
@@ -774,7 +732,7 @@ def test_build_run_report_data_summarizes_usage_and_durations() -> None:
     token_usage = cast(dict[str, int], data["token_usage"])
     phase_durations = cast(list[dict[str, float]], data["phase_durations_s"])
     assert token_usage["total_tokens"] == 300
-    assert phase_durations[0]["duration_s"] == 5.0
+    assert phase_durations[0]["duration_s"] == pytest.approx(5.0)
 
 
 def test_write_run_report_writes_json(tmp_path: Path) -> None:
@@ -885,10 +843,9 @@ def test_duration_seconds_handles_invalid_inputs() -> None:
 
 def test_duration_seconds_handles_valid_inputs() -> None:
     """Duration helper returns seconds for valid timestamps."""
-    assert (
-        cli_main._duration_seconds("2026-02-03T10:00:00Z", "2026-02-03T10:00:10Z")
-        == 10.0
-    )
+    assert cli_main._duration_seconds(
+        "2026-02-03T10:00:00Z", "2026-02-03T10:00:10Z"
+    ) == pytest.approx(10.0)
 
 
 def test_read_progress_updates_since(tmp_path: Path) -> None:

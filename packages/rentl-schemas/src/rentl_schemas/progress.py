@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.events import ProgressEvent
@@ -52,6 +52,16 @@ class AgentUsageTotals(BaseSchema):
     tool_calls: int = Field(0, ge=0, description="Total tool calls issued")
 
 
+class OutputValidationDiagnostic(BaseSchema):
+    """Single output validation retry diagnostic."""
+
+    retry_index: int = Field(..., ge=1, description="Retry attempt number (1-based)")
+    model_output: str | None = Field(None, description="Raw model output (truncated)")
+    validation_errors: list[str] | None = Field(
+        None, description="Validation error messages"
+    )
+
+
 class AgentTelemetry(BaseSchema):
     """Telemetry snapshot for a single agent invocation."""
 
@@ -60,6 +70,14 @@ class AgentTelemetry(BaseSchema):
     )
     agent_name: AgentName = Field(..., description="Agent name in snake_case")
     phase: PhaseName = Field(..., description="Phase associated with the agent")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     target_language: LanguageCode | None = Field(
         None, description="Target language if applicable"
     )
@@ -89,6 +107,9 @@ class AgentTelemetry(BaseSchema):
     required_tools_satisfied: bool | None = Field(
         None,
         description="Whether required tools were satisfied before output",
+    )
+    diagnostics: list[OutputValidationDiagnostic] | None = Field(
+        None, description="Output validation retry diagnostics (failure only)"
     )
     message: str | None = Field(None, description="Optional status message")
 
@@ -260,6 +281,14 @@ class PhaseProgress(BaseSchema):
     """Progress tracking for a single pipeline phase."""
 
     phase: PhaseName = Field(..., description="Phase name")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     status: PhaseStatus = Field(..., description="Phase status")
     summary: ProgressSummary = Field(..., description="Summary progress for the phase")
     metrics: list[ProgressMetric] | None = Field(
@@ -328,6 +357,16 @@ class ProgressSnapshot(BaseSchema):
     run_id: RunId = Field(..., description="Run identifier")
     status: RunStatus = Field(..., description="Overall run status")
     current_phase: PhaseName | None = Field(None, description="Current running phase")
+
+    @field_validator("current_phase", mode="before")
+    @classmethod
+    def _coerce_current_phase(cls, value: str | PhaseName | None) -> PhaseName | None:
+        if value is None:
+            return None
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     progress: RunProgress = Field(..., description="Run progress snapshot")
     updated_at: Timestamp = Field(..., description="Snapshot timestamp")
     message: str | None = Field(None, description="Optional progress message")
@@ -340,6 +379,16 @@ class ProgressUpdate(BaseSchema):
     event: ProgressEvent = Field(..., description="Progress event name in snake_case")
     timestamp: Timestamp = Field(..., description="Update timestamp")
     phase: PhaseName | None = Field(None, description="Associated phase")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName | None) -> PhaseName | None:
+        if value is None:
+            return None
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     phase_status: PhaseStatus | None = Field(
         None, description="Phase status for this update"
     )

@@ -28,7 +28,12 @@ from rentl_schemas.llm import (
     LlmConnectionStatus,
     LlmEndpointTarget,
 )
-from rentl_schemas.primitives import JsonValue
+from rentl_schemas.primitives import JsonValue, PhaseStatus
+from rentl_schemas.progress import (
+    PhaseProgress,
+    ProgressPercentMode,
+    ProgressSummary,
+)
 from rentl_schemas.validation import validate_run_config
 from rentl_schemas.version import CURRENT_SCHEMA_VERSION, VersionInfo
 
@@ -422,6 +427,55 @@ async def check_llm_connectivity(
     )
 
 
+def check_pipeline_readiness(config: RunConfig) -> CheckResult:
+    """Check that pipeline runtime models can be constructed from config.
+
+    Exercises the PhaseProgress construction path that receives phase names
+    as plain strings (due to use_enum_values=True on BaseSchema).
+
+    Args:
+        config: Validated run configuration.
+
+    Returns:
+        CheckResult: Check result for pipeline model construction.
+    """
+    for phase_config in config.pipeline.phases:
+        if not phase_config.enabled:
+            continue
+        try:
+            PhaseProgress(
+                phase=phase_config.phase,
+                status=PhaseStatus.PENDING,
+                summary=ProgressSummary(
+                    percent_complete=None,
+                    percent_mode=ProgressPercentMode.UNAVAILABLE,
+                ),
+            )
+        except Exception as exc:
+            error_msg = str(exc).split("\n")[0]
+            return CheckResult(
+                name="Pipeline Readiness",
+                status=CheckStatus.FAIL,
+                message=(
+                    f"Cannot construct PhaseProgress for phase "
+                    f"'{phase_config.phase}': {error_msg}"
+                ),
+                fix_suggestion=(
+                    "This indicates a strict-mode enum coercion issue. "
+                    "Check that PhaseName field validators are present on "
+                    "all models that receive phase names from config."
+                ),
+            )
+
+    phase_count = sum(1 for p in config.pipeline.phases if p.enabled)
+    return CheckResult(
+        name="Pipeline Readiness",
+        status=CheckStatus.PASS,
+        message=f"All {phase_count} pipeline phase(s) can be constructed",
+        fix_suggestion=None,
+    )
+
+
 async def run_doctor(
     config_path: Path, *, runtime: LlmRuntimeProtocol | None = None
 ) -> DoctorReport:
@@ -506,6 +560,19 @@ async def run_doctor(
             )
         )
 
+    # Check 7: Pipeline readiness (depends on valid config)
+    if config is not None:
+        checks.append(check_pipeline_readiness(config))
+    else:
+        checks.append(
+            CheckResult(
+                name="Pipeline Readiness",
+                status=CheckStatus.FAIL,
+                message="Cannot check pipeline readiness (config invalid)",
+                fix_suggestion="Resolve 'Config Valid' check first",
+            )
+        )
+
     # Determine overall status
     has_fail = any(check.status == CheckStatus.FAIL for check in checks)
     has_warn = any(check.status == CheckStatus.WARN for check in checks)
@@ -519,7 +586,13 @@ async def run_doctor(
         config_checks_failed = any(
             check.status == CheckStatus.FAIL
             and check.name
-            in ("Config File", "Config Valid", "Workspace Directories", "API Keys")
+            in (
+                "Config File",
+                "Config Valid",
+                "Workspace Directories",
+                "API Keys",
+                "Pipeline Readiness",
+            )
             for check in checks
         )
         llm_check = next((c for c in checks if c.name == "LLM Connectivity"), None)

@@ -43,9 +43,7 @@ Alignment requirements:
 - Return EXACTLY one translation per input line_id
 - No extra, missing, or duplicate line_ids
 
-IMPORTANT: Before you produce translations, you MUST call the get_game_info
-tool once to confirm the project context. Do not include tool output in your
-final response.
+Call the get_game_info tool to review the project context before producing your translations.
 
 ## Example Output
 
@@ -67,9 +65,7 @@ IMPORTANT: Return ONLY the translations object with a list of translations. Each
 
 [prompts.user_template]
 content = """
-Before you translate, call the get_game_info tool once.
-
-Translate the following lines from {{source_lang}} to {{target_lang}}.
+Use the get_game_info tool to confirm the project context, then translate the following lines from {{source_lang}} to {{target_lang}}.
 
 Scene context:
 {{scene_summary}}

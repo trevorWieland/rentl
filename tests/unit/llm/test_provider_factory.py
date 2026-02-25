@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic_ai.models.openai import OpenAIChatModelSettings
-from pydantic_ai.models.openrouter import OpenRouterModelSettings
+from pydantic_ai.messages import ModelResponse, ToolCallPart
+from pydantic_ai.models.function import FunctionModel
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
+from pydantic_ai.profiles.openai import OpenAIModelProfile
 
 from rentl_agents.providers import ProviderCapabilities
 from rentl_llm.provider_factory import (
@@ -29,13 +33,7 @@ _TEST_API_KEY = "test-key"
 class TestCreateModelOpenRouterRouting:
     """Tests for OpenRouter routing path."""
 
-    @patch("rentl_llm.provider_factory.OpenRouterProvider")
-    @patch("rentl_llm.provider_factory.OpenRouterModel")
-    def test_openrouter_url_creates_openrouter_model(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_openrouter_url_creates_openrouter_model(self) -> None:
         """OpenRouter base URL routes to OpenRouterModel."""
         model, settings = create_model(
             base_url="https://openrouter.ai/api/v1",
@@ -43,19 +41,11 @@ class TestCreateModelOpenRouterRouting:
             model_id="openai/gpt-4o",
             temperature=0.5,
         )
-        mock_model_cls.assert_called_once()
-        mock_provider_cls.assert_called_once_with(api_key="test-key")
-        assert model is mock_model_cls.return_value
-        assert settings["temperature"] == 0.5
+        assert isinstance(model, OpenRouterModel)
+        assert settings["temperature"] == pytest.approx(0.5)
         assert "openrouter_provider" in settings
 
-    @patch("rentl_llm.provider_factory.OpenRouterProvider")
-    @patch("rentl_llm.provider_factory.OpenRouterModel")
-    def test_openrouter_includes_reasoning_effort(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_openrouter_includes_reasoning_effort(self) -> None:
         """OpenRouter path includes reasoning effort when set."""
         _, settings = create_model(
             base_url="https://openrouter.ai/api/v1",
@@ -74,16 +64,8 @@ class TestCreateModelOpenRouterRouting:
         )
         or_settings = cast(OpenRouterModelSettings, settings)
         assert or_settings["openrouter_reasoning"] == {"effort": "high"}
-        mock_model_cls.assert_called()
-        mock_provider_cls.assert_called()
 
-    @patch("rentl_llm.provider_factory.OpenRouterProvider")
-    @patch("rentl_llm.provider_factory.OpenRouterModel")
-    def test_openrouter_reasoning_effort_plain_string(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_openrouter_reasoning_effort_plain_string(self) -> None:
         """OpenRouter path handles plain string reasoning_effort (use_enum_values)."""
         _, settings = create_model(
             base_url="https://openrouter.ai/api/v1",
@@ -94,16 +76,8 @@ class TestCreateModelOpenRouterRouting:
         )
         or_settings = cast(OpenRouterModelSettings, settings)
         assert or_settings["openrouter_reasoning"] == {"effort": "medium"}
-        mock_model_cls.assert_called_once()
-        mock_provider_cls.assert_called_once()
 
-    @patch("rentl_llm.provider_factory.OpenRouterProvider")
-    @patch("rentl_llm.provider_factory.OpenRouterModel")
-    def test_openrouter_includes_max_tokens(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_openrouter_includes_max_tokens(self) -> None:
         """OpenRouter path includes max_tokens when set."""
         _, settings = create_model(
             base_url="https://openrouter.ai/api/v1",
@@ -113,20 +87,12 @@ class TestCreateModelOpenRouterRouting:
             max_output_tokens=2048,
         )
         assert settings["max_tokens"] == 2048
-        mock_model_cls.assert_called_once()
-        mock_provider_cls.assert_called_once()
 
 
 class TestCreateModelOpenAIRouting:
     """Tests for generic OpenAI routing path."""
 
-    @patch("rentl_llm.provider_factory.OpenAIProvider")
-    @patch("rentl_llm.provider_factory.OpenAIChatModel")
-    def test_openai_url_creates_openai_model(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_openai_url_creates_openai_model(self) -> None:
         """Generic OpenAI base URL routes to OpenAIChatModel."""
         model, settings = create_model(
             base_url="https://api.openai.com/v1",
@@ -134,21 +100,11 @@ class TestCreateModelOpenAIRouting:
             model_id="gpt-4o",
             temperature=0.3,
         )
-        mock_model_cls.assert_called_once()
-        mock_provider_cls.assert_called_once_with(
-            base_url="https://api.openai.com/v1", api_key="test-key"
-        )
-        assert model is mock_model_cls.return_value
-        assert settings["temperature"] == 0.3
+        assert isinstance(model, OpenAIChatModel)
+        assert settings["temperature"] == pytest.approx(0.3)
         assert "openrouter_provider" not in settings
 
-    @patch("rentl_llm.provider_factory.OpenAIProvider")
-    @patch("rentl_llm.provider_factory.OpenAIChatModel")
-    def test_local_url_creates_openai_model(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_local_url_creates_openai_model(self) -> None:
         """Local base URL routes to OpenAIChatModel."""
         model, _ = create_model(
             base_url="http://localhost:8080/v1",
@@ -156,16 +112,9 @@ class TestCreateModelOpenAIRouting:
             model_id="local-model",
             temperature=0.5,
         )
-        mock_model_cls.assert_called_once()
-        assert model is mock_model_cls.return_value
+        assert isinstance(model, OpenAIChatModel)
 
-    @patch("rentl_llm.provider_factory.OpenAIProvider")
-    @patch("rentl_llm.provider_factory.OpenAIChatModel")
-    def test_openai_includes_reasoning_effort(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_openai_includes_reasoning_effort(self) -> None:
         """OpenAI path includes reasoning effort when set."""
         _, settings = create_model(
             base_url="https://api.openai.com/v1",
@@ -176,16 +125,8 @@ class TestCreateModelOpenAIRouting:
         )
         oai_settings = cast(OpenAIChatModelSettings, settings)
         assert oai_settings["openai_reasoning_effort"] == "medium"
-        mock_model_cls.assert_called_once()
-        mock_provider_cls.assert_called_once()
 
-    @patch("rentl_llm.provider_factory.OpenAIProvider")
-    @patch("rentl_llm.provider_factory.OpenAIChatModel")
-    def test_openai_reasoning_effort_plain_string(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_openai_reasoning_effort_plain_string(self) -> None:
         """OpenAI path handles plain string reasoning_effort (use_enum_values)."""
         _, settings = create_model(
             base_url="https://api.openai.com/v1",
@@ -196,8 +137,6 @@ class TestCreateModelOpenAIRouting:
         )
         oai_settings = cast(OpenAIChatModelSettings, settings)
         assert oai_settings["openai_reasoning_effort"] == "high"
-        mock_model_cls.assert_called_once()
-        mock_provider_cls.assert_called_once()
 
 
 class TestModelIdValidation:
@@ -262,13 +201,7 @@ class TestProviderAllowlist:
         """When config is None, all providers are permitted."""
         enforce_provider_allowlist("anything/model", None)
 
-    @patch("rentl_llm.provider_factory.OpenRouterProvider")
-    @patch("rentl_llm.provider_factory.OpenRouterModel")
-    def test_create_model_enforces_allowlist(
-        self,
-        mock_model_cls: MagicMock,
-        mock_provider_cls: MagicMock,
-    ) -> None:
+    def test_create_model_enforces_allowlist(self) -> None:
         """create_model enforces the provider allowlist end-to-end."""
         config = OpenRouterProviderRoutingConfig(only=["openai"])
         with pytest.raises(ProviderFactoryError, match="not in the allowlist"):
@@ -279,8 +212,6 @@ class TestProviderAllowlist:
                 temperature=0.5,
                 openrouter_provider=config,
             )
-        mock_model_cls.assert_not_called()
-        mock_provider_cls.assert_not_called()
 
 
 class TestPreflightChecks:
@@ -612,15 +543,23 @@ class TestAssertPreflight:
 class TestProbeEndpointIntegration:
     """Tests exercising _probe_endpoint through run_preflight_checks."""
 
-    @patch("rentl_llm.provider_factory.Agent")
     @patch("rentl_llm.provider_factory.create_model")
     @pytest.mark.asyncio
     async def test_successful_probe_passes_preflight(
-        self, mock_create: MagicMock, mock_agent_cls: MagicMock
+        self, mock_create: MagicMock
     ) -> None:
         """Successful probe request results in passing preflight."""
-        mock_create.return_value = (MagicMock(), {"temperature": 0.0})
-        mock_agent_cls.return_value.run = AsyncMock(return_value=MagicMock())
+        probe_model = FunctionModel(
+            lambda msgs, info: ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="final_result",
+                        args=json.dumps({"ok": True}),
+                    )
+                ]
+            )
+        )
+        mock_create.return_value = (probe_model, {"temperature": 0.0})
 
         endpoints = [
             PreflightEndpoint(
@@ -634,19 +573,19 @@ class TestProbeEndpointIntegration:
         assert result.passed is True
         assert result.issues == []
         mock_create.assert_called_once()
-        mock_agent_cls.return_value.run.assert_awaited_once()
 
-    @patch("rentl_llm.provider_factory.Agent")
     @patch("rentl_llm.provider_factory.create_model")
     @pytest.mark.asyncio
     async def test_probe_network_error_reports_issue(
-        self, mock_create: MagicMock, mock_agent_cls: MagicMock
+        self, mock_create: MagicMock
     ) -> None:
         """Network error during probe is reported as preflight issue."""
-        mock_create.return_value = (MagicMock(), {"temperature": 0.0})
-        mock_agent_cls.return_value.run = AsyncMock(
-            side_effect=ConnectionError("refused")
-        )
+
+        def error_model_fn(msgs: object, info: object) -> ModelResponse:
+            raise ConnectionError("refused")
+
+        probe_model = FunctionModel(error_model_fn)
+        mock_create.return_value = (probe_model, {"temperature": 0.0})
 
         endpoints = [
             PreflightEndpoint(
@@ -663,3 +602,125 @@ class TestProbeEndpointIntegration:
         assert "refused" in result.issues[0].message
         assert result.issues[0].phase_label == "translate"
         assert result.issues[0].provider_name == "OpenAI"
+
+    @patch("rentl_llm.provider_factory.create_model")
+    @pytest.mark.asyncio
+    async def test_probe_uses_adequate_token_limit(
+        self, mock_create: MagicMock
+    ) -> None:
+        """Probe should use enough output tokens for local models."""
+        probe_model = FunctionModel(
+            lambda msgs, info: ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="final_result",
+                        args=json.dumps({"ok": True}),
+                    )
+                ]
+            )
+        )
+        mock_create.return_value = (probe_model, {"temperature": 0.0})
+
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
+                model_id="gpt-4o",
+                phase_label="translate",
+            ),
+        ]
+        await run_preflight_checks(endpoints)
+
+        # Verify create_model was called with max_output_tokens=128
+        call_kwargs = mock_create.call_args
+        assert call_kwargs.kwargs.get("max_output_tokens") == 128
+
+
+class TestStrictTools:
+    """Tests for strict_tools parameter controlling OpenAIModelProfile."""
+
+    def test_strict_tools_default_disables_strict_openrouter(self) -> None:
+        """Default strict_tools=False passes profile with strict disabled."""
+        model, _ = create_model(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="test-key",
+            model_id="openai/gpt-4o",
+            temperature=0.5,
+        )
+        assert isinstance(model, OpenRouterModel)
+        profile = model.profile
+        assert isinstance(profile, OpenAIModelProfile)
+        assert profile.openai_supports_strict_tool_definition is False
+
+    def test_strict_tools_true_passes_strict_profile_openrouter(self) -> None:
+        """strict_tools=True passes profile with strict enabled."""
+        model, _ = create_model(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="test-key",
+            model_id="openai/gpt-4o",
+            temperature=0.5,
+            strict_tools=True,
+        )
+        assert isinstance(model, OpenRouterModel)
+        profile = model.profile
+        assert isinstance(profile, OpenAIModelProfile)
+        assert profile.openai_supports_strict_tool_definition is True
+
+    def test_strict_tools_default_disables_strict_openai(self) -> None:
+        """Default strict_tools=False for OpenAI."""
+        model, _ = create_model(
+            base_url="https://api.openai.com/v1",
+            api_key="test-key",
+            model_id="gpt-4o",
+            temperature=0.5,
+        )
+        assert isinstance(model, OpenAIChatModel)
+        profile = model.profile
+        assert isinstance(profile, OpenAIModelProfile)
+        assert profile.openai_supports_strict_tool_definition is False
+
+    def test_strict_tools_true_passes_strict_profile_openai(self) -> None:
+        """strict_tools=True for OpenAI."""
+        model, _ = create_model(
+            base_url="https://api.openai.com/v1",
+            api_key="test-key",
+            model_id="gpt-4o",
+            temperature=0.5,
+            strict_tools=True,
+        )
+        assert isinstance(model, OpenAIChatModel)
+        profile = model.profile
+        assert isinstance(profile, OpenAIModelProfile)
+        assert profile.openai_supports_strict_tool_definition is True
+
+    @patch("rentl_llm.provider_factory.create_model")
+    @pytest.mark.asyncio
+    async def test_preflight_passes_strict_tools_to_create_model(
+        self, mock_create: MagicMock
+    ) -> None:
+        """Preflight probe passes strict_tools to create_model."""
+        probe_model = FunctionModel(
+            lambda msgs, info: ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="final_result",
+                        args=json.dumps({"ok": True}),
+                    )
+                ]
+            )
+        )
+        mock_create.return_value = (probe_model, {"temperature": 0.0})
+
+        endpoints = [
+            PreflightEndpoint(
+                base_url="https://api.openai.com/v1",
+                api_key=_TEST_API_KEY,
+                model_id="gpt-4o",
+                phase_label="translate",
+                strict_tools=True,
+            ),
+        ]
+        result = await run_preflight_checks(endpoints)
+        assert result.passed is True
+        call_kwargs = mock_create.call_args
+        assert call_kwargs.kwargs["strict_tools"] is True

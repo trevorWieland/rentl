@@ -275,7 +275,7 @@ def then_model_is_openai(ctx: LocalModelContext) -> None:
 def then_temperature_preserved(ctx: LocalModelContext) -> None:
     """Assert the temperature model setting is preserved through the factory."""
     assert ctx.settings is not None
-    assert ctx.settings["temperature"] == 0.5
+    assert ctx.settings["temperature"] == pytest.approx(0.5)
 
 
 @then("the agent returns the mocked text response")

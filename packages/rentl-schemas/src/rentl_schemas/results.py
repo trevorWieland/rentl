@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import EVENT_NAME_PATTERN, LanguageCode, PhaseName
@@ -63,7 +63,6 @@ PHASE_RESULT_METRIC_DEFINITIONS: dict[
     },
     PhaseName.EXPORT: {
         "exported_line_count": ResultMetricUnit.LINES,
-        "untranslated_line_count": ResultMetricUnit.LINES,
         "column_count": ResultMetricUnit.COLUMNS,
     },
 }
@@ -101,6 +100,14 @@ class PhaseResultSummary(BaseSchema):
     """Summary metrics for a completed phase run."""
 
     phase: PhaseName = Field(..., description="Phase name")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     target_language: LanguageCode | None = Field(
         None, description="Target language if applicable"
     )

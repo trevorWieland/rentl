@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.primitives import (
@@ -54,6 +54,14 @@ class PhaseDependency(BaseSchema):
     """Dependency reference for a phase output."""
 
     phase: PhaseName = Field(..., description="Dependent phase name")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     revision: int = Field(..., ge=1, description="Dependent phase revision")
     target_language: LanguageCode | None = Field(
         None, description="Target language for the dependency if applicable"
@@ -64,6 +72,14 @@ class PhaseRevision(BaseSchema):
     """Latest revision marker for a phase output."""
 
     phase: PhaseName = Field(..., description="Phase name")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     revision: int = Field(..., ge=1, description="Latest revision number")
     target_language: LanguageCode | None = Field(
         None, description="Target language for the revision if applicable"
@@ -75,6 +91,14 @@ class PhaseRunRecord(BaseSchema):
 
     phase_run_id: PhaseRunId = Field(..., description="Unique phase run identifier")
     phase: PhaseName = Field(..., description="Phase name")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     revision: int = Field(..., ge=1, description="Phase revision number")
     status: PhaseStatus = Field(..., description="Phase execution status")
     target_language: LanguageCode | None = Field(
@@ -104,6 +128,14 @@ class PhaseArtifacts(BaseSchema):
     """Artifacts produced by a specific phase."""
 
     phase: PhaseName = Field(..., description="Phase name")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     artifacts: list[ArtifactReference] = Field(
         ..., description="Artifacts produced by the phase"
     )
@@ -116,6 +148,16 @@ class RunMetadata(BaseSchema):
     schema_version: VersionInfo = Field(..., description="Schema version for the run")
     status: RunStatus = Field(..., description="Run status")
     current_phase: PhaseName | None = Field(None, description="Current running phase")
+
+    @field_validator("current_phase", mode="before")
+    @classmethod
+    def _coerce_current_phase(cls, value: str | PhaseName | None) -> PhaseName | None:
+        if value is None:
+            return None
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     created_at: Timestamp = Field(..., description="Run creation timestamp")
     started_at: Timestamp | None = Field(None, description="Run start timestamp")
     completed_at: Timestamp | None = Field(None, description="Run completion timestamp")

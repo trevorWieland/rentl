@@ -17,7 +17,7 @@ from rentl_core.ports.export import (
     ExportSummary,
 )
 from rentl_schemas.io import ExportTarget, TranslatedLine
-from rentl_schemas.primitives import FileFormat, JsonValue, UntranslatedPolicy
+from rentl_schemas.primitives import FileFormat, JsonValue
 
 REQUIRED_COLUMNS = ("line_id", "text")
 OPTIONAL_COLUMNS = ("scene_id", "speaker", "source_text", "metadata")
@@ -79,10 +79,6 @@ def _write_csv_sync(target: ExportTarget, lines: list[TranslatedLine]) -> Export
     errors: list[ExportErrorInfo] = []
     prepared_rows, extra_columns = _prepare_rows(lines, target, errors)
 
-    untranslated_warnings = _collect_untranslated_warnings(prepared_rows, target)
-    if target.untranslated_policy == UntranslatedPolicy.ERROR:
-        errors.extend(untranslated_warnings)
-
     if errors:
         raise ExportBatchError(errors)
 
@@ -95,9 +91,6 @@ def _write_csv_sync(target: ExportTarget, lines: list[TranslatedLine]) -> Export
     warnings = _collect_column_warnings(
         lines, column_order, extra_columns, target, prepared_rows
     )
-    if target.untranslated_policy == UntranslatedPolicy.WARN:
-        warnings.extend(untranslated_warnings)
-
     rows = _build_rows(prepared_rows, column_order)
 
     try:
@@ -115,12 +108,10 @@ def _write_csv_sync(target: ExportTarget, lines: list[TranslatedLine]) -> Export
             )
         ) from exc
 
-    untranslated_count = _count_untranslated(lines)
     summary = ExportSummary(
         output_path=target.output_path,
         format=normalized_format,
         line_count=len(lines),
-        untranslated_count=untranslated_count,
         column_count=len(column_order),
         columns=column_order,
     )
@@ -375,41 +366,6 @@ def _build_rows(
                     row[column] = _format_csv_value(extra.get(column))
         rows.append(row)
     return rows
-
-
-def _collect_untranslated_warnings(
-    prepared_rows: list[
-        tuple[TranslatedLine, dict[str, JsonValue] | None, dict[str, JsonValue], int]
-    ],
-    target: ExportTarget,
-) -> list[ExportErrorInfo]:
-    if target.untranslated_policy == UntranslatedPolicy.ALLOW:
-        return []
-    warnings: list[ExportErrorInfo] = []
-    for line, _base_metadata, _extra, row_number in prepared_rows:
-        if _is_untranslated(line):
-            warnings.append(
-                ExportErrorInfo(
-                    code=ExportErrorCode.UNTRANSLATED_TEXT,
-                    message="Translated text matches source text",
-                    details=ExportErrorDetails(
-                        field="text",
-                        row_number=row_number,
-                        output_path=target.output_path,
-                    ),
-                )
-            )
-    return warnings
-
-
-def _count_untranslated(lines: list[TranslatedLine]) -> int:
-    return sum(1 for line in lines if _is_untranslated(line))
-
-
-def _is_untranslated(line: TranslatedLine) -> bool:
-    if line.source_text is None:
-        return False
-    return line.text == line.source_text
 
 
 def _has_base_metadata(

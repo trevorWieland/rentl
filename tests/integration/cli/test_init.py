@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import tomllib
@@ -10,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
-from pydantic import BaseModel
 from pytest_bdd import given, scenarios, then, when
 from typer.testing import CliRunner
 
@@ -26,18 +24,9 @@ from rentl_core.init import (
 )
 from rentl_schemas.config import RunConfig
 from rentl_schemas.io import SourceLine
-from rentl_schemas.phases import (
-    IdiomAnnotation,
-    IdiomAnnotationList,
-    IdiomReviewLine,
-    SceneSummary,
-    StyleGuideReviewLine,
-    StyleGuideReviewList,
-    TranslationResultLine,
-    TranslationResultList,
-)
 from rentl_schemas.primitives import FileFormat, JsonValue
 from rentl_schemas.validation import validate_run_config
+from tests.integration.conftest import make_mock_agent_run
 
 if TYPE_CHECKING:
     pass
@@ -296,120 +285,8 @@ def then_pipeline_executes_end_to_end(
         f"This mismatch would cause pipeline execution to fail immediately"
     )
 
-    # Track mock invocations to verify deterministic stub was used
-    mock_call_count = {"count": 0}
-    # Track which line index we're editing
-    # (for edit phase that processes one line at a time)
-    edit_line_index = {"index": 0}
-
-    # Create mock for ProfileAgent.run() to return deterministic
-    # schema-valid outputs. This is the execution boundary actually
-    # used by run-pipeline via build_agent_pools()
-
-    async def mock_agent_run(self: ProfileAgent, payload: BaseModel) -> BaseModel:
-        """Return schema-valid output based on agent's output_type.
-
-        For batch operations, returns outputs matching all input IDs to satisfy
-        the pipeline's alignment requirements.
-
-        Args:
-            self: ProfileAgent instance (patched method).
-            payload: Input payload for the agent (phase-specific schema).
-
-        Returns:
-            Schema-valid output matching the agent's output_type.
-
-        Raises:
-            ValueError: If the agent's output_type is unexpected.
-        """
-        # Make this a true async function with asyncio.sleep(0)
-        await asyncio.sleep(0)
-
-        mock_call_count["count"] += 1
-
-        # Determine output type from the agent
-        output_type = self._output_type
-
-        # Return schema-valid output matching each agent type
-        if output_type == SceneSummary:
-            # Context phase: return summary for the scene
-            scene_id = getattr(payload, "scene_id", "scene_001")
-            return SceneSummary(
-                scene_id=scene_id,
-                summary="Test scene summary from mock agent",
-                characters=["Character A", "Character B"],
-            )
-        elif output_type == IdiomAnnotationList:
-            # Pretranslation phase: return one review per source line
-            # (alignment check requires output IDs to match input IDs)
-            source_lines = getattr(payload, "source_lines", [])
-            reviews = [
-                IdiomReviewLine(
-                    line_id=line.line_id,
-                    idioms=[
-                        IdiomAnnotation(
-                            idiom_text="test idiom",
-                            explanation="Test explanation",
-                        )
-                    ],
-                )
-                for line in source_lines
-            ]
-            return IdiomAnnotationList(reviews=reviews)
-        elif output_type == TranslationResultList:
-            # Translation phase: return translation for each source line
-            source_lines = getattr(payload, "source_lines", [])
-            if not source_lines:
-                # Fallback: create at least one translation
-                translations = [
-                    TranslationResultLine(
-                        line_id="line_001",
-                        text="Test translation",
-                    )
-                ]
-            else:
-                translations = [
-                    TranslationResultLine(
-                        line_id=line.line_id,
-                        text=f"Test translation for {line.line_id}",
-                    )
-                    for line in source_lines
-                ]
-            return TranslationResultList(translations=translations)
-        elif output_type == StyleGuideReviewList:
-            # QA phase: return review for each translation (no violations)
-            translation_results = getattr(payload, "translation_results", [])
-            reviews = [
-                StyleGuideReviewLine(
-                    line_id=result.line_id,
-                    violations=[],  # Empty list means no violations (approved)
-                )
-                for result in translation_results
-            ]
-            return StyleGuideReviewList(reviews=reviews)
-        elif output_type == TranslationResultLine:
-            # Edit phase: return final translation for single line
-            # The agent is called once per line, but receives ALL lines in context
-            # We need to cycle through the lines to match what the orchestrator expects
-            translated_lines = getattr(payload, "translated_lines", [])
-            if not translated_lines:
-                # Fallback if no translated_lines provided
-                line_id = getattr(payload, "line_id", "line_001")
-            else:
-                # Get the current line index and cycle through available lines
-                current_index = edit_line_index["index"] % len(translated_lines)
-                line_id = translated_lines[current_index].line_id
-                # Increment for next call
-                edit_line_index["index"] += 1
-
-            return TranslationResultLine(
-                line_id=line_id,
-                text="Final edited translation",
-            )
-        else:
-            # Fallback for any other output types
-            raise ValueError(f"Unexpected output type in test mock: {output_type}")
-
+    # Mock ProfileAgent.run() to return deterministic schema-valid outputs
+    mock_agent_run, mock_call_count, _edit_line_index = make_mock_agent_run()
     monkeypatch.setattr(ProfileAgent, "run", mock_agent_run)
 
     # Execute the full pipeline end-to-end with mocked agent execution

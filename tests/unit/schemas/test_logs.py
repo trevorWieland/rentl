@@ -20,3 +20,16 @@ def test_log_entry_accepts_nested_json_data() -> None:
 
     payload = entry.model_dump()
     assert payload["event"] == "run_started"
+
+
+def test_log_entry_coerces_phase_string() -> None:
+    """Ensure LogEntry coerces phase string to PhaseName."""
+    entry = LogEntry(
+        timestamp="2026-01-26T00:00:00Z",
+        level=LogLevel.INFO,
+        event="phase_started",
+        run_id=UUID("01890a5c-91c8-7b2a-9f51-9b40d0cfb5b0"),
+        phase="translate",  # type: ignore[arg-type]
+        message="Phase started",
+    )
+    assert entry.phase == PhaseName.TRANSLATE

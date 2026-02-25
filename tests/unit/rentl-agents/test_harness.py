@@ -42,7 +42,7 @@ class TestAgentHarness:
         assert harness._user_prompt_template == "Translate: {{text}}"
         assert harness._output_type == MockOutput
         assert harness._max_retries == 3
-        assert harness._retry_base_delay == 1.0
+        assert harness._retry_base_delay == pytest.approx(1.0)
         assert not harness.initialized
 
     def test_initialize_with_invalid_system_prompt(self) -> None:
@@ -168,7 +168,7 @@ class TestAgentHarness:
             result = await harness.run(input_data)
 
             assert result.result == "こんにちは"
-            assert result.confidence == 0.95
+            assert result.confidence == pytest.approx(0.95)
             mock_execute.assert_called_once()
 
     @pytest.mark.asyncio
@@ -253,7 +253,7 @@ class TestAgentHarness:
             result = await harness.run(input_data)
 
             assert result.result == "Processed"
-            assert result.confidence == 0.9
+            assert result.confidence == pytest.approx(0.9)
 
 
 class TestAgentHarnessExecuteAgent:
@@ -505,9 +505,9 @@ class TestAgentHarnessExecuteAgent:
 
             # Verify model settings from factory are passed through
             model_settings = call_args.kwargs["model_settings"]
-            assert model_settings["temperature"] == 0.5
-            assert model_settings["top_p"] == 0.9
-            assert model_settings["timeout"] == 60.0
+            assert model_settings["temperature"] == pytest.approx(0.5)
+            assert model_settings["top_p"] == pytest.approx(0.9)
+            assert model_settings["timeout"] == pytest.approx(60.0)
 
     @pytest.mark.asyncio
     async def test_execute_agent_returns_result_output(self) -> None:
@@ -544,7 +544,7 @@ class TestAgentHarnessExecuteAgent:
 
             assert result == expected_output
             assert result.result == "processed text"
-            assert result.confidence == 0.92
+            assert result.confidence == pytest.approx(0.92)
 
     @pytest.mark.asyncio
     async def test_execute_agent_raises_on_uninitialized(self) -> None:

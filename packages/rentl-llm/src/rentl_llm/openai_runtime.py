@@ -40,6 +40,7 @@ class OpenAICompatibleRuntime(LlmRuntimeProtocol):
             frequency_penalty=request.runtime.model.frequency_penalty,
             reasoning_effort=request.runtime.model.reasoning_effort,
             openrouter_provider=request.runtime.endpoint.openrouter_provider,
+            strict_tools=request.runtime.endpoint.strict_tools,
         )
 
         # Use structured output if result_schema is provided

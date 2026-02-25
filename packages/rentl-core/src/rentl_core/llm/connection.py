@@ -291,6 +291,7 @@ def _build_endpoint_target(
         api_key_env=endpoint.api_key_env,
         timeout_s=endpoint.timeout_s,
         openrouter_provider=endpoint.openrouter_provider,
+        strict_tools=endpoint.strict_tools,
     )
 
 

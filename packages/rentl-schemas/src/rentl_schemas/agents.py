@@ -35,6 +35,14 @@ class AgentProfileMeta(BaseSchema):
         description="Semantic version (e.g., 1.0.0)",
     )
     phase: PhaseName = Field(..., description="Pipeline phase this agent belongs to")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     description: str = Field(
         ...,
         min_length=1,
@@ -257,6 +265,14 @@ class PhasePromptConfig(BaseSchema):
     """Phase-level prompt configuration."""
 
     phase: PhaseName = Field(..., description="Phase this config applies to")
+
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _coerce_phase(cls, value: str | PhaseName) -> PhaseName:
+        if isinstance(value, PhaseName):
+            return value
+        return PhaseName(value)
+
     output_language: str = Field(
         "source",
         pattern=r"^(source|target)$",
