@@ -150,12 +150,16 @@ def _add_usage(
 ) -> AgentUsageTotals:
     if total is None:
         return usage
+    cost: float | None = None
+    if total.cost_usd is not None or usage.cost_usd is not None:
+        cost = (total.cost_usd or 0.0) + (usage.cost_usd or 0.0)
     return AgentUsageTotals(
         input_tokens=total.input_tokens + usage.input_tokens,
         output_tokens=total.output_tokens + usage.output_tokens,
         total_tokens=total.total_tokens + usage.total_tokens,
         request_count=total.request_count + usage.request_count,
         tool_calls=total.tool_calls + usage.tool_calls,
+        cost_usd=cost,
     )
 
 

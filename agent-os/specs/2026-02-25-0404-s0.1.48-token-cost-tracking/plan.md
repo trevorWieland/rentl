@@ -21,7 +21,7 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - Unit tests for new schema construction and serialization
   - Acceptance: schemas validate with all combinations of present/absent cost data
 
-- [ ] Task 3: Update Usage Aggregation to Include All Statuses
+- [x] Task 3: Update Usage Aggregation to Include All Statuses
   - Modify `_aggregate_usage()` in `services/rentl-cli/src/rentl/main.py` to count ALL agent statuses
   - Segment tokens into completed/failed/retry buckets based on `AgentTelemetry.status` and `attempt`
   - Update `_add_usage_totals()` helper to support segmented totals

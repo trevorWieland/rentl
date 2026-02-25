@@ -774,10 +774,11 @@ def test_aggregate_usage_ignores_non_completed_updates() -> None:
         )
     ]
 
-    total, by_phase = cli_main._aggregate_usage(updates)
+    total, by_phase, _segmented, waste_ratio = cli_main._aggregate_usage(updates)
 
     assert total is None
     assert by_phase == {}
+    assert waste_ratio == pytest.approx(0.0)
 
 
 def test_aggregate_usage_with_completed_update() -> None:
@@ -815,11 +816,280 @@ def test_aggregate_usage_with_completed_update() -> None:
         )
     ]
 
-    total, by_phase = cli_main._aggregate_usage(updates)
+    total, by_phase, segmented, waste_ratio = cli_main._aggregate_usage(updates)
 
     assert total is not None
     assert total.total_tokens == 30
     assert by_phase[PhaseName.TRANSLATE, "ja"].output_tokens == 20
+    assert segmented.completed.total_tokens == 30
+    assert segmented.failed.total_tokens == 0
+    assert segmented.retry.total_tokens == 0
+    assert waste_ratio == pytest.approx(0.0)
+
+
+def test_aggregate_usage_mixed_statuses() -> None:
+    """Usage aggregation segments tokens by completed, failed, retry."""
+    run_id = uuid7()
+    updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_1",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=100,
+                    output_tokens=200,
+                    total_tokens=300,
+                    request_count=1,
+                    tool_calls=0,
+                ),
+                message="done",
+            ),
+            message="agent",
+        ),
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_FAILED,
+            timestamp="2026-02-03T10:00:06Z",
+            phase=PhaseName.QA,
+            phase_status=PhaseStatus.RUNNING,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_2",
+                agent_name="qa_checker",
+                phase=PhaseName.QA,
+                target_language="ja",
+                status=AgentStatus.FAILED,
+                attempt=1,
+                started_at="2026-02-03T10:00:05Z",
+                completed_at="2026-02-03T10:00:06Z",
+                usage=AgentUsageTotals(
+                    input_tokens=50,
+                    output_tokens=10,
+                    total_tokens=60,
+                    request_count=1,
+                    tool_calls=0,
+                ),
+                message="failed",
+            ),
+            message="agent",
+        ),
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:07Z",
+            phase=PhaseName.QA,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_3",
+                agent_name="qa_checker",
+                phase=PhaseName.QA,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=2,
+                started_at="2026-02-03T10:00:06Z",
+                completed_at="2026-02-03T10:00:07Z",
+                usage=AgentUsageTotals(
+                    input_tokens=60,
+                    output_tokens=20,
+                    total_tokens=80,
+                    request_count=1,
+                    tool_calls=0,
+                ),
+                message="done",
+            ),
+            message="agent",
+        ),
+    ]
+
+    total, _by_phase, segmented, waste_ratio = cli_main._aggregate_usage(updates)
+
+    assert total is not None
+    assert total.total_tokens == 440
+    assert segmented.completed.total_tokens == 300
+    assert segmented.failed.total_tokens == 60
+    assert segmented.retry.total_tokens == 80
+    assert waste_ratio == pytest.approx((60 + 80) / 440)
+
+
+def test_aggregate_usage_all_failed() -> None:
+    """Waste ratio is 1.0 when all agents failed."""
+    run_id = uuid7()
+    updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_FAILED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.RUNNING,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_1",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.FAILED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=100,
+                    output_tokens=200,
+                    total_tokens=300,
+                    request_count=1,
+                    tool_calls=0,
+                ),
+                message="failed",
+            ),
+            message="agent",
+        ),
+    ]
+
+    total, _by_phase, segmented, waste_ratio = cli_main._aggregate_usage(updates)
+
+    assert total is not None
+    assert total.total_tokens == 300
+    assert segmented.completed.total_tokens == 0
+    assert segmented.failed.total_tokens == 300
+    assert waste_ratio == pytest.approx(1.0)
+
+
+def test_aggregate_usage_all_completed_zero_waste() -> None:
+    """Waste ratio is 0.0 when all agents completed successfully."""
+    run_id = uuid7()
+    updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_1",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=100,
+                    output_tokens=200,
+                    total_tokens=300,
+                    request_count=1,
+                    tool_calls=0,
+                ),
+                message="done",
+            ),
+            message="agent",
+        ),
+    ]
+
+    _total, _by_phase, segmented, waste_ratio = cli_main._aggregate_usage(updates)
+
+    assert segmented.completed.total_tokens == 300
+    assert segmented.failed.total_tokens == 0
+    assert segmented.retry.total_tokens == 0
+    assert waste_ratio == pytest.approx(0.0)
+
+
+def test_aggregate_usage_cost_usd_summed() -> None:
+    """Usage aggregation sums cost_usd across agents."""
+    run_id = uuid7()
+    updates = [
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_COMPLETED,
+            timestamp="2026-02-03T10:00:05Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.COMPLETED,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_1",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.COMPLETED,
+                attempt=1,
+                started_at="2026-02-03T10:00:00Z",
+                completed_at="2026-02-03T10:00:05Z",
+                usage=AgentUsageTotals(
+                    input_tokens=100,
+                    output_tokens=200,
+                    total_tokens=300,
+                    request_count=1,
+                    tool_calls=0,
+                    cost_usd=0.05,
+                ),
+                message="done",
+            ),
+            message="agent",
+        ),
+        ProgressUpdate(
+            run_id=run_id,
+            event=ProgressEvent.AGENT_FAILED,
+            timestamp="2026-02-03T10:00:06Z",
+            phase=PhaseName.TRANSLATE,
+            phase_status=PhaseStatus.RUNNING,
+            run_progress=None,
+            phase_progress=None,
+            metric=None,
+            agent_update=AgentTelemetry(
+                agent_run_id="agent_2",
+                agent_name="direct_translator",
+                phase=PhaseName.TRANSLATE,
+                target_language="ja",
+                status=AgentStatus.FAILED,
+                attempt=1,
+                started_at="2026-02-03T10:00:05Z",
+                completed_at="2026-02-03T10:00:06Z",
+                usage=AgentUsageTotals(
+                    input_tokens=50,
+                    output_tokens=10,
+                    total_tokens=60,
+                    request_count=1,
+                    tool_calls=0,
+                    cost_usd=0.01,
+                ),
+                message="failed",
+            ),
+            message="agent",
+        ),
+    ]
+
+    total, _by_phase, segmented, _waste_ratio = cli_main._aggregate_usage(updates)
+
+    assert total is not None
+    assert total.cost_usd == pytest.approx(0.06)
+    assert segmented.completed.cost_usd == pytest.approx(0.05)
+    assert segmented.failed.cost_usd == pytest.approx(0.01)
+    assert segmented.retry.cost_usd is None
 
 
 def test_build_run_report_data_without_run_state() -> None:
