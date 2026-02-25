@@ -51,3 +51,18 @@ that demonstrates the problem.
 - **Solution:** Removed the module-level `pytestmark = pytest.mark.timeout(29)`. The global `timeout = 30` from `pyproject.toml` already enforces the <30s quality test standard. The extra 1s of headroom eliminates the intermittent failure without violating the standard.
 - **Resolution:** do-task fix round (post-Task 7)
 - **Files affected:** `tests/quality/pipeline/test_golden_script_pipeline.py`
+
+## Signpost 4: Makefile quality target timeout 1s too tight
+
+- **Task:** post-completion (make all gate)
+- **Status:** resolved
+- **Problem:** The Makefile `quality` target passes `--timeout=29` to pytest, 1s tighter than the standard-mandated 30s limit. `test_pretranslation_agent_evaluation_passes` involves both an agent run and an `LLMJudge` evaluation (two LLM round-trips), which intermittently exceeds 29s due to API latency. Same root cause as Signpost 3 but at the Makefile level rather than per-test level.
+- **Evidence:**
+  - `make all` output: `FAILED tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes - Failed: Timeout (>29.0s) from pytest-timeout.`
+  - Stack trace: hang in `asyncio base_events._selector.poll()` — waiting for LLM API I/O
+  - Makefile line 79: `--timeout=29` overrides pyproject.toml's `timeout = 30`
+  - Standard `test-timing-rules` specifies quality tests `<30s`, not `<29s`
+- **Tried:** Verified this is a pre-existing Makefile issue, not caused by spec changes
+- **Solution:** Changed `--timeout=29` to `--timeout=30` in Makefile quality target to match the standard and pyproject.toml
+- **Resolution:** do-task fix round (post-Task 7, second pass)
+- **Files affected:** `Makefile`
