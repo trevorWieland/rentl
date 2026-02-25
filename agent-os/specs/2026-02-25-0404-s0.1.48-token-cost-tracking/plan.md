@@ -62,3 +62,9 @@ Current `_aggregate_usage()` only counts COMPLETED agents, hiding real cost from
   - BDD-style integration test: pipeline run with mocked LLM responses containing cost data → verify full flow from response → telemetry → report
   - BDD-style integration test: pipeline run without cost data → verify tokens tracked, cost fields null, no errors
   - Verify `waste_ratio` correct in report after mixed-status pipeline run
+
+- [x] Task 8: Add cost pricing to deepseek benchmark config
+  - Add `input_cost_per_mtok` and `output_cost_per_mtok` to `deepseek-mtl-pilot.toml` model settings for `deepseek/deepseek-v3.2`
+  - Look up current DeepSeek V3.2 pricing on OpenRouter (input: $0.30/Mtok, output: $0.88/Mtok as of Feb 2026 — verify before setting)
+  - After adding pricing, re-run `uv run rentl run-pipeline -c benchmark/karetoshi/configs/deepseek-mtl-pilot.toml` to verify `total_cost_usd` is populated in the run report
+  - See signposts.md Signpost 5 for full context

@@ -66,3 +66,19 @@ that demonstrates the problem.
 - **Solution:** Changed `--timeout=29` to `--timeout=30` in Makefile quality target to match the standard and pyproject.toml
 - **Resolution:** do-task fix round (post-Task 7, second pass)
 - **Files affected:** `Makefile`
+
+## Signpost 5: Deepseek benchmark config missing cost pricing fields
+
+- **Task:** Demo Step 3 / Task 8
+- **Status:** resolved
+- **Problem:** Demo step 3 expects `total_cost_usd` populated in the deepseek run report, but it's `null`. The implementation correctly computes cost from config-based `input_cost_per_mtok` / `output_cost_per_mtok` fields (see Signpost 1 for why OpenRouter's native cost isn't accessible). However, the benchmark config `deepseek-mtl-pilot.toml` doesn't set these pricing fields, so cost gracefully degrades to `null`.
+- **Evidence:**
+  - Command: `uv run rentl run-pipeline -c benchmark/karetoshi/configs/deepseek-mtl-pilot.toml`
+  - Run report at `benchmark/karetoshi/runs/deepseek-mtl-pilot/logs/reports/019c934c-8907-7147-bab7-91877641e216.json`
+  - `total_cost_usd: null`, `cost_by_phase: [{"phase": "translate", "cost_usd": null}]`
+  - Config has no `input_cost_per_mtok` or `output_cost_per_mtok` in `[pipeline.default_model]` or `[pipeline.phases.model]`
+  - Code path in `runtime.py:764`: `if input_cost_per_mtok is None or output_cost_per_mtok is None: return None`
+- **Root cause:** Config gap, not code gap. The benchmark config needs pricing fields for `deepseek/deepseek-v3.2` model to enable cost calculation.
+- **Solution:** Added `input_cost_per_mtok = 0.30` and `output_cost_per_mtok = 0.88` to both `[pipeline.default_model]` and `[pipeline.phases.model]` (translate phase) in the benchmark config.
+- **Resolution:** do-task round 1 (Task 8)
+- **Files affected:** `benchmark/karetoshi/configs/deepseek-mtl-pilot.toml`
