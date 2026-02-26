@@ -142,3 +142,18 @@
 - **Solution:** Changed `except ModelLoadError` to re-raise as `ModelLoadError` with "single-model residency" message instead of swallowing. Replaced `test_load_model_proceeds_when_list_fails` with `test_load_model_fails_fast_when_list_fails` that asserts `ModelLoadError` is raised and `client.post` is never called. Updated `test_load_model_connection_error` to also assert fail-fast behavior (no blind load after connection failure on list).
 - **Resolution:** do-task round 11
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `tests/unit/core/compatibility/test_loader.py`
+
+- **Task:** Task 6 (gate triage round 2)
+- **Status:** unresolved
+- **Problem:** Quality-tier timeout budgeting drifted again: current request limits and retry paths can exceed the 30s `quality` cap before a failing assertion is returned.
+- **Evidence:** Gate output: `tests/quality/agents/test_pretranslation_agent.py` and `tests/quality/compatibility/test_model_compatibility.py` both fail with `Failed: Timeout (>30.0s) from pytest-timeout.`.
+- **Evidence:** Pretranslation harness sets `timeout_s=8.0` and `max_requests_per_run=6` (`tests/quality/agents/quality_harness.py:81-84`), which permits up to 48s of agent request time before judge overhead.
+- **Evidence:** Compatibility runner executes all five phases sequentially with per-phase output retries (`packages/rentl-core/src/rentl_core/compatibility/runner.py:290-329`) while registry still sets `timeout_s=5.0` and `max_output_retries=1` (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:30-31`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:73-74`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:82-83`), giving a >30s worst-case path.
+- **Impact:** `make all` quality gate is unstable and can time out before surfacing model-level pass/fail diagnostics, violating `test-timing-rules`.
+
+- **Task:** Task 7 (gate triage round 1)
+- **Status:** unresolved
+- **Problem:** LM Studio API path assumptions in resource-aware loading no longer match the running LM Studio server contract.
+- **Evidence:** Gate output for local models (`google/gemma-3-27b`, `qwen/qwen3-vl-30b`, `openai/gpt-oss-20b`) reports `Model loading failed: Cannot ensure single-model residency: failed to list loaded models ... LM Studio returned HTTP 404 ... {"error":"Unexpected endpoint or method. (GET /api/v1/models/list)"}`.
+- **Evidence:** `list_lm_studio_models` derives list URL as `f\"{base}/list\"` from `load_endpoint` (`packages/rentl-core/src/rentl_core/compatibility/loader.py:63-65`), and `load_lm_studio_model` now hard-fails on that list error (`packages/rentl-core/src/rentl_core/compatibility/loader.py:149-159`).
+- **Impact:** All local compatibility verifications fail in the context phase before pipeline execution, so Task 6/Task 7 acceptance cannot be met.
