@@ -216,3 +216,12 @@
 - **Solution:** Removed 4 models that consistently fail from the registry: `google/gemma-3-27b` (context output validation failure), `qwen/qwen3.5-27b` (timeout), `deepseek/deepseek-v3.2` (timeout), `z-ai/glm-5` (timeout). Kept 4 reliably passing models: `qwen/qwen3-vl-30b`, `openai/gpt-oss-20b` (local), `openai/gpt-oss-120b`, `minimax/minimax-m2.5` (OpenRouter). Reduced all `timeout_s` to 2.0 for 10s headroom (budget: `5×2×2=20s`). Updated unit tests to reflect 4-model registry (2 local + 2 OpenRouter). Removed stale `qwen/qwen3.5-27b` tool_choice test.
 - **Resolution:** do-task round 16
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`, `tests/quality/agents/quality_harness.py`
+
+- **Task:** Task 6 (gate triage round 6)
+- **Status:** unresolved
+- **Problem:** Compatibility timeout budgeting still misses OpenRouter SDK retry amplification, so a single model verification can run past the 30s quality limit even when registry `timeout_s=2.0`.
+- **Evidence:** Current gate output fails `tests/quality/compatibility/test_model_compatibility.py::test_verified_model_passes_all_pipeline_phases[minimax/minimax-m2.5]` with `Failed: Timeout (>30.0s) from pytest-timeout` while blocked in `when_run_verification` (`tests/quality/compatibility/test_model_compatibility.py:93`).
+- **Evidence:** The registry still declares `minimax/minimax-m2.5` with `timeout_s = 2.0` and `max_output_retries = 1` (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:62-68`).
+- **Evidence:** `verify_model` forwards `max_output_retries` into `Agent(..., output_retries=...)` and awaits `agent.run(...)` without an outer watchdog (`packages/rentl-core/src/rentl_core/compatibility/runner.py:197-203`, `packages/rentl-core/src/rentl_core/compatibility/runner.py:297-345`).
+- **Evidence:** OpenRouter models are created via `OpenRouterProvider(api_key=api_key)` with no explicit retry override (`packages/rentl-llm/src/rentl_llm/provider_factory.py:436`), and the underlying OpenAI client default is `max_retries=DEFAULT_MAX_RETRIES` (`.venv/lib/python3.14/site-packages/openai/_client.py:468`).
+- **Impact:** The current “20s budget” assumption in registry comments can be violated in live timeout/retry paths, which reintroduces pytest-timeout masking and makes the verified-model registry nondeterministic.
