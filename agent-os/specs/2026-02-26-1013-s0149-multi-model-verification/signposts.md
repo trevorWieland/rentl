@@ -251,3 +251,22 @@
 - **Solution:** Removed both OpenRouter entries (`openai/gpt-oss-120b`, `minimax/minimax-m2.5`) from the registry. The `gpt-oss-120b` failure is a provider-level incompatibility (malformed tool-call payloads with null `id`/`function.name` fields fail strict `_OpenRouterChatCompletion` validation before output retries can recover — not fixable through declarative config). The `minimax-m2.5` pretranslation timeout recurs despite 8 rounds of budget tuning. Registry now contains 2 local models. Updated unit tests to reflect 2-model registry.
 - **Resolution:** do-task round 19
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`
+
+- **Task:** Demo (run 1) — CLI endpoint resolution gap
+- **Status:** unresolved
+- **Problem:** `rentl verify-models --endpoint local --model qwen/qwen3-vl-30b` fails with "No endpoint configured for endpoint_ref 'lm-studio'" because `rentl.toml` only defines a single OpenRouter endpoint in legacy mode, with no `lm-studio` endpoint.
+- **Evidence:** CLI output: `{"passed":false,"model_results":[{"model_id":"qwen/qwen3-vl-30b","passed":false,"phase_results":[{"phase":"context","status":"failed","error_message":"No endpoint configured for endpoint_ref 'lm-studio'. Add an endpoint with provider_name='lm-studio' to your configuration."}]}]}`
+- **Evidence:** `rentl.toml` uses `[endpoint]` (legacy single-endpoint) with `provider_name = "openrouter"` only. No multi-endpoint `[endpoints]` section with an `lm-studio` entry.
+- **Evidence:** Quality tests pass because `tests/quality/compatibility/conftest.py:49-82` builds endpoints programmatically via `build_endpoint_for_entry()` using env vars, bypassing the TOML config entirely.
+- **Impact:** The CLI `rentl verify-models` command cannot verify local models out of the box. Users see a confusing error instead of actionable verification results. Demo Step 2 fails.
+- **Files affected:** `rentl.toml`, `services/rentl-cli/src/rentl/main.py`
+
+- **Task:** Demo (run 1) — Spec acceptance criteria model count drift
+- **Status:** unresolved
+- **Problem:** The spec acceptance criteria declare 9 specific verified models (4 local + 5 OpenRouter), but only 2 local models remain in the registry after 8 rounds of gate triage removed 7 models due to provider incompatibilities. Demo steps 1, 3, and 4 expect model counts and OpenRouter results that are no longer achievable.
+- **Evidence:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml` contains 2 entries: `qwen/qwen3-vl-30b` (local), `openai/gpt-oss-20b` (local). Zero OpenRouter entries.
+- **Evidence:** Spec acceptance criteria (spec.md lines 24-28) require: "All 4 local models pass verification" (4 specific models listed) and "All 5 OpenRouter models pass verification" (5 specific models listed).
+- **Evidence:** Signposts document the removal rationale for each model: `google/gemma-3-27b` (context output validation), `qwen/qwen3.5-35b-a3b` (structured output), `qwen/qwen3.5-27b` (timeout), `deepseek/deepseek-v3.2` (timeout), `z-ai/glm-5` (timeout), `openai/gpt-oss-120b` (malformed tool-call payloads), `minimax/minimax-m2.5` (pretranslation timeout).
+- **Evidence:** All removals were provider-level incompatibilities, not fixable through declarative config. The implementation correctly avoided model-specific branching per spec non-negotiable #5.
+- **Impact:** Demo steps 1, 3, and 4 cannot pass as written. The spec's model-count acceptance criteria are unachievable without either re-adding models that provably fail or relaxing the criteria. This is a spec-level issue requiring walk-spec discussion.
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `spec.md` (immutable — requires walk-spec decision)

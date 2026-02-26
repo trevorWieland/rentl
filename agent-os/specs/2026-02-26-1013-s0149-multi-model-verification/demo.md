@@ -29,4 +29,11 @@ This demo proves the system works across 9 models on two providers (LM Studio lo
 
 ## Results
 
-(Appended by run-demo — do not write this section during shaping)
+### Run 1 — post-gate-triage (2026-02-26 18:45)
+- Step 1 [RUN]: FAIL — Registry lists 2 models (2 local, 0 OpenRouter), not the expected 9 (4 local + 5 OpenRouter). Seven models removed through gate triage rounds 1-8 due to provider-level incompatibilities. Schema and structure are correct.
+- Step 2 [RUN]: FAIL — `rentl verify-models --endpoint local --model qwen/qwen3-vl-30b` errors with "No endpoint configured for endpoint_ref 'lm-studio'" because `rentl.toml` only defines a single OpenRouter endpoint in legacy mode. Quality tests pass via programmatic endpoint building in conftest.py, but the CLI path is missing the config. Task 8 added to plan.md.
+- Step 3 [RUN]: FAIL — `rentl verify-models --endpoint openrouter` returns `{"passed":true,"model_results":[]}` — no OpenRouter models in registry after gate triage removed all 5.
+- Step 4 [RUN]: FAIL — Pytest compatibility suite runs 2 tests (2 local models), both PASS. But expected 5 OpenRouter models; none exist in registry.
+- Step 5 [RUN]: PASS — `rg` for model name strings in Python source returns only docstring examples (CLI help text, parameter documentation) and test fixtures. No model-specific branching in logic.
+- Step 6 [SKIP]: SKIPPED — exceeds autonomous demo time budget; verified manually during shaping.
+- **Overall: FAIL** — Steps 1-4 fail due to two root causes: (A) 7 of 9 originally-specified models were removed through gate triage because their providers no longer produce compatible structured output, violating spec model-count acceptance criteria; (B) CLI endpoint resolution for local models is broken because `rentl.toml` lacks an `lm-studio` endpoint entry. See signposts.md for full evidence.
