@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -308,3 +309,97 @@ def test_verify_models_builds_endpoints_map_from_config(
     assert "openrouter" in endpoints
     assert endpoints["lm-studio"].base_url == "http://localhost:1234/v1"
     assert endpoints["openrouter"].base_url == "https://openrouter.ai/api/v1"
+
+
+@patch("rentl.main.verify_registry", new_callable=AsyncMock)
+@patch("rentl.main.load_bundled_registry")
+@patch("rentl.main._load_resolved_config")
+def test_verify_models_non_tty_json_output_all_pass(
+    mock_config: MagicMock,
+    mock_load_registry: MagicMock,
+    mock_verify: AsyncMock,
+    runner: CliRunner,
+) -> None:
+    """Test non-TTY output emits valid JSON when all models pass."""
+    mock_config.return_value = _make_mock_config()
+    mock_load_registry.return_value = _make_registry()
+    mock_verify.return_value = _make_all_pass_result()
+
+    result = runner.invoke(app, ["verify-models"])
+
+    assert result.exit_code == 0
+    parsed = json.loads(result.stdout)
+    assert parsed["passed"] is True
+    assert len(parsed["model_results"]) == 2
+
+
+@patch("rentl.main.verify_registry", new_callable=AsyncMock)
+@patch("rentl.main.load_bundled_registry")
+@patch("rentl.main._load_resolved_config")
+def test_verify_models_non_tty_json_output_partial_fail(
+    mock_config: MagicMock,
+    mock_load_registry: MagicMock,
+    mock_verify: AsyncMock,
+    runner: CliRunner,
+) -> None:
+    """Test non-TTY output emits valid JSON when some models fail."""
+    mock_config.return_value = _make_mock_config()
+    mock_load_registry.return_value = _make_registry()
+    mock_verify.return_value = _make_partial_fail_result()
+
+    result = runner.invoke(app, ["verify-models"])
+
+    assert result.exit_code == 1
+    parsed = json.loads(result.stdout)
+    assert parsed["passed"] is False
+    failed = [m for m in parsed["model_results"] if not m["passed"]]
+    assert len(failed) == 1
+    assert failed[0]["model_id"] == "test/openrouter-model"
+
+
+@patch("rentl.main.verify_registry", new_callable=AsyncMock)
+@patch("rentl.main.load_bundled_registry")
+@patch("rentl.main._load_resolved_config")
+def test_verify_models_tty_rich_table_output(
+    mock_config: MagicMock,
+    mock_load_registry: MagicMock,
+    mock_verify: AsyncMock,
+    runner: CliRunner,
+) -> None:
+    """Test TTY output renders a rich table with model results."""
+    mock_config.return_value = _make_mock_config()
+    mock_load_registry.return_value = _make_registry()
+    mock_verify.return_value = _make_partial_fail_result()
+
+    with patch("rentl.main.sys") as mock_sys:
+        mock_sys.stdout.isatty.return_value = True
+        result = runner.invoke(app, ["verify-models"])
+
+    assert result.exit_code == 1
+    # TTY output should contain table elements and model IDs
+    assert "Model Verification Results" in result.stdout
+    assert "test/local-model" in result.stdout
+    assert "test/openrouter-model" in result.stdout
+    # Should contain summary line
+    assert "1/2 models passed" in result.stdout
+
+
+@patch("rentl.main.verify_registry", new_callable=AsyncMock)
+@patch("rentl.main.load_bundled_registry")
+@patch("rentl.main._load_resolved_config")
+def test_verify_models_runtime_error_returns_actionable_output(
+    mock_config: MagicMock,
+    mock_load_registry: MagicMock,
+    mock_verify: AsyncMock,
+    runner: CliRunner,
+) -> None:
+    """Test unexpected verifier exception returns actionable CLI output."""
+    mock_config.return_value = _make_mock_config()
+    mock_load_registry.return_value = _make_registry()
+    mock_verify.side_effect = RuntimeError("connection refused by provider")
+
+    result = runner.invoke(app, ["verify-models"])
+
+    assert result.exit_code == 99  # RUNTIME_ERROR
+    assert "Verification error" in result.stdout
+    assert "connection refused by provider" in result.stdout

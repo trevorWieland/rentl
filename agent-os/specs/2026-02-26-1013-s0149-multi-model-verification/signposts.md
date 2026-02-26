@@ -40,8 +40,11 @@
 - **Files affected:** `tests/unit/core/compatibility/test_runner.py`
 
 - **Task:** Task 4 (audit round 1)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** `verify-models` does not handle unexpected exceptions from `verify_registry`, so CLI callers get an unstructured failure instead of actionable command-level output.
 - **Evidence:** `services/rentl-cli/src/rentl/main.py:3885-3892` calls `asyncio.run(verify_registry(...))` with no surrounding `try/except`.
 - **Evidence:** Repro command output (patched verifier): `exit_code: 1`, `exception_type: RuntimeError`, `stdout:` (empty), demonstrating no user-facing diagnostic.
 - **Impact:** Runtime/provider failures at verification time can terminate the command without an actionable message, weakening Task 4's "clear and actionable output" guarantee.
+- **Solution:** Wrapped `asyncio.run(verify_registry(...))` in `try/except Exception` that prints "Verification error: {exc}" (TTY: rich markup, non-TTY: plain text) and exits with `ExitCode.RUNTIME_ERROR` (99). Added unit test `test_verify_models_runtime_error_returns_actionable_output` that injects a `RuntimeError` and asserts exit code 99 and actionable message.
+- **Resolution:** do-task round 5
+- **Files affected:** `services/rentl-cli/src/rentl/main.py`, `tests/unit/cli/test_verify_models.py`

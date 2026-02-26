@@ -3882,14 +3882,23 @@ def verify_models(
         )
 
     # Run verification
-    result: RegistryVerificationResult = asyncio.run(
-        verify_registry(
-            registry=registry,
-            endpoints=endpoints_map,
-            endpoint_filter=endpoint_filter,
-            model_filter=model,
+    try:
+        result: RegistryVerificationResult = asyncio.run(
+            verify_registry(
+                registry=registry,
+                endpoints=endpoints_map,
+                endpoint_filter=endpoint_filter,
+                model_filter=model,
+            )
         )
-    )
+    except Exception as exc:
+        if is_tty:
+            console.print(
+                f"[red]Verification error:[/red] {exc}",
+            )
+        else:
+            print(f"Verification error: {exc}")
+        raise typer.Exit(code=ExitCode.RUNTIME_ERROR.value) from None
 
     # Display results
     if is_tty:
