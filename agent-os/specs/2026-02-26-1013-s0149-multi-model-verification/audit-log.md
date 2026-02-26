@@ -13,3 +13,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 1): FAIL — `verify-models` does not handle unexpected verifier exceptions at the CLI boundary and is missing output-formatting coverage promised by Task 4 tests.
 - **Task 4** (round 2): PASS — CLI runtime exception handling and output-formatting coverage are implemented and verified; `tests/unit/cli/test_verify_models.py` passes (12/12).
 - **Task 5** (round 1): FAIL — Compatibility quality test is not registry-parameterized in practice; pytest collects one scenario and fails with `fixture 'model_entry' not found`.
+- **Task 5** (round 2): PASS — Registry-driven parametrization is fixed and verified; `pytest --collect-only` now discovers 9 per-model compatibility scenarios with no missing `model_entry` fixture errors.
