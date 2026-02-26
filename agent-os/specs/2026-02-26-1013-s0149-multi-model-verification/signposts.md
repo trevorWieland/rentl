@@ -61,3 +61,24 @@
 - **Solution:** Replaced `scenarios()` shorthand with explicit `@scenario` decorator + `@pytest.mark.parametrize(..., indirect=True)` on the test function. Moved `model_entry` to conftest.py as a proper fixture that reads `request.param`. Module-level `_MODEL_ENTRIES` list is loaded in conftest and imported by the test module for parametrize values.
 - **Resolution:** do-task round 6
 - **Files affected:** `tests/quality/compatibility/test_model_compatibility.py`, `tests/quality/compatibility/conftest.py`
+
+- **Task:** Task 6
+- **Status:** resolved
+- **Problem:** `qwen/qwen3.5-27b` fails all 5 verification phases with 404 "No endpoints found that support the provided 'tool_choice' value" on OpenRouter.
+- **Evidence:** `rentl verify-models --endpoint openrouter` output: all phases for `qwen/qwen3.5-27b` return `ModelHTTPError: status_code: 404 ... No endpoints found that support the provided 'tool_choice' value`.
+- **Evidence:** OpenRouter provider page for `qwen/qwen3.5-27b` shows only Alibaba Cloud provider, which supports `tool_choice: auto` but NOT `tool_choice: required`.
+- **Evidence:** Direct httpx test with `tool_choice: auto` returns 200 with correct tool call output; `tool_choice: required` returns 404 regardless of `require_parameters` setting.
+- **Tried:** Setting `require_parameters: false` in provider routing — still 404 because OpenRouter itself rejects `tool_choice=required` at the routing layer.
+- **Solution:** Added `supports_tool_choice_required` field to `VerifiedModelConfigOverrides` schema. Wired through `create_model` → `OpenAIModelProfile(openai_supports_tool_choice_required=...)` so pydantic-ai uses `tool_choice=auto` instead of `required` for models where it's declared `false`. Set `supports_tool_choice_required = false` in registry for `qwen/qwen3.5-27b`. Generic — no model-specific branching; any model can declare this override.
+- **Resolution:** do-task round 7
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/compatibility.py`, `packages/rentl-llm/src/rentl_llm/provider_factory.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
+
+- **Task:** Task 6
+- **Status:** resolved
+- **Problem:** `openai/gpt-oss-120b` fails the QA verification phase with "Exceeded maximum retries (2) for output validation".
+- **Evidence:** `rentl verify-models --endpoint openrouter` output: `openai/gpt-oss-120b` QA phase returns `UnexpectedModelBehavior: Exceeded maximum retries (2) for output validation`.
+- **Evidence:** All other phases (context, pretranslation, translate, edit) pass for this model — only QA is intermittently flaky at 2 retries.
+- **Tried:** N/A — root cause is clear: the model sometimes produces invalid structured output for `StyleGuideReviewList` schema and 2 retries is insufficient for consistent passes.
+- **Solution:** Added `max_output_retries` field to `VerifiedModelConfigOverrides` schema. Wired through runner's `_run_phase` to accept configurable `output_retries`. Set `max_output_retries = 4` in registry for `openai/gpt-oss-120b`. Generic — any model can declare this override.
+- **Resolution:** do-task round 7
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/compatibility.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`

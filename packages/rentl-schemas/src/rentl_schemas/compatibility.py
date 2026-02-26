@@ -29,6 +29,18 @@ class VerifiedModelConfigOverrides(BaseSchema):
         None, description="Reasoning effort level override"
     )
     top_p: float | None = Field(None, ge=0, le=1, description="Top-p sampling override")
+    max_output_retries: int | None = Field(
+        None,
+        ge=0,
+        description="Pydantic-ai output validation retry limit override",
+    )
+    supports_tool_choice_required: bool | None = Field(
+        None,
+        description=(
+            "Whether the model's provider supports tool_choice=required; "
+            "set to false to fall back to tool_choice=auto"
+        ),
+    )
 
 
 class VerifiedModelEntry(BaseSchema):

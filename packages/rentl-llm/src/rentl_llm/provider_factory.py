@@ -54,6 +54,7 @@ def create_model(
     reasoning_effort: ReasoningEffort | str | None = None,
     openrouter_provider: OpenRouterProviderRoutingConfig | None = None,
     strict_tools: bool = False,
+    supports_tool_choice_required: bool = True,
 ) -> tuple[Model, ModelSettings]:
     """Create the correct provider/model pair from configuration.
 
@@ -73,6 +74,8 @@ def create_model(
         reasoning_effort: Reasoning effort level when supported.
         openrouter_provider: OpenRouter provider routing config.
         strict_tools: Send strict tool definitions to the provider.
+        supports_tool_choice_required: Whether the provider accepts
+            tool_choice=required; set False to fall back to auto.
 
     Returns:
         Tuple of (Model, ModelSettings) ready for pydantic-ai Agent.
@@ -92,6 +95,7 @@ def create_model(
             reasoning_effort=reasoning_effort,
             openrouter_provider=openrouter_provider,
             strict_tools=strict_tools,
+            supports_tool_choice_required=supports_tool_choice_required,
         )
     return _create_openai_model(
         base_url=base_url,
@@ -105,6 +109,7 @@ def create_model(
         frequency_penalty=frequency_penalty,
         reasoning_effort=reasoning_effort,
         strict_tools=strict_tools,
+        supports_tool_choice_required=supports_tool_choice_required,
     )
 
 
@@ -418,6 +423,7 @@ def _create_openrouter_model(
     reasoning_effort: ReasoningEffort | str | None,
     openrouter_provider: OpenRouterProviderRoutingConfig | None,
     strict_tools: bool = False,
+    supports_tool_choice_required: bool = True,
 ) -> tuple[Model, ModelSettings]:
     """Create an OpenRouter model and settings.
 
@@ -430,6 +436,7 @@ def _create_openrouter_model(
     provider = OpenRouterProvider(api_key=api_key)
     profile = OpenAIModelProfile(
         openai_supports_strict_tool_definition=strict_tools,
+        openai_supports_tool_choice_required=supports_tool_choice_required,
     )
     model = OpenRouterModel(model_id, provider=provider, profile=profile)
 
@@ -470,6 +477,7 @@ def _create_openai_model(
     frequency_penalty: float,
     reasoning_effort: ReasoningEffort | str | None,
     strict_tools: bool = False,
+    supports_tool_choice_required: bool = True,
 ) -> tuple[Model, ModelSettings]:
     """Create a generic OpenAI-compatible model and settings.
 
@@ -479,6 +487,7 @@ def _create_openai_model(
     provider = OpenAIProvider(base_url=base_url, api_key=api_key)
     profile = OpenAIModelProfile(
         openai_supports_strict_tool_definition=strict_tools,
+        openai_supports_tool_choice_required=supports_tool_choice_required,
     )
     model = OpenAIChatModel(model_id, provider=provider, profile=profile)
 

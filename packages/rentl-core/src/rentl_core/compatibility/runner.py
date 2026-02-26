@@ -170,6 +170,7 @@ async def _run_phase(
     model: Model,
     model_settings: ModelSettings,
     source_line: SourceLine,
+    output_retries: int = 2,
 ) -> PhaseResult:
     """Run a single verification phase against a model.
 
@@ -181,6 +182,7 @@ async def _run_phase(
         model: pydantic-ai Model instance.
         model_settings: Model settings for the agent call.
         source_line: Golden input source line.
+        output_retries: Pydantic-ai output validation retry limit.
 
     Returns:
         PhaseResult with pass/fail and error details.
@@ -193,7 +195,7 @@ async def _run_phase(
         agent = Agent(
             model,
             output_type=output_type,
-            output_retries=2,
+            output_retries=output_retries,
             system_prompt=system_prompt,
         )
         await agent.run(user_prompt, model_settings=model_settings)
@@ -278,6 +280,16 @@ async def verify_model(
         if entry.config_overrides.max_output_tokens is not None
         else 4096
     )
+    output_retries = (
+        entry.config_overrides.max_output_retries
+        if entry.config_overrides.max_output_retries is not None
+        else 2
+    )
+    supports_tool_choice_required = (
+        entry.config_overrides.supports_tool_choice_required
+        if entry.config_overrides.supports_tool_choice_required is not None
+        else True
+    )
 
     # Build model via provider factory
     model, settings = create_model(
@@ -291,6 +303,7 @@ async def verify_model(
         reasoning_effort=entry.config_overrides.reasoning_effort,
         openrouter_provider=endpoint.openrouter_provider,
         strict_tools=endpoint.strict_tools,
+        supports_tool_choice_required=supports_tool_choice_required,
     )
 
     # Run all 5 phases sequentially
@@ -304,6 +317,7 @@ async def verify_model(
             model=model,
             model_settings=settings,
             source_line=GOLDEN_SOURCE_LINE,
+            output_retries=output_retries,
         )
         phase_results.append(result)
 

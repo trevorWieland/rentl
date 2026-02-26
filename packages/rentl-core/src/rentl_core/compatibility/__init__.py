@@ -16,8 +16,8 @@ from rentl_core.compatibility.types import (
 
 __all__ = [
     "GOLDEN_SOURCE_LINE",
-    "ModelVerificationResult",
     "PHASE_CONFIGS",
+    "ModelVerificationResult",
     "PhaseResult",
     "PhaseVerificationStatus",
     "RegistryVerificationResult",

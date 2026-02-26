@@ -62,6 +62,7 @@ endpoint_ref = "openrouter"
 
 [models.config_overrides]
 timeout_s = 120.0
+supports_tool_choice_required = false
 
 [[models]]
 model_id = "deepseek/deepseek-v3.2"
@@ -86,6 +87,7 @@ endpoint_ref = "openrouter"
 
 [models.config_overrides]
 timeout_s = 120.0
+max_output_retries = 4
 
 [[models]]
 model_id = "minimax/minimax-m2.5"
