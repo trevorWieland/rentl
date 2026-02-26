@@ -49,33 +49,46 @@ async def list_lm_studio_models(
 ) -> list[str]:
     """List currently loaded models in LM Studio.
 
+    Uses the v1 REST API ``GET /api/v1/models`` endpoint, which returns all
+    known models with their ``loaded_instances``.  A model is considered
+    loaded if its ``loaded_instances`` array is non-empty.
+
     Args:
-        load_endpoint: LM Studio load API URL (used to derive the list URL).
+        load_endpoint: LM Studio load API URL (used to derive the models URL).
         api_key: API key for LM Studio authentication (Bearer token).
         timeout_s: Request timeout in seconds.
 
     Returns:
-        List of model identifiers currently loaded.
+        List of model identifiers (``key``) that are currently loaded.
 
     Raises:
         ModelLoadError: If the list request fails.
     """
-    base = _derive_api_base(load_endpoint)
-    list_url = f"{base}/list"
+    # GET /api/v1/models (the base path, not /api/v1/models/list)
+    models_url = _derive_api_base(load_endpoint)
     headers = _build_headers(api_key)
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:
-            response = await client.get(list_url, headers=headers)
+            response = await client.get(models_url, headers=headers)
             response.raise_for_status()
-            data: list[dict[str, str]] = response.json()
-            return [entry["id"] for entry in data if "id" in entry]
+            body: dict[str, list[dict[str, list[dict[str, str]] | str]]] = (
+                response.json()
+            )
+            models = body.get("models", [])
+            return [
+                str(entry["key"])
+                for entry in models
+                if "key" in entry and entry.get("loaded_instances")
+            ]
     except httpx.HTTPStatusError as exc:
         raise ModelLoadError(
             f"LM Studio returned HTTP {exc.response.status_code} "
             f"when listing models: {exc.response.text}"
         ) from exc
     except httpx.HTTPError as exc:
-        raise ModelLoadError(f"Failed to reach LM Studio at {list_url}: {exc}") from exc
+        raise ModelLoadError(
+            f"Failed to reach LM Studio at {models_url}: {exc}"
+        ) from exc
 
 
 async def unload_lm_studio_model(

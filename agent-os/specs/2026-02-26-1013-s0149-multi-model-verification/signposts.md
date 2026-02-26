@@ -155,8 +155,11 @@
 - **Files affected:** `tests/quality/agents/quality_harness.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`
 
 - **Task:** Task 7 (gate triage round 1)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** LM Studio API path assumptions in resource-aware loading no longer match the running LM Studio server contract.
 - **Evidence:** Gate output for local models (`google/gemma-3-27b`, `qwen/qwen3-vl-30b`, `openai/gpt-oss-20b`) reports `Model loading failed: Cannot ensure single-model residency: failed to list loaded models ... LM Studio returned HTTP 404 ... {"error":"Unexpected endpoint or method. (GET /api/v1/models/list)"}`.
 - **Evidence:** `list_lm_studio_models` derives list URL as `f\"{base}/list\"` from `load_endpoint` (`packages/rentl-core/src/rentl_core/compatibility/loader.py:63-65`), and `load_lm_studio_model` now hard-fails on that list error (`packages/rentl-core/src/rentl_core/compatibility/loader.py:149-159`).
 - **Impact:** All local compatibility verifications fail in the context phase before pipeline execution, so Task 6/Task 7 acceptance cannot be met.
+- **Solution:** Updated `list_lm_studio_models` to use `GET /api/v1/models` (the base path) instead of the non-existent `GET /api/v1/models/list`. Updated response parsing to handle the v1 API format: `{"models": [{"key": "...", "loaded_instances": [...]}]}` — a model is loaded if `loaded_instances` is non-empty, identified by `key`. Updated all unit tests to use the new response format and corrected URL assertions.
+- **Resolution:** do-task round 13
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `tests/unit/core/compatibility/test_loader.py`

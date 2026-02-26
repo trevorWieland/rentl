@@ -16,7 +16,7 @@ from rentl_core.compatibility.loader import (
 )
 
 _LOAD_URL = "http://192.168.1.23:1234/api/v1/models/load"
-_LIST_URL = "http://192.168.1.23:1234/api/v1/models/list"
+_MODELS_URL = "http://192.168.1.23:1234/api/v1/models"
 _UNLOAD_URL = "http://192.168.1.23:1234/api/v1/models/unload"
 
 
@@ -51,7 +51,12 @@ def _mock_client(
     return client
 
 
-def _ok_response(*, json_data: list[dict[str, str]] | None = None) -> AsyncMock:
+def _ok_response(
+    *,
+    json_data: list[dict[str, str]]
+    | dict[str, list[dict[str, list[dict[str, str]] | str]]]
+    | None = None,
+) -> AsyncMock:
     """Build a mock 200 response.
 
     Returns:
@@ -60,8 +65,37 @@ def _ok_response(*, json_data: list[dict[str, str]] | None = None) -> AsyncMock:
     resp = AsyncMock()
     resp.status_code = 200
     resp.raise_for_status = lambda: None
-    resp.json = lambda: json_data if json_data is not None else []
+    resp.json = lambda: json_data if json_data is not None else {"models": []}
     return resp
+
+
+def _models_response(
+    loaded: list[str] | None = None,
+    available: list[str] | None = None,
+) -> AsyncMock:
+    """Build a mock GET /api/v1/models response with loaded_instances.
+
+    Args:
+        loaded: Model keys that should appear as loaded (non-empty loaded_instances).
+        available: Model keys that should appear as available but not loaded.
+
+    Returns:
+        AsyncMock configured as a v1 models list response.
+    """
+    models: list[dict[str, list[dict[str, str]] | str]] = []
+    for key in loaded or []:
+        models.append({
+            "key": key,
+            "type": "llm",
+            "loaded_instances": [{"id": key}],
+        })
+    for key in available or []:
+        models.append({
+            "key": key,
+            "type": "llm",
+            "loaded_instances": [],
+        })
+    return _ok_response(json_data={"models": models})
 
 
 def _error_response(status: int, text: str, method: str, url: str) -> httpx.Response:
@@ -77,7 +111,7 @@ def _error_response(status: int, text: str, method: str, url: str) -> httpx.Resp
 
 async def test_load_model_success() -> None:
     """Successful model load sends correct payload and returns cleanly."""
-    list_resp = _ok_response(json_data=[])
+    list_resp = _models_response()
     post_resp = _ok_response()
     client = _mock_client(get_return=list_resp, post_return=post_resp)
 
@@ -102,7 +136,7 @@ async def test_load_model_http_status_error() -> None:
     """HTTP error status raises ModelLoadError with status code info."""
     err_resp = _error_response(500, "internal error", "POST", _LOAD_URL)
     # list succeeds (empty), but load POST fails
-    list_resp = _ok_response(json_data=[])
+    list_resp = _models_response()
     client = AsyncMock()
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=None)
@@ -146,7 +180,7 @@ async def test_load_model_connection_error() -> None:
 
 async def test_load_model_skips_when_already_loaded() -> None:
     """Skip loading if the target model is already active."""
-    list_resp = _ok_response(json_data=[{"id": "google/gemma-3-27b"}])
+    list_resp = _models_response(loaded=["google/gemma-3-27b"])
     client = _mock_client(get_return=list_resp)
 
     with patch(
@@ -163,8 +197,8 @@ async def test_load_model_skips_when_already_loaded() -> None:
 
 async def test_load_model_unloads_others_when_target_loaded() -> None:
     """Unload stale models when target is already active but others are loaded."""
-    list_resp = _ok_response(
-        json_data=[{"id": "google/gemma-3-27b"}, {"id": "qwen/qwen3-vl-30b"}],
+    list_resp = _models_response(
+        loaded=["google/gemma-3-27b", "qwen/qwen3-vl-30b"],
     )
     unload_resp = _ok_response()
     client = _mock_client(get_return=list_resp, post_return=unload_resp)
@@ -187,7 +221,7 @@ async def test_load_model_unloads_others_when_target_loaded() -> None:
 
 async def test_load_model_unloads_existing_before_loading_new() -> None:
     """Unload existing models before loading a new one."""
-    list_resp = _ok_response(json_data=[{"id": "qwen/qwen3-vl-30b"}])
+    list_resp = _models_response(loaded=["qwen/qwen3-vl-30b"])
     ok_resp = _ok_response()
     client = _mock_client(get_return=list_resp, post_return=ok_resp)
 
@@ -223,8 +257,8 @@ async def test_load_model_fails_fast_when_list_fails() -> None:
     client.get = AsyncMock(
         side_effect=httpx.HTTPStatusError(
             "error",
-            request=httpx.Request("GET", _LIST_URL),
-            response=_error_response(500, "fail", "GET", _LIST_URL),
+            request=httpx.Request("GET", _MODELS_URL),
+            response=_error_response(500, "fail", "GET", _MODELS_URL),
         )
     )
     client.post = AsyncMock()
@@ -246,12 +280,10 @@ async def test_load_model_fails_fast_when_list_fails() -> None:
 
 
 async def test_list_models_success() -> None:
-    """List returns model IDs from JSON response."""
-    resp = _ok_response(
-        json_data=[
-            {"id": "google/gemma-3-27b"},
-            {"id": "qwen/qwen3-vl-30b"},
-        ]
+    """List returns keys of models with non-empty loaded_instances."""
+    resp = _models_response(
+        loaded=["google/gemma-3-27b", "qwen/qwen3-vl-30b"],
+        available=["openai/gpt-oss-20b"],
     )
     client = _mock_client(get_return=resp)
 
@@ -261,12 +293,12 @@ async def test_list_models_success() -> None:
         result = await list_lm_studio_models(load_endpoint=_LOAD_URL)
 
     assert result == ["google/gemma-3-27b", "qwen/qwen3-vl-30b"]
-    client.get.assert_awaited_once_with(_LIST_URL, headers={})
+    client.get.assert_awaited_once_with(_MODELS_URL, headers={})
 
 
 async def test_list_models_empty() -> None:
     """List returns empty list when no models are loaded."""
-    resp = _ok_response(json_data=[])
+    resp = _models_response()
     client = _mock_client(get_return=resp)
 
     with patch(
@@ -279,7 +311,7 @@ async def test_list_models_empty() -> None:
 
 async def test_list_models_http_error() -> None:
     """HTTP error from list endpoint raises ModelLoadError."""
-    err_resp = _error_response(500, "internal error", "GET", _LIST_URL)
+    err_resp = _error_response(500, "internal error", "GET", _MODELS_URL)
     client = _mock_client(
         get_side_effect=httpx.HTTPStatusError(
             "Server Error",
@@ -365,8 +397,8 @@ async def test_unload_model_connection_error() -> None:
 
 async def test_load_model_fails_fast_when_stale_unload_fails() -> None:
     """Unload failure for stale model (target already loaded) raises ModelLoadError."""
-    list_resp = _ok_response(
-        json_data=[{"id": "google/gemma-3-27b"}, {"id": "qwen/qwen3-vl-30b"}],
+    list_resp = _models_response(
+        loaded=["google/gemma-3-27b", "qwen/qwen3-vl-30b"],
     )
     # Build a client where GET (list) succeeds but POST (unload) fails
     err_resp = _error_response(500, "unload failed", "POST", _UNLOAD_URL)
@@ -394,7 +426,7 @@ async def test_load_model_fails_fast_when_stale_unload_fails() -> None:
 
 async def test_load_model_fails_fast_when_pre_load_unload_fails() -> None:
     """Unload failure before loading new model raises ModelLoadError."""
-    list_resp = _ok_response(json_data=[{"id": "qwen/qwen3-vl-30b"}])
+    list_resp = _models_response(loaded=["qwen/qwen3-vl-30b"])
     # Build a client where GET (list) succeeds but POST (unload) fails
     err_resp = _error_response(500, "unload failed", "POST", _UNLOAD_URL)
     client = AsyncMock()
