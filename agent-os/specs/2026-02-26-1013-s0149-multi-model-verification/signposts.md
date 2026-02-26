@@ -163,3 +163,19 @@
 - **Solution:** Updated `list_lm_studio_models` to use `GET /api/v1/models` (the base path) instead of the non-existent `GET /api/v1/models/list`. Updated response parsing to handle the v1 API format: `{"models": [{"key": "...", "loaded_instances": [...]}]}` — a model is loaded if `loaded_instances` is non-empty, identified by `key`. Updated all unit tests to use the new response format and corrected URL assertions.
 - **Resolution:** do-task round 13
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `tests/unit/core/compatibility/test_loader.py`
+
+- **Task:** Task 6 (gate triage round 3)
+- **Status:** unresolved
+- **Problem:** LM Studio load timeout is coupled to the per-phase inference timeout override, so quality-budget tuning for phase calls can break local model loading before verification starts.
+- **Evidence:** Current gate output fails local compatibility cases (`google/gemma-3-27b`, `qwen/qwen3-vl-30b`, `openai/gpt-oss-20b`) at `tests/quality/compatibility/test_model_compatibility.py:101` with `Model loading failed: Failed to reach LM Studio at http://192.168.1.23:1234/api/v1/models/load for model ...`.
+- **Evidence:** Registry local entries now set `timeout_s = 5.0` (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:31`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:41`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:51`).
+- **Evidence:** `verify_model` forwards `entry.config_overrides.timeout_s` directly to `load_lm_studio_model(..., timeout_s=...)` (`packages/rentl-core/src/rentl_core/compatibility/runner.py:254`), so the same 5s budget is used for model loading and inference.
+- **Impact:** Task 6 compatibility verification for local models fails in the context phase before any pipeline phase validation, even when endpoint routing/list logic is correct.
+
+- **Task:** Task 6 (gate triage round 3)
+- **Status:** unresolved
+- **Problem:** Zero-retry compatibility tuning is now out of sync with current OpenRouter model behavior; declared verified models fail structured-output phases and some runs still hit the 30s quality timeout.
+- **Evidence:** Gate output reports `UnexpectedModelBehavior: Exceeded maximum retries (0) for output validation` for `qwen/qwen3.5-27b` (context) and `openai/gpt-oss-120b` (qa), and also times out `deepseek/deepseek-v3.2`, `z-ai/glm-5`, and `minimax/minimax-m2.5` in `when_run_verification` (`tests/quality/compatibility/test_model_compatibility.py:93`).
+- **Evidence:** Registry currently forces `max_output_retries = 0` for every OpenRouter entry (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:65`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:75`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:84`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:93`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:102`).
+- **Evidence:** The runner passes this value directly into `Agent(..., output_retries=output_retries)` (`packages/rentl-core/src/rentl_core/compatibility/runner.py:197-201`, `packages/rentl-core/src/rentl_core/compatibility/runner.py:290-293`).
+- **Impact:** The compatibility registry is no longer a reliable declaration of currently verified OpenRouter behavior, and quality-gate failures recur as assertion failures and pytest-timeout kills.
