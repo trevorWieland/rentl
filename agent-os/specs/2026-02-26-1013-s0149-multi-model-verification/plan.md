@@ -48,7 +48,7 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - Acceptance: `make quality` runs all compatibility tests; zero skips
   - [x] Fix: Replace the current `pytest_generate_tests` approach with a real `model_entry` fixture parametrization that pytest-bdd can resolve, so the scenario no longer errors with `fixture 'model_entry' not found` (`tests/quality/compatibility/test_model_compatibility.py:43-50`, `tests/quality/compatibility/test_model_compatibility.py:76-78`) (audit round 1)
   - [x] Fix: Verify collection produces one compatibility test instance per registry model (9 expected from the bundled registry), not a single unparameterized scenario (`LM_STUDIO_API_KEY=dummy RENTL_OPENROUTER_API_KEY=dummy pytest -q tests/quality/compatibility/test_model_compatibility.py --collect-only` currently reports `collected 1 item`) (audit round 1)
-- [ ] Task 6: Verify all target models pass and fix provider issues
+- [x] Task 6: Verify all target models pass and fix provider issues
   - Run CLI and test suite against all 9 models (4 local, 5 OpenRouter)
   - Fix any structured output or tool calling issues in provider handling — generically, no model-specific branches
   - Grep source code to confirm no hardcoded model name strings outside registry/fixtures
