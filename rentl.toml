@@ -27,14 +27,23 @@ type = "console"
 prompts_dir = "packages/rentl-agents/prompts"
 agents_dir = "packages/rentl-agents/agents"
 
-[endpoint]
+[endpoints]
+default = "openrouter"
+
+[[endpoints.endpoints]]
 provider_name = "openrouter"
 base_url = "https://openrouter.ai/api/v1"
 api_key_env = "RENTL_OPENROUTER_API_KEY"
-timeout_s = 180
+timeout_s = 180.0
 
-[endpoint.openrouter_provider]
+[endpoints.endpoints.openrouter_provider]
 require_parameters = true
+
+[[endpoints.endpoints]]
+provider_name = "lm-studio"
+base_url = "http://192.168.1.23:1234/v1"
+api_key_env = "RENTL_LOCAL_API_KEY"
+timeout_s = 180.0
 
 [pipeline.default_model]
 model_id = "qwen/qwen3-vl-30b-a3b-instruct"
