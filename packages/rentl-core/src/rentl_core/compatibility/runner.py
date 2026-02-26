@@ -257,11 +257,27 @@ async def verify_model(
     # Resolve API key
     api_key = os.getenv(endpoint.api_key_env) or ""
 
-    # Apply config overrides
-    timeout_s = entry.config_overrides.timeout_s or endpoint.timeout_s
-    temperature = entry.config_overrides.temperature or 0.2
-    top_p = entry.config_overrides.top_p or 1.0
-    max_output_tokens = entry.config_overrides.max_output_tokens or 4096
+    # Apply config overrides — use `is not None` to preserve explicit zeros
+    timeout_s = (
+        entry.config_overrides.timeout_s
+        if entry.config_overrides.timeout_s is not None
+        else endpoint.timeout_s
+    )
+    temperature = (
+        entry.config_overrides.temperature
+        if entry.config_overrides.temperature is not None
+        else 0.2
+    )
+    top_p = (
+        entry.config_overrides.top_p
+        if entry.config_overrides.top_p is not None
+        else 1.0
+    )
+    max_output_tokens = (
+        entry.config_overrides.max_output_tokens
+        if entry.config_overrides.max_output_tokens is not None
+        else 4096
+    )
 
     # Build model via provider factory
     model, settings = create_model(

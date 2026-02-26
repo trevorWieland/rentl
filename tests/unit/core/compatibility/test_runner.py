@@ -123,8 +123,8 @@ async def test_verify_model_phase_failure() -> None:
     call_count = 0
 
     def _side_effect(
-        *args: object,
-        **kwargs: object,
+        *args: str,
+        **kwargs: str | int | float | bool | None,
     ) -> _FakeAgentResult:
         nonlocal call_count
         call_count += 1

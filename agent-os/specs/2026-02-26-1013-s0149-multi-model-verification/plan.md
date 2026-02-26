@@ -28,8 +28,8 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - Files: `packages/rentl-core/src/rentl_core/compatibility/` (runner, loader, types)
   - Tests: unit tests with mocked LLM calls + mocked load API
   - Acceptance: runner produces correct results for mock scenarios; load API integration works
-  - [ ] Fix: Preserve explicit zero-valued config overrides (`temperature=0.0`, `top_p=0.0`) by using `is not None` checks instead of truthy `or` fallbacks in `verify_model` (`packages/rentl-core/src/rentl_core/compatibility/runner.py:261-264`) (audit round 1)
-  - [ ] Fix: Replace `object` type annotations in the `_side_effect` test helper with explicit concrete types to satisfy `strict-typing-enforcement` (`tests/unit/core/compatibility/test_runner.py:126-127`) (audit round 1)
+  - [x] Fix: Preserve explicit zero-valued config overrides (`temperature=0.0`, `top_p=0.0`) by using `is not None` checks instead of truthy `or` fallbacks in `verify_model` (`packages/rentl-core/src/rentl_core/compatibility/runner.py:261-264`) (audit round 1)
+  - [x] Fix: Replace `object` type annotations in the `_side_effect` test helper with explicit concrete types to satisfy `strict-typing-enforcement` (`tests/unit/core/compatibility/test_runner.py:126-127`) (audit round 1)
 - [ ] Task 4: Add `rentl verify-models` CLI command
   - Thin CLI adapter that reads the registry, invokes the shared runner, displays results
   - Supports `--endpoint` filter (local/openrouter/all) and `--model` filter
