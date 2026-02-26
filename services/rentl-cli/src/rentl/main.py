@@ -48,6 +48,11 @@ from rentl_core.benchmark.output_loader import (
     validate_matching_line_ids,
 )
 from rentl_core.benchmark.report import BenchmarkReportBuilder, format_report_summary
+from rentl_core.compatibility import (
+    PhaseVerificationStatus,
+    RegistryVerificationResult,
+    verify_registry,
+)
 from rentl_core.cost import aggregate_cost_by_phase, aggregate_total_cost
 from rentl_core.doctor import DoctorReport, run_doctor
 from rentl_core.explain import get_phase_info, list_phases
@@ -105,10 +110,12 @@ from rentl_llm.provider_factory import PreflightEndpoint, assert_preflight
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.benchmark.report import PairwiseSummary
 from rentl_schemas.benchmark.rubric import HeadToHeadResult
+from rentl_schemas.compatibility import EndpointType, load_bundled_registry
 from rentl_schemas.config import (
     LanguageConfig,
     LoggingConfig,
     LogSinkConfig,
+    ModelEndpointConfig,
     ModelSettings,
     OpenRouterProviderRoutingConfig,
     RunConfig,
@@ -3786,6 +3793,157 @@ def _batch_error_response(exc: ExportBatchError) -> ApiResponse[ExportResult]:
         exc.errors[0].to_error_response(), len(exc.errors), "export"
     )
     return _error_response(error)
+
+
+@app.command("verify-models")
+def verify_models(
+    config_path: Path = CONFIG_OPTION,
+    endpoint: str | None = typer.Option(
+        None,
+        "--endpoint",
+        help="Filter by endpoint type: local, openrouter, or all (default: all)",
+    ),
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        help="Filter to a specific model_id",
+    ),
+) -> None:
+    """Verify model compatibility through a mini 5-phase pipeline.\f
+
+    Reads the verified-models registry and runs each model through
+    context, pretranslation, translate, QA, and edit phases.
+    Reports per-model, per-phase pass/fail with actionable errors.
+
+    Example:
+        rentl verify-models
+        rentl verify-models --endpoint local
+        rentl verify-models --model qwen/qwen3.5-35b-a3b
+
+    Raises:
+        typer.Exit: When verification encounters configuration errors.
+    """  # noqa: D301, D415
+    console = Console()
+    is_tty = sys.stdout.isatty()
+
+    # Validate endpoint filter
+    if endpoint is not None and endpoint not in {"local", "openrouter", "all"}:
+        if is_tty:
+            console.print(
+                f"[red]Error:[/red] --endpoint must be local, openrouter, or all"
+                f" (got '{endpoint}')",
+            )
+        else:
+            print(
+                "Error: --endpoint must be local, openrouter,"
+                f" or all (got '{endpoint}')"
+            )
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value)
+
+    endpoint_filter: EndpointType | None = (
+        None if endpoint is None or endpoint == "all" else cast(EndpointType, endpoint)
+    )
+
+    # Load config and registry
+    try:
+        config = _load_resolved_config(config_path)
+    except Exception as exc:
+        if is_tty:
+            console.print(f"[red]Error loading config:[/red] {exc}")
+        else:
+            print(f"Error loading config: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    # Build endpoint mapping from config
+    endpoints_map: dict[str, ModelEndpointConfig] = {}
+    if config.endpoints is not None:
+        for ep in config.endpoints.endpoints:
+            endpoints_map[ep.provider_name] = ep
+    elif config.endpoint is not None:
+        endpoints_map[config.endpoint.provider_name] = config.endpoint
+
+    try:
+        registry = load_bundled_registry()
+    except Exception as exc:
+        if is_tty:
+            console.print(f"[red]Error loading registry:[/red] {exc}")
+        else:
+            print(f"Error loading registry: {exc}")
+        raise typer.Exit(code=ExitCode.VALIDATION_ERROR.value) from None
+
+    if is_tty:
+        model_count = len(registry.models)
+        if endpoint_filter:
+            model_count = len(registry.filter_by_endpoint(endpoint_filter))
+        if model:
+            model_count = 1 if registry.get_model(model) else 0
+        console.print(
+            f"[bold]Verifying {model_count} model(s)...[/bold]\n",
+        )
+
+    # Run verification
+    result: RegistryVerificationResult = asyncio.run(
+        verify_registry(
+            registry=registry,
+            endpoints=endpoints_map,
+            endpoint_filter=endpoint_filter,
+            model_filter=model,
+        )
+    )
+
+    # Display results
+    if is_tty:
+        _print_verification_results_tty(console, result)
+    else:
+        print(result.model_dump_json())
+
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
+def _print_verification_results_tty(
+    console: Console,
+    result: RegistryVerificationResult,
+) -> None:
+    """Render verification results as a rich table for TTY output.
+
+    Args:
+        console: Rich console instance.
+        result: Verification results to display.
+    """
+    table = Table(title="Model Verification Results", show_header=True)
+    table.add_column("Model", style="cyan", min_width=30)
+    table.add_column("Status", min_width=8)
+    table.add_column("Phases", min_width=40)
+
+    for model_result in result.model_results:
+        status_str = "[green]PASS[/green]" if model_result.passed else "[red]FAIL[/red]"
+        phases_parts: list[str] = []
+        for pr in model_result.phase_results:
+            if pr.status == PhaseVerificationStatus.PASSED:
+                phases_parts.append(f"[green]{pr.phase}[/green]")
+            else:
+                phases_parts.append(f"[red]{pr.phase}[/red]")
+        phases_str = " ".join(phases_parts)
+        table.add_row(model_result.model_id, status_str, phases_str)
+
+    console.print(table)
+
+    # Print error details for failed models
+    for model_result in result.model_results:
+        if model_result.passed:
+            continue
+        console.print(f"\n[red]Failures for {model_result.model_id}:[/red]")
+        for pr in model_result.phase_results:
+            if pr.status == PhaseVerificationStatus.FAILED and pr.error_message:
+                console.print(f"  [dim]{pr.phase}:[/dim] {pr.error_message}")
+
+    # Summary
+    total = len(result.model_results)
+    passed = sum(1 for m in result.model_results if m.passed)
+    console.print(
+        f"\n[bold]{passed}/{total} models passed verification.[/bold]",
+    )
 
 
 @app.command("check-secrets")
