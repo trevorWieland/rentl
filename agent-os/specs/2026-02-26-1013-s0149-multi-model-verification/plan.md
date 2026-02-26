@@ -39,13 +39,15 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - Acceptance: `rentl verify-models --help` works; output is clear and actionable
   - [x] Fix: Wrap `asyncio.run(verify_registry(...))` in CLI error handling so unexpected verifier/runtime exceptions return actionable CLI output instead of propagating uncaught (`services/rentl-cli/src/rentl/main.py:3885-3892`) (audit round 1, see signposts.md: Task 4 unresolved verifier exception handling)
   - [x] Fix: Add unit tests for output formatting paths (TTY rich table + non-TTY JSON emission) to satisfy Task 4 test requirements (`tests/unit/cli/test_verify_models.py`) (audit round 1)
-- [x] Task 5: Add pytest compatibility test suite
+- [ ] Task 5: Add pytest compatibility test suite
   - Quality-tier tests parameterized from the verified-models registry
   - BDD-style (Given/When/Then)
   - Loads local models via LM Studio API before each test — no skipping
   - Uses the same shared runner from Task 3
   - Files: `tests/quality/compatibility/test_model_compatibility.py`, `tests/quality/compatibility/conftest.py`
   - Acceptance: `make quality` runs all compatibility tests; zero skips
+  - [ ] Fix: Replace the current `pytest_generate_tests` approach with a real `model_entry` fixture parametrization that pytest-bdd can resolve, so the scenario no longer errors with `fixture 'model_entry' not found` (`tests/quality/compatibility/test_model_compatibility.py:43-50`, `tests/quality/compatibility/test_model_compatibility.py:76-78`) (audit round 1)
+  - [ ] Fix: Verify collection produces one compatibility test instance per registry model (9 expected from the bundled registry), not a single unparameterized scenario (`LM_STUDIO_API_KEY=dummy RENTL_OPENROUTER_API_KEY=dummy pytest -q tests/quality/compatibility/test_model_compatibility.py --collect-only` currently reports `collected 1 item`) (audit round 1)
 - [ ] Task 6: Verify all target models pass and fix provider issues
   - Run CLI and test suite against all 9 models (4 local, 5 OpenRouter)
   - Fix any structured output or tool calling issues in provider handling — generically, no model-specific branches
