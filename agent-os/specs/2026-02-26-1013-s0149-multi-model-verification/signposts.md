@@ -228,3 +228,11 @@
 - **Solution:** Added `max_sdk_retries` field to `VerifiedModelConfigOverrides` schema. Added `max_retries` parameter to `create_model()` that constructs the `AsyncOpenAI` client with explicit retry control when specified (otherwise SDK default applies). Wired through `verify_model` → `create_model(max_retries=max_sdk_retries)`. Set `max_sdk_retries = 0` in registry for all 4 models, disabling SDK-level HTTP retries so per-phase time stays within `timeout_s`. Added schema, provider factory, and runner regression tests.
 - **Resolution:** do-task round 17
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/compatibility.py`, `packages/rentl-llm/src/rentl_llm/provider_factory.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`, `tests/unit/llm/test_provider_factory.py`, `tests/unit/core/compatibility/test_runner.py`
+
+- **Task:** Task 6 (gate triage round 7)
+- **Status:** unresolved
+- **Problem:** Quality-agent harness timing assumptions account for pydantic-ai request limits/timeouts but not OpenAI SDK transport retries, so "20s budget" paths can still overrun pytest's 30s cap.
+- **Evidence:** Gate output times out `tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes` with `Failed: Timeout (>30.0s) from pytest-timeout` while blocked in `ctx.dataset.evaluate(ctx.task)` (`tests/quality/agents/test_pretranslation_agent.py:166`).
+- **Evidence:** Harness budget is configured as `timeout_s=5.0`, `max_requests_per_run=3` (`tests/quality/agents/quality_harness.py:81-85`) and judge timeout `5.0` (`tests/quality/agents/quality_harness.py:99-106`), but neither path sets SDK retry limits.
+- **Evidence:** Profile-agent runtime calls `create_model(...)` without `max_retries` (`packages/rentl-agents/src/rentl_agents/runtime.py:598-608`), and `create_model` documents that `max_retries=None` uses SDK defaults (`packages/rentl-llm/src/rentl_llm/provider_factory.py:85-86`).
+- **Impact:** Quality pretranslation eval can exceed the 30s gate budget even when request/time settings appear compliant, causing timeout kills that mask actionable phase-level diagnostics.
