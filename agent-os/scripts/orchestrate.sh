@@ -23,6 +23,8 @@
 #     ORCH_AUDIT_MODEL   - Model for audit-task (default: "gpt-5.3-codex")
 #     ORCH_DEMO_MODEL    - Model for run-demo (default: "sonnet")
 #     ORCH_SPEC_MODEL    - Model for audit-spec (default: "gpt-5.3-codex")
+#     ORCH_TRIAGE_CLI    - CLI for triage-gate (default: ORCH_AUDIT_CLI)
+#     ORCH_TRIAGE_MODEL  - Model for triage-gate (default: ORCH_AUDIT_MODEL)
 #
 #   Gates and limits:
 #     ORCH_TASK_GATE     - Task-level verification command (default: "make check")
@@ -202,6 +204,8 @@ AGENT_TIMEOUT="${ORCH_AGENT_TIMEOUT:-1800}"
 MAX_TASK_RETRIES="${ORCH_MAX_TASK_RETRIES:-5}"
 STALE_LIMIT="${ORCH_STALE_LIMIT:-3}"
 MAX_DEMO_RETRIES="${ORCH_MAX_DEMO_RETRIES:-3}"
+TRIAGE_CLI="${ORCH_TRIAGE_CLI:-$AUDIT_CLI}"
+TRIAGE_MODEL="${ORCH_TRIAGE_MODEL:-$AUDIT_MODEL}"
 
 # Load config file if provided
 while [[ $# -gt 0 ]]; do
@@ -475,6 +479,7 @@ tput "\n${BOLD}═══ Orchestrator ═══${NC}\n\n"
 tput "  ${DIM}Spec:${NC}    %s\n" "$SPEC_FOLDER"
 tput "  ${DIM}Impl:${NC}    %s ${DIM}(%s)${NC}\n" "$DO_MODEL" "${DO_CLI%% *}"
 tput "  ${DIM}Audit:${NC}   %s ${DIM}(%s)${NC}\n" "$AUDIT_MODEL" "${AUDIT_CLI%% *}"
+tput "  ${DIM}Triage:${NC}  %s ${DIM}(%s)${NC}\n" "$TRIAGE_MODEL" "${TRIAGE_CLI%% *}"
 tput "  ${DIM}Gates:${NC}   %s │ %s\n" "$TASK_GATE" "$SPEC_GATE"
 tput "  ${DIM}Limits:${NC}  %ss timeout │ %d task retries │ %d stale cycles │ %d demo retries\n" "$AGENT_TIMEOUT" "$MAX_TASK_RETRIES" "$STALE_LIMIT" "$MAX_DEMO_RETRIES"
 
@@ -587,7 +592,7 @@ while true; do
                 ;;
         esac
 
-        # Task gate with retry loop
+        # Task gate with triage loop
         gate_attempt=0
         gate_passed=false
 
@@ -598,28 +603,50 @@ while true; do
                 gate_passed=true
             else
                 if [[ $gate_attempt -ge $MAX_GATE_RETRIES ]]; then
-                    fail "Task gate failing after $MAX_GATE_RETRIES attempts:"
+                    fail "Task gate failing after $MAX_GATE_RETRIES triage attempts:"
                     echo "$LAST_GATE_OUTPUT" | tail -30
                     exit 1
                 fi
 
-                # Re-invoke do-task with gate errors
-                begin_phase "do-task" "$DO_MODEL"
-                invoke_agent "do-task" "$DO_CLI" "$DO_MODEL" \
-                    "GATE FAILURE — '$TASK_GATE' FAILED. Fix these errors, run the gate yourself, then exit with do-task-status: complete.
+                # Invoke triage-gate to investigate and add fix items
+                begin_phase "triage-gate" "$TRIAGE_MODEL"
+                invoke_agent "triage-gate" "$TRIAGE_CLI" "$TRIAGE_MODEL" \
+                    "TASK GATE FAILURE — '$TASK_GATE' failed after do-task completed.
+Investigate the root causes, add fix items to plan.md, and uncheck the affected task.
+
+Gate output:
 
 \`\`\`
 $LAST_GATE_OUTPUT
 \`\`\`"
                 output="$AGENT_OUTPUT"
                 guard_spec_md
-                signal=$(extract_signal "$output" "do-task-status")
-                end_phase "ok" "gate fix"
+                signal=$(extract_signal "$output" "triage-gate-status")
 
-                if [[ "$signal" == "blocked" || "$signal" == "error" ]]; then
-                    fail "do-task: '$signal' while fixing gate. See signposts.md."
-                    exit 1
-                fi
+                case "$signal" in
+                    diagnosed)
+                        end_phase "ok" "fix items added"
+                        # Break out of gate loop — outer task loop will see
+                        # the unchecked task and re-invoke do-task with fix items
+                        break
+                        ;;
+                    blocked)
+                        end_phase "fail" "blocked"
+                        fail "triage-gate: blocked — human intervention needed. See signposts.md."
+                        exit 1
+                        ;;
+                    error|"")
+                        end_phase "fail" "${signal:-no signal}"
+                        fail "triage-gate failed to diagnose. Gate output:"
+                        echo "$LAST_GATE_OUTPUT" | tail -30
+                        exit 1
+                        ;;
+                    *)
+                        end_phase "fail" "unexpected signal: $signal"
+                        fail "triage-gate: unexpected signal '$signal'. Halting."
+                        exit 1
+                        ;;
+                esac
             fi
         done
 
@@ -676,18 +703,65 @@ $LAST_GATE_OUTPUT
 
     # ─── Phase 2: Spec Gate ───
 
-    if ! run_gate "make all" "$SPEC_GATE"; then
-        tput "  ${YELLOW}↳ spec gate failed, invoking do-task to fix${NC}\n"
-        begin_phase "do-task" "$DO_MODEL"
-        invoke_agent "do-task" "$DO_CLI" "$DO_MODEL" \
-            "The full verification gate ($SPEC_GATE) failed after all tasks were completed. Diagnose and fix.
+    spec_gate_attempt=0
+    spec_gate_passed=false
+
+    while [[ "$spec_gate_passed" == "false" ]]; do
+        spec_gate_attempt=$((spec_gate_attempt + 1))
+
+        if run_gate "make all" "$SPEC_GATE"; then
+            spec_gate_passed=true
+        else
+            if [[ $spec_gate_attempt -ge $MAX_GATE_RETRIES ]]; then
+                fail "Spec gate failing after $MAX_GATE_RETRIES triage attempts:"
+                echo "$LAST_GATE_OUTPUT" | tail -30
+                exit 1
+            fi
+
+            # Invoke triage-gate to investigate and trace failures to task(s)
+            tput "  ${YELLOW}↳ spec gate failed, invoking triage-gate${NC}\n"
+            begin_phase "triage-gate" "$TRIAGE_MODEL"
+            invoke_agent "triage-gate" "$TRIAGE_CLI" "$TRIAGE_MODEL" \
+                "SPEC GATE FAILURE — '$SPEC_GATE' failed after all tasks were completed.
+Investigate the root causes, trace failures to owning task(s), add fix items to plan.md, and uncheck affected task(s).
+
+Gate output:
 
 \`\`\`
 $LAST_GATE_OUTPUT
 \`\`\`"
-        output="$AGENT_OUTPUT"
-        guard_spec_md
-        end_phase "ok" "gate fix applied"
+            output="$AGENT_OUTPUT"
+            guard_spec_md
+            signal=$(extract_signal "$output" "triage-gate-status")
+
+            case "$signal" in
+                diagnosed)
+                    end_phase "ok" "fix items added"
+                    # Restart cycle — task loop will pick up unchecked task(s)
+                    break
+                    ;;
+                blocked)
+                    end_phase "fail" "blocked"
+                    fail "triage-gate: blocked — human intervention needed. See signposts.md."
+                    exit 1
+                    ;;
+                error|"")
+                    end_phase "fail" "${signal:-no signal}"
+                    fail "triage-gate failed to diagnose. Gate output:"
+                    echo "$LAST_GATE_OUTPUT" | tail -30
+                    exit 1
+                    ;;
+                *)
+                    end_phase "fail" "unexpected signal: $signal"
+                    fail "triage-gate: unexpected signal '$signal'. Halting."
+                    exit 1
+                    ;;
+            esac
+        fi
+    done
+
+    # If triage broke out of the spec gate loop, restart the cycle
+    if [[ "$spec_gate_passed" == "false" ]]; then
         continue
     fi
 
