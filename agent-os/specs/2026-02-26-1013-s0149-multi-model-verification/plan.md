@@ -20,7 +20,7 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - [x] Fix: Handle non-string/null `endpoint_type` inputs in validator without raising raw `AttributeError`; reject with a Pydantic `ValidationError` path instead (`packages/rentl-schemas/src/rentl_schemas/compatibility.py:56-59`) (audit round 1)
   - [x] Fix: Add unit coverage for `endpoint_type=None` (and/or non-string) to confirm invalid entries are rejected via validation errors (`tests/unit/schemas/test_compatibility.py`) (audit round 1)
   - [x] Fix: Remove `object` annotation from `_coerce_endpoint_type` validator signature and use explicit non-`Any` typing to satisfy `strict-typing-enforcement` (`packages/rentl-schemas/src/rentl_schemas/compatibility.py:58`) (audit round 2)
-- [ ] Task 3: Build shared verification runner with model loading
+- [x] Task 3: Build shared verification runner with model loading
   - Core logic that takes a registry entry, resolves the endpoint, and runs a mini 5-phase pipeline on golden input data
   - For local models: call LM Studio load API (`http://192.168.1.23:1234/api/v1/models/load`) to switch active model before verification
   - Return structured pass/fail results per phase with error details
