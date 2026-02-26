@@ -16,3 +16,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 2): PASS — Registry-driven parametrization is fixed and verified; `pytest --collect-only` now discovers 9 per-model compatibility scenarios with no missing `model_entry` fixture errors.
 - **Task 6** (round 1): FAIL — Task 6 fixes are implemented, but the new override wiring (`supports_tool_choice_required`, `max_output_retries`) lacks direct regression coverage in schema, runner, and provider-factory tests.
 - **Task 7** (round 1): FAIL — LM Studio lifecycle guarantees break on unload/load-failure paths: pre-load unload errors are warning-only and load failures return before the cleanup `finally` runs.
+- **Task 7** (round 2): PASS — Fail-fast unload handling and cleanup-guarded local verification are implemented and verified in `load_lm_studio_model`/`verify_model`, including unload-failure and load-failure cleanup tests.
