@@ -221,7 +221,7 @@ async def test_verify_model_local_loads_first() -> None:
 
 
 async def test_verify_model_local_load_failure() -> None:
-    """Model load failure skips all phases and does not attempt unload."""
+    """Model load failure skips all phases but still attempts cleanup unload."""
     entry = _build_local_entry()
     endpoint = _build_local_endpoint()
 
@@ -246,8 +246,8 @@ async def test_verify_model_local_load_failure() -> None:
     assert result.passed is False
     assert len(result.phase_results) == 1
     assert "Model loading failed" in (result.phase_results[0].error_message or "")
-    # Load failed early — unload should not have been called
-    mock_unload.assert_not_awaited()
+    # Cleanup unload runs via finally even on load failure
+    mock_unload.assert_awaited_once()
 
 
 async def test_verify_registry_filter_endpoint() -> None:

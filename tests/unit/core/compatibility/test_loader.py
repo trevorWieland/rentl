@@ -363,6 +363,62 @@ async def test_unload_model_connection_error() -> None:
         )
 
 
+async def test_load_model_fails_fast_when_stale_unload_fails() -> None:
+    """Unload failure for stale model (target already loaded) raises ModelLoadError."""
+    list_resp = _ok_response(
+        json_data=[{"id": "google/gemma-3-27b"}, {"id": "qwen/qwen3-vl-30b"}],
+    )
+    # Build a client where GET (list) succeeds but POST (unload) fails
+    err_resp = _error_response(500, "unload failed", "POST", _UNLOAD_URL)
+    client = AsyncMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=None)
+    client.get = AsyncMock(return_value=list_resp)
+    client.post = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            "Server Error",
+            request=err_resp.request,
+            response=err_resp,
+        )
+    )
+
+    with (
+        patch("rentl_core.compatibility.loader.httpx.AsyncClient", return_value=client),
+        pytest.raises(ModelLoadError, match="single-model residency"),
+    ):
+        await load_lm_studio_model(
+            load_endpoint=_LOAD_URL,
+            model_id="google/gemma-3-27b",
+        )
+
+
+async def test_load_model_fails_fast_when_pre_load_unload_fails() -> None:
+    """Unload failure before loading new model raises ModelLoadError."""
+    list_resp = _ok_response(json_data=[{"id": "qwen/qwen3-vl-30b"}])
+    # Build a client where GET (list) succeeds but POST (unload) fails
+    err_resp = _error_response(500, "unload failed", "POST", _UNLOAD_URL)
+    client = AsyncMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=None)
+    client.get = AsyncMock(return_value=list_resp)
+    client.post = AsyncMock(
+        side_effect=httpx.HTTPStatusError(
+            "Server Error",
+            request=err_resp.request,
+            response=err_resp,
+        )
+    )
+
+    with (
+        patch("rentl_core.compatibility.loader.httpx.AsyncClient", return_value=client),
+        pytest.raises(ModelLoadError, match="single-model residency"),
+    ):
+        await load_lm_studio_model(
+            load_endpoint=_LOAD_URL,
+            model_id="google/gemma-3-27b",
+        )
+
+
 async def test_unload_model_sends_auth_header() -> None:
     """Auth header is sent when api_key is provided."""
     client = _mock_client()

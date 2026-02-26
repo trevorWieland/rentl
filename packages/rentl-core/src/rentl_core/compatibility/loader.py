@@ -169,8 +169,12 @@ async def load_lm_studio_model(
                         api_key=api_key,
                         timeout_s=60.0,
                     )
-                except ModelUnloadError:
-                    _log.warning("Failed to unload stale model %s", other_id)
+                except ModelUnloadError as exc:
+                    raise ModelLoadError(
+                        f"Cannot ensure single-model residency: "
+                        f"failed to unload stale model '{other_id}' "
+                        f"while target '{model_id}' is already loaded: {exc}"
+                    ) from exc
         return
 
     # Unload all currently loaded models before loading the new one
@@ -182,10 +186,12 @@ async def load_lm_studio_model(
                 api_key=api_key,
                 timeout_s=60.0,
             )
-        except ModelUnloadError:
-            _log.warning(
-                "Failed to unload model %s before loading %s", loaded_id, model_id
-            )
+        except ModelUnloadError as exc:
+            raise ModelLoadError(
+                f"Cannot ensure single-model residency: "
+                f"failed to unload model '{loaded_id}' "
+                f"before loading '{model_id}': {exc}"
+            ) from exc
 
     headers = _build_headers(api_key)
     try:

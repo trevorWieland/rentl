@@ -101,11 +101,12 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-core/src/rentl_core/compatibility/__init__.py`, `tests/unit/core/compatibility/test_loader.py`, `tests/unit/core/compatibility/test_runner.py`
 
 - **Task:** Task 7 (audit round 1)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Unload failures are swallowed in resource-aware load logic, and `verify_model` can return before entering cleanup when local load fails.
 - **Evidence:** `packages/rentl-core/src/rentl_core/compatibility/loader.py:172-188` catches `ModelUnloadError` in both "target already loaded" and "pre-load unload" branches and only logs warnings before returning/continuing.
 - **Evidence:** `packages/rentl-core/src/rentl_core/compatibility/runner.py:247-266` returns on `ModelLoadError` before reaching the cleanup `finally` block at `packages/rentl-core/src/rentl_core/compatibility/runner.py:340-354`.
 - **Evidence:** `tests/unit/core/compatibility/test_runner.py:223-250` encodes this behavior with `mock_unload.assert_not_awaited()` on local load failure.
 - **Impact:** Task 7 acceptance can be violated under unload/load-failure conditions: local verification may finish with extra models still resident and can momentarily/indefinitely exceed single-model residency.
-- **Solution:** Make unload-before-load failures fail fast (`ModelLoadError`) instead of warning-only continuation, and enforce local unload cleanup on every local verification exit path (including load failure). Add unit coverage for both unload-failure branches in `load_lm_studio_model`.
+- **Solution:** Changed both `ModelUnloadError` catch blocks in `load_lm_studio_model` to raise `ModelLoadError` (fail-fast) instead of logging warnings. Moved the local model load inside the `try/finally` block in `verify_model` so cleanup unload runs on every exit path including load failure. Updated `test_verify_model_local_load_failure` to assert unload IS attempted. Added `test_load_model_fails_fast_when_stale_unload_fails` and `test_load_model_fails_fast_when_pre_load_unload_fails` to cover both fail-fast branches.
+- **Resolution:** do-task round 9
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `tests/unit/core/compatibility/test_loader.py`, `tests/unit/core/compatibility/test_runner.py`

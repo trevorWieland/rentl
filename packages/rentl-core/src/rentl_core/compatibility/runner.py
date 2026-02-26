@@ -243,29 +243,29 @@ async def verify_model(
     # Track whether we need to unload after verification
     is_local = entry.endpoint_type == "local" and entry.load_endpoint is not None
 
-    # Load local model via LM Studio API
-    if is_local:
-        try:
-            await load_lm_studio_model(
-                load_endpoint=entry.load_endpoint,  # type: ignore[arg-type]
-                model_id=entry.model_id,
-                api_key=api_key,
-                timeout_s=entry.config_overrides.timeout_s or 120.0,
-            )
-        except ModelLoadError as exc:
-            return ModelVerificationResult(
-                model_id=entry.model_id,
-                passed=False,
-                phase_results=[
-                    PhaseResult(
-                        phase=PhaseName.CONTEXT,
-                        status=PhaseVerificationStatus.FAILED,
-                        error_message=f"Model loading failed: {exc}",
-                    ),
-                ],
-            )
-
     try:
+        # Load local model via LM Studio API
+        if is_local:
+            try:
+                await load_lm_studio_model(
+                    load_endpoint=entry.load_endpoint,  # type: ignore[arg-type]
+                    model_id=entry.model_id,
+                    api_key=api_key,
+                    timeout_s=entry.config_overrides.timeout_s or 120.0,
+                )
+            except ModelLoadError as exc:
+                return ModelVerificationResult(
+                    model_id=entry.model_id,
+                    passed=False,
+                    phase_results=[
+                        PhaseResult(
+                            phase=PhaseName.CONTEXT,
+                            status=PhaseVerificationStatus.FAILED,
+                            error_message=f"Model loading failed: {exc}",
+                        ),
+                    ],
+                )
+
         # Apply config overrides — use `is not None` to preserve explicit zeros
         timeout_s = (
             entry.config_overrides.timeout_s
