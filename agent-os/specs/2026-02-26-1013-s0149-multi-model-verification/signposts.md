@@ -132,3 +132,12 @@
 - **Solution:** Added `max_output_retries = 1` to the `[retry]` section of the generated pipeline quality test config, capping output validation retries at 1 instead of the runtime default of 5. This limits the translate phase to 2 attempts (1 initial + 1 retry) and keeps the total phase runtime well within the 30s budget.
 - **Resolution:** do-task round 10
 - **Files affected:** `tests/quality/pipeline/test_golden_script_pipeline.py`
+
+- **Task:** Task 7 (audit round 3)
+- **Status:** unresolved
+- **Problem:** `load_lm_studio_model` still proceeds with a blind `/load` when model listing fails, so it cannot guarantee pre-unload happened before loading the next local model.
+- **Evidence:** `packages/rentl-core/src/rentl_core/compatibility/loader.py:149-158` catches `ModelLoadError` from `list_lm_studio_models`, logs `"Could not list loaded models; proceeding with load"`, and sets `loaded = []` before continuing.
+- **Evidence:** `tests/unit/core/compatibility/test_loader.py:217-242` codifies this behavior via `test_load_model_proceeds_when_list_fails`, which expects load POST to still execute after list failure.
+- **Impact:** This conflicts with Task 7 acceptance requiring single-model residency during local verification; if list fails while another model is resident, the subsequent load can reintroduce multi-model memory pressure.
+- **Solution:** Make list failure fail-fast with `ModelLoadError` (single-model residency cannot be guaranteed), and update the unit test to assert no `/load` call occurs after list failure.
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `tests/unit/core/compatibility/test_loader.py`
