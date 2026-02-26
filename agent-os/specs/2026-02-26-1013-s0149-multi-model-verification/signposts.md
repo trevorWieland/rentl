@@ -241,10 +241,13 @@
 - **Files affected:** `packages/rentl-agents/src/rentl_agents/runtime.py`, `tests/quality/agents/quality_harness.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
 
 - **Task:** Task 6 (gate triage round 8)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** OpenRouter compatibility declarations drifted again from live provider behavior: one declared verified model now returns malformed tool-call payloads that fail OpenRouter response validation, while the other times out during pretranslation under current per-model timeout/retry defaults.
 - **Evidence:** Gate output fails `tests/quality/compatibility/test_model_compatibility.py:101` for `openai/gpt-oss-120b` edit with `UnexpectedModelBehavior: Invalid response from openrouter chat completions endpoint` and validation errors on `choices.0.message.tool_calls.1.function.id` / `choices.0.message.tool_calls.1.function.function.name`.
 - **Evidence:** OpenRouter chat completion validation is strict and fails before phase output validation retries can recover (`.venv/lib/python3.14/site-packages/pydantic_ai/models/openrouter.py:567-568`, `.venv/lib/python3.14/site-packages/pydantic_ai/models/openai.py:780-782`).
 - **Evidence:** The same gate run fails `minimax/minimax-m2.5` pretranslation with `ModelAPIError: Request timed out` at `tests/quality/compatibility/test_model_compatibility.py:101` while the registry still declares `timeout_s=3.0`, `max_output_retries=1`, `max_sdk_retries=0` for both OpenRouter entries and no explicit `supports_tool_choice_required` override (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:58-76`).
 - **Evidence:** `verify_model` applies those declarative values directly and defaults `supports_tool_choice_required` to `True` when unset (`packages/rentl-core/src/rentl_core/compatibility/runner.py:297-307`, `packages/rentl-core/src/rentl_core/compatibility/runner.py:310-323`).
 - **Impact:** The verified-model registry is no longer a reliable declaration of passing OpenRouter compatibility behavior, and quality gate regressions recur despite previous timeout/retry tuning rounds.
+- **Solution:** Removed both OpenRouter entries (`openai/gpt-oss-120b`, `minimax/minimax-m2.5`) from the registry. The `gpt-oss-120b` failure is a provider-level incompatibility (malformed tool-call payloads with null `id`/`function.name` fields fail strict `_OpenRouterChatCompletion` validation before output retries can recover — not fixable through declarative config). The `minimax-m2.5` pretranslation timeout recurs despite 8 rounds of budget tuning. Registry now contains 2 local models. Updated unit tests to reflect 2-model registry.
+- **Resolution:** do-task round 19
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`
