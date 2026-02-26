@@ -38,3 +38,10 @@
 - **Solution:** Replace `object` annotations with explicit argument types (`str` for args, `str | int | float | bool | None` for kwargs).
 - **Resolution:** do-task round 4
 - **Files affected:** `tests/unit/core/compatibility/test_runner.py`
+
+- **Task:** Task 4 (audit round 1)
+- **Status:** unresolved
+- **Problem:** `verify-models` does not handle unexpected exceptions from `verify_registry`, so CLI callers get an unstructured failure instead of actionable command-level output.
+- **Evidence:** `services/rentl-cli/src/rentl/main.py:3885-3892` calls `asyncio.run(verify_registry(...))` with no surrounding `try/except`.
+- **Evidence:** Repro command output (patched verifier): `exit_code: 1`, `exception_type: RuntimeError`, `stdout:` (empty), demonstrating no user-facing diagnostic.
+- **Impact:** Runtime/provider failures at verification time can terminate the command without an actionable message, weakening Task 4's "clear and actionable output" guarantee.

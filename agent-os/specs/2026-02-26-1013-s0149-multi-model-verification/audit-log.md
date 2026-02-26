@@ -10,3 +10,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 1** (round 1): PASS — Spec documentation bundle is complete in commit `1ea0875` (`spec.md`, `plan.md`, `demo.md`, `standards.md`, `references.md`) and matches the Task 1 deliverables.
 - **Task 3** (round 1): FAIL — `verify_model` drops valid zero-valued overrides via truthy fallback logic, and Task 3 tests still use forbidden `object` type annotations.
 - **Task 2** (round 3): PASS — Task 2 schema/registry implementation is compliant; resolved signposts were verified in code and `tests/unit/schemas/test_compatibility.py` passes (21/21).
+- **Task 4** (round 1): FAIL — `verify-models` does not handle unexpected verifier exceptions at the CLI boundary and is missing output-formatting coverage promised by Task 4 tests.

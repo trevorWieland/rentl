@@ -30,13 +30,15 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - Acceptance: runner produces correct results for mock scenarios; load API integration works
   - [x] Fix: Preserve explicit zero-valued config overrides (`temperature=0.0`, `top_p=0.0`) by using `is not None` checks instead of truthy `or` fallbacks in `verify_model` (`packages/rentl-core/src/rentl_core/compatibility/runner.py:261-264`) (audit round 1)
   - [x] Fix: Replace `object` type annotations in the `_side_effect` test helper with explicit concrete types to satisfy `strict-typing-enforcement` (`tests/unit/core/compatibility/test_runner.py:126-127`) (audit round 1)
-- [x] Task 4: Add `rentl verify-models` CLI command
+- [ ] Task 4: Add `rentl verify-models` CLI command
   - Thin CLI adapter that reads the registry, invokes the shared runner, displays results
   - Supports `--endpoint` filter (local/openrouter/all) and `--model` filter
   - Reports per-model, per-phase pass/fail with actionable error messages
   - Files: `packages/rentl-cli/src/rentl_cli/commands/verify_models.py`
   - Tests: unit tests for CLI argument parsing, output formatting, wiring to shared runner
   - Acceptance: `rentl verify-models --help` works; output is clear and actionable
+  - [ ] Fix: Wrap `asyncio.run(verify_registry(...))` in CLI error handling so unexpected verifier/runtime exceptions return actionable CLI output instead of propagating uncaught (`services/rentl-cli/src/rentl/main.py:3885-3892`) (audit round 1, see signposts.md: Task 4 unresolved verifier exception handling)
+  - [ ] Fix: Add unit tests for output formatting paths (TTY rich table + non-TTY JSON emission) to satisfy Task 4 test requirements (`tests/unit/cli/test_verify_models.py`) (audit round 1)
 - [ ] Task 5: Add pytest compatibility test suite
   - Quality-tier tests parameterized from the verified-models registry
   - BDD-style (Given/When/Then)
