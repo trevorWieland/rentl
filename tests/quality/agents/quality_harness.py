@@ -103,6 +103,7 @@ def build_judge_model_and_settings(
         temperature=0.0,
         max_output_tokens=200,
         timeout_s=5.0,
+        max_retries=0,
     )
 
 

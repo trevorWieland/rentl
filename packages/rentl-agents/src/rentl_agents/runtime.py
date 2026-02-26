@@ -605,6 +605,7 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             max_output_tokens=max_output_tokens,
             openrouter_provider=self._config.openrouter_provider,
             strict_tools=self._config.strict_tools,
+            max_retries=self._config.max_retries,
         )
 
         prepare_output_tools = None

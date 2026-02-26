@@ -230,9 +230,12 @@
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/compatibility.py`, `packages/rentl-llm/src/rentl_llm/provider_factory.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`, `tests/unit/llm/test_provider_factory.py`, `tests/unit/core/compatibility/test_runner.py`
 
 - **Task:** Task 6 (gate triage round 7)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Quality-agent harness timing assumptions account for pydantic-ai request limits/timeouts but not OpenAI SDK transport retries, so "20s budget" paths can still overrun pytest's 30s cap.
 - **Evidence:** Gate output times out `tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes` with `Failed: Timeout (>30.0s) from pytest-timeout` while blocked in `ctx.dataset.evaluate(ctx.task)` (`tests/quality/agents/test_pretranslation_agent.py:166`).
 - **Evidence:** Harness budget is configured as `timeout_s=5.0`, `max_requests_per_run=3` (`tests/quality/agents/quality_harness.py:81-85`) and judge timeout `5.0` (`tests/quality/agents/quality_harness.py:99-106`), but neither path sets SDK retry limits.
 - **Evidence:** Profile-agent runtime calls `create_model(...)` without `max_retries` (`packages/rentl-agents/src/rentl_agents/runtime.py:598-608`), and `create_model` documents that `max_retries=None` uses SDK defaults (`packages/rentl-llm/src/rentl_llm/provider_factory.py:85-86`).
 - **Impact:** Quality pretranslation eval can exceed the 30s gate budget even when request/time settings appear compliant, causing timeout kills that mask actionable phase-level diagnostics.
+- **Solution:** Two changes: (1) Wired `ProfileAgentConfig.max_retries` through to `create_model(max_retries=self._config.max_retries)` in `runtime.py:598-608`, so the quality harness's `max_retries=0` setting now reaches the OpenAI SDK client and disables transport retries. (2) Added `max_retries=0` to `build_judge_model_and_settings` in `quality_harness.py:99-106` so the judge path also caps SDK retries. Additionally increased all registry `timeout_s` from 2.0 to 3.0 for headroom within the 30s budget.
+- **Resolution:** do-task round 18
+- **Files affected:** `packages/rentl-agents/src/rentl_agents/runtime.py`, `tests/quality/agents/quality_harness.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`

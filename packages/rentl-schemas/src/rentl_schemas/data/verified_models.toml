@@ -16,8 +16,8 @@
 # failure), so per-call timeout_s and max_output_retries must stay within
 # that budget for passing models.  Current rule of thumb:
 #   5 phases × (1 + max_output_retries) × timeout_s  ≤  30 s
-#   Local:      5 × 2 × 2 = 20 s  (max_output_retries=1, timeout_s=2.0, load uses load_timeout_s)
-#   OpenRouter: 5 × 2 × 2 = 20 s  (max_output_retries=1, timeout_s=2.0)
+#   Local:      5 × 2 × 3 = 30 s  (max_output_retries=1, timeout_s=3.0, load uses load_timeout_s)
+#   OpenRouter: 5 × 2 × 3 = 30 s  (max_output_retries=1, timeout_s=3.0)
 #
 # All entries set max_sdk_retries = 0 to disable OpenAI SDK-level HTTP
 # retries, preventing transport retry amplification from pushing per-phase
@@ -34,7 +34,7 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 2.0
+timeout_s = 3.0
 load_timeout_s = 120.0
 max_output_retries = 1
 max_sdk_retries = 0
@@ -46,7 +46,7 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 2.0
+timeout_s = 3.0
 load_timeout_s = 120.0
 max_output_retries = 1
 max_sdk_retries = 0
@@ -61,7 +61,7 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 2.0
+timeout_s = 3.0
 max_output_retries = 1
 max_sdk_retries = 0
 
@@ -71,6 +71,6 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 2.0
+timeout_s = 3.0
 max_output_retries = 1
 max_sdk_retries = 0
