@@ -37,3 +37,12 @@ This demo proves the system works across 9 models on two providers (LM Studio lo
 - Step 5 [RUN]: PASS — `rg` for model name strings in Python source returns only docstring examples (CLI help text, parameter documentation) and test fixtures. No model-specific branching in logic.
 - Step 6 [SKIP]: SKIPPED — exceeds autonomous demo time budget; verified manually during shaping.
 - **Overall: FAIL** — Steps 1-4 fail due to two root causes: (A) 7 of 9 originally-specified models were removed through gate triage because their providers no longer produce compatible structured output, violating spec model-count acceptance criteria; (B) CLI endpoint resolution for local models is broken because `rentl.toml` lacks an `lm-studio` endpoint entry. See signposts.md for full evidence.
+
+### Run 2 — post-task-8 (2026-02-26 23:42)
+- Step 1 [RUN]: FAIL — Registry lists 2 models (2 local, 0 OpenRouter), not the expected 9 (4 local + 5 OpenRouter). Same root cause as run 1: seven models removed through gate triage rounds 1-8 due to provider-level incompatibilities. Schema and structure are correct.
+- Step 2 [RUN]: PASS — `rentl verify-models --endpoint local --model qwen/qwen3-vl-30b` resolves the lm-studio endpoint from `rentl.toml`, loads the model via LM Studio API, runs all 5 phases (context, pretranslation, translate, qa, edit), all pass with structured output validated.
+- Step 3 [RUN]: FAIL — `rentl verify-models --endpoint openrouter` returns `{"passed":true,"model_results":[]}` — no OpenRouter models in registry after gate triage removed all 5.
+- Step 4 [RUN]: FAIL — Pytest compatibility suite runs 2 tests (2 local models), both PASS with BDD-style output and zero skips. But expected 5 OpenRouter models; none exist in registry.
+- Step 5 [RUN]: PASS — `rg` for model name strings in Python source returns only CLI help text, docstring examples, and test fixtures. No model-specific branching in logic.
+- Step 6 [SKIP]: SKIPPED — exceeds autonomous demo time budget; verified manually during shaping.
+- **Overall: FAIL** — Steps 1, 3, 4 fail due to remaining root cause: spec acceptance criteria declare 9 models (4 local + 5 OpenRouter) but only 2 local models remain after gate triage removed 7 due to provider-level incompatibilities (not fixable through declarative config per spec non-negotiable #5). Task 8 resolved the CLI endpoint resolution gap (step 2 now passes). The remaining failure is a spec-level issue requiring walk-spec discussion — see signposts.md "Demo (run 1) — Spec acceptance criteria model count drift".
