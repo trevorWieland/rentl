@@ -724,3 +724,61 @@ class TestStrictTools:
         assert result.passed is True
         call_kwargs = mock_create.call_args
         assert call_kwargs.kwargs["strict_tools"] is True
+
+
+class TestSupportsToolChoiceRequired:
+    """Tests for supports_tool_choice_required controlling OpenAIModelProfile."""
+
+    def test_openrouter_default_supports_tool_choice_required(self) -> None:
+        """Default supports_tool_choice_required=True for OpenRouter."""
+        model, _ = create_model(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="test-key",
+            model_id="openai/gpt-4o",
+            temperature=0.5,
+        )
+        assert isinstance(model, OpenRouterModel)
+        profile = model.profile
+        assert isinstance(profile, OpenAIModelProfile)
+        assert profile.openai_supports_tool_choice_required is True
+
+    def test_openrouter_false_supports_tool_choice_required(self) -> None:
+        """supports_tool_choice_required=False for OpenRouter falls back to auto."""
+        model, _ = create_model(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="test-key",
+            model_id="qwen/qwen3.5-27b",
+            temperature=0.5,
+            supports_tool_choice_required=False,
+        )
+        assert isinstance(model, OpenRouterModel)
+        profile = model.profile
+        assert isinstance(profile, OpenAIModelProfile)
+        assert profile.openai_supports_tool_choice_required is False
+
+    def test_openai_default_supports_tool_choice_required(self) -> None:
+        """Default supports_tool_choice_required=True for generic OpenAI."""
+        model, _ = create_model(
+            base_url="http://192.168.1.23:1234",
+            api_key="test-key",
+            model_id="local-model",
+            temperature=0.5,
+        )
+        assert isinstance(model, OpenAIChatModel)
+        profile = model.profile
+        assert isinstance(profile, OpenAIModelProfile)
+        assert profile.openai_supports_tool_choice_required is True
+
+    def test_openai_false_supports_tool_choice_required(self) -> None:
+        """supports_tool_choice_required=False for generic OpenAI falls back to auto."""
+        model, _ = create_model(
+            base_url="http://192.168.1.23:1234",
+            api_key="test-key",
+            model_id="local-model",
+            temperature=0.5,
+            supports_tool_choice_required=False,
+        )
+        assert isinstance(model, OpenAIChatModel)
+        profile = model.profile
+        assert isinstance(profile, OpenAIModelProfile)
+        assert profile.openai_supports_tool_choice_required is False

@@ -104,6 +104,8 @@ def test_config_overrides_defaults() -> None:
     assert overrides.timeout_s is None
     assert overrides.temperature is None
     assert overrides.max_output_tokens is None
+    assert overrides.max_output_retries is None
+    assert overrides.supports_tool_choice_required is None
 
 
 def test_config_overrides_validates_bounds() -> None:
@@ -116,6 +118,24 @@ def test_config_overrides_validates_bounds() -> None:
     assert overrides.timeout_s == pytest.approx(120.0)
     assert overrides.temperature == pytest.approx(0.5)
     assert overrides.max_output_tokens == 8192
+
+
+def test_config_overrides_max_output_retries_validation() -> None:
+    """max_output_retries accepts valid values and rejects negative."""
+    overrides = VerifiedModelConfigOverrides(max_output_retries=4)
+    assert overrides.max_output_retries == 4
+    overrides_zero = VerifiedModelConfigOverrides(max_output_retries=0)
+    assert overrides_zero.max_output_retries == 0
+    with pytest.raises(ValidationError):
+        VerifiedModelConfigOverrides(max_output_retries=-1)
+
+
+def test_config_overrides_supports_tool_choice_required_validation() -> None:
+    """supports_tool_choice_required accepts bool values."""
+    overrides_true = VerifiedModelConfigOverrides(supports_tool_choice_required=True)
+    assert overrides_true.supports_tool_choice_required is True
+    overrides_false = VerifiedModelConfigOverrides(supports_tool_choice_required=False)
+    assert overrides_false.supports_tool_choice_required is False
 
 
 def test_config_overrides_rejects_negative_timeout() -> None:
@@ -253,3 +273,19 @@ def test_bundled_registry_model_ids_match_spec() -> None:
         "minimax/minimax-m2.5",
     }
     assert ids == expected
+
+
+def test_bundled_registry_qwen_tool_choice_required_false() -> None:
+    """qwen/qwen3.5-27b declares supports_tool_choice_required=false in TOML."""
+    registry = load_bundled_registry()
+    entry = registry.get_model("qwen/qwen3.5-27b")
+    assert entry is not None
+    assert entry.config_overrides.supports_tool_choice_required is False
+
+
+def test_bundled_registry_gpt_oss_120b_max_output_retries() -> None:
+    """openai/gpt-oss-120b declares max_output_retries=4 in TOML."""
+    registry = load_bundled_registry()
+    entry = registry.get_model("openai/gpt-oss-120b")
+    assert entry is not None
+    assert entry.config_overrides.max_output_retries == 4

@@ -354,6 +354,92 @@ async def test_verify_registry_missing_endpoint() -> None:
     )
 
 
+async def test_verify_model_forwards_supports_tool_choice_required() -> None:
+    """supports_tool_choice_required override is forwarded to create_model."""
+    entry = VerifiedModelEntry(
+        model_id="qwen/qwen3.5-27b",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+        config_overrides=VerifiedModelConfigOverrides(
+            timeout_s=120.0,
+            supports_tool_choice_required=False,
+        ),
+    )
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        await verify_model(entry=entry, endpoint=endpoint)
+
+    mock_create.assert_called_once()
+    call_kwargs = mock_create.call_args.kwargs
+    assert call_kwargs["supports_tool_choice_required"] is False
+
+
+async def test_verify_model_forwards_max_output_retries() -> None:
+    """max_output_retries override flows to Agent(output_retries=...)."""
+    entry = VerifiedModelEntry(
+        model_id="openai/gpt-oss-120b",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+        config_overrides=VerifiedModelConfigOverrides(
+            timeout_s=120.0,
+            max_output_retries=4,
+        ),
+    )
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        await verify_model(entry=entry, endpoint=endpoint)
+
+    # Agent should have been called 5 times (once per phase),
+    # each with output_retries=4
+    assert mock_agent_cls.call_count == 5
+    for call in mock_agent_cls.call_args_list:
+        assert call.kwargs.get("output_retries") == 4
+
+
 def test_golden_source_line_is_valid() -> None:
     """The golden source line is a valid SourceLine."""
     assert GOLDEN_SOURCE_LINE.line_id == "scene_001_0001"
