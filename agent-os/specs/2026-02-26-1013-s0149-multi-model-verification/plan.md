@@ -11,7 +11,7 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
 - [x] Task 1: Save Spec Documentation
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit and push on issue branch
-- [ ] Task 2: Create verified-models registry schema and file
+- [x] Task 2: Create verified-models registry schema and file
   - Define Pydantic schema for registry entries: model_id, endpoint_type (local/openrouter), endpoint_ref, config overrides (timeout, temperature, etc.), load_endpoint for local models
   - Create TOML registry file with all 9 models (4 local + 5 OpenRouter)
   - Add unit tests for schema validation and TOML loading

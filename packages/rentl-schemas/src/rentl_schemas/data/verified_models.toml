@@ -1,0 +1,96 @@
+# Verified Models Registry
+#
+# Data-driven list of models verified to work through rentl's full pipeline.
+# Adding a new model requires only adding a new [[models]] entry here —
+# no code changes needed.
+#
+# Fields:
+#   model_id        — Provider-specific model identifier
+#   endpoint_type   — "local" (LM Studio) or "openrouter"
+#   endpoint_ref    — Reference to configured endpoint name
+#   load_endpoint   — (local only) LM Studio model load API URL
+#   config_overrides — Per-model overrides (timeout, temperature, etc.)
+
+# ──────────────────────────────────────────────────────────────
+# Local models (LM Studio)
+# ──────────────────────────────────────────────────────────────
+
+[[models]]
+model_id = "google/gemma-3-27b"
+endpoint_type = "local"
+endpoint_ref = "lm-studio"
+load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
+
+[models.config_overrides]
+timeout_s = 180.0
+
+[[models]]
+model_id = "qwen/qwen3-vl-30b"
+endpoint_type = "local"
+endpoint_ref = "lm-studio"
+load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
+
+[models.config_overrides]
+timeout_s = 180.0
+
+[[models]]
+model_id = "qwen/qwen3.5-35b-a3b"
+endpoint_type = "local"
+endpoint_ref = "lm-studio"
+load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
+
+[models.config_overrides]
+timeout_s = 180.0
+
+[[models]]
+model_id = "openai/gpt-oss-20b"
+endpoint_type = "local"
+endpoint_ref = "lm-studio"
+load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
+
+[models.config_overrides]
+timeout_s = 180.0
+
+# ──────────────────────────────────────────────────────────────
+# OpenRouter models
+# ──────────────────────────────────────────────────────────────
+
+[[models]]
+model_id = "qwen/qwen3.5-27b"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 120.0
+
+[[models]]
+model_id = "deepseek/deepseek-v3.2"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 120.0
+
+[[models]]
+model_id = "z-ai/glm-5"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 120.0
+
+[[models]]
+model_id = "openai/gpt-oss-120b"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 120.0
+
+[[models]]
+model_id = "minimax/minimax-m2.5"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 120.0

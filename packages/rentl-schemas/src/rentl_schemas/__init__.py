@@ -14,6 +14,14 @@ from rentl_schemas.agents import (
     ToolAccessConfig,
 )
 from rentl_schemas.base import BaseSchema
+from rentl_schemas.compatibility import (
+    EndpointType,
+    VerifiedModelConfigOverrides,
+    VerifiedModelEntry,
+    VerifiedModelRegistry,
+    load_bundled_registry,
+    load_registry_from_toml,
+)
 from rentl_schemas.config import (
     AgentsConfig,
     CacheConfig,
@@ -269,6 +277,7 @@ __all__ = [
     "EditPhaseInput",
     "EditPhaseOutput",
     "EndpointSetConfig",
+    "EndpointType",
     "ErrorDetails",
     "ErrorResponse",
     "EventName",
@@ -394,10 +403,15 @@ __all__ = [
     "TranslatePhaseInput",
     "TranslatePhaseOutput",
     "TranslatedLine",
+    "VerifiedModelConfigOverrides",
+    "VerifiedModelEntry",
+    "VerifiedModelRegistry",
     "VersionInfo",
     "build_redactor",
     "compute_phase_summary",
     "compute_run_summary",
+    "load_bundled_registry",
+    "load_registry_from_toml",
     "redact_secrets",
     "resolve_exit_code",
     "validate_context_input",

@@ -1,0 +1,235 @@
+"""Unit tests for compatibility schema validation and TOML loading."""
+
+import pytest
+from pydantic import ValidationError
+
+from rentl_schemas.compatibility import (
+    VerifiedModelConfigOverrides,
+    VerifiedModelEntry,
+    VerifiedModelRegistry,
+    load_bundled_registry,
+    load_registry_from_toml,
+)
+
+# ── VerifiedModelEntry ──────────────────────────────────────────
+
+
+def test_valid_local_entry() -> None:
+    """Local model entry with load_endpoint passes validation."""
+    entry = VerifiedModelEntry(
+        model_id="google/gemma-3-27b",
+        endpoint_type="local",
+        endpoint_ref="lm-studio",
+        load_endpoint="http://192.168.1.23:1234/api/v1/models/load",
+    )
+    assert entry.endpoint_type == "local"
+    assert entry.load_endpoint is not None
+
+
+def test_valid_openrouter_entry() -> None:
+    """OpenRouter model entry without load_endpoint passes validation."""
+    entry = VerifiedModelEntry(
+        model_id="deepseek/deepseek-v3.2",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+    )
+    assert entry.endpoint_type == "openrouter"
+    assert entry.load_endpoint is None
+
+
+def test_local_entry_requires_load_endpoint() -> None:
+    """Local model without load_endpoint is rejected."""
+    with pytest.raises(ValidationError, match="load_endpoint"):
+        VerifiedModelEntry(
+            model_id="google/gemma-3-27b",
+            endpoint_type="local",
+            endpoint_ref="lm-studio",
+        )
+
+
+def test_openrouter_entry_rejects_load_endpoint() -> None:
+    """OpenRouter model with load_endpoint is rejected."""
+    with pytest.raises(ValidationError, match="load_endpoint"):
+        VerifiedModelEntry(
+            model_id="deepseek/deepseek-v3.2",
+            endpoint_type="openrouter",
+            endpoint_ref="openrouter",
+            load_endpoint="http://192.168.1.23:1234/api/v1/models/load",
+        )
+
+
+def test_entry_rejects_empty_model_id() -> None:
+    """Empty model_id is rejected."""
+    with pytest.raises(ValidationError):
+        VerifiedModelEntry(
+            model_id="",
+            endpoint_type="openrouter",
+            endpoint_ref="openrouter",
+        )
+
+
+def test_entry_rejects_invalid_endpoint_type() -> None:
+    """Invalid endpoint_type is rejected."""
+    with pytest.raises(ValidationError):
+        VerifiedModelEntry.model_validate({
+            "model_id": "some/model",
+            "endpoint_type": "azure",
+            "endpoint_ref": "azure-endpoint",
+        })
+
+
+def test_config_overrides_defaults() -> None:
+    """Config overrides default to None for all fields."""
+    overrides = VerifiedModelConfigOverrides()
+    assert overrides.timeout_s is None
+    assert overrides.temperature is None
+    assert overrides.max_output_tokens is None
+
+
+def test_config_overrides_validates_bounds() -> None:
+    """Config override values respect constraints."""
+    overrides = VerifiedModelConfigOverrides(
+        timeout_s=120.0,
+        temperature=0.5,
+        max_output_tokens=8192,
+    )
+    assert overrides.timeout_s == pytest.approx(120.0)
+    assert overrides.temperature == pytest.approx(0.5)
+    assert overrides.max_output_tokens == 8192
+
+
+def test_config_overrides_rejects_negative_timeout() -> None:
+    """Negative timeout is rejected."""
+    with pytest.raises(ValidationError):
+        VerifiedModelConfigOverrides(timeout_s=-1.0)
+
+
+# ── VerifiedModelRegistry ──────────────────────────────────────
+
+
+def test_registry_rejects_empty_models() -> None:
+    """Registry with no models is rejected."""
+    with pytest.raises(ValidationError):
+        VerifiedModelRegistry(models=[])
+
+
+def test_registry_rejects_duplicate_model_ids() -> None:
+    """Registry with duplicate model_id values is rejected."""
+    entry = VerifiedModelEntry(
+        model_id="deepseek/deepseek-v3.2",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+    )
+    with pytest.raises(ValidationError, match="duplicate"):
+        VerifiedModelRegistry(models=[entry, entry])
+
+
+def test_registry_filter_by_endpoint() -> None:
+    """filter_by_endpoint returns only matching entries."""
+    local = VerifiedModelEntry(
+        model_id="google/gemma-3-27b",
+        endpoint_type="local",
+        endpoint_ref="lm-studio",
+        load_endpoint="http://192.168.1.23:1234/api/v1/models/load",
+    )
+    cloud = VerifiedModelEntry(
+        model_id="deepseek/deepseek-v3.2",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+    )
+    registry = VerifiedModelRegistry(models=[local, cloud])
+    assert len(registry.filter_by_endpoint("local")) == 1
+    assert len(registry.filter_by_endpoint("openrouter")) == 1
+
+
+def test_registry_get_model_found() -> None:
+    """get_model returns the matching entry."""
+    entry = VerifiedModelEntry(
+        model_id="deepseek/deepseek-v3.2",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+    )
+    registry = VerifiedModelRegistry(models=[entry])
+    assert registry.get_model("deepseek/deepseek-v3.2") is not None
+
+
+def test_registry_get_model_not_found() -> None:
+    """get_model returns None for missing model."""
+    entry = VerifiedModelEntry(
+        model_id="deepseek/deepseek-v3.2",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+    )
+    registry = VerifiedModelRegistry(models=[entry])
+    assert registry.get_model("nonexistent/model") is None
+
+
+# ── TOML loading ───────────────────────────────────────────────
+
+
+MINIMAL_TOML = """\
+[[models]]
+model_id = "test/model-a"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[[models]]
+model_id = "test/model-b"
+endpoint_type = "local"
+endpoint_ref = "lm-studio"
+load_endpoint = "http://localhost:1234/api/v1/models/load"
+
+[models.config_overrides]
+timeout_s = 300.0
+"""
+
+
+def test_load_registry_from_toml_minimal() -> None:
+    """Minimal TOML with two models parses successfully."""
+    registry = load_registry_from_toml(MINIMAL_TOML)
+    assert len(registry.models) == 2
+    assert registry.models[0].model_id == "test/model-a"
+    assert registry.models[1].config_overrides.timeout_s == pytest.approx(300.0)
+
+
+def test_load_registry_from_toml_rejects_empty() -> None:
+    """TOML with no models section is rejected."""
+    with pytest.raises(ValidationError):
+        load_registry_from_toml("")
+
+
+def test_load_bundled_registry() -> None:
+    """Bundled TOML registry loads and validates all 9 models."""
+    registry = load_bundled_registry()
+    assert len(registry.models) == 9
+    local_models = registry.filter_by_endpoint("local")
+    openrouter_models = registry.filter_by_endpoint("openrouter")
+    assert len(local_models) == 4
+    assert len(openrouter_models) == 5
+
+
+def test_bundled_registry_local_models_have_load_endpoint() -> None:
+    """Every local model in the bundled registry has a load_endpoint."""
+    registry = load_bundled_registry()
+    for model in registry.filter_by_endpoint("local"):
+        assert model.load_endpoint is not None
+
+
+def test_bundled_registry_model_ids_match_spec() -> None:
+    """Bundled registry contains exactly the 9 models from the spec."""
+    registry = load_bundled_registry()
+    ids = {m.model_id for m in registry.models}
+    expected = {
+        # Local
+        "google/gemma-3-27b",
+        "qwen/qwen3-vl-30b",
+        "qwen/qwen3.5-35b-a3b",
+        "openai/gpt-oss-20b",
+        # OpenRouter
+        "qwen/qwen3.5-27b",
+        "deepseek/deepseek-v3.2",
+        "z-ai/glm-5",
+        "openai/gpt-oss-120b",
+        "minimax/minimax-m2.5",
+    }
+    assert ids == expected
