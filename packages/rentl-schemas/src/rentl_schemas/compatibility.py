@@ -55,7 +55,11 @@ class VerifiedModelEntry(BaseSchema):
 
     @field_validator("endpoint_type", mode="before")
     @classmethod
-    def _coerce_endpoint_type(cls, value: str) -> str:
+    def _coerce_endpoint_type(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError(
+                f"endpoint_type must be a string, got {type(value).__name__}"
+            )
         return value.lower()
 
     @model_validator(mode="after")

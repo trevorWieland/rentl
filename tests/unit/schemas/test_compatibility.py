@@ -78,6 +78,26 @@ def test_entry_rejects_invalid_endpoint_type() -> None:
         })
 
 
+def test_entry_rejects_null_endpoint_type() -> None:
+    """None endpoint_type raises ValidationError, not AttributeError."""
+    with pytest.raises(ValidationError, match="endpoint_type"):
+        VerifiedModelEntry.model_validate({
+            "model_id": "some/model",
+            "endpoint_type": None,
+            "endpoint_ref": "some-ref",
+        })
+
+
+def test_entry_rejects_non_string_endpoint_type() -> None:
+    """Non-string endpoint_type (e.g., int) raises ValidationError."""
+    with pytest.raises(ValidationError, match="endpoint_type"):
+        VerifiedModelEntry.model_validate({
+            "model_id": "some/model",
+            "endpoint_type": 42,
+            "endpoint_ref": "some-ref",
+        })
+
+
 def test_config_overrides_defaults() -> None:
     """Config overrides default to None for all fields."""
     overrides = VerifiedModelConfigOverrides()

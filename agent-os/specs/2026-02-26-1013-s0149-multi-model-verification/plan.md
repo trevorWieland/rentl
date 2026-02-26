@@ -11,14 +11,14 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
 - [x] Task 1: Save Spec Documentation
   - Write spec.md, plan.md, demo.md, standards.md, references.md
   - Commit and push on issue branch
-- [ ] Task 2: Create verified-models registry schema and file
+- [x] Task 2: Create verified-models registry schema and file
   - Define Pydantic schema for registry entries: model_id, endpoint_type (local/openrouter), endpoint_ref, config overrides (timeout, temperature, etc.), load_endpoint for local models
   - Create TOML registry file with all 9 models (4 local + 5 OpenRouter)
   - Add unit tests for schema validation and TOML loading
   - Files: `packages/rentl-schemas/src/rentl_schemas/compatibility.py`, registry TOML location, `tests/unit/schemas/test_compatibility.py`
   - Acceptance: schema loads and validates all 9 entries; invalid entries rejected
-  - [ ] Fix: Handle non-string/null `endpoint_type` inputs in validator without raising raw `AttributeError`; reject with a Pydantic `ValidationError` path instead (`packages/rentl-schemas/src/rentl_schemas/compatibility.py:56-59`) (audit round 1)
-  - [ ] Fix: Add unit coverage for `endpoint_type=None` (and/or non-string) to confirm invalid entries are rejected via validation errors (`tests/unit/schemas/test_compatibility.py`) (audit round 1)
+  - [x] Fix: Handle non-string/null `endpoint_type` inputs in validator without raising raw `AttributeError`; reject with a Pydantic `ValidationError` path instead (`packages/rentl-schemas/src/rentl_schemas/compatibility.py:56-59`) (audit round 1)
+  - [x] Fix: Add unit coverage for `endpoint_type=None` (and/or non-string) to confirm invalid entries are rejected via validation errors (`tests/unit/schemas/test_compatibility.py`) (audit round 1)
 - [ ] Task 3: Build shared verification runner with model loading
   - Core logic that takes a registry entry, resolves the endpoint, and runs a mini 5-phase pipeline on golden input data
   - For local models: call LM Studio load API (`http://192.168.1.23:1234/api/v1/models/load`) to switch active model before verification
