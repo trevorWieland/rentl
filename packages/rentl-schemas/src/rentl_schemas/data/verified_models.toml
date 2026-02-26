@@ -12,11 +12,12 @@
 #   config_overrides — Per-model overrides (timeout, temperature, etc.)
 #
 # Budget: quality tests enforce a 30s pytest-timeout.  The verification
-# runner executes 5 phases sequentially, so per-call timeout_s and
-# max_output_retries must stay within that budget.  Current rule of thumb:
+# runner executes phases sequentially with fail-fast (stops on first
+# failure), so per-call timeout_s and max_output_retries must stay within
+# that budget for passing models.  Current rule of thumb:
 #   5 phases × (1 + max_output_retries) × timeout_s  ≤  30 s
-#   Local:      5 × 1 × 5 = 25 s  (max_output_retries=0, load uses load_timeout_s)
-#   OpenRouter: 5 × 2 × 3 = 30 s  (max_output_retries=1, timeout_s=3.0)
+#   Local:      5 × 2 × 3 = 30 s  (max_output_retries=1, timeout_s=3.0, load uses load_timeout_s)
+#   OpenRouter: 5 × 2 × 2.5 = 25 s  (max_output_retries=1, timeout_s=2.5)
 
 # ──────────────────────────────────────────────────────────────
 # Local models (LM Studio)
@@ -29,9 +30,9 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 5.0
+timeout_s = 3.0
 load_timeout_s = 120.0
-max_output_retries = 0
+max_output_retries = 1
 
 [[models]]
 model_id = "qwen/qwen3-vl-30b"
@@ -40,9 +41,9 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 5.0
+timeout_s = 3.0
 load_timeout_s = 120.0
-max_output_retries = 0
+max_output_retries = 1
 
 [[models]]
 model_id = "openai/gpt-oss-20b"
@@ -51,9 +52,9 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 5.0
+timeout_s = 3.0
 load_timeout_s = 120.0
-max_output_retries = 0
+max_output_retries = 1
 
 # ──────────────────────────────────────────────────────────────
 # OpenRouter models
@@ -65,7 +66,7 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 3.0
+timeout_s = 2.5
 max_output_retries = 1
 supports_tool_choice_required = false
 
@@ -75,7 +76,7 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 3.0
+timeout_s = 2.5
 max_output_retries = 1
 
 [[models]]
@@ -84,7 +85,7 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 3.0
+timeout_s = 2.5
 max_output_retries = 1
 
 [[models]]
@@ -93,7 +94,7 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 3.0
+timeout_s = 2.5
 max_output_retries = 1
 
 [[models]]
@@ -102,5 +103,5 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 3.0
+timeout_s = 2.5
 max_output_retries = 1

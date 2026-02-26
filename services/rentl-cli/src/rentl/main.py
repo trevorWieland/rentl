@@ -3931,6 +3931,8 @@ def _print_verification_results_tty(
         for pr in model_result.phase_results:
             if pr.status == PhaseVerificationStatus.PASSED:
                 phases_parts.append(f"[green]{pr.phase}[/green]")
+            elif pr.status == PhaseVerificationStatus.SKIPPED:
+                phases_parts.append(f"[yellow]{pr.phase}[/yellow]")
             else:
                 phases_parts.append(f"[red]{pr.phase}[/red]")
         phases_str = " ".join(phases_parts)

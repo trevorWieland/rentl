@@ -320,9 +320,19 @@ async def verify_model(
             supports_tool_choice_required=supports_tool_choice_required,
         )
 
-        # Run all 5 phases sequentially
+        # Run phases sequentially, fail-fast on first failure
         phase_results: list[PhaseResult] = []
+        failed = False
         for phase, sys_prompt, user_template, output_type in PHASE_CONFIGS:
+            if failed:
+                phase_results.append(
+                    PhaseResult(
+                        phase=phase,
+                        status=PhaseVerificationStatus.SKIPPED,
+                        error_message="Skipped due to earlier phase failure",
+                    )
+                )
+                continue
             result = await _run_phase(
                 phase=phase,
                 system_prompt=sys_prompt,
@@ -334,6 +344,8 @@ async def verify_model(
                 output_retries=output_retries,
             )
             phase_results.append(result)
+            if result.status == PhaseVerificationStatus.FAILED:
+                failed = True
 
         all_passed = all(
             r.status == PhaseVerificationStatus.PASSED for r in phase_results

@@ -170,10 +170,67 @@ async def test_verify_model_phase_failure() -> None:
     assert pre.status == PhaseVerificationStatus.PASSED
     assert trl.status == PhaseVerificationStatus.FAILED
     assert "output validation failed" in (trl.error_message or "")
+    # Fail-fast: remaining phases are skipped after first failure
     qa = result.phase_results[3]
     edit = result.phase_results[4]
-    assert qa.status == PhaseVerificationStatus.PASSED
-    assert edit.status == PhaseVerificationStatus.PASSED
+    assert qa.status == PhaseVerificationStatus.SKIPPED
+    assert edit.status == PhaseVerificationStatus.SKIPPED
+
+
+async def test_verify_model_fail_fast_skips_remaining_phases() -> None:
+    """Phases after the first failure are skipped, not executed."""
+    entry = _build_openrouter_entry()
+    endpoint = _build_openrouter_endpoint()
+
+    call_count = 0
+
+    def _side_effect(
+        *args: str,
+        **kwargs: str | int | float | bool | None,
+    ) -> _FakeAgentResult:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("context phase failed")
+        return _FakeAgentResult(None)
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            side_effect=_side_effect,
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_model(
+            entry=entry,
+            endpoint=endpoint,
+        )
+
+    assert result.passed is False
+    assert len(result.phase_results) == 5
+    # First phase failed
+    assert result.phase_results[0].status == PhaseVerificationStatus.FAILED
+    assert "context phase failed" in (result.phase_results[0].error_message or "")
+    # Remaining 4 phases are skipped, not executed
+    for pr in result.phase_results[1:]:
+        assert pr.status == PhaseVerificationStatus.SKIPPED
+    # Agent.run() was only called once (only the first phase)
+    assert mock_instance.run.await_count == 1
 
 
 async def test_verify_model_local_loads_first() -> None:

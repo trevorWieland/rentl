@@ -15,6 +15,7 @@ class PhaseVerificationStatus(StrEnum):
 
     PASSED = "passed"
     FAILED = "failed"
+    SKIPPED = "skipped"
 
 
 class PhaseResult(BaseSchema):
