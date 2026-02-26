@@ -106,6 +106,7 @@ def test_config_overrides_defaults() -> None:
     assert overrides.max_output_tokens is None
     assert overrides.max_output_retries is None
     assert overrides.supports_tool_choice_required is None
+    assert overrides.load_timeout_s is None
 
 
 def test_config_overrides_validates_bounds() -> None:
@@ -136,6 +137,16 @@ def test_config_overrides_supports_tool_choice_required_validation() -> None:
     assert overrides_true.supports_tool_choice_required is True
     overrides_false = VerifiedModelConfigOverrides(supports_tool_choice_required=False)
     assert overrides_false.supports_tool_choice_required is False
+
+
+def test_config_overrides_load_timeout_s_validation() -> None:
+    """load_timeout_s accepts positive values and rejects non-positive."""
+    overrides = VerifiedModelConfigOverrides(load_timeout_s=120.0)
+    assert overrides.load_timeout_s == pytest.approx(120.0)
+    with pytest.raises(ValidationError):
+        VerifiedModelConfigOverrides(load_timeout_s=-1.0)
+    with pytest.raises(ValidationError):
+        VerifiedModelConfigOverrides(load_timeout_s=0.0)
 
 
 def test_config_overrides_rejects_negative_timeout() -> None:
@@ -274,6 +285,15 @@ def test_bundled_registry_model_ids_match_spec() -> None:
     assert ids == expected
 
 
+def test_bundled_registry_local_models_have_load_timeout_s() -> None:
+    """Local models in the bundled registry declare load_timeout_s."""
+    registry = load_bundled_registry()
+    for model in registry.filter_by_endpoint("local"):
+        assert model.config_overrides.load_timeout_s is not None, (
+            f"Local model '{model.model_id}' must declare load_timeout_s"
+        )
+
+
 def test_bundled_registry_qwen_tool_choice_required_false() -> None:
     """qwen/qwen3.5-27b declares supports_tool_choice_required=false in TOML."""
     registry = load_bundled_registry()
@@ -283,8 +303,8 @@ def test_bundled_registry_qwen_tool_choice_required_false() -> None:
 
 
 def test_bundled_registry_gpt_oss_120b_max_output_retries() -> None:
-    """openai/gpt-oss-120b declares max_output_retries=0 in TOML."""
+    """openai/gpt-oss-120b declares max_output_retries=1 in TOML."""
     registry = load_bundled_registry()
     entry = registry.get_model("openai/gpt-oss-120b")
     assert entry is not None
-    assert entry.config_overrides.max_output_retries == 0
+    assert entry.config_overrides.max_output_retries == 1

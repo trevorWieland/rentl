@@ -29,6 +29,14 @@ class VerifiedModelConfigOverrides(BaseSchema):
         None, description="Reasoning effort level override"
     )
     top_p: float | None = Field(None, ge=0, le=1, description="Top-p sampling override")
+    load_timeout_s: float | None = Field(
+        None,
+        gt=0,
+        description=(
+            "LM Studio model load/unload timeout in seconds; "
+            "decoupled from per-phase inference timeout_s"
+        ),
+    )
     max_output_retries: int | None = Field(
         None,
         ge=0,

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from rentl_core.compatibility.loader import ModelLoadError, ModelUnloadError
 from rentl_core.compatibility.runner import (
     GOLDEN_SOURCE_LINE,
@@ -62,7 +64,8 @@ def _build_local_entry() -> VerifiedModelEntry:
         endpoint_ref="lm-studio",
         load_endpoint=("http://192.168.1.23:1234/api/v1/models/load"),
         config_overrides=VerifiedModelConfigOverrides(
-            timeout_s=180.0,
+            timeout_s=5.0,
+            load_timeout_s=120.0,
         ),
     )
 
@@ -216,7 +219,7 @@ async def test_verify_model_local_loads_first() -> None:
         load_endpoint=("http://192.168.1.23:1234/api/v1/models/load"),
         model_id="google/gemma-3-27b",
         api_key="test-key",
-        timeout_s=180.0,
+        timeout_s=120.0,
     )
 
 
@@ -514,7 +517,7 @@ async def test_verify_model_local_unloads_after_success() -> None:
         load_endpoint="http://192.168.1.23:1234/api/v1/models/load",
         model_id="google/gemma-3-27b",
         api_key="test-key",
-        timeout_s=60.0,
+        timeout_s=120.0,
     )
 
 
@@ -601,6 +604,70 @@ async def test_verify_model_local_unload_failure_does_not_raise() -> None:
         )
 
     assert result.passed is True
+
+
+async def test_verify_model_local_uses_load_timeout_for_load_and_unload() -> None:
+    """load_timeout_s is used for load/unload, not timeout_s."""
+    entry = VerifiedModelEntry(
+        model_id="google/gemma-3-27b",
+        endpoint_type="local",
+        endpoint_ref="lm-studio",
+        load_endpoint="http://192.168.1.23:1234/api/v1/models/load",
+        config_overrides=VerifiedModelConfigOverrides(
+            timeout_s=5.0,
+            load_timeout_s=90.0,
+        ),
+    )
+    endpoint = _build_local_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch(
+            "rentl_core.compatibility.runner.load_lm_studio_model",
+        ) as mock_load,
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+        ) as mock_unload,
+        patch.dict(
+            "os.environ",
+            {"LM_STUDIO_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_model(entry=entry, endpoint=endpoint)
+
+    assert result.passed is True
+    # Load uses load_timeout_s (90), NOT timeout_s (5)
+    mock_load.assert_awaited_once_with(
+        load_endpoint="http://192.168.1.23:1234/api/v1/models/load",
+        model_id="google/gemma-3-27b",
+        api_key="test-key",
+        timeout_s=90.0,
+    )
+    # Unload also uses load_timeout_s
+    mock_unload.assert_awaited_once_with(
+        load_endpoint="http://192.168.1.23:1234/api/v1/models/load",
+        model_id="google/gemma-3-27b",
+        api_key="test-key",
+        timeout_s=90.0,
+    )
+    # Inference uses timeout_s (5), NOT load_timeout_s (90)
+    call_kwargs = mock_create.call_args.kwargs
+    assert call_kwargs["timeout_s"] == pytest.approx(5.0)
 
 
 async def test_verify_model_openrouter_does_not_unload() -> None:

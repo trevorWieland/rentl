@@ -243,6 +243,13 @@ async def verify_model(
     # Track whether we need to unload after verification
     is_local = entry.endpoint_type == "local" and entry.load_endpoint is not None
 
+    # Load timeout is decoupled from per-phase inference timeout
+    load_timeout = (
+        entry.config_overrides.load_timeout_s
+        if entry.config_overrides.load_timeout_s is not None
+        else 120.0
+    )
+
     try:
         # Load local model via LM Studio API
         if is_local:
@@ -251,7 +258,7 @@ async def verify_model(
                     load_endpoint=entry.load_endpoint,  # type: ignore[arg-type]
                     model_id=entry.model_id,
                     api_key=api_key,
-                    timeout_s=entry.config_overrides.timeout_s or 120.0,
+                    timeout_s=load_timeout,
                 )
             except ModelLoadError as exc:
                 return ModelVerificationResult(
@@ -345,7 +352,7 @@ async def verify_model(
                     load_endpoint=entry.load_endpoint,
                     model_id=entry.model_id,
                     api_key=api_key,
-                    timeout_s=60.0,
+                    timeout_s=load_timeout,
                 )
             except ModelUnloadError:
                 _log.warning(
