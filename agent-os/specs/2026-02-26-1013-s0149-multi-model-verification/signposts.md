@@ -134,10 +134,11 @@
 - **Files affected:** `tests/quality/pipeline/test_golden_script_pipeline.py`
 
 - **Task:** Task 7 (audit round 3)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** `load_lm_studio_model` still proceeds with a blind `/load` when model listing fails, so it cannot guarantee pre-unload happened before loading the next local model.
 - **Evidence:** `packages/rentl-core/src/rentl_core/compatibility/loader.py:149-158` catches `ModelLoadError` from `list_lm_studio_models`, logs `"Could not list loaded models; proceeding with load"`, and sets `loaded = []` before continuing.
 - **Evidence:** `tests/unit/core/compatibility/test_loader.py:217-242` codifies this behavior via `test_load_model_proceeds_when_list_fails`, which expects load POST to still execute after list failure.
 - **Impact:** This conflicts with Task 7 acceptance requiring single-model residency during local verification; if list fails while another model is resident, the subsequent load can reintroduce multi-model memory pressure.
-- **Solution:** Make list failure fail-fast with `ModelLoadError` (single-model residency cannot be guaranteed), and update the unit test to assert no `/load` call occurs after list failure.
+- **Solution:** Changed `except ModelLoadError` to re-raise as `ModelLoadError` with "single-model residency" message instead of swallowing. Replaced `test_load_model_proceeds_when_list_fails` with `test_load_model_fails_fast_when_list_fails` that asserts `ModelLoadError` is raised and `client.post` is never called. Updated `test_load_model_connection_error` to also assert fail-fast behavior (no blind load after connection failure on list).
+- **Resolution:** do-task round 11
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `tests/unit/core/compatibility/test_loader.py`

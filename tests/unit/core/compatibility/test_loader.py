@@ -126,21 +126,22 @@ async def test_load_model_http_status_error() -> None:
 
 
 async def test_load_model_connection_error() -> None:
-    """Connection failure raises ModelLoadError with endpoint info."""
-    # list fails → loader proceeds with load → load also fails
+    """Connection failure on list raises ModelLoadError (fail-fast, no blind load)."""
     client = _mock_client(
         get_side_effect=httpx.ConnectError("Connection refused"),
-        post_side_effect=httpx.ConnectError("Connection refused"),
     )
 
     with (
         patch("rentl_core.compatibility.loader.httpx.AsyncClient", return_value=client),
-        pytest.raises(ModelLoadError, match="Failed to reach LM Studio"),
+        pytest.raises(ModelLoadError, match="single-model residency"),
     ):
         await load_lm_studio_model(
             load_endpoint=_LOAD_URL,
             model_id="google/gemma-3-27b",
         )
+
+    # Must NOT have attempted to POST /load
+    client.post.assert_not_awaited()
 
 
 async def test_load_model_skips_when_already_loaded() -> None:
@@ -214,10 +215,8 @@ async def test_load_model_unloads_existing_before_loading_new() -> None:
     )
 
 
-async def test_load_model_proceeds_when_list_fails() -> None:
-    """Proceed with load when listing models fails."""
-    ok_resp = _ok_response()
-    # First call (GET list) fails, second call (POST load) succeeds
+async def test_load_model_fails_fast_when_list_fails() -> None:
+    """Fail-fast when listing models fails — no blind load allowed."""
     client = AsyncMock()
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=None)
@@ -228,18 +227,19 @@ async def test_load_model_proceeds_when_list_fails() -> None:
             response=_error_response(500, "fail", "GET", _LIST_URL),
         )
     )
-    client.post = AsyncMock(return_value=ok_resp)
+    client.post = AsyncMock()
 
-    with patch(
-        "rentl_core.compatibility.loader.httpx.AsyncClient", return_value=client
+    with (
+        patch("rentl_core.compatibility.loader.httpx.AsyncClient", return_value=client),
+        pytest.raises(ModelLoadError, match="single-model residency"),
     ):
         await load_lm_studio_model(
             load_endpoint=_LOAD_URL,
             model_id="google/gemma-3-27b",
         )
 
-    # Should still POST to load
-    client.post.assert_awaited_once()
+    # Must NOT have attempted to POST /load
+    client.post.assert_not_awaited()
 
 
 # ---- list_lm_studio_models -------------------------------------------------

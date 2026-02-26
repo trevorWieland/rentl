@@ -152,10 +152,11 @@ async def load_lm_studio_model(
             api_key=api_key,
             timeout_s=30.0,
         )
-    except ModelLoadError:
-        # If listing fails, proceed with load anyway
-        _log.warning("Could not list loaded models; proceeding with load")
-        loaded = []
+    except ModelLoadError as exc:
+        raise ModelLoadError(
+            f"Cannot ensure single-model residency: "
+            f"failed to list loaded models before loading '{model_id}': {exc}"
+        ) from exc
 
     if model_id in loaded:
         _log.info("Model %s is already loaded — skipping load", model_id)
