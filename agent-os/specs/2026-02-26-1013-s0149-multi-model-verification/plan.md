@@ -39,7 +39,7 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - Acceptance: `rentl verify-models --help` works; output is clear and actionable
   - [x] Fix: Wrap `asyncio.run(verify_registry(...))` in CLI error handling so unexpected verifier/runtime exceptions return actionable CLI output instead of propagating uncaught (`services/rentl-cli/src/rentl/main.py:3885-3892`) (audit round 1, see signposts.md: Task 4 unresolved verifier exception handling)
   - [x] Fix: Add unit tests for output formatting paths (TTY rich table + non-TTY JSON emission) to satisfy Task 4 test requirements (`tests/unit/cli/test_verify_models.py`) (audit round 1)
-- [ ] Task 5: Add pytest compatibility test suite
+- [x] Task 5: Add pytest compatibility test suite
   - Quality-tier tests parameterized from the verified-models registry
   - BDD-style (Given/When/Then)
   - Loads local models via LM Studio API before each test — no skipping
