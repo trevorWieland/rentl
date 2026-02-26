@@ -50,7 +50,7 @@
 - **Files affected:** `services/rentl-cli/src/rentl/main.py`, `tests/unit/cli/test_verify_models.py`
 
 - **Task:** Task 5 (audit round 1)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The new compatibility quality test is not actually parameterized by registry entries, and the BDD scenario requests a `model_entry` fixture that is never created.
 - **Evidence:** `tests/quality/compatibility/test_model_compatibility.py:43-50` uses `pytest_generate_tests` against `model_entry`, but pytest-bdd's generated scenario does not receive that parametrization.
 - **Evidence:** `tests/quality/compatibility/test_model_compatibility.py:76-78` requires `model_entry: VerifiedModelEntry` in the Given step, and execution fails with `fixture 'model_entry' not found`.
@@ -58,5 +58,6 @@
   - `LM_STUDIO_API_KEY=dummy RENTL_OPENROUTER_API_KEY=dummy pytest -q tests/quality/compatibility/test_model_compatibility.py --collect-only` → `collected 1 item`
   - `LM_STUDIO_API_KEY=dummy RENTL_OPENROUTER_API_KEY=dummy pytest tests/quality/compatibility/test_model_compatibility.py -q -x` → `E fixture 'model_entry' not found`
 - **Impact:** Task 5 does not satisfy "parameterized from the verified-models registry"; the suite cannot execute the intended per-model compatibility verification.
-- **Solution:** Define `model_entry` as an explicit pytest fixture parametrized from `_MODEL_ENTRIES` (or equivalent scenario-level parametrization proven to work with pytest-bdd), then verify collection/execution covers each registry model.
-- **Files affected:** `tests/quality/compatibility/test_model_compatibility.py`
+- **Solution:** Replaced `scenarios()` shorthand with explicit `@scenario` decorator + `@pytest.mark.parametrize(..., indirect=True)` on the test function. Moved `model_entry` to conftest.py as a proper fixture that reads `request.param`. Module-level `_MODEL_ENTRIES` list is loaded in conftest and imported by the test module for parametrize values.
+- **Resolution:** do-task round 6
+- **Files affected:** `tests/quality/compatibility/test_model_compatibility.py`, `tests/quality/compatibility/conftest.py`

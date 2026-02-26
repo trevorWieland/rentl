@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
 from dotenv import load_dotenv
 
 from rentl_schemas.compatibility import (
@@ -101,3 +102,22 @@ def load_registry_and_validate_env() -> tuple[VerifiedModelRegistry, dict[str, b
         _require_env("LM_STUDIO_API_KEY")
 
     return registry, dict.fromkeys(endpoint_refs, True)
+
+
+# ---------------------------------------------------------------------------
+# Registry-driven model entries (used by test parametrization)
+# ---------------------------------------------------------------------------
+
+_REGISTRY, _ENV_STATUS = load_registry_and_validate_env()
+_MODEL_ENTRIES: list[VerifiedModelEntry] = list(_REGISTRY.models)
+
+
+@pytest.fixture()
+def model_entry(request: pytest.FixtureRequest) -> VerifiedModelEntry:
+    """Return the current model entry from indirect parametrization.
+
+    The test module applies ``@pytest.mark.parametrize(..., indirect=True)``
+    which sets ``request.param`` to a ``VerifiedModelEntry`` for each model.
+    """
+    entry: VerifiedModelEntry = request.param
+    return entry

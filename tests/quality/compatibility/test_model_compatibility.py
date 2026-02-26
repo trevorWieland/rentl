@@ -13,7 +13,7 @@ import asyncio
 from dataclasses import dataclass
 
 import pytest
-from pytest_bdd import given, scenarios, then, when
+from pytest_bdd import given, scenario, then, when
 
 from rentl_core.compatibility import (
     ModelVerificationResult,
@@ -23,31 +23,31 @@ from rentl_core.compatibility import (
 from rentl_schemas.compatibility import VerifiedModelEntry
 from rentl_schemas.config import ModelEndpointConfig
 from tests.quality.compatibility.conftest import (
+    _MODEL_ENTRIES,
     build_endpoint_for_entry,
-    load_registry_and_validate_env,
 )
 
 pytestmark = pytest.mark.quality
 
-scenarios("../features/compatibility/model_compatibility.feature")
-
 
 # ---------------------------------------------------------------------------
-# Registry-driven parametrization
+# Registry-driven parametrized scenario
 # ---------------------------------------------------------------------------
 
-_registry, _env_status = load_registry_and_validate_env()
-_MODEL_ENTRIES: list[VerifiedModelEntry] = list(_registry.models)
+_FEATURE = "../features/compatibility/model_compatibility.feature"
 
 
-def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    """Parametrize BDD scenario over every model in the registry."""
-    if "model_entry" in metafunc.fixturenames:
-        metafunc.parametrize(
-            "model_entry",
-            _MODEL_ENTRIES,
-            ids=[e.model_id for e in _MODEL_ENTRIES],
-        )
+@pytest.mark.parametrize(
+    "model_entry",
+    _MODEL_ENTRIES,
+    ids=[e.model_id for e in _MODEL_ENTRIES],
+    indirect=True,
+)
+@scenario(_FEATURE, "Verified model passes all pipeline phases")
+def test_verified_model_passes_all_pipeline_phases(
+    model_entry: VerifiedModelEntry,
+) -> None:
+    """Parametrized: one execution per registry model."""
 
 
 # ---------------------------------------------------------------------------
