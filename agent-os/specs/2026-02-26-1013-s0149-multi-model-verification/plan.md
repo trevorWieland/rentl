@@ -20,7 +20,7 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - [x] Fix: Handle non-string/null `endpoint_type` inputs in validator without raising raw `AttributeError`; reject with a Pydantic `ValidationError` path instead (`packages/rentl-schemas/src/rentl_schemas/compatibility.py:56-59`) (audit round 1)
   - [x] Fix: Add unit coverage for `endpoint_type=None` (and/or non-string) to confirm invalid entries are rejected via validation errors (`tests/unit/schemas/test_compatibility.py`) (audit round 1)
   - [x] Fix: Remove `object` annotation from `_coerce_endpoint_type` validator signature and use explicit non-`Any` typing to satisfy `strict-typing-enforcement` (`packages/rentl-schemas/src/rentl_schemas/compatibility.py:58`) (audit round 2)
-- [x] Task 3: Build shared verification runner with model loading
+- [ ] Task 3: Build shared verification runner with model loading
   - Core logic that takes a registry entry, resolves the endpoint, and runs a mini 5-phase pipeline on golden input data
   - For local models: call LM Studio load API (`http://192.168.1.23:1234/api/v1/models/load`) to switch active model before verification
   - Return structured pass/fail results per phase with error details
@@ -28,6 +28,8 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - Files: `packages/rentl-core/src/rentl_core/compatibility/` (runner, loader, types)
   - Tests: unit tests with mocked LLM calls + mocked load API
   - Acceptance: runner produces correct results for mock scenarios; load API integration works
+  - [ ] Fix: Preserve explicit zero-valued config overrides (`temperature=0.0`, `top_p=0.0`) by using `is not None` checks instead of truthy `or` fallbacks in `verify_model` (`packages/rentl-core/src/rentl_core/compatibility/runner.py:261-264`) (audit round 1)
+  - [ ] Fix: Replace `object` type annotations in the `_side_effect` test helper with explicit concrete types to satisfy `strict-typing-enforcement` (`tests/unit/core/compatibility/test_runner.py:126-127`) (audit round 1)
 - [ ] Task 4: Add `rentl verify-models` CLI command
   - Thin CLI adapter that reads the registry, invokes the shared runner, displays results
   - Supports `--endpoint` filter (local/openrouter/all) and `--model` filter

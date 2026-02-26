@@ -19,3 +19,20 @@
 - **Solution:** Changed validator signature to `str | int | float | bool | None` — the explicit union of types a TOML-deserialized value can be in a `mode="before"` validator.
 - **Resolution:** do-task round 3
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/compatibility.py`
+
+- **Task:** Task 3 (audit round 1)
+- **Status:** unresolved
+- **Problem:** `verify_model` uses truthy fallback (`or`) for config overrides, so valid explicit zero values are silently discarded.
+- **Evidence:** `temperature = entry.config_overrides.temperature or 0.2` and `top_p = entry.config_overrides.top_p or 1.0` in `packages/rentl-core/src/rentl_core/compatibility/runner.py:262-263`.
+- **Impact:** Registry-level overrides cannot force deterministic settings like `temperature=0.0`; verification runs use defaults instead of declared model config.
+- **Solution:** Use explicit `is not None` checks for `timeout_s`, `temperature`, `top_p`, and `max_output_tokens` when resolving override values.
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`
+
+- **Task:** Task 3 (audit round 1)
+- **Status:** unresolved
+- **Problem:** New unit test helper still annotates parameters as `object`, violating strict typing standards.
+- **Evidence:** `_side_effect(*args: object, **kwargs: object)` in `tests/unit/core/compatibility/test_runner.py:126-127`.
+- **Evidence:** `strict-typing-enforcement` rule states "Never use `Any` or `object` in types" (`agent-os/standards/python/strict-typing-enforcement.md:3`).
+- **Impact:** Task 3 remains standards-noncompliant despite functional tests passing.
+- **Solution:** Replace `object` annotations with explicit argument types, or remove unused variadic parameters.
+- **Files affected:** `tests/unit/core/compatibility/test_runner.py`
