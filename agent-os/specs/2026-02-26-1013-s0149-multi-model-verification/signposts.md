@@ -185,3 +185,11 @@
 - **Solution:** Updated all OpenRouter entries to `timeout_s=3.0` and `max_output_retries=1`. Budget: `5 phases × 2 attempts × 3s = 30s` worst case, which fits the pytest-timeout cap while giving models one output-validation retry for intermittent structured output failures. Updated corresponding unit test assertions.
 - **Resolution:** do-task round 14
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`
+
+- **Task:** Task 6 (gate triage round 4)
+- **Status:** unresolved
+- **Problem:** Compatibility quality failures are being masked by timeout kills because verification keeps running all five phases after an early phase failure, while retry/timeout registry tuning is sitting at (or below) the edge of the 30s budget and no longer matches current model behavior.
+- **Evidence:** Current gate output shows phase-level failures (`Exceeded maximum retries (0)` for local context and `Exceeded maximum retries (1)` for OpenRouter translate) followed by `Failed: Timeout (>30.0s) from pytest-timeout` in `when_run_verification` for `google/gemma-3-27b`, `deepseek/deepseek-v3.2`, `z-ai/glm-5`, and `minimax/minimax-m2.5` (`tests/quality/compatibility/test_model_compatibility.py:93`).
+- **Evidence:** Verification always iterates all phases without a failure break (`packages/rentl-core/src/rentl_core/compatibility/runner.py:325-337`) under a global quality timeout of 30s (`pyproject.toml:73`).
+- **Evidence:** Registry budget assumptions are exact-edge or zero-retry (`5 × 2 × 3 = 30` for OpenRouter, local `max_output_retries = 0`) (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:17-19`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:34`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:67-69`).
+- **Impact:** Gate regressions recur as mixed assertion/timeouts, making compatibility breakages harder to diagnose and preventing reliable “all verified models pass” enforcement.
