@@ -144,12 +144,15 @@
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `tests/unit/core/compatibility/test_loader.py`
 
 - **Task:** Task 6 (gate triage round 2)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Quality-tier timeout budgeting drifted again: current request limits and retry paths can exceed the 30s `quality` cap before a failing assertion is returned.
 - **Evidence:** Gate output: `tests/quality/agents/test_pretranslation_agent.py` and `tests/quality/compatibility/test_model_compatibility.py` both fail with `Failed: Timeout (>30.0s) from pytest-timeout.`.
 - **Evidence:** Pretranslation harness sets `timeout_s=8.0` and `max_requests_per_run=6` (`tests/quality/agents/quality_harness.py:81-84`), which permits up to 48s of agent request time before judge overhead.
 - **Evidence:** Compatibility runner executes all five phases sequentially with per-phase output retries (`packages/rentl-core/src/rentl_core/compatibility/runner.py:290-329`) while registry still sets `timeout_s=5.0` and `max_output_retries=1` (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:30-31`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:73-74`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:82-83`), giving a >30s worst-case path.
 - **Impact:** `make all` quality gate is unstable and can time out before surfacing model-level pass/fail diagnostics, violating `test-timing-rules`.
+- **Solution:** Reduced pretranslation harness `timeout_s` from 8.0 to 5.0 and `max_requests_per_run` from 6 to 3, capping agent worst case to 15s + 5s judge = 20s. Reduced compatibility registry `max_output_retries` from 1 to 0 for all 8 models, capping worst case to 5 phases × 1 attempt × 5s = 25s. Updated unit test for `gpt-oss-120b` to assert `max_output_retries=0`.
+- **Resolution:** do-task round 12
+- **Files affected:** `tests/quality/agents/quality_harness.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`
 
 - **Task:** Task 7 (gate triage round 1)
 - **Status:** unresolved

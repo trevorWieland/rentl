@@ -283,8 +283,8 @@ def test_bundled_registry_qwen_tool_choice_required_false() -> None:
 
 
 def test_bundled_registry_gpt_oss_120b_max_output_retries() -> None:
-    """openai/gpt-oss-120b declares max_output_retries=1 in TOML."""
+    """openai/gpt-oss-120b declares max_output_retries=0 in TOML."""
     registry = load_bundled_registry()
     entry = registry.get_model("openai/gpt-oss-120b")
     assert entry is not None
-    assert entry.config_overrides.max_output_retries == 1
+    assert entry.config_overrides.max_output_retries == 0

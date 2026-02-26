@@ -15,6 +15,7 @@
 # runner executes 5 phases sequentially, so per-call timeout_s and
 # max_output_retries must stay within that budget.  Current rule of thumb:
 #   5 phases × (1 + max_output_retries) × timeout_s  ≤  30 s
+#   Current: 5 × 1 × 5 = 25 s  (max_output_retries=0)
 
 # ──────────────────────────────────────────────────────────────
 # Local models (LM Studio)
@@ -28,7 +29,7 @@ load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
 timeout_s = 5.0
-max_output_retries = 1
+max_output_retries = 0
 
 [[models]]
 model_id = "qwen/qwen3-vl-30b"
@@ -38,7 +39,7 @@ load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
 timeout_s = 5.0
-max_output_retries = 1
+max_output_retries = 0
 
 [[models]]
 model_id = "openai/gpt-oss-20b"
@@ -48,7 +49,7 @@ load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
 timeout_s = 5.0
-max_output_retries = 1
+max_output_retries = 0
 
 # ──────────────────────────────────────────────────────────────
 # OpenRouter models
@@ -61,7 +62,7 @@ endpoint_ref = "openrouter"
 
 [models.config_overrides]
 timeout_s = 5.0
-max_output_retries = 1
+max_output_retries = 0
 supports_tool_choice_required = false
 
 [[models]]
@@ -71,7 +72,7 @@ endpoint_ref = "openrouter"
 
 [models.config_overrides]
 timeout_s = 5.0
-max_output_retries = 1
+max_output_retries = 0
 
 [[models]]
 model_id = "z-ai/glm-5"
@@ -80,7 +81,7 @@ endpoint_ref = "openrouter"
 
 [models.config_overrides]
 timeout_s = 5.0
-max_output_retries = 1
+max_output_retries = 0
 
 [[models]]
 model_id = "openai/gpt-oss-120b"
@@ -89,7 +90,7 @@ endpoint_ref = "openrouter"
 
 [models.config_overrides]
 timeout_s = 5.0
-max_output_retries = 1
+max_output_retries = 0
 
 [[models]]
 model_id = "minimax/minimax-m2.5"
@@ -98,4 +99,4 @@ endpoint_ref = "openrouter"
 
 [models.config_overrides]
 timeout_s = 5.0
-max_output_retries = 1
+max_output_retries = 0
