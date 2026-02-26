@@ -154,6 +154,7 @@ def _write_pipeline_config(
         "\n"
         "[retry]\n"
         "max_retries = 0\n"
+        "max_output_retries = 1\n"
         "backoff_s = 1.0\n"
         "max_backoff_s = 2.0\n"
         "\n"

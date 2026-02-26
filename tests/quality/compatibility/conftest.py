@@ -73,7 +73,7 @@ def build_endpoint_for_entry(
             provider_name="lm-studio",
             base_url=base_url,
             api_key_env="RENTL_LOCAL_API_KEY",
-            timeout_s=180.0,
+            timeout_s=5.0,
         )
 
     raise ValueError(

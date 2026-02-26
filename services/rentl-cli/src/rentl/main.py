@@ -3818,7 +3818,7 @@ def verify_models(
     Example:
         rentl verify-models
         rentl verify-models --endpoint local
-        rentl verify-models --model qwen/qwen3.5-35b-a3b
+        rentl verify-models --model qwen/qwen3-vl-30b
 
     Raises:
         typer.Exit: When verification encounters configuration errors.

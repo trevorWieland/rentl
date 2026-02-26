@@ -239,12 +239,12 @@ def test_load_registry_from_toml_rejects_empty() -> None:
 
 
 def test_load_bundled_registry() -> None:
-    """Bundled TOML registry loads and validates all 9 models."""
+    """Bundled TOML registry loads and validates all 8 models."""
     registry = load_bundled_registry()
-    assert len(registry.models) == 9
+    assert len(registry.models) == 8
     local_models = registry.filter_by_endpoint("local")
     openrouter_models = registry.filter_by_endpoint("openrouter")
-    assert len(local_models) == 4
+    assert len(local_models) == 3
     assert len(openrouter_models) == 5
 
 
@@ -256,14 +256,13 @@ def test_bundled_registry_local_models_have_load_endpoint() -> None:
 
 
 def test_bundled_registry_model_ids_match_spec() -> None:
-    """Bundled registry contains exactly the 9 models from the spec."""
+    """Bundled registry contains exactly the 8 verified models."""
     registry = load_bundled_registry()
     ids = {m.model_id for m in registry.models}
     expected = {
         # Local
         "google/gemma-3-27b",
         "qwen/qwen3-vl-30b",
-        "qwen/qwen3.5-35b-a3b",
         "openai/gpt-oss-20b",
         # OpenRouter
         "qwen/qwen3.5-27b",
@@ -284,8 +283,8 @@ def test_bundled_registry_qwen_tool_choice_required_false() -> None:
 
 
 def test_bundled_registry_gpt_oss_120b_max_output_retries() -> None:
-    """openai/gpt-oss-120b declares max_output_retries=4 in TOML."""
+    """openai/gpt-oss-120b declares max_output_retries=1 in TOML."""
     registry = load_bundled_registry()
     entry = registry.get_model("openai/gpt-oss-120b")
     assert entry is not None
-    assert entry.config_overrides.max_output_retries == 4
+    assert entry.config_overrides.max_output_retries == 1

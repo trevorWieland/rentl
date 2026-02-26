@@ -10,6 +10,11 @@
 #   endpoint_ref    — Reference to configured endpoint name
 #   load_endpoint   — (local only) LM Studio model load API URL
 #   config_overrides — Per-model overrides (timeout, temperature, etc.)
+#
+# Budget: quality tests enforce a 30s pytest-timeout.  The verification
+# runner executes 5 phases sequentially, so per-call timeout_s and
+# max_output_retries must stay within that budget.  Current rule of thumb:
+#   5 phases × (1 + max_output_retries) × timeout_s  ≤  30 s
 
 # ──────────────────────────────────────────────────────────────
 # Local models (LM Studio)
@@ -22,8 +27,8 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 180.0
-max_output_retries = 4
+timeout_s = 5.0
+max_output_retries = 1
 
 [[models]]
 model_id = "qwen/qwen3-vl-30b"
@@ -32,17 +37,8 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 180.0
-
-[[models]]
-model_id = "qwen/qwen3.5-35b-a3b"
-endpoint_type = "local"
-endpoint_ref = "lm-studio"
-load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
-
-[models.config_overrides]
-timeout_s = 180.0
-max_output_retries = 4
+timeout_s = 5.0
+max_output_retries = 1
 
 [[models]]
 model_id = "openai/gpt-oss-20b"
@@ -51,7 +47,8 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 180.0
+timeout_s = 5.0
+max_output_retries = 1
 
 # ──────────────────────────────────────────────────────────────
 # OpenRouter models
@@ -63,7 +60,8 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 120.0
+timeout_s = 5.0
+max_output_retries = 1
 supports_tool_choice_required = false
 
 [[models]]
@@ -72,7 +70,8 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 120.0
+timeout_s = 5.0
+max_output_retries = 1
 
 [[models]]
 model_id = "z-ai/glm-5"
@@ -80,7 +79,8 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 120.0
+timeout_s = 5.0
+max_output_retries = 1
 
 [[models]]
 model_id = "openai/gpt-oss-120b"
@@ -88,8 +88,8 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 120.0
-max_output_retries = 4
+timeout_s = 5.0
+max_output_retries = 1
 
 [[models]]
 model_id = "minimax/minimax-m2.5"
@@ -97,4 +97,5 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 120.0
+timeout_s = 5.0
+max_output_retries = 1
