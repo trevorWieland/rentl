@@ -107,6 +107,7 @@ def test_config_overrides_defaults() -> None:
     assert overrides.max_output_retries is None
     assert overrides.supports_tool_choice_required is None
     assert overrides.load_timeout_s is None
+    assert overrides.max_sdk_retries is None
 
 
 def test_config_overrides_validates_bounds() -> None:
@@ -147,6 +148,16 @@ def test_config_overrides_load_timeout_s_validation() -> None:
         VerifiedModelConfigOverrides(load_timeout_s=-1.0)
     with pytest.raises(ValidationError):
         VerifiedModelConfigOverrides(load_timeout_s=0.0)
+
+
+def test_config_overrides_max_sdk_retries_validation() -> None:
+    """max_sdk_retries accepts valid values and rejects negative."""
+    overrides = VerifiedModelConfigOverrides(max_sdk_retries=0)
+    assert overrides.max_sdk_retries == 0
+    overrides_two = VerifiedModelConfigOverrides(max_sdk_retries=2)
+    assert overrides_two.max_sdk_retries == 2
+    with pytest.raises(ValidationError):
+        VerifiedModelConfigOverrides(max_sdk_retries=-1)
 
 
 def test_config_overrides_rejects_negative_timeout() -> None:
@@ -296,3 +307,13 @@ def test_bundled_registry_gpt_oss_120b_max_output_retries() -> None:
     entry = registry.get_model("openai/gpt-oss-120b")
     assert entry is not None
     assert entry.config_overrides.max_output_retries == 1
+
+
+def test_bundled_registry_all_models_have_max_sdk_retries_zero() -> None:
+    """All bundled models set max_sdk_retries=0 to prevent retry amplification."""
+    registry = load_bundled_registry()
+    for model in registry.models:
+        assert model.config_overrides.max_sdk_retries == 0, (
+            f"Model '{model.model_id}' must set max_sdk_retries=0 "
+            "to keep per-phase time deterministic within the 30s budget"
+        )

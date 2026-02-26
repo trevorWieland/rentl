@@ -25,6 +25,11 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.settings import ModelSettings
 
+try:
+    from openai import AsyncOpenAI
+except ImportError:  # pragma: no cover
+    AsyncOpenAI = None  # type: ignore[assignment,misc]
+
 from rentl_llm.providers import ProviderCapabilities, detect_provider
 from rentl_schemas.base import BaseSchema
 from rentl_schemas.config import OpenRouterProviderRoutingConfig
@@ -55,6 +60,7 @@ def create_model(
     openrouter_provider: OpenRouterProviderRoutingConfig | None = None,
     strict_tools: bool = False,
     supports_tool_choice_required: bool = True,
+    max_retries: int | None = None,
 ) -> tuple[Model, ModelSettings]:
     """Create the correct provider/model pair from configuration.
 
@@ -76,6 +82,8 @@ def create_model(
         strict_tools: Send strict tool definitions to the provider.
         supports_tool_choice_required: Whether the provider accepts
             tool_choice=required; set False to fall back to auto.
+        max_retries: OpenAI SDK-level HTTP retry limit. None uses the
+            SDK default; 0 disables transport retries entirely.
 
     Returns:
         Tuple of (Model, ModelSettings) ready for pydantic-ai Agent.
@@ -96,6 +104,7 @@ def create_model(
             openrouter_provider=openrouter_provider,
             strict_tools=strict_tools,
             supports_tool_choice_required=supports_tool_choice_required,
+            max_retries=max_retries,
         )
     return _create_openai_model(
         base_url=base_url,
@@ -110,6 +119,7 @@ def create_model(
         reasoning_effort=reasoning_effort,
         strict_tools=strict_tools,
         supports_tool_choice_required=supports_tool_choice_required,
+        max_retries=max_retries,
     )
 
 
@@ -424,6 +434,7 @@ def _create_openrouter_model(
     openrouter_provider: OpenRouterProviderRoutingConfig | None,
     strict_tools: bool = False,
     supports_tool_choice_required: bool = True,
+    max_retries: int | None = None,
 ) -> tuple[Model, ModelSettings]:
     """Create an OpenRouter model and settings.
 
@@ -433,7 +444,15 @@ def _create_openrouter_model(
     validate_openrouter_model_id(model_id)
     enforce_provider_allowlist(model_id, openrouter_provider)
 
-    provider = OpenRouterProvider(api_key=api_key)
+    if max_retries is not None and AsyncOpenAI is not None:
+        openai_client = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+            max_retries=max_retries,
+        )
+        provider = OpenRouterProvider(openai_client=openai_client)
+    else:
+        provider = OpenRouterProvider(api_key=api_key)
     profile = OpenAIModelProfile(
         openai_supports_strict_tool_definition=strict_tools,
         openai_supports_tool_choice_required=supports_tool_choice_required,
@@ -478,13 +497,22 @@ def _create_openai_model(
     reasoning_effort: ReasoningEffort | str | None,
     strict_tools: bool = False,
     supports_tool_choice_required: bool = True,
+    max_retries: int | None = None,
 ) -> tuple[Model, ModelSettings]:
     """Create a generic OpenAI-compatible model and settings.
 
     Returns:
         Tuple of (Model, ModelSettings) for OpenAI-compatible endpoint.
     """
-    provider = OpenAIProvider(base_url=base_url, api_key=api_key)
+    if max_retries is not None and AsyncOpenAI is not None:
+        openai_client = AsyncOpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            max_retries=max_retries,
+        )
+        provider = OpenAIProvider(openai_client=openai_client)
+    else:
+        provider = OpenAIProvider(base_url=base_url, api_key=api_key)
     profile = OpenAIModelProfile(
         openai_supports_strict_tool_definition=strict_tools,
         openai_supports_tool_choice_required=supports_tool_choice_required,

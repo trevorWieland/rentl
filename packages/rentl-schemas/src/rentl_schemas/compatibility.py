@@ -49,6 +49,14 @@ class VerifiedModelConfigOverrides(BaseSchema):
             "set to false to fall back to tool_choice=auto"
         ),
     )
+    max_sdk_retries: int | None = Field(
+        None,
+        ge=0,
+        description=(
+            "OpenAI SDK-level HTTP retry limit; set to 0 to disable "
+            "transport retries and keep per-phase time deterministic"
+        ),
+    )
 
 
 class VerifiedModelEntry(BaseSchema):

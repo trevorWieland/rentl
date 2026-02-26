@@ -512,6 +512,82 @@ async def test_verify_model_forwards_max_output_retries() -> None:
         assert call.kwargs.get("output_retries") == 4
 
 
+async def test_verify_model_forwards_max_sdk_retries() -> None:
+    """max_sdk_retries override flows to create_model(max_retries=...)."""
+    entry = VerifiedModelEntry(
+        model_id="minimax/minimax-m2.5",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+        config_overrides=VerifiedModelConfigOverrides(
+            timeout_s=2.0,
+            max_sdk_retries=0,
+        ),
+    )
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        await verify_model(entry=entry, endpoint=endpoint)
+
+    mock_create.assert_called_once()
+    call_kwargs = mock_create.call_args.kwargs
+    assert call_kwargs["max_retries"] == 0
+
+
+async def test_verify_model_max_sdk_retries_none_by_default() -> None:
+    """max_sdk_retries defaults to None (SDK default) when not set."""
+    entry = _build_openrouter_entry()
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        await verify_model(entry=entry, endpoint=endpoint)
+
+    mock_create.assert_called_once()
+    call_kwargs = mock_create.call_args.kwargs
+    assert call_kwargs["max_retries"] is None
+
+
 def test_golden_source_line_is_valid() -> None:
     """The golden source line is a valid SourceLine."""
     assert GOLDEN_SOURCE_LINE.line_id == "scene_001_0001"

@@ -726,6 +726,49 @@ class TestStrictTools:
         assert call_kwargs.kwargs["strict_tools"] is True
 
 
+class TestMaxRetries:
+    """Tests for max_retries parameter controlling SDK-level HTTP retries."""
+
+    def test_openrouter_max_retries_zero_disables_sdk_retries(self) -> None:
+        """max_retries=0 creates OpenRouter client with zero transport retries."""
+        model, _ = create_model(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="test-key",
+            model_id="openai/gpt-4o",
+            temperature=0.5,
+            max_retries=0,
+        )
+        assert isinstance(model, OpenRouterModel)
+        provider = model._provider
+        assert provider.client.max_retries == 0
+
+    def test_openai_max_retries_zero_disables_sdk_retries(self) -> None:
+        """max_retries=0 creates OpenAI client with zero transport retries."""
+        model, _ = create_model(
+            base_url="http://192.168.1.23:1234",
+            api_key="test-key",
+            model_id="local-model",
+            temperature=0.5,
+            max_retries=0,
+        )
+        assert isinstance(model, OpenAIChatModel)
+        provider = model._provider
+        assert provider.client.max_retries == 0
+
+    def test_openrouter_default_max_retries_uses_sdk_default(self) -> None:
+        """Default max_retries=None uses SDK default (not zero)."""
+        model, _ = create_model(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="test-key",
+            model_id="openai/gpt-4o",
+            temperature=0.5,
+        )
+        assert isinstance(model, OpenRouterModel)
+        provider = model._provider
+        # SDK default is 2 (DEFAULT_MAX_RETRIES)
+        assert provider.client.max_retries > 0
+
+
 class TestSupportsToolChoiceRequired:
     """Tests for supports_tool_choice_required controlling OpenAIModelProfile."""
 

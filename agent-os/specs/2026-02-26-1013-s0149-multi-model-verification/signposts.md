@@ -218,10 +218,13 @@
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`, `tests/quality/agents/quality_harness.py`
 
 - **Task:** Task 6 (gate triage round 6)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Compatibility timeout budgeting still misses OpenRouter SDK retry amplification, so a single model verification can run past the 30s quality limit even when registry `timeout_s=2.0`.
 - **Evidence:** Current gate output fails `tests/quality/compatibility/test_model_compatibility.py::test_verified_model_passes_all_pipeline_phases[minimax/minimax-m2.5]` with `Failed: Timeout (>30.0s) from pytest-timeout` while blocked in `when_run_verification` (`tests/quality/compatibility/test_model_compatibility.py:93`).
 - **Evidence:** The registry still declares `minimax/minimax-m2.5` with `timeout_s = 2.0` and `max_output_retries = 1` (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:62-68`).
 - **Evidence:** `verify_model` forwards `max_output_retries` into `Agent(..., output_retries=...)` and awaits `agent.run(...)` without an outer watchdog (`packages/rentl-core/src/rentl_core/compatibility/runner.py:197-203`, `packages/rentl-core/src/rentl_core/compatibility/runner.py:297-345`).
 - **Evidence:** OpenRouter models are created via `OpenRouterProvider(api_key=api_key)` with no explicit retry override (`packages/rentl-llm/src/rentl_llm/provider_factory.py:436`), and the underlying OpenAI client default is `max_retries=DEFAULT_MAX_RETRIES` (`.venv/lib/python3.14/site-packages/openai/_client.py:468`).
 - **Impact:** The current “20s budget” assumption in registry comments can be violated in live timeout/retry paths, which reintroduces pytest-timeout masking and makes the verified-model registry nondeterministic.
+- **Solution:** Added `max_sdk_retries` field to `VerifiedModelConfigOverrides` schema. Added `max_retries` parameter to `create_model()` that constructs the `AsyncOpenAI` client with explicit retry control when specified (otherwise SDK default applies). Wired through `verify_model` → `create_model(max_retries=max_sdk_retries)`. Set `max_sdk_retries = 0` in registry for all 4 models, disabling SDK-level HTTP retries so per-phase time stays within `timeout_s`. Added schema, provider factory, and runner regression tests.
+- **Resolution:** do-task round 17
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/compatibility.py`, `packages/rentl-llm/src/rentl_llm/provider_factory.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`, `tests/unit/llm/test_provider_factory.py`, `tests/unit/core/compatibility/test_runner.py`

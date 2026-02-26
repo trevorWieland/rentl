@@ -304,6 +304,7 @@ async def verify_model(
             if entry.config_overrides.supports_tool_choice_required is not None
             else True
         )
+        max_sdk_retries = entry.config_overrides.max_sdk_retries
 
         # Build model via provider factory
         model, settings = create_model(
@@ -318,6 +319,7 @@ async def verify_model(
             openrouter_provider=endpoint.openrouter_provider,
             strict_tools=endpoint.strict_tools,
             supports_tool_choice_required=supports_tool_choice_required,
+            max_retries=max_sdk_retries,
         )
 
         # Run phases sequentially, fail-fast on first failure
