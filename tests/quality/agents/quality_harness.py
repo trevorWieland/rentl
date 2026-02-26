@@ -80,7 +80,7 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         temperature=0.2,
         timeout_s=5.0,  # 2 agent + 1 judge calls x 5s = 15s max
         max_retries=0,  # No retries — single attempt to avoid timeout amplification
-        max_output_retries=0,  # Single attempt to stay within 29s
+        max_output_retries=1,  # One corrective retry for alignment feedback
         max_requests_per_run=3,  # 2 agent + 1 buffer; caps worst case to 15s
         retry_base_delay=1.0,
         end_strategy="exhaustive",

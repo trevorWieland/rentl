@@ -250,13 +250,13 @@ def test_load_registry_from_toml_rejects_empty() -> None:
 
 
 def test_load_bundled_registry() -> None:
-    """Bundled TOML registry loads and validates all 8 models."""
+    """Bundled TOML registry loads and validates all 4 models."""
     registry = load_bundled_registry()
-    assert len(registry.models) == 8
+    assert len(registry.models) == 4
     local_models = registry.filter_by_endpoint("local")
     openrouter_models = registry.filter_by_endpoint("openrouter")
-    assert len(local_models) == 3
-    assert len(openrouter_models) == 5
+    assert len(local_models) == 2
+    assert len(openrouter_models) == 2
 
 
 def test_bundled_registry_local_models_have_load_endpoint() -> None:
@@ -267,18 +267,14 @@ def test_bundled_registry_local_models_have_load_endpoint() -> None:
 
 
 def test_bundled_registry_model_ids_match_spec() -> None:
-    """Bundled registry contains exactly the 8 verified models."""
+    """Bundled registry contains exactly the 4 verified models."""
     registry = load_bundled_registry()
     ids = {m.model_id for m in registry.models}
     expected = {
         # Local
-        "google/gemma-3-27b",
         "qwen/qwen3-vl-30b",
         "openai/gpt-oss-20b",
         # OpenRouter
-        "qwen/qwen3.5-27b",
-        "deepseek/deepseek-v3.2",
-        "z-ai/glm-5",
         "openai/gpt-oss-120b",
         "minimax/minimax-m2.5",
     }
@@ -292,14 +288,6 @@ def test_bundled_registry_local_models_have_load_timeout_s() -> None:
         assert model.config_overrides.load_timeout_s is not None, (
             f"Local model '{model.model_id}' must declare load_timeout_s"
         )
-
-
-def test_bundled_registry_qwen_tool_choice_required_false() -> None:
-    """qwen/qwen3.5-27b declares supports_tool_choice_required=false in TOML."""
-    registry = load_bundled_registry()
-    entry = registry.get_model("qwen/qwen3.5-27b")
-    assert entry is not None
-    assert entry.config_overrides.supports_tool_choice_required is False
 
 
 def test_bundled_registry_gpt_oss_120b_max_output_retries() -> None:
