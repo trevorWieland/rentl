@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
 
-from rentl_core.compatibility.loader import ModelLoadError
+from rentl_core.compatibility.loader import ModelLoadError, ModelUnloadError
 from rentl_core.compatibility.runner import (
     GOLDEN_SOURCE_LINE,
     PHASE_CONFIGS,
@@ -188,6 +188,9 @@ async def test_verify_model_local_loads_first() -> None:
         patch(
             "rentl_core.compatibility.runner.load_lm_studio_model",
         ) as mock_load,
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+        ),
         patch.dict(
             "os.environ",
             {"LM_STUDIO_API_KEY": "test-key"},
@@ -218,7 +221,7 @@ async def test_verify_model_local_loads_first() -> None:
 
 
 async def test_verify_model_local_load_failure() -> None:
-    """Model load failure skips all phases."""
+    """Model load failure skips all phases and does not attempt unload."""
     entry = _build_local_entry()
     endpoint = _build_local_endpoint()
 
@@ -227,6 +230,9 @@ async def test_verify_model_local_load_failure() -> None:
             "rentl_core.compatibility.runner.load_lm_studio_model",
             side_effect=ModelLoadError("refused"),
         ),
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+        ) as mock_unload,
         patch.dict(
             "os.environ",
             {"LM_STUDIO_API_KEY": "test-key"},
@@ -240,6 +246,8 @@ async def test_verify_model_local_load_failure() -> None:
     assert result.passed is False
     assert len(result.phase_results) == 1
     assert "Model loading failed" in (result.phase_results[0].error_message or "")
+    # Load failed early — unload should not have been called
+    mock_unload.assert_not_awaited()
 
 
 async def test_verify_registry_filter_endpoint() -> None:
@@ -310,6 +318,9 @@ async def test_verify_registry_filter_model() -> None:
         ) as mock_agent_cls,
         patch(
             "rentl_core.compatibility.runner.load_lm_studio_model",
+        ),
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
         ),
         patch.dict(
             "os.environ",
@@ -457,3 +468,179 @@ def test_phase_configs_cover_all_phases() -> None:
         PhaseName.QA,
         PhaseName.EDIT,
     ]
+
+
+async def test_verify_model_local_unloads_after_success() -> None:
+    """Local model is unloaded after successful verification."""
+    entry = _build_local_entry()
+    endpoint = _build_local_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch(
+            "rentl_core.compatibility.runner.load_lm_studio_model",
+        ) as mock_load,
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+        ) as mock_unload,
+        patch.dict(
+            "os.environ",
+            {"LM_STUDIO_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_model(
+            entry=entry,
+            endpoint=endpoint,
+        )
+
+    assert result.passed is True
+    mock_load.assert_awaited_once()
+    mock_unload.assert_awaited_once_with(
+        load_endpoint="http://192.168.1.23:1234/api/v1/models/load",
+        model_id="google/gemma-3-27b",
+        api_key="test-key",
+        timeout_s=60.0,
+    )
+
+
+async def test_verify_model_local_unloads_after_phase_failure() -> None:
+    """Local model is unloaded even when phases fail."""
+    entry = _build_local_entry()
+    endpoint = _build_local_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch(
+            "rentl_core.compatibility.runner.load_lm_studio_model",
+        ),
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+        ) as mock_unload,
+        patch.dict(
+            "os.environ",
+            {"LM_STUDIO_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            side_effect=RuntimeError("structured output failed"),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_model(
+            entry=entry,
+            endpoint=endpoint,
+        )
+
+    assert result.passed is False
+    mock_unload.assert_awaited_once()
+
+
+async def test_verify_model_local_unload_failure_does_not_raise() -> None:
+    """Unload failure after verification is logged but does not raise."""
+    entry = _build_local_entry()
+    endpoint = _build_local_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch(
+            "rentl_core.compatibility.runner.load_lm_studio_model",
+        ),
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+            side_effect=ModelUnloadError("unload failed"),
+        ),
+        patch.dict(
+            "os.environ",
+            {"LM_STUDIO_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        # Should not raise despite unload failure
+        result = await verify_model(
+            entry=entry,
+            endpoint=endpoint,
+        )
+
+    assert result.passed is True
+
+
+async def test_verify_model_openrouter_does_not_unload() -> None:
+    """OpenRouter models do not trigger load or unload."""
+    entry = _build_openrouter_entry()
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch(
+            "rentl_core.compatibility.runner.load_lm_studio_model",
+        ) as mock_load,
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+        ) as mock_unload,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_model(
+            entry=entry,
+            endpoint=endpoint,
+        )
+
+    assert result.passed is True
+    mock_load.assert_not_awaited()
+    mock_unload.assert_not_awaited()

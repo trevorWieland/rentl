@@ -82,3 +82,20 @@
 - **Solution:** Added `max_output_retries` field to `VerifiedModelConfigOverrides` schema. Wired through runner's `_run_phase` to accept configurable `output_retries`. Set `max_output_retries = 4` in registry for `openai/gpt-oss-120b`. Generic — any model can declare this override.
 - **Resolution:** do-task round 7
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/compatibility.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
+
+- **Task:** Task 7
+- **Status:** resolved
+- **Problem:** LM Studio model loader (`load_lm_studio_model`) loads models but never unloads them. The GPU can only support a single model at a time — additional loaded models spill into system RAM, which gradually exhausts available memory and causes system instability.
+- **Evidence:** `packages/rentl-core/src/rentl_core/compatibility/loader.py` only exposes `load_lm_studio_model()` which POSTs to `/api/v1/models/load`. There is no corresponding unload function and no call to `/api/v1/models/unload`.
+- **Evidence:** `packages/rentl-core/src/rentl_core/compatibility/runner.py:242-261` calls `load_lm_studio_model()` before each local model verification but never unloads after verification completes (or fails). When `verify_registry` iterates over 4 local models, each load stacks on top of the previous, leaking models into system RAM.
+- **Evidence:** LM Studio v1 REST API provides `POST /api/v1/models/unload` (body: `{"instance_id": "<model_id>"}`) and `GET /api/v1/models/list` for querying loaded models — see https://lmstudio.ai/docs/developer/rest/unload.
+- **Impact:** Running `rentl verify-models --endpoint local` or the quality test suite against all 4 local models causes progressive memory exhaustion. After 2-3 model loads the system becomes unstable, potentially crashing LM Studio or the host machine. This makes the verification pipeline unreliable and dangerous to run repeatedly.
+- **Solution:** Implemented all proposed items:
+  1. Added `unload_lm_studio_model()` — POSTs to `/api/v1/models/unload` with `{"instance_id": model_id}`.
+  2. Added `list_lm_studio_models()` — GETs `/api/v1/models/list` to query loaded models.
+  3. Refactored `load_lm_studio_model()` to be resource-aware: queries loaded models, skips load if target is already active, unloads other models before loading new one.
+  4. Added `try/finally` cleanup in `verify_model()` so the model is always unloaded after verification (success or failure).
+  5. Decided against a separate context manager — the `try/finally` in `verify_model` provides the same lifecycle guarantee with simpler code.
+  6. Added comprehensive unit tests for unload, list, resource-aware load, and verify_model cleanup paths.
+- **Resolution:** do-task round 8
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-core/src/rentl_core/compatibility/__init__.py`, `tests/unit/core/compatibility/test_loader.py`, `tests/unit/core/compatibility/test_runner.py`

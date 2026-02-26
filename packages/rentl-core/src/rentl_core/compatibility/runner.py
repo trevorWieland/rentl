@@ -16,7 +16,9 @@ from pydantic_ai.settings import ModelSettings
 
 from rentl_core.compatibility.loader import (
     ModelLoadError,
+    ModelUnloadError,
     load_lm_studio_model,
+    unload_lm_studio_model,
 )
 from rentl_core.compatibility.types import (
     ModelVerificationResult,
@@ -238,11 +240,14 @@ async def verify_model(
     # Resolve API key (needed for both model loading and inference)
     api_key = os.getenv(endpoint.api_key_env) or ""
 
+    # Track whether we need to unload after verification
+    is_local = entry.endpoint_type == "local" and entry.load_endpoint is not None
+
     # Load local model via LM Studio API
-    if entry.endpoint_type == "local" and entry.load_endpoint:
+    if is_local:
         try:
             await load_lm_studio_model(
-                load_endpoint=entry.load_endpoint,
+                load_endpoint=entry.load_endpoint,  # type: ignore[arg-type]
                 model_id=entry.model_id,
                 api_key=api_key,
                 timeout_s=entry.config_overrides.timeout_s or 120.0,
@@ -260,75 +265,93 @@ async def verify_model(
                 ],
             )
 
-    # Apply config overrides — use `is not None` to preserve explicit zeros
-    timeout_s = (
-        entry.config_overrides.timeout_s
-        if entry.config_overrides.timeout_s is not None
-        else endpoint.timeout_s
-    )
-    temperature = (
-        entry.config_overrides.temperature
-        if entry.config_overrides.temperature is not None
-        else 0.2
-    )
-    top_p = (
-        entry.config_overrides.top_p
-        if entry.config_overrides.top_p is not None
-        else 1.0
-    )
-    max_output_tokens = (
-        entry.config_overrides.max_output_tokens
-        if entry.config_overrides.max_output_tokens is not None
-        else 4096
-    )
-    output_retries = (
-        entry.config_overrides.max_output_retries
-        if entry.config_overrides.max_output_retries is not None
-        else 2
-    )
-    supports_tool_choice_required = (
-        entry.config_overrides.supports_tool_choice_required
-        if entry.config_overrides.supports_tool_choice_required is not None
-        else True
-    )
-
-    # Build model via provider factory
-    model, settings = create_model(
-        base_url=endpoint.base_url,
-        api_key=api_key,
-        model_id=entry.model_id,
-        temperature=temperature,
-        top_p=top_p,
-        timeout_s=timeout_s,
-        max_output_tokens=max_output_tokens,
-        reasoning_effort=entry.config_overrides.reasoning_effort,
-        openrouter_provider=endpoint.openrouter_provider,
-        strict_tools=endpoint.strict_tools,
-        supports_tool_choice_required=supports_tool_choice_required,
-    )
-
-    # Run all 5 phases sequentially
-    phase_results: list[PhaseResult] = []
-    for phase, sys_prompt, user_template, output_type in PHASE_CONFIGS:
-        result = await _run_phase(
-            phase=phase,
-            system_prompt=sys_prompt,
-            user_prompt_template=user_template,
-            output_type=output_type,
-            model=model,
-            model_settings=settings,
-            source_line=GOLDEN_SOURCE_LINE,
-            output_retries=output_retries,
+    try:
+        # Apply config overrides — use `is not None` to preserve explicit zeros
+        timeout_s = (
+            entry.config_overrides.timeout_s
+            if entry.config_overrides.timeout_s is not None
+            else endpoint.timeout_s
         )
-        phase_results.append(result)
+        temperature = (
+            entry.config_overrides.temperature
+            if entry.config_overrides.temperature is not None
+            else 0.2
+        )
+        top_p = (
+            entry.config_overrides.top_p
+            if entry.config_overrides.top_p is not None
+            else 1.0
+        )
+        max_output_tokens = (
+            entry.config_overrides.max_output_tokens
+            if entry.config_overrides.max_output_tokens is not None
+            else 4096
+        )
+        output_retries = (
+            entry.config_overrides.max_output_retries
+            if entry.config_overrides.max_output_retries is not None
+            else 2
+        )
+        supports_tool_choice_required = (
+            entry.config_overrides.supports_tool_choice_required
+            if entry.config_overrides.supports_tool_choice_required is not None
+            else True
+        )
 
-    all_passed = all(r.status == PhaseVerificationStatus.PASSED for r in phase_results)
+        # Build model via provider factory
+        model, settings = create_model(
+            base_url=endpoint.base_url,
+            api_key=api_key,
+            model_id=entry.model_id,
+            temperature=temperature,
+            top_p=top_p,
+            timeout_s=timeout_s,
+            max_output_tokens=max_output_tokens,
+            reasoning_effort=entry.config_overrides.reasoning_effort,
+            openrouter_provider=endpoint.openrouter_provider,
+            strict_tools=endpoint.strict_tools,
+            supports_tool_choice_required=supports_tool_choice_required,
+        )
 
-    return ModelVerificationResult(
-        model_id=entry.model_id,
-        passed=all_passed,
-        phase_results=phase_results,
-    )
+        # Run all 5 phases sequentially
+        phase_results: list[PhaseResult] = []
+        for phase, sys_prompt, user_template, output_type in PHASE_CONFIGS:
+            result = await _run_phase(
+                phase=phase,
+                system_prompt=sys_prompt,
+                user_prompt_template=user_template,
+                output_type=output_type,
+                model=model,
+                model_settings=settings,
+                source_line=GOLDEN_SOURCE_LINE,
+                output_retries=output_retries,
+            )
+            phase_results.append(result)
+
+        all_passed = all(
+            r.status == PhaseVerificationStatus.PASSED for r in phase_results
+        )
+
+        return ModelVerificationResult(
+            model_id=entry.model_id,
+            passed=all_passed,
+            phase_results=phase_results,
+        )
+    finally:
+        # Always unload local models after verification to free GPU memory
+        if is_local:
+            try:
+                await unload_lm_studio_model(
+                    load_endpoint=entry.load_endpoint,
+                    model_id=entry.model_id,
+                    api_key=api_key,
+                    timeout_s=60.0,
+                )
+            except ModelUnloadError:
+                _log.warning(
+                    "Failed to unload model %s after verification",
+                    entry.model_id,
+                )
 
 
 async def verify_registry(

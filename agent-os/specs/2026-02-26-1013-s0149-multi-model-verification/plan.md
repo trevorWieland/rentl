@@ -56,3 +56,14 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - [x] Fix: Add schema regression tests for `config_overrides.max_output_retries` and `config_overrides.supports_tool_choice_required` (defaults/validation and bundled TOML parse behavior) to cover new Task 6 fields (`packages/rentl-schemas/src/rentl_schemas/compatibility.py:32-43`, `tests/unit/schemas/test_compatibility.py`) (audit round 1; see signposts.md: Task 6 provider/tool-choice and retry fixes)
   - [x] Fix: Add runner tests that assert Task 6 overrides are wired through `verify_model`: `supports_tool_choice_required` must be forwarded to `create_model(...)`, and `max_output_retries` must flow to `Agent(..., output_retries=...)` (`packages/rentl-core/src/rentl_core/compatibility/runner.py:283-321`, `tests/unit/core/compatibility/test_runner.py`) (audit round 1; see signposts.md: Task 6 provider/tool-choice and retry fixes)
   - [x] Fix: Add provider-factory tests that verify `supports_tool_choice_required=False` is applied to `OpenAIModelProfile.openai_supports_tool_choice_required` for both OpenRouter and generic OpenAI model creation paths (`packages/rentl-llm/src/rentl_llm/provider_factory.py:437-440`, `packages/rentl-llm/src/rentl_llm/provider_factory.py:488-491`, `tests/unit/llm/test_provider_factory.py`) (audit round 1; see signposts.md: Task 6 provider/tool-choice fix)
+- [x] Task 7: Resource-aware LM Studio model lifecycle management
+  - The model loader only loads models and never unloads them. The GPU supports a single model at a time; additional models spill into system RAM, gradually exhausting memory and causing system instability when verifying multiple local models.
+  - Add `unload_lm_studio_model()` to `loader.py` — POST to LM Studio `/api/v1/models/unload` with `{"instance_id": model_id}`
+  - Add `list_lm_studio_models()` to `loader.py` — GET `/api/v1/models/list` to query currently loaded models
+  - Refactor `load_lm_studio_model()` to be resource-aware: query loaded models first, skip load if target is already active, unload existing models before loading a new one
+  - Add `try/finally` cleanup in `verify_model()` (runner.py) so the model is always unloaded after verification completes or fails
+  - Consider an async context manager (`LMStudioModelSession`) for clean load/unload lifecycle
+  - Add unit tests for unload, list, resource-aware load logic, and verify_model cleanup
+  - Files: `packages/rentl-core/src/rentl_core/compatibility/loader.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `tests/unit/core/compatibility/test_loader.py`
+  - Acceptance: running `rentl verify-models --endpoint local` across all 4 models leaves zero models loaded after completion; at no point during the run are multiple models loaded simultaneously; unit tests cover load-skip, pre-unload, post-cleanup, and error-during-unload paths
+  - See signposts.md: Task 7 (LM Studio model memory leak)
