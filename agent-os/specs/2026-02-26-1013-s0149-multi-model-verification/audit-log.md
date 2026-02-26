@@ -15,3 +15,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 5** (round 1): FAIL — Compatibility quality test is not registry-parameterized in practice; pytest collects one scenario and fails with `fixture 'model_entry' not found`.
 - **Task 5** (round 2): PASS — Registry-driven parametrization is fixed and verified; `pytest --collect-only` now discovers 9 per-model compatibility scenarios with no missing `model_entry` fixture errors.
 - **Task 6** (round 1): FAIL — Task 6 fixes are implemented, but the new override wiring (`supports_tool_choice_required`, `max_output_retries`) lacks direct regression coverage in schema, runner, and provider-factory tests.
+- **Task 7** (round 1): FAIL — LM Studio lifecycle guarantees break on unload/load-failure paths: pre-load unload errors are warning-only and load failures return before the cleanup `finally` runs.
