@@ -196,3 +196,17 @@
 - **Solution:** Added `SKIPPED` status to `PhaseVerificationStatus` enum. Implemented fail-fast in `verify_model`: when a phase returns `FAILED`, remaining phases are immediately marked `SKIPPED` without executing. Updated registry overrides: local models from `timeout_s=5.0/max_output_retries=0` to `timeout_s=3.0/max_output_retries=1` (budget: `5×2×3=30s`); OpenRouter models from `timeout_s=3.0` to `timeout_s=2.5` (budget: `5×2×2.5=25s`). Added CLI display for SKIPPED phases (yellow). Added dedicated fail-fast unit test.
 - **Resolution:** do-task round 15
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/types.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `services/rentl-cli/src/rentl/main.py`, `tests/unit/core/compatibility/test_runner.py`
+
+- **Task:** Task 6 (gate triage round 5)
+- **Status:** unresolved
+- **Problem:** Pretranslation quality harness retry-floor tuning removed the alignment-recovery path: setting `max_output_retries = 0` means one attempt per chunk, so transient duplicate-ID outputs cannot be corrected with `alignment_feedback`.
+- **Evidence:** Current gate output failure in `tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes` reports `RuntimeError: Alignment error: output IDs must exactly match input IDs ... Duplicate: line_1 ... Return EXACTLY one output per input ID`.
+- **Evidence:** Harness config hard-codes `max_output_retries=0` (`tests/quality/agents/quality_harness.py:83`), and pretranslation chunk retries are computed as `max_output_retries + 1` then fail hard on final misalignment (`packages/rentl-agents/src/rentl_agents/wiring.py:150`, `packages/rentl-agents/src/rentl_agents/wiring.py:418-469`).
+- **Impact:** Quality pretranslation evaluation can fail on first malformed-but-recoverable model response even when alignment feedback would otherwise self-correct, causing recurring gate failures.
+
+- **Task:** Task 6 (gate triage round 5)
+- **Status:** unresolved
+- **Problem:** Compatibility registry overrides have drifted again from live provider behavior: current retry/timeout settings simultaneously under-provision structured-output recovery for some models and still allow >30s executions for others.
+- **Evidence:** Current gate output reports `google/gemma-3-27b` context failure (`UnexpectedModelBehavior: Exceeded maximum retries (1) for output validation`) and pytest-timeout kills for `qwen/qwen3.5-27b`, `deepseek/deepseek-v3.2`, and `z-ai/glm-5` while still inside `when_run_verification` (`tests/quality/compatibility/test_model_compatibility.py:93-104`).
+- **Evidence:** Registry currently fixes local models at `timeout_s=3.0/max_output_retries=1` and OpenRouter models at `timeout_s=2.5/max_output_retries=1` (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:33-35`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:69-107`), and runner applies these values directly (`packages/rentl-core/src/rentl_core/compatibility/runner.py:297-348`) under the global quality timeout `30s` (`pyproject.toml:73`).
+- **Impact:** The verified-model registry is no longer a reliable declaration of models that pass the full compatibility pipeline in quality gates, and timeout kills continue to mask full phase diagnostics.
