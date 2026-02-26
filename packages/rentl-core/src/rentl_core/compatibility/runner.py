@@ -235,12 +235,16 @@ async def verify_model(
     """
     _log.info("Verifying model %s (%s)", entry.model_id, entry.endpoint_type)
 
+    # Resolve API key (needed for both model loading and inference)
+    api_key = os.getenv(endpoint.api_key_env) or ""
+
     # Load local model via LM Studio API
     if entry.endpoint_type == "local" and entry.load_endpoint:
         try:
             await load_lm_studio_model(
                 load_endpoint=entry.load_endpoint,
                 model_id=entry.model_id,
+                api_key=api_key,
                 timeout_s=entry.config_overrides.timeout_s or 120.0,
             )
         except ModelLoadError as exc:
@@ -255,9 +259,6 @@ async def verify_model(
                     ),
                 ],
             )
-
-    # Resolve API key
-    api_key = os.getenv(endpoint.api_key_env) or ""
 
     # Apply config overrides — use `is not None` to preserve explicit zeros
     timeout_s = (

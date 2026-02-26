@@ -72,7 +72,7 @@ def build_endpoint_for_entry(
         return ModelEndpointConfig(
             provider_name="lm-studio",
             base_url=base_url,
-            api_key_env="LM_STUDIO_API_KEY",
+            api_key_env="RENTL_LOCAL_API_KEY",
             timeout_s=180.0,
         )
 
@@ -82,33 +82,39 @@ def build_endpoint_for_entry(
     )
 
 
-def load_registry_and_validate_env() -> tuple[VerifiedModelRegistry, dict[str, bool]]:
-    """Load the bundled registry and validate that env vars exist.
+def validate_env_for_registry(registry: VerifiedModelRegistry) -> dict[str, bool]:
+    """Validate that required API key env vars are set for the registry.
 
-    Validates that the required API key env vars are set for each
+    Checks that the required API key env vars are set for each
     endpoint type present in the registry. Fails loudly — no skipping.
 
+    Args:
+        registry: The loaded verified model registry.
+
     Returns:
-        Tuple of (registry, mapping of endpoint_ref to env-ready bool).
+        Mapping of endpoint_ref to env-ready bool.
     """
     _load_env_file()
-    registry = load_bundled_registry()
 
     endpoint_refs = {e.endpoint_ref for e in registry.models}
 
     if "openrouter" in endpoint_refs:
         _require_env("RENTL_OPENROUTER_API_KEY")
     if "lm-studio" in endpoint_refs:
-        _require_env("LM_STUDIO_API_KEY")
+        _require_env("RENTL_LOCAL_API_KEY")
 
-    return registry, dict.fromkeys(endpoint_refs, True)
+    return dict.fromkeys(endpoint_refs, True)
 
 
 # ---------------------------------------------------------------------------
 # Registry-driven model entries (used by test parametrization)
 # ---------------------------------------------------------------------------
+# NOTE: Registry loading (TOML parse) happens at import time so
+# @pytest.mark.parametrize can enumerate models during collection.
+# Env-var validation is deferred to a session-scoped fixture so that
+# collection never crashes — tests fail at runtime instead.
 
-_REGISTRY, _ENV_STATUS = load_registry_and_validate_env()
+_REGISTRY: VerifiedModelRegistry = load_bundled_registry()
 _MODEL_ENTRIES: list[VerifiedModelEntry] = list(_REGISTRY.models)
 
 
@@ -118,6 +124,15 @@ def model_entry(request: pytest.FixtureRequest) -> VerifiedModelEntry:
 
     The test module applies ``@pytest.mark.parametrize(..., indirect=True)``
     which sets ``request.param`` to a ``VerifiedModelEntry`` for each model.
+
+    Validates required env vars for this model's endpoint at test time
+    (not collection time) so collection never crashes. Tests fail loudly
+    at setup if env vars are missing — no skipping.
     """
+    _load_env_file()
     entry: VerifiedModelEntry = request.param
+    if entry.endpoint_ref == "openrouter":
+        _require_env("RENTL_OPENROUTER_API_KEY")
+    elif entry.endpoint_ref == "lm-studio":
+        _require_env("RENTL_LOCAL_API_KEY")
     return entry

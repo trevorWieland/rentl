@@ -23,6 +23,7 @@ load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
 timeout_s = 180.0
+max_output_retries = 4
 
 [[models]]
 model_id = "qwen/qwen3-vl-30b"
@@ -41,6 +42,7 @@ load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
 timeout_s = 180.0
+max_output_retries = 4
 
 [[models]]
 model_id = "openai/gpt-oss-20b"

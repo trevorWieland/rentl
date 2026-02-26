@@ -212,6 +212,7 @@ async def test_verify_model_local_loads_first() -> None:
     mock_load.assert_awaited_once_with(
         load_endpoint=("http://192.168.1.23:1234/api/v1/models/load"),
         model_id="google/gemma-3-27b",
+        api_key="test-key",
         timeout_s=180.0,
     )
 

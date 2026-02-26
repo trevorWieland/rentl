@@ -17,6 +17,7 @@ async def load_lm_studio_model(
     *,
     load_endpoint: str,
     model_id: str,
+    api_key: str = "",
     timeout_s: float = 120.0,
 ) -> None:
     """Load a model in LM Studio via its REST API.
@@ -27,17 +28,22 @@ async def load_lm_studio_model(
     Args:
         load_endpoint: LM Studio load API URL (e.g. http://192.168.1.23:1234/api/v1/models/load).
         model_id: Model identifier to load (e.g. google/gemma-3-27b).
+        api_key: API key for LM Studio authentication (Bearer token).
         timeout_s: Request timeout in seconds.
 
     Raises:
         ModelLoadError: If the model load request fails.
     """
     _log.info("Loading model %s via LM Studio at %s", model_id, load_endpoint)
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:
             response = await client.post(
                 load_endpoint,
-                json={"identifier": model_id},
+                json={"model": model_id},
+                headers=headers,
             )
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:

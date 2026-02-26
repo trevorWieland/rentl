@@ -32,7 +32,8 @@ async def test_load_model_success() -> None:
 
     mock_client.post.assert_awaited_once_with(
         "http://192.168.1.23:1234/api/v1/models/load",
-        json={"identifier": "google/gemma-3-27b"},
+        json={"model": "google/gemma-3-27b"},
+        headers={},
     )
 
 
