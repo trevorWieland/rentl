@@ -97,7 +97,7 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - Files: `rentl.toml`, optionally `tests/integration/` for config validation
   - Acceptance: `rentl verify-models --endpoint local` resolves the lm-studio endpoint and runs verification against LM Studio
   - See signposts.md: Demo (run 1) — CLI endpoint resolution gap
-- [ ] Task 9: Restore all 9 verified models and fix test infrastructure
+- [x] Task 9: Restore all 9 verified models and fix test infrastructure
   - The 7 models removed through gate triage rounds 1-8 work correctly when tested directly (curl). The removals were caused by test infrastructure problems (quality timeout budget, not model incompatibilities). All 9 models must be restored per spec acceptance criteria.
   - **Sub-task 9a: Split compatibility tests into per-phase test cases**
     - Restructure `tests/quality/compatibility/test_model_compatibility.py` from 1 test per model (running all 5 phases sequentially) to 1 test per model per phase (9 models × 5 phases = 45 test cases)

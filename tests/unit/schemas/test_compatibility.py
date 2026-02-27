@@ -261,13 +261,13 @@ def test_load_registry_from_toml_rejects_empty() -> None:
 
 
 def test_load_bundled_registry() -> None:
-    """Bundled TOML registry loads and validates all 2 models."""
+    """Bundled TOML registry loads and validates all 9 models."""
     registry = load_bundled_registry()
-    assert len(registry.models) == 2
+    assert len(registry.models) == 9
     local_models = registry.filter_by_endpoint("local")
     openrouter_models = registry.filter_by_endpoint("openrouter")
-    assert len(local_models) == 2
-    assert len(openrouter_models) == 0
+    assert len(local_models) == 4
+    assert len(openrouter_models) == 5
 
 
 def test_bundled_registry_local_models_have_load_endpoint() -> None:
@@ -278,13 +278,21 @@ def test_bundled_registry_local_models_have_load_endpoint() -> None:
 
 
 def test_bundled_registry_model_ids_match_spec() -> None:
-    """Bundled registry contains exactly the 2 verified models."""
+    """Bundled registry contains exactly the 9 verified models."""
     registry = load_bundled_registry()
     ids = {m.model_id for m in registry.models}
     expected = {
-        # Local
+        # Local (4)
+        "google/gemma-3-27b",
         "qwen/qwen3-vl-30b",
+        "qwen/qwen3.5-35b-a3b",
         "openai/gpt-oss-20b",
+        # OpenRouter (5)
+        "qwen/qwen3.5-27b",
+        "deepseek/deepseek-v3.2",
+        "z-ai/glm-5",
+        "openai/gpt-oss-120b",
+        "minimax/minimax-m2.5",
     }
     assert ids == expected
 

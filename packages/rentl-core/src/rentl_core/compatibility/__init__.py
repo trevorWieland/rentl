@@ -11,6 +11,7 @@ from rentl_core.compatibility.runner import (
     PHASE_CONFIGS,
     verify_model,
     verify_registry,
+    verify_single_phase,
 )
 from rentl_core.compatibility.types import (
     ModelVerificationResult,
@@ -32,4 +33,5 @@ __all__ = [
     "unload_lm_studio_model",
     "verify_model",
     "verify_registry",
+    "verify_single_phase",
 ]

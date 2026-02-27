@@ -11,28 +11,30 @@
 #   load_endpoint   — (local only) LM Studio model load API URL
 #   config_overrides — Per-model overrides (timeout, temperature, etc.)
 #
-# Budget: quality tests enforce a 30s pytest-timeout.  The verification
-# runner executes phases sequentially with fail-fast (stops on first
-# failure), so per-call timeout_s and max_output_retries must stay within
-# that budget for passing models.  Current rule of thumb:
-#   5 phases × (1 + max_output_retries) × timeout_s  ≤  30 s
-#   Local:      5 × 2 × 3 = 30 s  (max_output_retries=1, timeout_s=3.0, load uses load_timeout_s)
+# Budget: quality tests run ONE phase per test case (per-phase
+# parametrization), so each test makes a single LLM call.  Budget per test:
+#   (1 + max_output_retries) × timeout_s  ≤  30 s
+#   Example: (1 + 2) × 10.0 = 30 s  (max_output_retries=2, timeout_s=10.0)
 #
 # All entries set max_sdk_retries = 0 to disable OpenAI SDK-level HTTP
 # retries, preventing transport retry amplification from pushing per-phase
 # time past the timeout_s budget.
-#
-# OpenRouter models removed (gate triage round 8):
-#   openai/gpt-oss-120b   — edit phase returns malformed tool-call payloads
-#                           (null id/function fields) that fail OpenRouter
-#                           response validation before output retries can
-#                           recover; provider-level incompatibility.
-#   minimax/minimax-m2.5  — pretranslation consistently times out under the
-#                           30s quality budget even with max_sdk_retries=0.
 
 # ──────────────────────────────────────────────────────────────
 # Local models (LM Studio)
 # ──────────────────────────────────────────────────────────────
+
+[[models]]
+model_id = "google/gemma-3-27b"
+endpoint_type = "local"
+endpoint_ref = "lm-studio"
+load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
+
+[models.config_overrides]
+timeout_s = 10.0
+load_timeout_s = 120.0
+max_output_retries = 2
+max_sdk_retries = 0
 
 [[models]]
 model_id = "qwen/qwen3-vl-30b"
@@ -41,9 +43,21 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 3.0
+timeout_s = 10.0
 load_timeout_s = 120.0
-max_output_retries = 1
+max_output_retries = 2
+max_sdk_retries = 0
+
+[[models]]
+model_id = "qwen/qwen3.5-35b-a3b"
+endpoint_type = "local"
+endpoint_ref = "lm-studio"
+load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
+
+[models.config_overrides]
+timeout_s = 10.0
+load_timeout_s = 120.0
+max_output_retries = 2
 max_sdk_retries = 0
 
 [[models]]
@@ -53,8 +67,62 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 3.0
+timeout_s = 10.0
 load_timeout_s = 120.0
-max_output_retries = 1
+max_output_retries = 2
 max_sdk_retries = 0
 
+# ──────────────────────────────────────────────────────────────
+# OpenRouter models
+# ──────────────────────────────────────────────────────────────
+
+[[models]]
+model_id = "qwen/qwen3.5-27b"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 10.0
+max_output_retries = 2
+max_sdk_retries = 0
+supports_tool_choice_required = false
+
+[[models]]
+model_id = "deepseek/deepseek-v3.2"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 10.0
+max_output_retries = 2
+max_sdk_retries = 0
+
+[[models]]
+model_id = "z-ai/glm-5"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 10.0
+max_output_retries = 2
+max_sdk_retries = 0
+
+[[models]]
+model_id = "openai/gpt-oss-120b"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 10.0
+max_output_retries = 2
+max_sdk_retries = 0
+
+[[models]]
+model_id = "minimax/minimax-m2.5"
+endpoint_type = "openrouter"
+endpoint_ref = "openrouter"
+
+[models.config_overrides]
+timeout_s = 10.0
+max_output_retries = 2
+max_sdk_retries = 0

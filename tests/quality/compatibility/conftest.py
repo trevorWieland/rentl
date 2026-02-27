@@ -8,12 +8,14 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
+from rentl_core.compatibility import PHASE_CONFIGS
 from rentl_schemas.compatibility import (
     VerifiedModelEntry,
     VerifiedModelRegistry,
     load_bundled_registry,
 )
 from rentl_schemas.config import ModelEndpointConfig
+from rentl_schemas.primitives import PhaseName
 
 _LM_STUDIO_DEFAULT_BASE_URL = "http://192.168.1.23:1234/v1"
 
@@ -117,6 +119,9 @@ def validate_env_for_registry(registry: VerifiedModelRegistry) -> dict[str, bool
 _REGISTRY: VerifiedModelRegistry = load_bundled_registry()
 _MODEL_ENTRIES: list[VerifiedModelEntry] = list(_REGISTRY.models)
 
+# All pipeline phase names for per-phase parametrization
+_PHASE_NAMES: list[PhaseName] = [phase for phase, _, _, _ in PHASE_CONFIGS]
+
 
 @pytest.fixture()
 def model_entry(request: pytest.FixtureRequest) -> VerifiedModelEntry:
@@ -136,3 +141,9 @@ def model_entry(request: pytest.FixtureRequest) -> VerifiedModelEntry:
     elif entry.endpoint_ref == "lm-studio":
         _require_env("RENTL_LOCAL_API_KEY")
     return entry
+
+
+@pytest.fixture()
+def phase_name(request: pytest.FixtureRequest) -> PhaseName:
+    """Return the current phase name from indirect parametrization."""
+    return request.param

@@ -1,8 +1,9 @@
 """Quality tests for model compatibility verification.
 
-Parametrized from the verified-models registry. Each registered model
-is run through the full 5-phase mini-pipeline using the shared
-verification runner from ``rentl_core.compatibility``.
+Parametrized from the verified-models registry. Each registered model x
+pipeline phase combination gets its own test case (9 models x 5 phases =
+45 tests), so each test makes a single LLM call and easily fits within
+the 30s quality timeout.
 
 No test skipping — missing env vars fail loudly.
 """
@@ -16,14 +17,16 @@ import pytest
 from pytest_bdd import given, scenario, then, when
 
 from rentl_core.compatibility import (
-    ModelVerificationResult,
+    PhaseResult,
     PhaseVerificationStatus,
-    verify_model,
+    verify_single_phase,
 )
 from rentl_schemas.compatibility import VerifiedModelEntry
 from rentl_schemas.config import ModelEndpointConfig
+from rentl_schemas.primitives import PhaseName
 from tests.quality.compatibility.conftest import (
     _MODEL_ENTRIES,
+    _PHASE_NAMES,
     build_endpoint_for_entry,
 )
 
@@ -31,23 +34,30 @@ pytestmark = pytest.mark.quality
 
 
 # ---------------------------------------------------------------------------
-# Registry-driven parametrized scenario
+# Registry-driven parametrized scenario: per model x per phase
 # ---------------------------------------------------------------------------
 
 _FEATURE = "../features/compatibility/model_compatibility.feature"
 
 
 @pytest.mark.parametrize(
+    "phase_name",
+    _PHASE_NAMES,
+    ids=[p.value for p in _PHASE_NAMES],
+    indirect=True,
+)
+@pytest.mark.parametrize(
     "model_entry",
     _MODEL_ENTRIES,
     ids=[e.model_id for e in _MODEL_ENTRIES],
     indirect=True,
 )
-@scenario(_FEATURE, "Verified model passes all pipeline phases")
-def test_verified_model_passes_all_pipeline_phases(
+@scenario(_FEATURE, "Verified model passes a single pipeline phase")
+def test_verified_model_passes_phase(
     model_entry: VerifiedModelEntry,
+    phase_name: PhaseName,
 ) -> None:
-    """Parametrized: one execution per registry model."""
+    """Parametrized: one execution per registry model x pipeline phase."""
 
 
 # ---------------------------------------------------------------------------
@@ -56,12 +66,13 @@ def test_verified_model_passes_all_pipeline_phases(
 
 
 @dataclass
-class CompatibilityContext:
-    """Mutable context bag for the compatibility BDD scenario."""
+class PhaseCompatibilityContext:
+    """Mutable context bag for the per-phase compatibility BDD scenario."""
 
     entry: VerifiedModelEntry | None = None
     endpoint: ModelEndpointConfig | None = None
-    result: ModelVerificationResult | None = None
+    phase: PhaseName | None = None
+    result: PhaseResult | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -75,40 +86,39 @@ class CompatibilityContext:
 )
 def given_model_and_endpoint(
     model_entry: VerifiedModelEntry,
-) -> CompatibilityContext:
+    phase_name: PhaseName,
+) -> PhaseCompatibilityContext:
     """Resolve the endpoint for the parametrized model entry.
 
     Returns:
-        CompatibilityContext with entry and endpoint populated.
+        PhaseCompatibilityContext with entry, endpoint, and phase populated.
     """
     endpoint = build_endpoint_for_entry(model_entry)
-    return CompatibilityContext(entry=model_entry, endpoint=endpoint)
+    return PhaseCompatibilityContext(
+        entry=model_entry, endpoint=endpoint, phase=phase_name
+    )
 
 
-@when("I run compatibility verification against the model")
-def when_run_verification(ctx: CompatibilityContext) -> None:
-    """Run the shared verification runner against the model."""
+@when("I run single-phase compatibility verification against the model")
+def when_run_single_phase_verification(ctx: PhaseCompatibilityContext) -> None:
+    """Run the shared single-phase verification runner against the model."""
     assert ctx.entry is not None
     assert ctx.endpoint is not None
-    ctx.result = asyncio.run(verify_model(entry=ctx.entry, endpoint=ctx.endpoint))
-
-
-@then("all five pipeline phases pass")
-def then_all_phases_pass(ctx: CompatibilityContext) -> None:
-    """Assert every phase returned a PASSED status."""
-    assert ctx.result is not None
-    for phase_result in ctx.result.phase_results:
-        assert phase_result.status == PhaseVerificationStatus.PASSED, (
-            f"Model '{ctx.result.model_id}' failed phase "
-            f"'{phase_result.phase}': {phase_result.error_message}"
+    assert ctx.phase is not None
+    ctx.result = asyncio.run(
+        verify_single_phase(
+            entry=ctx.entry,
+            endpoint=ctx.endpoint,
+            phase_name=ctx.phase,
         )
+    )
 
 
-@then("the verification result reports overall success")
-def then_overall_success(ctx: CompatibilityContext) -> None:
-    """Assert the top-level passed flag is True."""
+@then("the pipeline phase passes")
+def then_phase_passes(ctx: PhaseCompatibilityContext) -> None:
+    """Assert the phase returned a PASSED status."""
     assert ctx.result is not None
-    assert ctx.result.passed, (
-        f"Model '{ctx.result.model_id}' failed overall verification. "
-        f"Phase results: {[r.model_dump() for r in ctx.result.phase_results]}"
+    assert ctx.result.status == PhaseVerificationStatus.PASSED, (
+        f"Model '{ctx.entry.model_id if ctx.entry else '?'}' failed phase "
+        f"'{ctx.result.phase}': {ctx.result.error_message}"
     )

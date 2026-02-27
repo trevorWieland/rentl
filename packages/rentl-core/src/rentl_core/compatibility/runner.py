@@ -219,6 +219,106 @@ async def _run_phase(
         )
 
 
+async def verify_single_phase(
+    *,
+    entry: VerifiedModelEntry,
+    endpoint: ModelEndpointConfig,
+    phase_name: PhaseName,
+) -> PhaseResult:
+    """Verify a single pipeline phase for one model.
+
+    Designed for per-phase quality tests where each test case runs one
+    LLM call, easily fitting within the 30s quality timeout.
+
+    For local models, the caller is responsible for model loading/unloading
+    lifecycle management (use ``load_lm_studio_model`` / ``unload_lm_studio_model``
+    in fixtures rather than per-test calls).
+
+    Args:
+        entry: Registry entry for the model to verify.
+        endpoint: Resolved endpoint configuration.
+        phase_name: The specific pipeline phase to verify.
+
+    Returns:
+        PhaseResult with pass/fail and error details.
+    """
+    api_key = os.getenv(endpoint.api_key_env) or ""
+
+    # Resolve config overrides
+    timeout_s = (
+        entry.config_overrides.timeout_s
+        if entry.config_overrides.timeout_s is not None
+        else endpoint.timeout_s
+    )
+    temperature = (
+        entry.config_overrides.temperature
+        if entry.config_overrides.temperature is not None
+        else 0.2
+    )
+    top_p = (
+        entry.config_overrides.top_p
+        if entry.config_overrides.top_p is not None
+        else 1.0
+    )
+    max_output_tokens = (
+        entry.config_overrides.max_output_tokens
+        if entry.config_overrides.max_output_tokens is not None
+        else 4096
+    )
+    output_retries = (
+        entry.config_overrides.max_output_retries
+        if entry.config_overrides.max_output_retries is not None
+        else 2
+    )
+    supports_tool_choice_required = (
+        entry.config_overrides.supports_tool_choice_required
+        if entry.config_overrides.supports_tool_choice_required is not None
+        else True
+    )
+    max_sdk_retries = entry.config_overrides.max_sdk_retries
+
+    model, settings = create_model(
+        base_url=endpoint.base_url,
+        api_key=api_key,
+        model_id=entry.model_id,
+        temperature=temperature,
+        top_p=top_p,
+        timeout_s=timeout_s,
+        max_output_tokens=max_output_tokens,
+        reasoning_effort=entry.config_overrides.reasoning_effort,
+        openrouter_provider=endpoint.openrouter_provider,
+        strict_tools=endpoint.strict_tools,
+        supports_tool_choice_required=supports_tool_choice_required,
+        max_retries=max_sdk_retries,
+    )
+
+    # Find the matching phase config
+    phase_config = None
+    for phase, sys_prompt, user_template, output_type in PHASE_CONFIGS:
+        if phase == phase_name:
+            phase_config = (phase, sys_prompt, user_template, output_type)
+            break
+
+    if phase_config is None:
+        return PhaseResult(
+            phase=phase_name,
+            status=PhaseVerificationStatus.FAILED,
+            error_message=f"Unknown phase: {phase_name}",
+        )
+
+    phase, sys_prompt, user_template, output_type = phase_config
+    return await _run_phase(
+        phase=phase,
+        system_prompt=sys_prompt,
+        user_prompt_template=user_template,
+        output_type=output_type,
+        model=model,
+        model_settings=settings,
+        source_line=GOLDEN_SOURCE_LINE,
+        output_retries=output_retries,
+    )
+
+
 async def verify_model(
     *,
     entry: VerifiedModelEntry,
