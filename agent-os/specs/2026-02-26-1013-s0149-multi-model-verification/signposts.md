@@ -320,10 +320,12 @@
 - **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/pipeline/test_golden_script_pipeline.py`
 
 - **Task:** Task 9 (gate triage round 1)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The restored 9-model compatibility registry uses a uniform exact-edge budget (`timeout_s=10.0`, `max_output_retries=2`) for every model, and that one-size-fits-all tuning has drifted from current per-model behavior.
 - **Evidence:** Current gate output reports context structured-output failures for local models (`google/gemma-3-27b`, `qwen/qwen3.5-35b-a3b`: `Exceeded maximum retries (2)`), timed-out phase failures for `deepseek/deepseek-v3.2` (`qa`, `edit`), and a pytest timeout for `z-ai/glm-5` (`edit`) in `tests/quality/compatibility/test_model_compatibility.py`.
 - **Evidence:** The registry now assigns the same `timeout_s=10.0` and `max_output_retries=2` overrides across all local/OpenRouter entries (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:33-37`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:57-61`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:95-127`), based on the blocker-resolution formula (`signposts.md`: Blocker resolution — Model removal reversal).
 - **Evidence:** `verify_single_phase` applies these values directly to model timeout and output retries (`packages/rentl-core/src/rentl_core/compatibility/runner.py:248-272`, `packages/rentl-core/src/rentl_core/compatibility/runner.py:310-319`), so bad registry tuning immediately propagates into quality compatibility failures.
 - **Impact:** The verified-model registry is no longer a trustworthy declaration of models/phases that pass under quality-gate constraints, and compatibility failures recur as both assertion errors and timeout masking.
-- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `tests/quality/compatibility/test_model_compatibility.py`
+- **Solution:** Differentiated per-endpoint-type budget tuning with explicit headroom. Local models: `timeout_s=8.0`, `max_output_retries=2` → worst case `(1+2)×8=24s` (6s headroom). OpenRouter models: `timeout_s=10.0`, `max_output_retries=1` → worst case `(1+1)×10=20s` (10s headroom). Local models keep 2 retries for structured-output flakiness on smaller models; OpenRouter models keep generous per-call timeout with 1 retry for network latency. Updated TOML header documentation with budget formulas.
+- **Resolution:** do-task round 22
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
