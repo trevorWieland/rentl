@@ -208,13 +208,13 @@
 - **Files affected:** `tests/quality/agents/quality_harness.py`
 
 - **Task:** Task 6 (gate triage round 5)
-- **Status:** resolved
+- **Status:** resolved (INCORRECTLY — model removals reversed by resolve-blockers 2026-02-27)
 - **Problem:** Compatibility registry overrides have drifted again from live provider behavior: current retry/timeout settings simultaneously under-provision structured-output recovery for some models and still allow >30s executions for others.
 - **Evidence:** Current gate output reports `google/gemma-3-27b` context failure (`UnexpectedModelBehavior: Exceeded maximum retries (1) for output validation`) and pytest-timeout kills for `qwen/qwen3.5-27b`, `deepseek/deepseek-v3.2`, and `z-ai/glm-5` while still inside `when_run_verification` (`tests/quality/compatibility/test_model_compatibility.py:93-104`).
 - **Evidence:** Registry currently fixes local models at `timeout_s=3.0/max_output_retries=1` and OpenRouter models at `timeout_s=2.5/max_output_retries=1` (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:33-35`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:69-107`), and runner applies these values directly (`packages/rentl-core/src/rentl_core/compatibility/runner.py:297-348`) under the global quality timeout `30s` (`pyproject.toml:73`).
 - **Impact:** The verified-model registry is no longer a reliable declaration of models that pass the full compatibility pipeline in quality gates, and timeout kills continue to mask full phase diagnostics.
-- **Solution:** Removed 4 models that consistently fail from the registry: `google/gemma-3-27b` (context output validation failure), `qwen/qwen3.5-27b` (timeout), `deepseek/deepseek-v3.2` (timeout), `z-ai/glm-5` (timeout). Kept 4 reliably passing models: `qwen/qwen3-vl-30b`, `openai/gpt-oss-20b` (local), `openai/gpt-oss-120b`, `minimax/minimax-m2.5` (OpenRouter). Reduced all `timeout_s` to 2.0 for 10s headroom (budget: `5×2×2=20s`). Updated unit tests to reflect 4-model registry (2 local + 2 OpenRouter). Removed stale `qwen/qwen3.5-27b` tool_choice test.
-- **Resolution:** do-task round 16
+- **Solution (WRONG — reversed):** Removed 4 models that consistently fail from the registry. This was the wrong fix — the models work via curl. The real root cause is the test structure: 5 sequential phases in a single 30s test case. Task 9 sub-task 9a fixes this by splitting to per-phase tests.
+- **Resolution:** do-task round 16 (model removals reversed by resolve-blockers 2026-02-27)
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`, `tests/quality/agents/quality_harness.py`
 
 - **Task:** Task 6 (gate triage round 6)
@@ -241,15 +241,15 @@
 - **Files affected:** `packages/rentl-agents/src/rentl_agents/runtime.py`, `tests/quality/agents/quality_harness.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
 
 - **Task:** Task 6 (gate triage round 8)
-- **Status:** resolved
+- **Status:** resolved (INCORRECTLY — model removals reversed by resolve-blockers 2026-02-27)
 - **Problem:** OpenRouter compatibility declarations drifted again from live provider behavior: one declared verified model now returns malformed tool-call payloads that fail OpenRouter response validation, while the other times out during pretranslation under current per-model timeout/retry defaults.
 - **Evidence:** Gate output fails `tests/quality/compatibility/test_model_compatibility.py:101` for `openai/gpt-oss-120b` edit with `UnexpectedModelBehavior: Invalid response from openrouter chat completions endpoint` and validation errors on `choices.0.message.tool_calls.1.function.id` / `choices.0.message.tool_calls.1.function.function.name`.
 - **Evidence:** OpenRouter chat completion validation is strict and fails before phase output validation retries can recover (`.venv/lib/python3.14/site-packages/pydantic_ai/models/openrouter.py:567-568`, `.venv/lib/python3.14/site-packages/pydantic_ai/models/openai.py:780-782`).
 - **Evidence:** The same gate run fails `minimax/minimax-m2.5` pretranslation with `ModelAPIError: Request timed out` at `tests/quality/compatibility/test_model_compatibility.py:101` while the registry still declares `timeout_s=3.0`, `max_output_retries=1`, `max_sdk_retries=0` for both OpenRouter entries and no explicit `supports_tool_choice_required` override (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:58-76`).
 - **Evidence:** `verify_model` applies those declarative values directly and defaults `supports_tool_choice_required` to `True` when unset (`packages/rentl-core/src/rentl_core/compatibility/runner.py:297-307`, `packages/rentl-core/src/rentl_core/compatibility/runner.py:310-323`).
 - **Impact:** The verified-model registry is no longer a reliable declaration of passing OpenRouter compatibility behavior, and quality gate regressions recur despite previous timeout/retry tuning rounds.
-- **Solution:** Removed both OpenRouter entries (`openai/gpt-oss-120b`, `minimax/minimax-m2.5`) from the registry. The `gpt-oss-120b` failure is a provider-level incompatibility (malformed tool-call payloads with null `id`/`function.name` fields fail strict `_OpenRouterChatCompletion` validation before output retries can recover — not fixable through declarative config). The `minimax-m2.5` pretranslation timeout recurs despite 8 rounds of budget tuning. Registry now contains 2 local models. Updated unit tests to reflect 2-model registry.
-- **Resolution:** do-task round 19
+- **Solution (WRONG — reversed):** Removed both OpenRouter entries. User confirms both models work via curl with tool calls. The `gpt-oss-120b` tool-call issue needs investigation (Task 9 sub-task 9c). The `minimax-m2.5` timeout is a test budget issue fixed by per-phase test splitting (Task 9 sub-task 9a). Model removals reversed by resolve-blockers 2026-02-27.
+- **Resolution:** do-task round 19 (model removals reversed by resolve-blockers 2026-02-27)
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`
 
 - **Task:** Demo (run 1) — CLI endpoint resolution gap
@@ -262,21 +262,29 @@
 - **Files affected:** `rentl.toml`, `services/rentl-cli/src/rentl/main.py`
 
 - **Task:** Demo (run 1) — Spec acceptance criteria model count drift
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** The spec acceptance criteria declare 9 specific verified models (4 local + 5 OpenRouter), but only 2 local models remain in the registry after 8 rounds of gate triage removed 7 models due to provider incompatibilities. Demo steps 1, 3, and 4 expect model counts and OpenRouter results that are no longer achievable.
 - **Evidence:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml` contains 2 entries: `qwen/qwen3-vl-30b` (local), `openai/gpt-oss-20b` (local). Zero OpenRouter entries.
 - **Evidence:** Spec acceptance criteria (spec.md lines 24-28) require: "All 4 local models pass verification" (4 specific models listed) and "All 5 OpenRouter models pass verification" (5 specific models listed).
 - **Evidence:** Signposts document the removal rationale for each model: `google/gemma-3-27b` (context output validation), `qwen/qwen3.5-35b-a3b` (structured output), `qwen/qwen3.5-27b` (timeout), `deepseek/deepseek-v3.2` (timeout), `z-ai/glm-5` (timeout), `openai/gpt-oss-120b` (malformed tool-call payloads), `minimax/minimax-m2.5` (pretranslation timeout).
-- **Evidence:** All removals were provider-level incompatibilities, not fixable through declarative config. The implementation correctly avoided model-specific branching per spec non-negotiable #5.
-- **Impact:** Demo steps 1, 3, and 4 cannot pass as written. The spec's model-count acceptance criteria are unachievable without either re-adding models that provably fail or relaxing the criteria. This is a spec-level issue requiring walk-spec discussion.
-- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `spec.md` (immutable — requires walk-spec decision)
+- **Resolution:** user via resolve-blockers 2026-02-27. Model removals were incorrect — all 9 models work when tested directly via curl. The failures were caused by test infrastructure problems (30s quality timeout exceeded by 5-phase sequential test execution), not provider incompatibilities. Task 9 added to restore all 9 models and fix test infrastructure (split to per-phase tests).
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, plan.md (Task 9 rewritten)
 
 - **Task:** Demo (run 3) — Stale demo step expectations
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Demo steps 1, 3, and 4 encode model-count expectations from the original spec (9 models: 4 local + 5 OpenRouter) but only 2 local models remain after 8 rounds of gate triage. The system works correctly for the registered models, but the demo expectations are stale and cause perpetual false-negative FAIL results.
 - **Evidence:** Demo run 3 step 1 expects "4 local + 5 OpenRouter entries" but registry contains 2 entries. Step 3 expects 5 OpenRouter models but `verify-models --endpoint openrouter` returns `{"passed":true,"model_results":[]}`. Step 4 expects 5 OpenRouter tests but pytest runs 2 tests (2 local, both pass).
 - **Evidence:** Steps 2 and 5 pass — the implementation is functionally correct for the registered model set. The CLI resolves endpoints, the verification runner works, and no model-specific branching exists.
-- **Evidence:** The 7 removed models failed due to provider-level incompatibilities documented across signposts (gate triage rounds 1-8): structured output failures, tool-call payload malformation, and timeout budget overruns that cannot be addressed through declarative config.
-- **Root cause:** Demo step expected outcomes were written during shape-spec when all 9 models were assumed verifiable. Gate triage revealed provider incompatibilities after shaping. Demo.md was not updated to reflect the actual verified model set.
-- **Impact:** run-demo signals FAIL despite a functionally correct system, causing infinite orchestrator loops. Task 9 added to plan.md to update demo.md step expectations.
-- **Files affected:** `agent-os/specs/2026-02-26-1013-s0149-multi-model-verification/demo.md`
+- **Root cause:** The model removals during gate triage were incorrect. The models work via curl — failures were caused by test timeout budget exhaustion (5 sequential phases in a single 30s test case), not provider incompatibilities. Demo expectations were correct all along.
+- **Resolution:** user via resolve-blockers 2026-02-27. Task 9 rewritten to restore all 9 models and split tests to per-phase granularity. Demo.md expectations remain correct — they match the spec.
+- **Files affected:** plan.md (Task 9 rewritten)
+
+- **Task:** Blocker resolution — Model removal reversal
+- **Status:** unresolved
+- **Problem:** 8 rounds of gate triage incorrectly removed 7 of 9 verified models from the registry, misdiagnosing test infrastructure problems (quality timeout budget) as provider-level incompatibilities. All removed models work correctly when tested directly via curl.
+- **Evidence:** User confirms all models work via curl with tool calls. The 30s pytest-timeout is the hard constraint, and 5 sequential phases × (1+retries) × timeout_s easily exceeds it for any realistic per-call timeout.
+- **Evidence:** The test structure runs all 5 phases in a single test case (`tests/quality/compatibility/test_model_compatibility.py:47-50`), meaning the full verification budget must fit in 30s — mathematically impossible with realistic timeouts for 5 LLM calls.
+- **Evidence:** Signposts from gate triage rounds 1-8 consistently show the same pattern: timeout kills → reduce budget → models fail output validation with insufficient retries → remove model. This cycle repeated 8 times without addressing the root cause.
+- **Root cause:** Wrong granularity in test structure. A single 30s test cannot run 5 sequential LLM API calls with retries. The fix is to split into per-phase tests (9 models × 5 phases = 45 tests, each making 1 LLM call within 30s).
+- **Impact:** Spec acceptance criteria for 9 verified models cannot be met until all models are restored and tests restructured.
+- **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/quality/compatibility/test_model_compatibility.py`, `tests/quality/compatibility/conftest.py`, `tests/features/compatibility/model_compatibility.feature`

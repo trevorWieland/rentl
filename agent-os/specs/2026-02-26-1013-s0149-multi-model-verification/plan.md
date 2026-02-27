@@ -97,12 +97,31 @@ rentl's v0.1 promise includes BYOK model support, but "support" is meaningless w
   - Files: `rentl.toml`, optionally `tests/integration/` for config validation
   - Acceptance: `rentl verify-models --endpoint local` resolves the lm-studio endpoint and runs verification against LM Studio
   - See signposts.md: Demo (run 1) — CLI endpoint resolution gap
-- [ ] Task 9: Update demo.md step expectations to reflect actual verified model set
-  - The spec acceptance criteria list 9 specific models (4 local + 5 OpenRouter), but 7 were removed through 8 rounds of gate triage due to provider-level incompatibilities (not fixable through declarative config per spec non-negotiable #5). Demo steps 1, 3, and 4 encode those stale model-count expectations and will always fail.
-  - Update demo.md step 1 expected outcome from "4 local + 5 OpenRouter entries" to "2 local entries (qwen/qwen3-vl-30b, openai/gpt-oss-20b) with correct schema"
-  - Update demo.md step 3 to reflect that no OpenRouter models are in the registry; change expected outcome to "returns passed:true with empty model_results (no OpenRouter models currently verified)" or mark step as [SKIP] with rationale
-  - Update demo.md step 4 expected outcome from "all 5 pass" to "all registered models pass (currently 2 local), BDD-style output, zero skips"
-  - Do NOT modify spec.md (immutable). The spec-level model count mismatch is documented in signposts.md and will be surfaced in walk-spec.
-  - Files: `agent-os/specs/2026-02-26-1013-s0149-multi-model-verification/demo.md`
-  - Acceptance: demo steps 1, 3, and 4 have expectations that match the current registry contents; demo can evaluate the actual system without false negatives from stale model-count assumptions
-  - See signposts.md: Demo (run 1) — Spec acceptance criteria model count drift
+- [ ] Task 9: Restore all 9 verified models and fix test infrastructure
+  - The 7 models removed through gate triage rounds 1-8 work correctly when tested directly (curl). The removals were caused by test infrastructure problems (quality timeout budget, not model incompatibilities). All 9 models must be restored per spec acceptance criteria.
+  - **Sub-task 9a: Split compatibility tests into per-phase test cases**
+    - Restructure `tests/quality/compatibility/test_model_compatibility.py` from 1 test per model (running all 5 phases sequentially) to 1 test per model per phase (9 models × 5 phases = 45 test cases)
+    - Each per-phase test runs a single LLM call, easily fitting within the 30s quality timeout
+    - Update the BDD feature file and step definitions accordingly
+    - Files: `tests/quality/compatibility/test_model_compatibility.py`, `tests/quality/compatibility/conftest.py`, `tests/features/compatibility/model_compatibility.feature`
+    - Acceptance: `pytest --collect-only tests/quality/compatibility/` shows 45 test cases (9 models × 5 phases); each test completes within 30s
+  - **Sub-task 9b: Restore all 9 models to the verified-models registry**
+    - Re-add the 7 removed models to `verified_models.toml`: `google/gemma-3-27b`, `qwen/qwen3.5-35b-a3b` (local), `qwen/qwen3.5-27b`, `deepseek/deepseek-v3.2`, `z-ai/glm-5`, `openai/gpt-oss-120b`, `minimax/minimax-m2.5` (OpenRouter)
+    - Set appropriate per-model config overrides (timeout_s, max_output_retries, supports_tool_choice_required, max_sdk_retries) with realistic values now that tests are per-phase (budget: 1 phase × (1+retries) × timeout_s ≤ 30s)
+    - For models that need `supports_tool_choice_required = false`, set it declaratively
+    - Update unit tests to reflect 9-model registry (4 local + 5 OpenRouter)
+    - Files: `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`
+    - Acceptance: registry contains all 9 models; unit tests pass
+  - **Sub-task 9c: Investigate and fix pydantic-ai tool-call handling for OpenRouter models**
+    - The signpost claims `openai/gpt-oss-120b` returns malformed tool-call payloads, but the model works correctly via curl. Investigate whether the issue is in pydantic-ai's request construction (e.g., sending parameters the model doesn't expect) or response parsing (being too strict about optional fields)
+    - If the issue is in pydantic-ai internals: work around via declarative config or provider-layer tolerance, NOT model removal
+    - If the issue was transient/stale: verify it's resolved and tune config overrides accordingly
+    - Files: `packages/rentl-llm/src/rentl_llm/provider_factory.py`, `packages/rentl-core/src/rentl_core/compatibility/runner.py`
+    - Acceptance: `openai/gpt-oss-120b` passes all 5 phases in the per-phase test suite
+  - **Sub-task 9d: Verify all 9 models pass and tune config overrides**
+    - Run `rentl verify-models` against all 9 models (4 local, 5 OpenRouter)
+    - For any failing model, investigate the actual error (not the previous signpost claims) and fix through declarative config or generic provider handling
+    - Grep source for hardcoded model names to confirm no model-specific branching was introduced
+    - Files: `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
+    - Acceptance: all 9 models pass all 5 phases; no model-specific branching in source
+  - See signposts.md: Blocker resolution — Model removal reversal
