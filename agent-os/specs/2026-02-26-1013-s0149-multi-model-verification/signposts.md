@@ -329,3 +329,12 @@
 - **Solution:** Differentiated per-endpoint-type budget tuning with explicit headroom. Local models: `timeout_s=8.0`, `max_output_retries=2` → worst case `(1+2)×8=24s` (6s headroom). OpenRouter models: `timeout_s=10.0`, `max_output_retries=1` → worst case `(1+1)×10=20s` (10s headroom). Local models keep 2 retries for structured-output flakiness on smaller models; OpenRouter models keep generous per-call timeout with 1 retry for network latency. Updated TOML header documentation with budget formulas.
 - **Resolution:** do-task round 22
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
+
+- **Task:** Task 6 / Task 9 (gate triage round 10 / round 2)
+- **Status:** unresolved
+- **Problem:** Quality-phase execution still relies on provider-level timeout behavior with no outer wall-clock guard, so stalled model calls can run until pytest kills the test instead of returning structured phase failures.
+- **Evidence:** Current gate output includes raw pytest timeouts in both compatibility and pipeline paths: `test_verified_model_passes_phase[z-ai/glm-5-edit]`, `test_verified_model_passes_phase[minimax/minimax-m2.5-qa]`, and `test_translate_phase_produces_translated_output` all fail with `Failed: Timeout (>30.0s) from pytest-timeout`.
+- **Evidence:** Compatibility `_run_phase` awaits `agent.run(...)` directly with no `asyncio.wait_for` guard (`packages/rentl-core/src/rentl_core/compatibility/runner.py:166-204`), and pipeline runtime `ProfileAgent.run` iterates `agent.iter(...)` directly with no outer watchdog (`packages/rentl-agents/src/rentl_agents/runtime.py:693-700`).
+- **Evidence:** Failing pipeline run artifacts show the translate phase stuck after `agent_started` with no completion/failure event before timeout kill (`/tmp/pytest-of-trevor/pytest-1353/test_translate_phase_produces_0/workspace/logs/019c9f9e-9fdf-7500-80c4-ad9c7c198ae6.jsonl`).
+- **Impact:** Gate failures are reported as infrastructure timeouts instead of actionable model/phase diagnostics, which breaks deterministic triage and causes recurring false regressions under the 30s quality cap.
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-agents/src/rentl_agents/runtime.py`, `tests/quality/pipeline/test_golden_script_pipeline.py`
