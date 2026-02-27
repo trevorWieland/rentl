@@ -298,3 +298,12 @@
 - **Evidence:** Quality fixtures only validate env vars and return params; no fixture performs LM Studio load/unload (`tests/quality/compatibility/conftest.py:126-149`).
 - **Impact:** Task 9 can report passing local compatibility phases while exercising whichever model is currently resident in LM Studio, which breaks Task 7 lifecycle guarantees and weakens confidence in per-model verification results.
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `tests/quality/compatibility/test_model_compatibility.py`, `tests/quality/compatibility/conftest.py`
+
+- **Task:** Task 9 (audit round 2)
+- **Status:** unresolved
+- **Problem:** Regression coverage promised for local per-phase lifecycle is incomplete: current tests assert `verify_single_phase` does not load/unload but do not verify fixture-managed LM Studio load/unload cleanup behavior on success and failure paths.
+- **Evidence:** Local lifecycle is now implemented in `model_entry` fixture (`tests/quality/compatibility/conftest.py:137-217`).
+- **Evidence:** New tests only validate `verify_single_phase` no-lifecycle behavior (`tests/unit/core/compatibility/test_runner.py:853`, `tests/unit/core/compatibility/test_runner.py:898`, `tests/unit/core/compatibility/test_runner.py:944`).
+- **Evidence:** No tests target the `model_entry` fixture lifecycle path (`rg -n "model_entry\\(" tests` only matches `tests/quality/compatibility/conftest.py:137`).
+- **Impact:** Future refactors can silently break local fixture load/unload cleanup in quality compatibility runs without test failures, weakening Task 7 single-model residency guarantees for per-phase verification.
+- **Files affected:** `tests/quality/compatibility/conftest.py`, `tests/unit/core/compatibility/test_runner.py`
