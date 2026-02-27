@@ -13,6 +13,7 @@ from rentl_core.compatibility.runner import (
     PHASE_CONFIGS,
     verify_model,
     verify_registry,
+    verify_single_phase,
 )
 from rentl_core.compatibility.types import (
     ModelVerificationResult,
@@ -844,3 +845,134 @@ async def test_verify_model_openrouter_does_not_unload() -> None:
     assert result.passed is True
     mock_load.assert_not_awaited()
     mock_unload.assert_not_awaited()
+
+
+# ---- verify_single_phase (per-phase runner) ---------------------------------
+
+
+async def test_verify_single_phase_does_not_load_or_unload() -> None:
+    """verify_single_phase delegates local lifecycle to callers — no load/unload."""
+    entry = _build_local_entry()
+    endpoint = _build_local_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch(
+            "rentl_core.compatibility.runner.load_lm_studio_model",
+        ) as mock_load,
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+        ) as mock_unload,
+        patch.dict(
+            "os.environ",
+            {"LM_STUDIO_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_single_phase(
+            entry=entry,
+            endpoint=endpoint,
+            phase_name=PhaseName.CONTEXT,
+        )
+
+    assert result.status == PhaseVerificationStatus.PASSED
+    # verify_single_phase must NOT call load/unload — caller is responsible
+    mock_load.assert_not_awaited()
+    mock_unload.assert_not_awaited()
+
+
+async def test_verify_single_phase_returns_failure_on_exception() -> None:
+    """verify_single_phase captures phase failure without calling load/unload."""
+    entry = _build_local_entry()
+    endpoint = _build_local_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch(
+            "rentl_core.compatibility.runner.load_lm_studio_model",
+        ) as mock_load,
+        patch(
+            "rentl_core.compatibility.runner.unload_lm_studio_model",
+        ) as mock_unload,
+        patch.dict(
+            "os.environ",
+            {"LM_STUDIO_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            side_effect=RuntimeError("structured output failed"),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_single_phase(
+            entry=entry,
+            endpoint=endpoint,
+            phase_name=PhaseName.TRANSLATE,
+        )
+
+    assert result.status == PhaseVerificationStatus.FAILED
+    assert "structured output failed" in (result.error_message or "")
+    # Still no load/unload — caller handles lifecycle even on failure
+    mock_load.assert_not_awaited()
+    mock_unload.assert_not_awaited()
+
+
+async def test_verify_single_phase_openrouter_passes() -> None:
+    """verify_single_phase works for OpenRouter entries (no lifecycle needed)."""
+    entry = _build_openrouter_entry()
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = (
+            "fake_model",
+            {"temperature": 0.2},
+        )
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_single_phase(
+            entry=entry,
+            endpoint=endpoint,
+            phase_name=PhaseName.QA,
+        )
+
+    assert result.status == PhaseVerificationStatus.PASSED
+    assert result.phase == PhaseName.QA

@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
 
-from rentl_core.compatibility import PHASE_CONFIGS
+from rentl_core.compatibility import (
+    PHASE_CONFIGS,
+    load_lm_studio_model,
+    unload_lm_studio_model,
+)
+from rentl_core.compatibility.loader import ModelLoadError, ModelUnloadError
 from rentl_schemas.compatibility import (
     VerifiedModelEntry,
     VerifiedModelRegistry,
@@ -16,6 +24,8 @@ from rentl_schemas.compatibility import (
 )
 from rentl_schemas.config import ModelEndpointConfig
 from rentl_schemas.primitives import PhaseName
+
+_log = logging.getLogger(__name__)
 
 _LM_STUDIO_DEFAULT_BASE_URL = "http://192.168.1.23:1234/v1"
 
@@ -124,23 +134,87 @@ _PHASE_NAMES: list[PhaseName] = [phase for phase, _, _, _ in PHASE_CONFIGS]
 
 
 @pytest.fixture()
-def model_entry(request: pytest.FixtureRequest) -> VerifiedModelEntry:
-    """Return the current model entry from indirect parametrization.
+def model_entry(request: pytest.FixtureRequest) -> Generator[VerifiedModelEntry]:
+    """Yield the current model entry with LM Studio lifecycle management.
 
     The test module applies ``@pytest.mark.parametrize(..., indirect=True)``
     which sets ``request.param`` to a ``VerifiedModelEntry`` for each model.
 
-    Validates required env vars for this model's endpoint at test time
-    (not collection time) so collection never crashes. Tests fail loudly
-    at setup if env vars are missing — no skipping.
+    Validates required env vars at test time (not collection time) so
+    collection never crashes. Tests fail loudly at setup if env vars are
+    missing — no skipping.
+
+    For local (LM Studio) models, manages the full load/unload lifecycle
+    per Task 7 single-model residency guarantees.
+
+    ``verify_single_phase`` delegates local lifecycle to callers, so this
+    fixture is the quality-test integration point for that contract.
+
+    Yields:
+        The parametrized ``VerifiedModelEntry`` for the current test case.
+
+    Raises:
+        ModelLoadError: When LM Studio model loading fails.
+        ValueError: When ``endpoint_ref`` is not recognised.
     """
     _load_env_file()
     entry: VerifiedModelEntry = request.param
+
     if entry.endpoint_ref == "openrouter":
         _require_env("RENTL_OPENROUTER_API_KEY")
-    elif entry.endpoint_ref == "lm-studio":
-        _require_env("RENTL_LOCAL_API_KEY")
-    return entry
+        yield entry
+        return
+
+    if entry.endpoint_ref == "lm-studio":
+        api_key = _require_env("RENTL_LOCAL_API_KEY")
+
+        # Resolve load timeout (decoupled from per-phase inference timeout)
+        load_timeout = (
+            entry.config_overrides.load_timeout_s
+            if entry.config_overrides.load_timeout_s is not None
+            else 120.0
+        )
+
+        # Load model before test (resource-aware: unloads others first)
+        if entry.load_endpoint is not None:
+            try:
+                asyncio.run(
+                    load_lm_studio_model(
+                        load_endpoint=entry.load_endpoint,
+                        model_id=entry.model_id,
+                        api_key=api_key,
+                        timeout_s=load_timeout,
+                    )
+                )
+            except ModelLoadError:
+                _log.exception("Failed to load model %s before test", entry.model_id)
+                raise
+
+        try:
+            yield entry
+        finally:
+            # Always unload after test to free GPU memory
+            if entry.load_endpoint is not None:
+                try:
+                    asyncio.run(
+                        unload_lm_studio_model(
+                            load_endpoint=entry.load_endpoint,
+                            model_id=entry.model_id,
+                            api_key=api_key,
+                            timeout_s=load_timeout,
+                        )
+                    )
+                except ModelUnloadError:
+                    _log.warning(
+                        "Failed to unload model %s after test",
+                        entry.model_id,
+                    )
+        return
+
+    # Unknown endpoint_ref — fail loudly
+    raise ValueError(
+        f"Unknown endpoint_ref '{entry.endpoint_ref}' for model '{entry.model_id}'."
+    )
 
 
 @pytest.fixture()
