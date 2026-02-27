@@ -86,6 +86,93 @@ AGENT_OUTPUT_FILE=""
 
 SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
 
+# --- Persistent process group tracking (Layer 1: survives orchestrator death) ---
+# Every spawned PGID is written to this file. On startup, any survivors from a
+# previous crashed run are killed before we proceed. This covers SIGKILL, OOM,
+# and any other death where the EXIT trap can't fire.
+
+PGROUP_FILE=""  # Set after SPEC_FOLDER is parsed (needs the path)
+
+register_pgid() {
+    local pgid="$1"
+    if [[ -n "$PGROUP_FILE" ]]; then
+        echo "$pgid" >> "$PGROUP_FILE"
+    fi
+}
+
+unregister_pgid() {
+    local pgid="$1"
+    if [[ -n "$PGROUP_FILE" && -f "$PGROUP_FILE" ]]; then
+        # Remove the PGID line (in-place via temp file to avoid clobbering)
+        grep -vxF "$pgid" "$PGROUP_FILE" > "$PGROUP_FILE.tmp" 2>/dev/null || true
+        mv "$PGROUP_FILE.tmp" "$PGROUP_FILE"
+    fi
+}
+
+cleanup_stale_agents() {
+    local pgfile="$1"
+    if [[ ! -f "$pgfile" ]]; then return; fi
+
+    local stale_pgid
+    local killed=0
+    while IFS= read -r stale_pgid; do
+        # Skip blank lines
+        [[ -z "$stale_pgid" ]] && continue
+        # Check if the process group still exists
+        if kill -0 -"$stale_pgid" 2>/dev/null; then
+            tput "  ${YELLOW}⚠ Killing stale agent process group %s from previous run${NC}\n" "$stale_pgid"
+            kill -TERM -"$stale_pgid" 2>/dev/null || true
+            sleep 1
+            kill -KILL -"$stale_pgid" 2>/dev/null || true
+            killed=$((killed + 1))
+        fi
+    done < "$pgfile"
+    # Clear the file now that everything is cleaned up
+    : > "$pgfile"
+    if [[ $killed -gt 0 ]]; then
+        tput "  ${GREEN}✓${NC} Cleaned up %d stale process group(s)\n" "$killed"
+    fi
+}
+
+# --- setsid wrapper with PR_SET_PDEATHSIG (Layer 2: kernel-level protection) ---
+# When the orchestrator dies for ANY reason (including SIGKILL), the kernel
+# automatically sends SIGTERM to the immediate child. That child is the session
+# leader (via setsid), so its signal handler can propagate to the whole group.
+#
+# PR_SET_PDEATHSIG = 1, SIGTERM = 15. The prctl is set in the child before
+# exec, so it persists across the setsid + exec chain.
+
+_setsid_safe() {
+    # Usage: _setsid_safe <command...>
+    # Replaces: setsid bash -c "eval \"...\""
+    # The python wrapper: fork → prctl(PR_SET_PDEATHSIG, SIGTERM) → setsid → exec
+    local cmd="$*"
+    python3 -c "
+import os, signal, ctypes, sys
+
+cmd = sys.argv[1]
+
+# Request SIGTERM when parent dies (Linux-specific, PR_SET_PDEATHSIG=1)
+try:
+    libc = ctypes.CDLL('libc.so.6', use_errno=True)
+    libc.prctl(1, signal.SIGTERM)
+except Exception:
+    pass  # Best-effort; fall back to trap-only cleanup
+
+# Create new session (equivalent to setsid)
+os.setsid()
+
+# Propagate SIGTERM to entire process group on receipt
+def _forward_term(signum, frame):
+    os.killpg(os.getpgrp(), signal.SIGTERM)
+    sys.exit(143)  # 128 + 15
+signal.signal(signal.SIGTERM, _forward_term)
+
+# Exec into bash
+os.execvp('bash', ['bash', '-c', cmd])
+" "$cmd" &
+}
+
 cleanup_timer() {
     if [[ -n "$TIMER_PID" ]]; then
         kill "$TIMER_PID" 2>/dev/null || true
@@ -109,6 +196,7 @@ cleanup_agent() {
         # Force kill the entire group if anything survived
         kill -KILL -"$AGENT_PGID" 2>/dev/null || true
         wait "$AGENT_PID" 2>/dev/null || true
+        unregister_pgid "$AGENT_PGID"
         AGENT_PID=""
         AGENT_PGID=""
     elif [[ -n "$AGENT_PID" ]]; then
@@ -122,6 +210,10 @@ cleanup_agent() {
 cleanup_all() {
     cleanup_timer
     cleanup_agent
+    # All agents are dead — clear the persistent PGID file (nothing left to track)
+    if [[ -n "${PGROUP_FILE:-}" ]]; then
+        rm -f "$PGROUP_FILE" 2>/dev/null || true
+    fi
     rm -f "${STATUS_FILE:-}" "${SPEC_BACKUP:-}" "${AGENT_OUTPUT_FILE:-}" "${GATE_OUTPUT_FILE:-}" "${PID_FILE:-}" 2>/dev/null || true
     # Clear the spinner line on interrupt so the terminal is clean
     printf "\r\033[K" > /dev/tty 2>/dev/null || true
@@ -253,6 +345,12 @@ fi
 PID_FILE="$SPEC_FOLDER/.orchestrate.pid"
 echo $$ > "$PID_FILE"
 
+# Initialize persistent PGID tracking and clean up any orphans from a crashed run.
+# Must happen after SPEC_FOLDER is set and after acquiring the lock (so we know
+# no other orchestrator is running — any PIDs in the file are orphans).
+PGROUP_FILE="$SPEC_FOLDER/.orchestrate.pgids"
+cleanup_stale_agents "$PGROUP_FILE"
+
 # --- Helper functions ---
 
 next_task_label() {
@@ -361,25 +459,38 @@ For example, write exactly one line like \`${command_name}-status: complete\` to
     # Use file-based output capture so we don't need command substitution.
     # This keeps the agent in a background process where `wait` is interruptible.
     #
-    # setsid gives the agent its own process group so we can kill the entire
-    # tree (timeout → claude → bash → make → pytest → ...) with a single
-    # `kill -PGID`. Without this, closing the terminal orphans grandchildren.
+    # _setsid_safe gives the agent its own process group (for `kill -PGID`)
+    # and sets PR_SET_PDEATHSIG so the kernel auto-kills it if we die.
     AGENT_OUTPUT_FILE=$(mktemp)
     local exit_code
+
+    # Write prompt to a temp file and redirect inside the command string.
+    # _setsid_safe ends with `python3 ... &`; in a non-interactive script,
+    # POSIX requires backgrounded processes to have stdin from /dev/null
+    # unless the command itself has an explicit redirect. A herestring on
+    # the function call only redirects the function's stdin, not the
+    # backgrounded process inside it.
+    local prompt_file
+    prompt_file=$(mktemp)
+    printf '%s' "$prompt" > "$prompt_file"
 
     if [[ "$cli" == *codex* ]]; then
         local last_msg_file
         last_msg_file=$(mktemp)
-        setsid bash -c "eval \"timeout $AGENT_TIMEOUT $cmd -o '$last_msg_file'\"" <<< "$prompt" > /dev/null 2>&1 &
+        local agent_log_file
+        agent_log_file=$(mktemp)
+        _setsid_safe "eval \"timeout $AGENT_TIMEOUT $cmd -o '$last_msg_file' < '$prompt_file'\"" > "$agent_log_file" 2>&1
         AGENT_PID=$!
-        AGENT_PGID=$AGENT_PID  # setsid makes PID == PGID
+        AGENT_PGID=$AGENT_PID  # _setsid_safe calls setsid: PID == PGID
+        register_pgid "$AGENT_PGID"
         wait "$AGENT_PID" && exit_code=0 || exit_code=$?
+        unregister_pgid "$AGENT_PGID"
         AGENT_PID=""
         AGENT_PGID=""
 
         if [[ $exit_code -eq 124 ]]; then
             fail "Agent timed out after ${AGENT_TIMEOUT}s: $command_name"
-            rm -f "$last_msg_file"
+            rm -f "$last_msg_file" "$agent_log_file"
             AGENT_OUTPUT=""
             return
         fi
@@ -388,19 +499,26 @@ For example, write exactly one line like \`${command_name}-status: complete\` to
         else
             AGENT_OUTPUT=""
         fi
-        rm -f "$last_msg_file"
+        # Surface agent stderr/stdout when no structured output was produced
+        if [[ -z "$AGENT_OUTPUT" && -s "$agent_log_file" ]]; then
+            tput "  ${DIM}agent log (%s):${NC}\n" "$command_name"
+            tail -10 "$agent_log_file" > /dev/tty 2>/dev/null || true
+        fi
+        rm -f "$last_msg_file" "$agent_log_file"
     else
-        setsid bash -c "eval \"timeout $AGENT_TIMEOUT $cmd\"" <<< "$prompt" > "$AGENT_OUTPUT_FILE" 2>&1 &
+        _setsid_safe "eval \"timeout $AGENT_TIMEOUT $cmd < '$prompt_file'\"" > "$AGENT_OUTPUT_FILE" 2>&1
         AGENT_PID=$!
-        AGENT_PGID=$AGENT_PID  # setsid makes PID == PGID
+        AGENT_PGID=$AGENT_PID  # _setsid_safe calls setsid: PID == PGID
+        register_pgid "$AGENT_PGID"
         wait "$AGENT_PID" && exit_code=0 || exit_code=$?
+        unregister_pgid "$AGENT_PGID"
         AGENT_PID=""
         AGENT_PGID=""
 
         if [[ $exit_code -eq 124 ]]; then
             fail "Agent timed out after ${AGENT_TIMEOUT}s: $command_name"
             AGENT_OUTPUT=""
-            rm -f "$AGENT_OUTPUT_FILE"
+            rm -f "$AGENT_OUTPUT_FILE" "$prompt_file"
             AGENT_OUTPUT_FILE=""
             return
         fi
@@ -411,13 +529,13 @@ For example, write exactly one line like \`${command_name}-status: complete\` to
         fi
     fi
 
-    rm -f "$AGENT_OUTPUT_FILE"
+    rm -f "$AGENT_OUTPUT_FILE" "$prompt_file"
     AGENT_OUTPUT_FILE=""
 }
 
 # Run a gate command silently with spinner. Output stored in LAST_GATE_OUTPUT.
-# Uses setsid so the gate's entire process tree (make → pytest → ...) can be
-# killed as a group on interrupt — same pattern as invoke_agent.
+# Uses _setsid_safe so the gate's entire process tree (make → pytest → ...) can
+# be killed as a group on interrupt, with PR_SET_PDEATHSIG as backstop.
 LAST_GATE_OUTPUT=""
 GATE_OUTPUT_FILE=""
 run_gate() {
@@ -429,10 +547,12 @@ run_gate() {
     GATE_OUTPUT_FILE=$(mktemp)
     local exit_code
 
-    setsid bash -c "eval \"$gate_cmd\"" > "$GATE_OUTPUT_FILE" 2>&1 &
+    _setsid_safe "eval \"$gate_cmd\"" > "$GATE_OUTPUT_FILE" 2>&1
     AGENT_PID=$!
     AGENT_PGID=$AGENT_PID
+    register_pgid "$AGENT_PGID"
     wait "$AGENT_PID" && exit_code=0 || exit_code=$?
+    unregister_pgid "$AGENT_PGID"
     AGENT_PID=""
     AGENT_PGID=""
 
