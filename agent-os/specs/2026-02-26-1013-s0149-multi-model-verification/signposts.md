@@ -351,13 +351,15 @@
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
 
 - **Task:** Task 6 (gate triage round 11)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Quality-agent runtime policy is still exact-edge and brittle for live OpenRouter latency: the harness sets `timeout_s=3.0`, `max_retries=0`, `max_requests_per_run=4`, `run_timeout_s=12.0`, so a single transport timeout fails context immediately and multi-turn pretranslation runs can hit the wall-clock watchdog before producing output.
 - **Evidence:** Gate output: `test_context_agent_evaluation_passes` fails with `RuntimeError: Agent scene_summarizer execution failed after 1 attempts` rooted in `openai.APITimeoutError: Request timed out`; `test_pretranslation_agent_evaluation_passes` fails with `RuntimeError: Agent idiom_labeler exceeded wall-clock budget (12.0s)`.
 - **Evidence:** Harness config hard-codes the exact-edge budget (`tests/quality/agents/quality_harness.py:81-85`).
 - **Evidence:** Runtime enforces that watchdog with `asyncio.wait_for(..., timeout=remaining)` and raises on expiry (`packages/rentl-agents/src/rentl_agents/runtime.py:333-335`, `packages/rentl-agents/src/rentl_agents/runtime.py:517-520`).
 - **Impact:** Quality gate failures recur in agent eval suites before evaluator assertions, reducing determinism and causing regressions even when other tiers pass.
-- **Files affected:** `tests/quality/agents/quality_harness.py`, `packages/rentl-agents/src/rentl_agents/runtime.py`, `tests/quality/agents/test_context_agent.py`, `tests/quality/agents/test_pretranslation_agent.py`
+- **Solution:** Rebalanced quality-agent harness with bounded transient recovery: `timeout_s` 3.0→4.0, `max_retries` 0→1 (one transport retry for network blips), `retry_base_delay` 1.0→0.5, `run_timeout_s` 12.0→20.0. Judge timeout also increased to 4.0 with 1 retry. Budget: agent ≤20s + judge ≤4s = 24s worst case (6s headroom against 30s pytest cap). Updated `MaxDuration` evaluators in all 5 quality agent tests from 20s to 25s to match new watchdog. `max_requests_per_run=4` and `max_output_retries=1` unchanged.
+- **Resolution:** do-task round 24
+- **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/agents/test_context_agent.py`, `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/agents/test_edit_agent.py`, `tests/quality/agents/test_qa_agent.py`, `tests/quality/agents/test_translate_agent.py`
 
 - **Task:** Task 9 (gate triage round 3)
 - **Status:** unresolved

@@ -78,12 +78,12 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         base_url=config.base_url,
         model_id=config.model_id,
         temperature=0.2,
-        timeout_s=3.0,  # Per-request budget; see total budget below
-        max_retries=0,  # No retries — single attempt to avoid timeout amplification
+        timeout_s=4.0,  # Per-request budget; see total budget below
+        max_retries=1,  # One transient retry for network blips / timeouts
         max_output_retries=1,  # One corrective retry for alignment feedback
         max_requests_per_run=4,  # tool_call + output + 1 output_retry + buffer
-        run_timeout_s=12.0,  # Wall-clock watchdog: 4 requests x 3s = 12s
-        retry_base_delay=1.0,
+        run_timeout_s=20.0,  # Wall-clock watchdog: 2 attempts x multi-request x 4s
+        retry_base_delay=0.5,
         end_strategy="exhaustive",
         required_tool_calls=["get_game_info"],
     )
@@ -103,8 +103,8 @@ def build_judge_model_and_settings(
         model_id=config.judge_model_id,
         temperature=0.0,
         max_output_tokens=200,
-        timeout_s=3.0,
-        max_retries=0,
+        timeout_s=4.0,
+        max_retries=1,
     )
 
 

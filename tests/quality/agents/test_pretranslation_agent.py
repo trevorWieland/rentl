@@ -143,7 +143,7 @@ def given_pretranslation_dataset(
                     "target_languages",
                 )
             ),
-            MaxDuration(seconds=20.0),
+            MaxDuration(seconds=25.0),
             LLMJudge(
                 rubric=rubric,
                 include_input=True,
