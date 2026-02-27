@@ -314,3 +314,18 @@ def test_bundled_registry_all_models_have_max_sdk_retries_zero() -> None:
             f"Model '{model.model_id}' must set max_sdk_retries=0 "
             "to keep per-phase time deterministic within the 30s budget"
         )
+
+
+def test_bundled_registry_all_models_have_max_output_tokens() -> None:
+    """All bundled models set max_output_tokens to constrain generation length."""
+    registry = load_bundled_registry()
+    for model in registry.models:
+        assert model.config_overrides.max_output_tokens is not None, (
+            f"Model '{model.model_id}' must set max_output_tokens "
+            "to prevent verbose output that wastes time and retries"
+        )
+        assert model.config_overrides.max_output_tokens <= 1024, (
+            f"Model '{model.model_id}' has max_output_tokens="
+            f"{model.config_overrides.max_output_tokens}; "
+            "verification phases produce tiny JSON and should use ≤1024"
+        )

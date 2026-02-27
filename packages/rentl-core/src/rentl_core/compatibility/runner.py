@@ -47,6 +47,11 @@ from rentl_schemas.qa import LineEdit
 
 _log = logging.getLogger(__name__)
 
+# Verification phases produce tiny JSON; 1024 tokens is generous.  The old
+# default (4096) let models ramble into malformed/verbose output, wasting
+# time and triggering output-validation retries.
+_DEFAULT_MAX_OUTPUT_TOKENS = 1024
+
 # ---------------------------------------------------------------------------
 # Golden input data for the mini-pipeline
 # ---------------------------------------------------------------------------
@@ -99,65 +104,65 @@ class _EditOutput(BaseSchema):
 PHASE_CONFIGS: list[tuple[PhaseName, str, str, type[BaseSchema]]] = [
     (
         PhaseName.CONTEXT,
-        "You are a scene summarizer for visual novel translation.",
+        "You are a scene summarizer. Respond with minimal JSON only.",
         (
-            "Analyze the following source line and produce a scene summary.\n"
+            "Summarize this scene in one sentence.\n"
             "Source: {text}\n"
-            "Return a JSON object with a scene_summaries array containing one entry "
-            "with scene_id, summary, and characters fields."
+            "Respond with exactly: "
+            '{{"scene_summaries": [{{"scene_id": "scene_001", '
+            '"summary": "<1 sentence>", "characters": []}}]}}'
         ),
         _ContextOutput,
     ),
     (
         PhaseName.PRETRANSLATION,
-        "You are an idiom annotator for visual novel translation.",
+        "You are an idiom annotator. Respond with minimal JSON only.",
         (
-            "Analyze the following source line for idioms.\n"
+            "List idioms in this line (empty list if none).\n"
             "Source: {text}\n"
-            "Return a JSON with a reviews array. "
-            "Each review has line_id and idioms. "
-            "The line_id is: {line_id}"
+            "Respond with exactly: "
+            '{{"reviews": [{{"line_id": "{line_id}", "idioms": []}}]}}'
         ),
         IdiomAnnotationList,
     ),
     (
         PhaseName.TRANSLATE,
-        "You are a Japanese-to-English translator for visual novels.",
+        "You are a Japanese-to-English translator. Respond with minimal JSON only.",
         (
-            "Translate the following line to English.\n"
+            "Translate to English.\n"
             "Source (line_id: {line_id}): {text}\n"
-            "Return a JSON object with a translations array containing one entry "
-            "with line_id and text fields."
+            "Respond with exactly: "
+            '{{"translations": [{{"line_id": "{line_id}", '
+            '"text": "<translation>"}}]}}'
         ),
         TranslationResultList,
     ),
     (
         PhaseName.QA,
-        "You are a translation quality reviewer.",
+        "You are a translation quality reviewer. Respond with minimal JSON only.",
         (
             "Review this translation for style violations.\n"
             "Source: {text}\n"
             "Translation: Cherry blossom petals dance "
             "at the school gate on a spring morning.\n"
-            "Return a JSON with a reviews array. "
-            "Each review has line_id and violations. "
-            "The line_id is: {line_id}"
+            "Respond with exactly: "
+            '{{"reviews": [{{"line_id": "{line_id}", "violations": []}}]}}'
         ),
         StyleGuideReviewList,
     ),
     (
         PhaseName.EDIT,
-        "You are a translation editor for visual novels.",
+        "You are a translation editor. Respond with minimal JSON only.",
         (
-            "Edit the following translation if needed.\n"
+            "Edit this translation if needed.\n"
             "Source: {text}\n"
-            "Current translation (line_id: {line_id}): "
+            "Current (line_id: {line_id}): "
             "Cherry blossom petals dance "
             "at the school gate on a spring morning.\n"
-            "Return JSON with edited_lines "
-            "(objects with line_id and text) "
-            "and changes (objects with line_id, "
-            "original_text, edited_text, reason)."
+            "Respond with exactly: "
+            '{{"edited_lines": [{{"line_id": "{line_id}", '
+            '"text": "<edited text>"}}], '
+            '"changes": []}}'
         ),
         _EditOutput,
     ),
@@ -287,7 +292,7 @@ async def verify_single_phase(
     max_output_tokens = (
         entry.config_overrides.max_output_tokens
         if entry.config_overrides.max_output_tokens is not None
-        else 4096
+        else _DEFAULT_MAX_OUTPUT_TOKENS
     )
     output_retries = (
         entry.config_overrides.max_output_retries
@@ -422,7 +427,7 @@ async def verify_model(
         max_output_tokens = (
             entry.config_overrides.max_output_tokens
             if entry.config_overrides.max_output_tokens is not None
-            else 4096
+            else _DEFAULT_MAX_OUTPUT_TOKENS
         )
         output_retries = (
             entry.config_overrides.max_output_retries

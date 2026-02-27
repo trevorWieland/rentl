@@ -1073,3 +1073,86 @@ async def test_verify_single_phase_computes_wall_clock_budget() -> None:
     # Budget should be (1 + 2) * 5.0 = 15.0
     call_kwargs = mock_run_phase.call_args.kwargs
     assert call_kwargs["phase_timeout_s"] == pytest.approx(15.0)
+
+
+async def test_verify_single_phase_forwards_max_output_tokens() -> None:
+    """max_output_tokens override flows to create_model(max_output_tokens=...)."""
+    entry = VerifiedModelEntry(
+        model_id="test/model",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+        config_overrides=VerifiedModelConfigOverrides(
+            timeout_s=5.0,
+            max_output_tokens=512,
+        ),
+    )
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = ("fake_model", {"temperature": 0.2})
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        await verify_single_phase(
+            entry=entry,
+            endpoint=endpoint,
+            phase_name=PhaseName.CONTEXT,
+        )
+
+    call_kwargs = mock_create.call_args.kwargs
+    assert call_kwargs["max_output_tokens"] == 512
+
+
+async def test_verify_single_phase_uses_default_max_output_tokens() -> None:
+    """When max_output_tokens is not set, the runner uses the 1024 default."""
+    entry = VerifiedModelEntry(
+        model_id="test/model",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+        config_overrides=VerifiedModelConfigOverrides(
+            timeout_s=5.0,
+        ),
+    )
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = ("fake_model", {"temperature": 0.2})
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(None),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        await verify_single_phase(
+            entry=entry,
+            endpoint=endpoint,
+            phase_name=PhaseName.CONTEXT,
+        )
+
+    call_kwargs = mock_create.call_args.kwargs
+    assert call_kwargs["max_output_tokens"] == 1024

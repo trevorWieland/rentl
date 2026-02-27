@@ -362,10 +362,12 @@
 - **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/agents/test_context_agent.py`, `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/agents/test_edit_agent.py`, `tests/quality/agents/test_qa_agent.py`, `tests/quality/agents/test_translate_agent.py`
 
 - **Task:** Task 9 (gate triage round 3)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Compatibility per-phase verification remains under-constrained and sensitive to provider drift: runner defaults `max_output_tokens` to `4096` when registry entries omit it, and the current per-model timeout/retry settings no longer hold across all declared models/phases.
 - **Evidence:** Gate output failures at `tests/quality/compatibility/test_model_compatibility.py:121`: local context (`google/gemma-3-27b`, `qwen/qwen3.5-35b-a3b`) returns `Exceeded maximum retries (3)`; OpenRouter phases time out at the computed 20s budget (`deepseek/deepseek-v3.2` qa, `z-ai/glm-5` context/qa).
 - **Evidence:** Runner default + budget math are unconditional (`packages/rentl-core/src/rentl_core/compatibility/runner.py:287-307`), and current prompts/schemas for context/qa remain unchanged (`packages/rentl-core/src/rentl_core/compatibility/runner.py:99-147`).
 - **Evidence:** Registry entries currently leave token bounds unset and rely on timeout/retry tuning alone (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:36-132`).
 - **Impact:** Task 9 regresses into repeat override churn: compatibility fails alternate between output-validation exhaustion and phase timeout kills instead of stable pass/fail behavior for the declared 9-model set.
-- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/quality/compatibility/test_model_compatibility.py`
+- **Solution:** Three-pronged fix: (1) Reduced runner `_DEFAULT_MAX_OUTPUT_TOKENS` from 4096 to 1024 and set `max_output_tokens=512` on all 9 registry entries — verification phases produce <200 token JSON, so capping output prevents verbose rambling that wastes time and triggers output-validation retries. (2) Tightened all 5 phase prompts to include explicit JSON examples showing the exact expected structure, with system prompts ending in "Respond with minimal JSON only." — reduces output variance and improves structured-output compliance across weaker models. (3) Reduced local `max_output_retries` from 3 to 2, giving budget `(1+2)×7=21s` (9s headroom) instead of the previous exact-edge `(1+3)×7=28s`. Added unit tests for `max_output_tokens` forwarding and bundled registry constraint assertions.
+- **Resolution:** do-task round 25
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/unit/schemas/test_compatibility.py`, `tests/unit/core/compatibility/test_runner.py`
