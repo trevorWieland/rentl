@@ -349,3 +349,21 @@
 - **Solution:** (1) Added `supports_tool_choice_required = false` to `z-ai/glm-5` registry entry. (2) Retuned local models to `timeout_s=7.0`, `max_output_retries=3` — budget `(1+3)×7=28s` (2s headroom) — giving one extra output-validation retry for intermittent structured-output flakiness. (3) Retuned `openai/gpt-oss-120b` to `timeout_s=8.0`, `max_output_retries=2` — budget `(1+2)×8=24s` (6s headroom). Wall-clock timeout guard (Fix 2) was already implemented in `_run_phase` with `asyncio.wait_for` and `verify_single_phase` computing `phase_timeout_s = (1+output_retries) × timeout_s`, with regression tests.
 - **Resolution:** do-task round 23
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
+
+- **Task:** Task 6 (gate triage round 11)
+- **Status:** unresolved
+- **Problem:** Quality-agent runtime policy is still exact-edge and brittle for live OpenRouter latency: the harness sets `timeout_s=3.0`, `max_retries=0`, `max_requests_per_run=4`, `run_timeout_s=12.0`, so a single transport timeout fails context immediately and multi-turn pretranslation runs can hit the wall-clock watchdog before producing output.
+- **Evidence:** Gate output: `test_context_agent_evaluation_passes` fails with `RuntimeError: Agent scene_summarizer execution failed after 1 attempts` rooted in `openai.APITimeoutError: Request timed out`; `test_pretranslation_agent_evaluation_passes` fails with `RuntimeError: Agent idiom_labeler exceeded wall-clock budget (12.0s)`.
+- **Evidence:** Harness config hard-codes the exact-edge budget (`tests/quality/agents/quality_harness.py:81-85`).
+- **Evidence:** Runtime enforces that watchdog with `asyncio.wait_for(..., timeout=remaining)` and raises on expiry (`packages/rentl-agents/src/rentl_agents/runtime.py:333-335`, `packages/rentl-agents/src/rentl_agents/runtime.py:517-520`).
+- **Impact:** Quality gate failures recur in agent eval suites before evaluator assertions, reducing determinism and causing regressions even when other tiers pass.
+- **Files affected:** `tests/quality/agents/quality_harness.py`, `packages/rentl-agents/src/rentl_agents/runtime.py`, `tests/quality/agents/test_context_agent.py`, `tests/quality/agents/test_pretranslation_agent.py`
+
+- **Task:** Task 9 (gate triage round 3)
+- **Status:** unresolved
+- **Problem:** Compatibility per-phase verification remains under-constrained and sensitive to provider drift: runner defaults `max_output_tokens` to `4096` when registry entries omit it, and the current per-model timeout/retry settings no longer hold across all declared models/phases.
+- **Evidence:** Gate output failures at `tests/quality/compatibility/test_model_compatibility.py:121`: local context (`google/gemma-3-27b`, `qwen/qwen3.5-35b-a3b`) returns `Exceeded maximum retries (3)`; OpenRouter phases time out at the computed 20s budget (`deepseek/deepseek-v3.2` qa, `z-ai/glm-5` context/qa).
+- **Evidence:** Runner default + budget math are unconditional (`packages/rentl-core/src/rentl_core/compatibility/runner.py:287-307`), and current prompts/schemas for context/qa remain unchanged (`packages/rentl-core/src/rentl_core/compatibility/runner.py:99-147`).
+- **Evidence:** Registry entries currently leave token bounds unset and rely on timeout/retry tuning alone (`packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml:36-132`).
+- **Impact:** Task 9 regresses into repeat override churn: compatibility fails alternate between output-validation exhaustion and phase timeout kills instead of stable pass/fail behavior for the declared 9-model set.
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/quality/compatibility/test_model_compatibility.py`
