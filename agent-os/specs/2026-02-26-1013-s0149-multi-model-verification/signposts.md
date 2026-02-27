@@ -289,3 +289,12 @@
 - **Solution:** Task 9 implemented: (1) Added `verify_single_phase` function to runner for per-phase verification. (2) Restructured BDD feature and test from all-phases-per-model to per-phase-per-model parametrization (9 models x 5 phases = 45 test cases). (3) Restored all 9 models to the registry with per-phase-friendly budget: `(1 + max_output_retries=2) x timeout_s=10.0 = 30s` per test. (4) Set `supports_tool_choice_required=false` for `qwen/qwen3.5-27b` (known OpenRouter limitation). (5) Investigated pydantic-ai tool-call handling for `openai/gpt-oss-120b` -- the intermittent malformed tool-call payloads are a model/provider issue, not a pydantic-ai bug; `max_output_retries=2` provides sufficient retry budget for recovery.
 - **Resolution:** do-task round 20
 - **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-core/src/rentl_core/compatibility/__init__.py`, `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`, `tests/quality/compatibility/test_model_compatibility.py`, `tests/quality/compatibility/conftest.py`, `tests/quality/features/compatibility/model_compatibility.feature`, `tests/unit/schemas/test_compatibility.py`
+
+- **Task:** Task 9 (audit round 1)
+- **Status:** unresolved
+- **Problem:** Per-phase compatibility tests bypass LM Studio model lifecycle management for local models, so local quality cases no longer guarantee that the declared model is loaded/unloaded per verification run.
+- **Evidence:** The quality scenario now calls `verify_single_phase(...)` directly (`tests/quality/compatibility/test_model_compatibility.py:109-113`).
+- **Evidence:** `verify_single_phase` explicitly states local load/unload is caller-managed and contains no `load_lm_studio_model`/`unload_lm_studio_model` calls (`packages/rentl-core/src/rentl_core/compatibility/runner.py:233-235`, `packages/rentl-core/src/rentl_core/compatibility/runner.py:245-319`).
+- **Evidence:** Quality fixtures only validate env vars and return params; no fixture performs LM Studio load/unload (`tests/quality/compatibility/conftest.py:126-149`).
+- **Impact:** Task 9 can report passing local compatibility phases while exercising whichever model is currently resident in LM Studio, which breaks Task 7 lifecycle guarantees and weakens confidence in per-model verification results.
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `tests/quality/compatibility/test_model_compatibility.py`, `tests/quality/compatibility/conftest.py`
