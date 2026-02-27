@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal, TypeVar
@@ -191,6 +192,15 @@ class ProfileAgentConfig(BaseSchema):
         None,
         description="Tool names that must be called before output tools are allowed",
     )
+    run_timeout_s: float | None = Field(
+        None,
+        gt=0,
+        description=(
+            "Wall-clock timeout for the entire agent run (all retry attempts). "
+            "When set, the run is cancelled with TimeoutError if it exceeds "
+            "this budget. Prevents indefinite hangs in quality/test contexts."
+        ),
+    )
     input_cost_per_mtok: float | None = Field(
         None,
         ge=0,
@@ -273,7 +283,8 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
         Raises:
             UsageLimitExceeded: If the model hits the request limit.
             UnexpectedModelBehavior: If the model produces invalid output.
-            RuntimeError: If execution fails after all retries on transient errors.
+            RuntimeError: If execution fails after all retries or if the
+                wall-clock budget (run_timeout_s) is exceeded.
         """
         last_error: Exception | None = None
         run_id = _extract_run_id(payload) if self._telemetry_emitter else None
@@ -309,9 +320,21 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
             )
 
         max_attempts = self._config.max_retries + 1
+        run_deadline: float | None = None
+        if self._config.run_timeout_s is not None:
+            run_deadline = time.monotonic() + self._config.run_timeout_s
+
         for attempt in range(1, max_attempts + 1):
             try:
-                output, usage = await self._execute(payload)
+                if run_deadline is not None:
+                    remaining = run_deadline - time.monotonic()
+                    if remaining <= 0:
+                        remaining = 0.0
+                    output, usage = await asyncio.wait_for(
+                        self._execute(payload), timeout=remaining
+                    )
+                else:
+                    output, usage = await self._execute(payload)
                 tool_calls_observed, required_tools_satisfied = (
                     _build_tool_reliability_markers(
                         usage=usage,
@@ -462,6 +485,39 @@ class ProfileAgent(PhaseAgentProtocol[InputT, OutputT_co]):
                 # Model produced invalid output that couldn't be parsed
                 # Re-raise so pool layer can decide whether to retry
                 raise
+            except TimeoutError:
+                # Wall-clock budget exhausted — do not retry
+                completed_at = _now_timestamp()
+                if self._telemetry_emitter is not None:
+                    await _emit_agent_update(
+                        self._telemetry_emitter,
+                        run_id=_ensure_run_id(run_id),
+                        event=ProgressEvent.AGENT_FAILED,
+                        update=AgentTelemetry(
+                            agent_run_id=agent_run_id,
+                            agent_name=self._profile.meta.name,
+                            phase=phase,
+                            target_language=target_language,
+                            status=AgentStatus.FAILED,
+                            attempt=attempt,
+                            started_at=started_at,
+                            completed_at=completed_at,
+                            usage=None,
+                            provider_detected=provider_detected,
+                            endpoint_type=endpoint_type,
+                            tool_calls_observed=None,
+                            required_tools_satisfied=None,
+                            message=(
+                                f"Agent exceeded wall-clock budget "
+                                f"({self._config.run_timeout_s}s)"
+                            ),
+                        ),
+                        timestamp=completed_at,
+                    )
+                raise RuntimeError(
+                    f"Agent {self.name} exceeded wall-clock budget "
+                    f"({self._config.run_timeout_s}s)"
+                ) from None
             except Exception as exc:
                 # Transient errors (network, rate limits) - retry with backoff
                 last_error = exc

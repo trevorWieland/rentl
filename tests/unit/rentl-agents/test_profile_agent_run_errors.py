@@ -158,3 +158,62 @@ def test_profile_agent_run_retries_on_transient_error() -> None:
 
     assert result.scene_id == "scene_1"
     assert call_count["count"] == 2
+
+
+def test_profile_agent_run_raises_on_wall_clock_timeout() -> None:
+    """RuntimeError is raised when run_timeout_s wall-clock budget is exceeded."""
+
+    class HangingAgent(ProfileAgent[ContextPhaseInput, SceneSummary]):
+        async def _execute(
+            self, payload: ContextPhaseInput
+        ) -> tuple[SceneSummary, None]:
+            await asyncio.sleep(10)
+            return (
+                SceneSummary(
+                    scene_id="scene_1",
+                    summary="ok",
+                    characters=["A"],
+                ),
+                None,
+            )
+
+    args = _build_agent_args()
+    args["config"] = ProfileAgentConfig(
+        api_key="test",
+        base_url="http://localhost",
+        model_id="gpt-5-nano",
+        max_retries=0,
+        retry_base_delay=0.0,
+        run_timeout_s=0.05,
+    )
+    agent = HangingAgent(**args)
+    payload = _build_payload()
+
+    with pytest.raises(RuntimeError, match="wall-clock budget"):
+        asyncio.run(agent.run(payload))
+
+
+def test_profile_agent_run_no_timeout_when_budget_none() -> None:
+    """Agent runs normally when run_timeout_s is not set."""
+
+    class QuickAgent(ProfileAgent[ContextPhaseInput, SceneSummary]):
+        async def _execute(
+            self, payload: ContextPhaseInput
+        ) -> tuple[SceneSummary, None]:
+            return (
+                SceneSummary(
+                    scene_id="scene_1",
+                    summary="ok",
+                    characters=["A"],
+                ),
+                None,
+            )
+
+    args = _build_agent_args()
+    # Explicitly confirm run_timeout_s defaults to None
+    assert args["config"].run_timeout_s is None
+    agent = QuickAgent(**args)
+    payload = _build_payload()
+    result = asyncio.run(agent.run(payload))
+
+    assert result.scene_id == "scene_1"

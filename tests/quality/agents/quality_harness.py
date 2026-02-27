@@ -82,6 +82,7 @@ def build_profile_config(config: QualityModelConfig) -> ProfileAgentConfig:
         max_retries=0,  # No retries — single attempt to avoid timeout amplification
         max_output_retries=1,  # One corrective retry for alignment feedback
         max_requests_per_run=4,  # tool_call + output + 1 output_retry + buffer
+        run_timeout_s=12.0,  # Wall-clock watchdog: 4 requests x 3s = 12s
         retry_base_delay=1.0,
         end_strategy="exhaustive",
         required_tool_calls=["get_game_info"],

@@ -6,6 +6,7 @@ use this runner to verify models through a mini 5-phase pipeline.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -173,6 +174,7 @@ async def _run_phase(
     model_settings: ModelSettings,
     source_line: SourceLine,
     output_retries: int = 2,
+    phase_timeout_s: float | None = None,
 ) -> PhaseResult:
     """Run a single verification phase against a model.
 
@@ -185,6 +187,9 @@ async def _run_phase(
         model_settings: Model settings for the agent call.
         source_line: Golden input source line.
         output_retries: Pydantic-ai output validation retry limit.
+        phase_timeout_s: Wall-clock timeout for the entire phase execution.
+            When set, the phase is cancelled if it exceeds this budget and
+            a structured FAILED result is returned instead of hanging.
 
     Returns:
         PhaseResult with pass/fail and error details.
@@ -200,11 +205,30 @@ async def _run_phase(
             output_retries=output_retries,
             system_prompt=system_prompt,
         )
-        await agent.run(user_prompt, model_settings=model_settings)
+        coro = agent.run(user_prompt, model_settings=model_settings)
+        if phase_timeout_s is not None:
+            await asyncio.wait_for(coro, timeout=phase_timeout_s)
+        else:
+            await coro
         return PhaseResult(
             phase=phase,
             status=PhaseVerificationStatus.PASSED,
             error_message=None,
+        )
+    except TimeoutError:
+        _log.warning(
+            "Phase %s timed out after %.1fs wall-clock budget",
+            phase,
+            phase_timeout_s,
+        )
+        return PhaseResult(
+            phase=phase,
+            status=PhaseVerificationStatus.FAILED,
+            error_message=(
+                f"Phase timed out after {phase_timeout_s}s wall-clock budget. "
+                "The model did not complete within the allocated time. "
+                "Consider increasing timeout_s or max_output_retries in the registry."
+            ),
         )
     except Exception as exc:
         _log.warning("Phase %s failed: %s", phase, exc)
@@ -277,6 +301,11 @@ async def verify_single_phase(
     )
     max_sdk_retries = entry.config_overrides.max_sdk_retries
 
+    # Wall-clock budget: (1 + output_retries) requests x timeout_s per request
+    # Ensures the phase terminates deterministically instead of hanging until
+    # pytest kills it.
+    phase_timeout_s = (1 + output_retries) * timeout_s
+
     model, settings = create_model(
         base_url=endpoint.base_url,
         api_key=api_key,
@@ -316,6 +345,7 @@ async def verify_single_phase(
         model_settings=settings,
         source_line=GOLDEN_SOURCE_LINE,
         output_retries=output_retries,
+        phase_timeout_s=phase_timeout_s,
     )
 
 
@@ -406,6 +436,9 @@ async def verify_model(
         )
         max_sdk_retries = entry.config_overrides.max_sdk_retries
 
+        # Wall-clock budget per phase (same formula as verify_single_phase)
+        phase_timeout_s = (1 + output_retries) * timeout_s
+
         # Build model via provider factory
         model, settings = create_model(
             base_url=endpoint.base_url,
@@ -444,6 +477,7 @@ async def verify_model(
                 model_settings=settings,
                 source_line=GOLDEN_SOURCE_LINE,
                 output_retries=output_retries,
+                phase_timeout_s=phase_timeout_s,
             )
             phase_results.append(result)
             if result.status == PhaseVerificationStatus.FAILED:

@@ -1635,4 +1635,10 @@ def _build_profile_agent_config(
         agent_config = agent_config.model_copy(
             update={"max_output_retries": retry_config.max_output_retries}
         )
+
+    # Derive wall-clock watchdog from request budget x per-request timeout.
+    # Prevents indefinite hangs when provider calls stall beyond SDK timeouts.
+    run_timeout_s = agent_config.max_requests_per_run * agent_config.timeout_s
+    agent_config = agent_config.model_copy(update={"run_timeout_s": run_timeout_s})
+
     return agent_config

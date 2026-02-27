@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
 
@@ -17,6 +18,7 @@ from rentl_core.compatibility.runner import (
 )
 from rentl_core.compatibility.types import (
     ModelVerificationResult,
+    PhaseResult,
     PhaseVerificationStatus,
     RegistryVerificationResult,
 )
@@ -976,3 +978,98 @@ async def test_verify_single_phase_openrouter_passes() -> None:
 
     assert result.status == PhaseVerificationStatus.PASSED
     assert result.phase == PhaseName.QA
+
+
+# ---------------------------------------------------------------------------
+# Phase wall-clock timeout watchdog tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_verify_single_phase_returns_failed_on_wall_clock_timeout() -> None:
+    """Phase returns structured FAILED when wall-clock budget is exceeded."""
+    entry = VerifiedModelEntry(
+        model_id="test/slow-model",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+        config_overrides=VerifiedModelConfigOverrides(
+            timeout_s=0.02,
+            max_output_retries=0,
+        ),
+    )
+    endpoint = _build_openrouter_endpoint()
+
+    async def _hang(*_args: str, **_kwargs: str) -> None:
+        await asyncio.sleep(10)
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = ("fake_model", {"temperature": 0.2})
+        mock_instance = AsyncMock()
+        mock_instance.run = _hang
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_single_phase(
+            entry=entry,
+            endpoint=endpoint,
+            phase_name=PhaseName.CONTEXT,
+        )
+
+    assert result.status == PhaseVerificationStatus.FAILED
+    assert result.phase == PhaseName.CONTEXT
+    assert result.error_message is not None
+    assert "timed out" in result.error_message
+
+
+@pytest.mark.asyncio
+async def test_verify_single_phase_computes_wall_clock_budget() -> None:
+    """verify_single_phase computes phase_timeout_s from registry overrides."""
+    entry = VerifiedModelEntry(
+        model_id="test/model",
+        endpoint_type="openrouter",
+        endpoint_ref="openrouter",
+        config_overrides=VerifiedModelConfigOverrides(
+            timeout_s=5.0,
+            max_output_retries=2,
+        ),
+    )
+    endpoint = _build_openrouter_endpoint()
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner._run_phase",
+        ) as mock_run_phase,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = ("fake_model", {"temperature": 0.2})
+        mock_run_phase.return_value = PhaseResult(
+            phase=PhaseName.CONTEXT,
+            status=PhaseVerificationStatus.PASSED,
+            error_message=None,
+        )
+
+        await verify_single_phase(
+            entry=entry,
+            endpoint=endpoint,
+            phase_name=PhaseName.CONTEXT,
+        )
+
+    # Budget should be (1 + 2) * 5.0 = 15.0
+    call_kwargs = mock_run_phase.call_args.kwargs
+    assert call_kwargs["phase_timeout_s"] == pytest.approx(15.0)

@@ -331,10 +331,12 @@
 - **Files affected:** `packages/rentl-schemas/src/rentl_schemas/data/verified_models.toml`
 
 - **Task:** Task 6 / Task 9 (gate triage round 10 / round 2)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Quality-phase execution still relies on provider-level timeout behavior with no outer wall-clock guard, so stalled model calls can run until pytest kills the test instead of returning structured phase failures.
 - **Evidence:** Current gate output includes raw pytest timeouts in both compatibility and pipeline paths: `test_verified_model_passes_phase[z-ai/glm-5-edit]`, `test_verified_model_passes_phase[minimax/minimax-m2.5-qa]`, and `test_translate_phase_produces_translated_output` all fail with `Failed: Timeout (>30.0s) from pytest-timeout`.
 - **Evidence:** Compatibility `_run_phase` awaits `agent.run(...)` directly with no `asyncio.wait_for` guard (`packages/rentl-core/src/rentl_core/compatibility/runner.py:166-204`), and pipeline runtime `ProfileAgent.run` iterates `agent.iter(...)` directly with no outer watchdog (`packages/rentl-agents/src/rentl_agents/runtime.py:693-700`).
 - **Evidence:** Failing pipeline run artifacts show the translate phase stuck after `agent_started` with no completion/failure event before timeout kill (`/tmp/pytest-of-trevor/pytest-1353/test_translate_phase_produces_0/workspace/logs/019c9f9e-9fdf-7500-80c4-ad9c7c198ae6.jsonl`).
 - **Impact:** Gate failures are reported as infrastructure timeouts instead of actionable model/phase diagnostics, which breaks deterministic triage and causes recurring false regressions under the 30s quality cap.
-- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-agents/src/rentl_agents/runtime.py`, `tests/quality/pipeline/test_golden_script_pipeline.py`
+- **Solution:** Added deterministic wall-clock timeout guards at both execution layers: (1) Compatibility `_run_phase` now accepts `phase_timeout_s` and wraps `agent.run(...)` with `asyncio.wait_for`, returning structured `FAILED` PhaseResult on timeout. `verify_single_phase` computes budget as `(1 + output_retries) x timeout_s`. (2) `ProfileAgent.run` now accepts `run_timeout_s` in `ProfileAgentConfig`, tracks a monotonic deadline across retry attempts, and wraps each `_execute()` call with `asyncio.wait_for(remaining)`. Timeout raises `RuntimeError` with wall-clock budget diagnostic. (3) Pipeline wiring auto-derives `run_timeout_s = max_requests_per_run x timeout_s`. Quality harness sets explicit 12s budget. Added regression tests for both paths.
+- **Resolution:** do-task round 11
+- **Files affected:** `packages/rentl-core/src/rentl_core/compatibility/runner.py`, `packages/rentl-agents/src/rentl_agents/runtime.py`, `packages/rentl-agents/src/rentl_agents/wiring.py`, `tests/quality/agents/quality_harness.py`, `tests/unit/core/compatibility/test_runner.py`, `tests/unit/rentl-agents/test_profile_agent_run_errors.py`
