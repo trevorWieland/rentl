@@ -309,13 +309,15 @@
 - **Files affected:** `tests/quality/compatibility/conftest.py`, `tests/unit/core/compatibility/test_runner.py`
 
 - **Task:** Task 6 (gate triage round 9)
-- **Status:** unresolved
+- **Status:** resolved
 - **Problem:** Quality timeout budgeting is still computed from retry counts alone and misses multi-request execution paths (required tool-call turns plus judge execution), so tests can exceed the 30s cap even with low `timeout_s` settings.
 - **Evidence:** Current gate output times out both `tests/quality/agents/test_pretranslation_agent.py::test_pretranslation_agent_evaluation_passes` and `tests/quality/pipeline/test_golden_script_pipeline.py::test_translate_phase_produces_translated_output` with `Failed: Timeout (>30.0s) from pytest-timeout`.
 - **Evidence:** Pretranslation quality eval now runs the live agent and `LLMJudge` in the same dataset (`tests/quality/agents/test_pretranslation_agent.py:130-157`), while harness limits are tuned as `timeout_s=5.0` / `max_requests_per_run=3` (`tests/quality/agents/quality_harness.py:81-84`).
 - **Evidence:** Both pretranslation and translate agent profiles require `get_game_info` tool calls (`packages/rentl-agents/src/rentl_agents/agents/pretranslation/idiom_labeler.toml:20-27`, `packages/rentl-agents/src/rentl_agents/agents/translate/direct_translator.toml:46`, `packages/rentl-agents/src/rentl_agents/agents/translate/direct_translator.toml:93-94`), and chunk retry count is `max_output_retries + 1` (`packages/rentl-agents/src/rentl_agents/wiring.py:150-153`), so one logical attempt can involve multiple model requests.
 - **Impact:** Quality failures surface as timeout kills before phase assertions, making regressions hard to diagnose and violating `test-timing-rules` predictability.
-- **Files affected:** `tests/quality/agents/test_pretranslation_agent.py`, `tests/quality/agents/quality_harness.py`, `tests/quality/pipeline/test_golden_script_pipeline.py`, `packages/rentl-agents/src/rentl_agents/wiring.py`, `packages/rentl-agents/src/rentl_agents/agents/pretranslation/idiom_labeler.toml`, `packages/rentl-agents/src/rentl_agents/agents/translate/direct_translator.toml`
+- **Solution:** Retuned quality budgets from actual request-path semantics: (1) pretranslation harness `timeout_s` 5.0→3.0, `max_requests_per_run` 3→4 (accounts for tool_call + output + 1 output_retry + buffer), judge `timeout_s` 5.0→3.0; worst case: 2 chunk attempts × 3 requests × 3s = 18s agent + 3s judge = 21s. (2) Pipeline translate config `timeout_s` 8→4, `max_output_retries` 1→0 (eliminates chunk retry amplification); worst case: 1 chunk × 2 requests × 4s = 8s agent.
+- **Resolution:** do-task round 10
+- **Files affected:** `tests/quality/agents/quality_harness.py`, `tests/quality/pipeline/test_golden_script_pipeline.py`
 
 - **Task:** Task 9 (gate triage round 1)
 - **Status:** unresolved

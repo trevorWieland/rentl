@@ -34,8 +34,9 @@ if TYPE_CHECKING:
 scenarios("../features/pipeline/golden_script_pipeline.feature")
 
 # Global timeout (30s) from pyproject.toml enforces quality test < 30s standard.
-# Endpoint timeout_s = 8 (matching quality_harness) leaves ~22s headroom for
-# pipeline overhead (ingest, export, setup) within the 30s budget.
+# Budget: translate agent = tool_call(4s) + output(4s) = 8s worst case
+# (max_output_retries=0 eliminates chunk retry amplification).
+# Pipeline overhead (ingest, export, setup) gets ~22s headroom.
 
 # Single line from golden script — minimal input to validate pipeline
 # integration path. Translation quality is covered by agent quality tests.
@@ -141,7 +142,7 @@ def _write_pipeline_config(
         'provider_name = "primary"\n'
         f'base_url = "{base_url}"\n'
         'api_key_env = "RENTL_QUALITY_API_KEY"\n'
-        "timeout_s = 8\n"
+        "timeout_s = 4\n"
         "\n"
         "[pipeline.default_model]\n"
         f'model_id = "{model_id}"\n'
@@ -154,7 +155,7 @@ def _write_pipeline_config(
         "\n"
         "[retry]\n"
         "max_retries = 0\n"
-        "max_output_retries = 1\n"
+        "max_output_retries = 0\n"
         "backoff_s = 1.0\n"
         "max_backoff_s = 2.0\n"
         "\n"
