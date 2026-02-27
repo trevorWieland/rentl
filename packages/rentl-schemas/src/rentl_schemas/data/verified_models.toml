@@ -15,8 +15,8 @@
 # parametrization), so each test makes a single LLM call.  Budget per test:
 #   (1 + max_output_retries) × timeout_s  ≤  30 s
 #
-# Per-endpoint-type defaults (tuned with ~6-10 s headroom):
-#   Local:       timeout_s=8.0, max_output_retries=2  → (1+2)×8  = 24 s
+# Per-endpoint-type defaults (tuned with ~2-10 s headroom):
+#   Local:       timeout_s=7.0, max_output_retries=3  → (1+3)×7  = 28 s
 #   OpenRouter:  timeout_s=10.0, max_output_retries=1 → (1+1)×10 = 20 s
 #
 # All entries set max_sdk_retries = 0 to disable OpenAI SDK-level HTTP
@@ -34,9 +34,9 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 8.0
+timeout_s = 7.0
 load_timeout_s = 120.0
-max_output_retries = 2
+max_output_retries = 3
 max_sdk_retries = 0
 
 [[models]]
@@ -46,9 +46,9 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 8.0
+timeout_s = 7.0
 load_timeout_s = 120.0
-max_output_retries = 2
+max_output_retries = 3
 max_sdk_retries = 0
 
 [[models]]
@@ -58,9 +58,9 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 8.0
+timeout_s = 7.0
 load_timeout_s = 120.0
-max_output_retries = 2
+max_output_retries = 3
 max_sdk_retries = 0
 
 [[models]]
@@ -70,9 +70,9 @@ endpoint_ref = "lm-studio"
 load_endpoint = "http://192.168.1.23:1234/api/v1/models/load"
 
 [models.config_overrides]
-timeout_s = 8.0
+timeout_s = 7.0
 load_timeout_s = 120.0
-max_output_retries = 2
+max_output_retries = 3
 max_sdk_retries = 0
 
 # ──────────────────────────────────────────────────────────────
@@ -109,6 +109,7 @@ endpoint_ref = "openrouter"
 timeout_s = 10.0
 max_output_retries = 1
 max_sdk_retries = 0
+supports_tool_choice_required = false
 
 [[models]]
 model_id = "openai/gpt-oss-120b"
@@ -116,8 +117,8 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 10.0
-max_output_retries = 1
+timeout_s = 8.0
+max_output_retries = 2
 max_sdk_retries = 0
 
 [[models]]
