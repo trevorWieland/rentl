@@ -74,21 +74,23 @@ _TARGET_LANGUAGE = "en"
 
 
 # Context phase — SceneSummary list wrapper
-class _ContextOutput(BaseSchema):
+class ContextOutput(BaseSchema):
     """Minimal context phase output for verification."""
 
     scene_summaries: list[SceneSummary] = Field(
-        default_factory=list,
+        ...,
+        min_length=1,
         description="Scene summaries from context analysis",
     )
 
 
 # Edit phase — line edit list wrapper
-class _EditOutput(BaseSchema):
+class EditOutput(BaseSchema):
     """Minimal edit phase output for verification."""
 
     edited_lines: list[TranslationResultLine] = Field(
-        default_factory=list,
+        ...,
+        min_length=1,
         description="Edited translation lines",
     )
     changes: list[LineEdit] = Field(
@@ -112,7 +114,7 @@ PHASE_CONFIGS: list[tuple[PhaseName, str, str, type[BaseSchema]]] = [
             '{{"scene_summaries": [{{"scene_id": "scene_001", '
             '"summary": "<1 sentence>", "characters": []}}]}}'
         ),
-        _ContextOutput,
+        ContextOutput,
     ),
     (
         PhaseName.PRETRANSLATION,
@@ -164,9 +166,54 @@ PHASE_CONFIGS: list[tuple[PhaseName, str, str, type[BaseSchema]]] = [
             '"text": "<edited text>"}}], '
             '"changes": []}}'
         ),
-        _EditOutput,
+        EditOutput,
     ),
 ]
+
+
+def validate_output(
+    phase: PhaseName,
+    output: BaseSchema,
+    source_line: SourceLine,
+) -> str | None:
+    """Validate that a phase output has the correct count and IDs.
+
+    Returns:
+        None if valid, an error message string if not.
+    """
+    if phase == PhaseName.CONTEXT:
+        items = output.scene_summaries  # type: ignore[attr-defined]
+        if len(items) != 1:
+            return f"Expected 1 scene_summary, got {len(items)}"
+        if items[0].scene_id != source_line.scene_id:
+            return (
+                f"Expected scene_id='{source_line.scene_id}', got '{items[0].scene_id}'"
+            )
+    elif phase == PhaseName.PRETRANSLATION:
+        items = output.reviews  # type: ignore[attr-defined]
+        if len(items) != 1:
+            return f"Expected 1 pretranslation review, got {len(items)}"
+        if items[0].line_id != source_line.line_id:
+            return f"Expected line_id='{source_line.line_id}', got '{items[0].line_id}'"
+    elif phase == PhaseName.TRANSLATE:
+        items = output.translations  # type: ignore[attr-defined]
+        if len(items) != 1:
+            return f"Expected 1 translation, got {len(items)}"
+        if items[0].line_id != source_line.line_id:
+            return f"Expected line_id='{source_line.line_id}', got '{items[0].line_id}'"
+    elif phase == PhaseName.QA:
+        items = output.reviews  # type: ignore[attr-defined]
+        if len(items) != 1:
+            return f"Expected 1 QA review, got {len(items)}"
+        if items[0].line_id != source_line.line_id:
+            return f"Expected line_id='{source_line.line_id}', got '{items[0].line_id}'"
+    elif phase == PhaseName.EDIT:
+        items = output.edited_lines  # type: ignore[attr-defined]
+        if len(items) != 1:
+            return f"Expected 1 edited_line, got {len(items)}"
+        if items[0].line_id != source_line.line_id:
+            return f"Expected line_id='{source_line.line_id}', got '{items[0].line_id}'"
+    return None
 
 
 async def _run_phase(
@@ -212,9 +259,25 @@ async def _run_phase(
         )
         coro = agent.run(user_prompt, model_settings=model_settings)
         if phase_timeout_s is not None:
-            await asyncio.wait_for(coro, timeout=phase_timeout_s)
+            result = await asyncio.wait_for(coro, timeout=phase_timeout_s)
         else:
-            await coro
+            result = await coro
+        output = result.output
+        assert isinstance(output, BaseSchema), (
+            f"Expected BaseSchema, got {type(output).__name__}"
+        )
+        error = validate_output(phase, output, source_line)
+        if error:
+            _log.warning("Phase %s output validation failed: %s", phase, error)
+            return PhaseResult(
+                phase=phase,
+                status=PhaseVerificationStatus.FAILED,
+                error_message=(
+                    f"Output validation failed: {error}. "
+                    "The model produced valid JSON but with incorrect "
+                    "count or IDs for the input."
+                ),
+            )
         return PhaseResult(
             phase=phase,
             status=PhaseVerificationStatus.PASSED,
@@ -257,7 +320,7 @@ async def verify_single_phase(
     """Verify a single pipeline phase for one model.
 
     Designed for per-phase quality tests where each test case runs one
-    LLM call, easily fitting within the 30s quality timeout.
+    LLM call, easily fitting within the 45s quality timeout.
 
     For local models, the caller is responsible for model loading/unloading
     lifecycle management (use ``load_lm_studio_model`` / ``unload_lm_studio_model``

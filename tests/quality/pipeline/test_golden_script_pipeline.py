@@ -33,10 +33,10 @@ if TYPE_CHECKING:
 # Link feature file
 scenarios("../features/pipeline/golden_script_pipeline.feature")
 
-# Global timeout (30s) from pyproject.toml enforces quality test < 30s standard.
+# Global timeout (45s) from pyproject.toml enforces quality test < 45s standard.
 # Budget: translate agent = tool_call(4s) + output(4s) = 8s worst case
 # (max_output_retries=0 eliminates chunk retry amplification).
-# Pipeline overhead (ingest, export, setup) gets ~22s headroom.
+# Pipeline overhead (ingest, export, setup) gets ~37s headroom.
 
 # Single line from golden script — minimal input to validate pipeline
 # integration path. Translation quality is covered by agent quality tests.

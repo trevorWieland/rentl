@@ -12,6 +12,9 @@ from rentl_core.compatibility.loader import ModelLoadError, ModelUnloadError
 from rentl_core.compatibility.runner import (
     GOLDEN_SOURCE_LINE,
     PHASE_CONFIGS,
+    ContextOutput,
+    EditOutput,
+    validate_output,
     verify_model,
     verify_registry,
     verify_single_phase,
@@ -28,6 +31,15 @@ from rentl_schemas.compatibility import (
     VerifiedModelRegistry,
 )
 from rentl_schemas.config import ModelEndpointConfig
+from rentl_schemas.phases import (
+    IdiomAnnotationList,
+    IdiomReviewLine,
+    SceneSummary,
+    StyleGuideReviewLine,
+    StyleGuideReviewList,
+    TranslationResultLine,
+    TranslationResultList,
+)
 from rentl_schemas.primitives import PhaseName
 
 
@@ -77,13 +89,128 @@ def _build_local_entry() -> VerifiedModelEntry:
 class _FakeAgentResult:
     """Fake for pydantic-ai Agent.run() result."""
 
-    output: str | None
+    output: object
+
+
+# ---------------------------------------------------------------------------
+# Golden output factories — produce valid outputs matching GOLDEN_SOURCE_LINE
+# ---------------------------------------------------------------------------
+
+_GOLDEN_LINE_ID = GOLDEN_SOURCE_LINE.line_id
+
+assert GOLDEN_SOURCE_LINE.scene_id is not None, (
+    "Golden source line must have a scene_id for context phase validation"
+)
+_GOLDEN_SCENE_ID = GOLDEN_SOURCE_LINE.scene_id
+
+
+def _golden_context_output() -> ContextOutput:
+    return ContextOutput(
+        scene_summaries=[
+            SceneSummary(
+                scene_id=_GOLDEN_SCENE_ID,
+                summary="Cherry blossoms at the school gate.",
+                characters=[],
+            ),
+        ],
+    )
+
+
+def _golden_pretranslation_output() -> IdiomAnnotationList:
+    return IdiomAnnotationList(
+        reviews=[IdiomReviewLine(line_id=_GOLDEN_LINE_ID, idioms=[])],
+    )
+
+
+_GOLDEN_TRANSLATION = (
+    "Cherry blossom petals dance at the school gate on a spring morning."
+)
+
+
+def _golden_translate_output() -> TranslationResultList:
+    return TranslationResultList(
+        translations=[
+            TranslationResultLine(
+                line_id=_GOLDEN_LINE_ID,
+                text=_GOLDEN_TRANSLATION,
+            ),
+        ],
+    )
+
+
+def _golden_qa_output() -> StyleGuideReviewList:
+    return StyleGuideReviewList(
+        reviews=[
+            StyleGuideReviewLine(line_id=_GOLDEN_LINE_ID, violations=[]),
+        ],
+    )
+
+
+def _golden_edit_output() -> EditOutput:
+    return EditOutput(
+        edited_lines=[
+            TranslationResultLine(
+                line_id=_GOLDEN_LINE_ID,
+                text=_GOLDEN_TRANSLATION,
+            ),
+        ],
+        changes=[],
+    )
+
+
+_GOLDEN_OUTPUTS_ORDERED = [
+    _golden_context_output,
+    _golden_pretranslation_output,
+    _golden_translate_output,
+    _golden_qa_output,
+    _golden_edit_output,
+]
+
+
+_GOLDEN_OUTPUT_BY_PHASE = {
+    PhaseName.CONTEXT: _golden_context_output,
+    PhaseName.PRETRANSLATION: _golden_pretranslation_output,
+    PhaseName.TRANSLATE: _golden_translate_output,
+    PhaseName.QA: _golden_qa_output,
+    PhaseName.EDIT: _golden_edit_output,
+}
+
+
+def _make_cycling_side_effect():  # noqa: ANN202
+    """Create a side_effect callable that cycles through golden outputs.
+
+    Returns:
+        A callable side_effect for AsyncMock.
+    """
+    counter = {"n": 0}
+
+    def _side_effect(
+        *args: str,
+        **kwargs: str | int | float | bool | None,
+    ) -> _FakeAgentResult:
+        idx = counter["n"]
+        counter["n"] += 1
+        return _FakeAgentResult(
+            _GOLDEN_OUTPUTS_ORDERED[idx % len(_GOLDEN_OUTPUTS_ORDERED)]()
+        )
+
+    return _side_effect
 
 
 async def test_verify_model_all_phases_pass() -> None:
-    """All 5 phases pass when Agent.run() succeeds."""
+    """All 5 phases pass when Agent.run() succeeds with correct outputs."""
     entry = _build_openrouter_entry()
     endpoint = _build_openrouter_endpoint()
+
+    call_count = 0
+
+    def _side_effect(
+        *args: str,
+        **kwargs: str | int | float | bool | None,
+    ) -> _FakeAgentResult:
+        nonlocal call_count
+        call_count += 1
+        return _FakeAgentResult(_GOLDEN_OUTPUTS_ORDERED[call_count - 1]())
 
     with (
         patch(
@@ -103,7 +230,7 @@ async def test_verify_model_all_phases_pass() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_side_effect,
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -136,7 +263,7 @@ async def test_verify_model_phase_failure() -> None:
         call_count += 1
         if call_count == 3:
             raise RuntimeError("output validation failed")
-        return _FakeAgentResult(None)
+        return _FakeAgentResult(_GOLDEN_OUTPUTS_ORDERED[call_count - 1]())
 
     with (
         patch(
@@ -195,7 +322,7 @@ async def test_verify_model_fail_fast_skips_remaining_phases() -> None:
         call_count += 1
         if call_count == 1:
             raise RuntimeError("context phase failed")
-        return _FakeAgentResult(None)
+        return _FakeAgentResult(_GOLDEN_OUTPUTS_ORDERED[call_count - 1]())
 
     with (
         patch(
@@ -241,6 +368,16 @@ async def test_verify_model_local_loads_first() -> None:
     entry = _build_local_entry()
     endpoint = _build_local_endpoint()
 
+    call_count = 0
+
+    def _side_effect(
+        *args: str,
+        **kwargs: str | int | float | bool | None,
+    ) -> _FakeAgentResult:
+        nonlocal call_count
+        call_count += 1
+        return _FakeAgentResult(_GOLDEN_OUTPUTS_ORDERED[call_count - 1]())
+
     with (
         patch(
             "rentl_core.compatibility.runner.create_model",
@@ -265,7 +402,7 @@ async def test_verify_model_local_loads_first() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_side_effect,
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -344,7 +481,7 @@ async def test_verify_registry_filter_endpoint() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -396,7 +533,7 @@ async def test_verify_registry_filter_model() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -460,7 +597,7 @@ async def test_verify_model_forwards_supports_tool_choice_required() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -502,7 +639,7 @@ async def test_verify_model_forwards_max_output_retries() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -546,7 +683,7 @@ async def test_verify_model_forwards_max_sdk_retries() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -580,7 +717,7 @@ async def test_verify_model_max_sdk_retries_none_by_default() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -638,7 +775,7 @@ async def test_verify_model_local_unloads_after_success() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -729,7 +866,7 @@ async def test_verify_model_local_unload_failure_does_not_raise() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -780,7 +917,7 @@ async def test_verify_model_local_uses_load_timeout_for_load_and_unload() -> Non
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -835,7 +972,7 @@ async def test_verify_model_openrouter_does_not_unload() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -881,7 +1018,7 @@ async def test_verify_single_phase_does_not_load_or_unload() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -966,7 +1103,7 @@ async def test_verify_single_phase_openrouter_passes() -> None:
         )
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            return_value=_FakeAgentResult(_golden_qa_output()),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -1103,7 +1240,7 @@ async def test_verify_single_phase_forwards_max_output_tokens() -> None:
         mock_create.return_value = ("fake_model", {"temperature": 0.2})
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -1144,7 +1281,7 @@ async def test_verify_single_phase_uses_default_max_output_tokens() -> None:
         mock_create.return_value = ("fake_model", {"temperature": 0.2})
         mock_instance = AsyncMock()
         mock_instance.run = AsyncMock(
-            return_value=_FakeAgentResult(None),
+            side_effect=_make_cycling_side_effect(),
         )
         mock_agent_cls.return_value = mock_instance
 
@@ -1156,3 +1293,104 @@ async def test_verify_single_phase_uses_default_max_output_tokens() -> None:
 
     call_kwargs = mock_create.call_args.kwargs
     assert call_kwargs["max_output_tokens"] == 1024
+
+
+# ---------------------------------------------------------------------------
+# _validate_output unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_validate_output_accepts_correct_outputs() -> None:
+    """All 5 golden outputs pass validation for their respective phases."""
+    for phase, factory in _GOLDEN_OUTPUT_BY_PHASE.items():
+        result = validate_output(phase, factory(), GOLDEN_SOURCE_LINE)
+        assert result is None, f"Phase {phase} should pass but got: {result}"
+
+
+def test_validate_output_rejects_wrong_line_id() -> None:
+    """Translate output with wrong line_id is rejected."""
+    wrong_id = "scene_999_9999"
+    bad_output = TranslationResultList(
+        translations=[
+            TranslationResultLine(line_id=wrong_id, text="some text"),
+        ],
+    )
+    result = validate_output(PhaseName.TRANSLATE, bad_output, GOLDEN_SOURCE_LINE)
+    assert result is not None
+    assert "line_id" in result
+    assert wrong_id in result
+
+
+def test_validate_output_rejects_wrong_scene_id() -> None:
+    """Context output with wrong scene_id is rejected."""
+    wrong_id = "scene_999"
+    bad_output = ContextOutput(
+        scene_summaries=[
+            SceneSummary(
+                scene_id=wrong_id,
+                summary="A summary.",
+                characters=[],
+            ),
+        ],
+    )
+    result = validate_output(PhaseName.CONTEXT, bad_output, GOLDEN_SOURCE_LINE)
+    assert result is not None
+    assert "scene_id" in result
+    assert wrong_id in result
+
+
+def test_validate_output_rejects_extra_items() -> None:
+    """Pretranslation with 2 reviews is rejected."""
+    bad_output = IdiomAnnotationList(
+        reviews=[
+            IdiomReviewLine(line_id=_GOLDEN_LINE_ID, idioms=[]),
+            IdiomReviewLine(line_id=_GOLDEN_LINE_ID, idioms=[]),
+        ],
+    )
+    result = validate_output(PhaseName.PRETRANSLATION, bad_output, GOLDEN_SOURCE_LINE)
+    assert result is not None
+    assert "Expected 1" in result
+    assert "got 2" in result
+
+
+async def test_run_phase_fails_on_wrong_line_id() -> None:
+    """End-to-end: _run_phase returns FAILED when output has wrong line_id."""
+    entry = _build_openrouter_entry()
+    endpoint = _build_openrouter_endpoint()
+
+    wrong_id = "scene_999_9999"
+    bad_output = TranslationResultList(
+        translations=[
+            TranslationResultLine(line_id=wrong_id, text="some translation"),
+        ],
+    )
+
+    with (
+        patch(
+            "rentl_core.compatibility.runner.create_model",
+        ) as mock_create,
+        patch(
+            "rentl_core.compatibility.runner.Agent",
+        ) as mock_agent_cls,
+        patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "test-key"},
+        ),
+    ):
+        mock_create.return_value = ("fake_model", {"temperature": 0.2})
+        mock_instance = AsyncMock()
+        mock_instance.run = AsyncMock(
+            return_value=_FakeAgentResult(bad_output),
+        )
+        mock_agent_cls.return_value = mock_instance
+
+        result = await verify_single_phase(
+            entry=entry,
+            endpoint=endpoint,
+            phase_name=PhaseName.TRANSLATE,
+        )
+
+    assert result.status == PhaseVerificationStatus.FAILED
+    assert result.error_message is not None
+    assert "Output validation failed" in result.error_message
+    assert "line_id" in result.error_message

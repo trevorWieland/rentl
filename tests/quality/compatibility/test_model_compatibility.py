@@ -3,7 +3,7 @@
 Parametrized from the verified-models registry. Each registered model x
 pipeline phase combination gets its own test case (9 models x 5 phases =
 45 tests), so each test makes a single LLM call and easily fits within
-the 30s quality timeout.
+the 45s quality timeout.
 
 No test skipping — missing env vars fail loudly.
 """

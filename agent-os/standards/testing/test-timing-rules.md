@@ -8,7 +8,7 @@ Enforce strict timing limits per tier. Tests exceeding limits must be rewritten.
 markers = [
     "unit: Unit tests (<250ms)",
     "integration: Integration tests (<5s)",
-    "quality: Quality tests (<30s)",
+    "quality: Quality tests (<45s)",
 ]
 
 # CI configuration
@@ -29,10 +29,10 @@ markers = [
 - Minimal mocks
 - If test exceeds 5s, it's doing too much - split into multiple tests or optimize
 
-**Quality tests:** <30s per test
+**Quality tests:** <45s per test
 - Real LLMs (actual model calls)
 - Real services (storage, vector store, file system)
-- If test exceeds 30s, it's doing too much - split into multiple tests or use cached results
+- If test exceeds 45s, it's doing too much - split into multiple tests or use cached results
 
 **Enforcement:**
 

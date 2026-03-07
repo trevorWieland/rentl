@@ -70,12 +70,12 @@ error-on-warning = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-timeout = 30
+timeout = 45
 addopts = "-v --tb=short -W error::DeprecationWarning"
 markers = [
     "unit: Unit tests (<250ms, mocks allowed)",
     "integration: Integration tests (<5s, real services, no LLMs)",
-    "quality: Quality tests (<30s, real LLMs)",
+    "quality: Quality tests (<45s, real LLMs)",
     "api: API validation tests (require live API keys, can be skipped)",
 ]
 

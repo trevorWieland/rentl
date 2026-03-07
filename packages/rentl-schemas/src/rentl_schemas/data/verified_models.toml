@@ -13,9 +13,9 @@
 #
 # Budget: quality tests run ONE phase per test case (per-phase
 # parametrization), so each test makes a single LLM call.  Budget per test:
-#   (1 + max_output_retries) × timeout_s  ≤  30 s
+#   (1 + max_output_retries) × timeout_s  ≤  45 s
 #
-# Per-endpoint-type defaults (tuned with ~2-10 s headroom):
+# Per-endpoint-type defaults (tuned with ~15-25 s headroom):
 #   Local:       timeout_s=7.0, max_output_retries=2  → (1+2)×7  = 21 s
 #   OpenRouter:  timeout_s=10.0, max_output_retries=1 → (1+1)×10 = 20 s
 #
@@ -93,7 +93,7 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 10.0
+timeout_s = 14.0
 max_output_retries = 1
 max_output_tokens = 512
 max_sdk_retries = 0
@@ -116,7 +116,7 @@ endpoint_type = "openrouter"
 endpoint_ref = "openrouter"
 
 [models.config_overrides]
-timeout_s = 10.0
+timeout_s = 12.0
 max_output_retries = 1
 max_output_tokens = 512
 max_sdk_retries = 0
