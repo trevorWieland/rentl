@@ -4,36 +4,35 @@ Quality tests use real LLMs (actual model calls). Integration tests must mock LL
 
 ```python
 # ✓ Good: Quality test with real LLM
-# tests/quality/core/translation.py
-from rentl_core.adapters.model.openai_client import OpenAIClient
+# tests/quality/core/processing.py
+from myproject.adapters.llm_client import LLMClient
 
-async def test_translation_quality_with_real_llm(given_translation_request):
-    """Test translation quality with actual model call."""
-    client = OpenAIClient(base_url="https://api.openai.com/v1", api_key="test-key")
-    result = await client.translate(given_translation_request)
+async def test_output_quality_with_real_llm(given_request):
+    """Test output quality with actual model call."""
+    client = LLMClient(base_url="https://api.openai.com/v1", api_key="test-key")
+    result = await client.generate(given_request)
 
     # Validate actual model output, not mocked response
     assert result.text is not None
     assert len(result.text) > 0
-    assert result.model == "gpt-4"
 
 # ✓ Good: Integration test with mocked LLM
-# tests/integration/core/translation.py
+# tests/integration/core/processing.py
 from unittest.mock import AsyncMock
 
-async def test_translation_flow(given_translation_request):
-    """Test translation flow with mocked LLM (no real calls)."""
+async def test_processing_flow(given_task_request):
+    """Test processing flow with mocked LLM (no real calls)."""
     mock_client = AsyncMock()
-    mock_client.translate.return_value = TranslationResult(text="mocked text", model="gpt-4")
+    mock_client.process.return_value = TaskResult(text="mocked text", model="gpt-4")
 
-    result = await mock_client.translate(given_translation_request)
+    result = await mock_client.process(given_task_request)
     assert result.text == "mocked text"  # Verify mock, not real model
 
 # ✗ Bad: Quality test with mocked LLM
-async def test_translation_quality(given_translation_request):
+async def test_output_quality(given_task_request):
     """Quality test must NOT mock LLM."""
     mock_client = AsyncMock()
-    mock_client.translate.return_value = TranslationResult(text="mocked text")
+    mock_client.process.return_value = TaskResult(text="mocked text")
     # This validates mock, not real model behavior - FAILS QA PURPOSE
 ```
 
@@ -69,7 +68,7 @@ async def test_translation_quality(given_translation_request):
 - Quality tests (defeats purpose)
 - Validating model-specific behavior
 - Testing prompt engineering effectiveness
-- Validating actual translation quality
+- Validating actual output quality
 
 **Never use real LLMs for:**
 - Unit tests (should be <250ms)
