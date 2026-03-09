@@ -11,7 +11,7 @@ The `naming-conventions` standard omits `SCREAMING_SNAKE_CASE` for module-level 
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [x] Task 2: Update `naming-conventions.md`
+- [ ] Task 2: Update `naming-conventions.md`
   - Add `SCREAMING_SNAKE_CASE` rule for module-level constants under the Python code naming section
   - Include clear guidance: constants that are immutable and module-scoped use `SCREAMING_SNAKE_CASE`
   - Add real code examples sourced from the rentl codebase (e.g. `CURRENT_SCHEMA_VERSION`, `REQUIRED_COLUMNS`, `OPENROUTER_CAPABILITIES`)
