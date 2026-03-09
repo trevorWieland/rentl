@@ -14,7 +14,7 @@ architecture:
   log-line-format:
     description: All log lines use stable JSONL pydantic-based schema with {timestamp, level, event, run_id, phase, message, data} fields
   naming-conventions:
-    description: Use consistent naming conventions across all code; snake_case for modules/functions/variables, PascalCase for classes/types
+    description: Use consistent naming conventions across all code; SCREAMING_SNAKE_CASE for module-level constants, snake_case for modules/functions/variables, PascalCase for classes/types
   none-vs-empty:
     description: Meaning of None vs empty lists in schemas
   openrouter-provider-routing:
