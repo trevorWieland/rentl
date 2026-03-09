@@ -47,8 +47,10 @@ Use `SCREAMING_SNAKE_CASE` for module-level constants — values that are immuta
 CURRENT_SCHEMA_VERSION = (0, 1, 0)
 REQUIRED_COLUMNS = ("line_id", "text")
 OPENROUTER_CAPABILITIES = ProviderCapabilities(
-    supports_streaming=True,
-    supports_tools=True,
+    name="OpenRouter",
+    is_openrouter=True,
+    supports_tool_calling=True,
+    supports_tool_choice_required=True,
 )
 
 # ✗ Bad: snake_case for module-level constants
