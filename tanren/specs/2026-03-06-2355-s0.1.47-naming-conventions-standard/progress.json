@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {"task_id": 1, "name": "Task 1: Save Spec Documentation", "status": "completed"},
+    {"task_id": 2, "name": "Task 2: Update naming-conventions.md", "status": "completed"},
+    {"task_id": 3, "name": "Task 3: Scan and fix incorrectly-cased constants", "status": "pending"},
+    {"task_id": 4, "name": "Task 4: Update index.yml", "status": "pending"},
+    {"task_id": 5, "name": "Task 5: Verify demo steps pass", "status": "pending"}
+  ]
+}
