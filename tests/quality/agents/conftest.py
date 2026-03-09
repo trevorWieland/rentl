@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
@@ -20,6 +22,18 @@ def quality_model_config() -> QualityModelConfig:
     Returns:
         Quality model configuration.
     """
+    required_vars = [
+        "RENTL_QUALITY_API_KEY",
+        "RENTL_QUALITY_BASE_URL",
+        "RENTL_QUALITY_MODEL",
+        "RENTL_QUALITY_JUDGE_MODEL",
+        "RENTL_QUALITY_JUDGE_BASE_URL",
+    ]
+    missing = [v for v in required_vars if not os.getenv(v)]
+    if missing:
+        pytest.skip(  # type: ignore
+            f"Quality evals require environment variables: {', '.join(missing)}"  # type: ignore
+        )
     return load_quality_model_config()
 
 

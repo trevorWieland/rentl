@@ -63,13 +63,12 @@ def given_openrouter_preset() -> PresetValidationContext:
     Returns:
         PresetValidationContext with API key loaded.
 
-    Raises:
-        ValueError: If RENTL_QUALITY_API_KEY is not set.
+    Skips if RENTL_QUALITY_API_KEY is not set.
     """
     ctx = PresetValidationContext()
     api_key = os.environ.get("RENTL_QUALITY_API_KEY")
     if not api_key:
-        raise ValueError("RENTL_QUALITY_API_KEY must be set for quality tests")
+        pytest.skip("Quality tests require RENTL_QUALITY_API_KEY")  # type: ignore
     ctx.api_key = api_key
     return ctx
 

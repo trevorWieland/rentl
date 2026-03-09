@@ -122,13 +122,12 @@ def create_sample_outputs(ctx: BenchmarkContext) -> None:
 def verify_llm_endpoints(ctx: BenchmarkContext) -> None:
     """Verify that real LLM endpoint configuration is available.
 
-    Raises:
-        ValueError: If required environment variables are not set.
+    Skips if required environment variables are not set.
     """
-    if not os.getenv("RENTL_QUALITY_API_KEY"):
-        raise ValueError("RENTL_QUALITY_API_KEY must be set for quality tests")
-    if not os.getenv("RENTL_QUALITY_BASE_URL"):
-        raise ValueError("RENTL_QUALITY_BASE_URL must be set for quality tests")
+    required_vars = ["RENTL_QUALITY_API_KEY", "RENTL_QUALITY_BASE_URL"]
+    missing = [v for v in required_vars if not os.getenv(v)]
+    if missing:
+        pytest.skip(f"Quality tests require environment variables: {', '.join(missing)}")  # type: ignore
 
 
 @when("I run benchmark compare on the output files")

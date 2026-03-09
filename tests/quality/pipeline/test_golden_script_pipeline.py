@@ -18,6 +18,7 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import Result
 from dotenv import load_dotenv
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -59,19 +60,21 @@ def _write_pipeline_config(
     Returns:
         Path to the written config file.
 
-    Raises:
-        ValueError: If required environment variables are not set.
+    Skips if required environment variables are not set.
     """
     env_path = Path(__file__).resolve().parents[3] / ".env"
     if env_path.exists():
         load_dotenv(env_path, override=False)
 
+    required_vars = ["RENTL_QUALITY_BASE_URL", "RENTL_QUALITY_MODEL"]
+    missing = [v for v in required_vars if not os.getenv(v)]
+    if missing:
+        pytest.skip(  # type: ignore
+            f"Quality tests require environment variables: {', '.join(missing)}"  # type: ignore
+        )
+
     base_url = os.getenv("RENTL_QUALITY_BASE_URL")
-    if not base_url:
-        raise ValueError("RENTL_QUALITY_BASE_URL must be set for quality tests")
     model_id = os.getenv("RENTL_QUALITY_MODEL")
-    if not model_id:
-        raise ValueError("RENTL_QUALITY_MODEL must be set for quality tests")
 
     # Phase definitions with their agent assignments
     phase_agents = {
