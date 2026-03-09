@@ -11,7 +11,7 @@ The `naming-conventions` standard omits `SCREAMING_SNAKE_CASE` for module-level 
 ## Tasks
 
 - [x] Task 1: Save Spec Documentation
-- [x] Task 2: Update `naming-conventions.md`
+- [ ] Task 2: Update `naming-conventions.md`
   - Add `SCREAMING_SNAKE_CASE` rule for module-level constants under the Python code naming section
   - Include clear guidance: constants that are immutable and module-scoped use `SCREAMING_SNAKE_CASE`
   - Add real code examples sourced from the rentl codebase (e.g. `CURRENT_SCHEMA_VERSION`, `REQUIRED_COLUMNS`, `OPENROUTER_CAPABILITIES`)
@@ -19,6 +19,7 @@ The `naming-conventions` standard omits `SCREAMING_SNAKE_CASE` for module-level 
   - [x] Fix: Add explicit module-level constant rule in `agent-os/standards/architecture/naming-conventions.md` near current Python naming rules at lines 36-40 (`SCREAMING_SNAKE_CASE` for immutable, module-scoped constants) to satisfy `architecture/naming-conventions` and spec non-negotiable #2 (audit round 1)
   - [x] Fix: Replace/add examples in `agent-os/standards/architecture/naming-conventions.md` with real in-repo constants (`CURRENT_SCHEMA_VERSION`, `REQUIRED_COLUMNS`, `OPENROUTER_CAPABILITIES`) to satisfy `global/no-placeholder-artifacts` and task scope in `plan.md:17` (audit round 1)
   - [x] Fix: Commit `6950f5b` only changed `plan.md`; implement Task 2 in `agent-os/standards/architecture/naming-conventions.md` and then re-check this task (audit round 2)
+  - [ ] Fix: Update `OPENROUTER_CAPABILITIES` example in `agent-os/standards/architecture/naming-conventions.md:49-52` to match real in-repo fields from `packages/rentl-llm/src/rentl_llm/providers.py:37-42` (`name`, `is_openrouter`, `supports_tool_calling`, `supports_tool_choice_required`); current `supports_streaming`/`supports_tools` fields are not real and violate `global/no-placeholder-artifacts` and `ux/copy-pasteable-examples` (audit round 3)
 - [ ] Task 3: Scan and fix incorrectly-cased constants
   - Grep codebase for module-level assignments that are semantically constants but written in `snake_case` (e.g. `default_max_output_tokens = ...` at module level)
   - Rename any found to `SCREAMING_SNAKE_CASE`
