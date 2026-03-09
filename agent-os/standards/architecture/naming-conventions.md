@@ -37,6 +37,24 @@ class translationRequest:  # snake_case for class
 - Modules/files: `snake_case.py`
 - Functions/variables: `snake_case`
 - Classes/types: `PascalCase`
+- Module-level constants: `SCREAMING_SNAKE_CASE` (immutable, module-scoped values)
+
+**Module-level constants:**
+Use `SCREAMING_SNAKE_CASE` for module-level constants — values that are immutable and defined at the top level of a module.
+
+```python
+# ✓ Good: SCREAMING_SNAKE_CASE for module-level constants
+CURRENT_SCHEMA_VERSION = (0, 1, 0)
+REQUIRED_COLUMNS = ("line_id", "text")
+OPENROUTER_CAPABILITIES = ProviderCapabilities(
+    supports_streaming=True,
+    supports_tools=True,
+)
+
+# ✗ Bad: snake_case for module-level constants
+current_schema_version = (0, 1, 0)  # should be SCREAMING_SNAKE_CASE
+required_columns = ("line_id", "text")  # should be SCREAMING_SNAKE_CASE
+```
 
 **Database naming:**
 - Tables/collections: `snake_case`
