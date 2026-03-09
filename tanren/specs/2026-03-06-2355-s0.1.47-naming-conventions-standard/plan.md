@@ -20,11 +20,12 @@ The `naming-conventions` standard omits `SCREAMING_SNAKE_CASE` for module-level 
   - [x] Fix: Replace/add examples in `agent-os/standards/architecture/naming-conventions.md` with real in-repo constants (`CURRENT_SCHEMA_VERSION`, `REQUIRED_COLUMNS`, `OPENROUTER_CAPABILITIES`) to satisfy `global/no-placeholder-artifacts` and task scope in `plan.md:17` (audit round 1)
   - [x] Fix: Commit `6950f5b` only changed `plan.md`; implement Task 2 in `agent-os/standards/architecture/naming-conventions.md` and then re-check this task (audit round 2)
   - [x] Fix: Update `OPENROUTER_CAPABILITIES` example in `agent-os/standards/architecture/naming-conventions.md:49-52` to match real in-repo fields from `packages/rentl-llm/src/rentl_llm/providers.py:37-42` (`name`, `is_openrouter`, `supports_tool_calling`, `supports_tool_choice_required`); current `supports_streaming`/`supports_tools` fields are not real and violate `global/no-placeholder-artifacts` and `ux/copy-pasteable-examples` (audit round 3)
-- [ ] Task 3: Scan and fix incorrectly-cased constants
+- [x] Task 3: Scan and fix incorrectly-cased constants
   - Grep codebase for module-level assignments that are semantically constants but written in `snake_case` (e.g. `default_max_output_tokens = ...` at module level)
   - Rename any found to `SCREAMING_SNAKE_CASE`
   - Update all import/reference sites
   - Verify tests still pass after renaming
+  - **Result:** Comprehensive scan found no violations — all module-level constants already use SCREAMING_SNAKE_CASE per PEP 8. No changes needed.
 - [ ] Task 4: Update `index.yml`
   - Revise `naming-conventions` description to mention `SCREAMING_SNAKE_CASE` for module-level constants
   - File: `agent-os/standards/index.yml`
