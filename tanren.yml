@@ -1,0 +1,36 @@
+version: 0.1.0
+profile: python-uv
+installed: 2026-03-07
+env:
+  on_missing: error
+  required:
+    - key: RENTL_OPENROUTER_API_KEY
+      description: "OpenRouter API key for LLM routing (main pipeline endpoint)"
+      pattern: "^sk-or-v1-"
+      hint: "Get one at https://openrouter.ai/keys"
+    - key: RENTL_QUALITY_API_KEY
+      description: "API key for quality eval model provider"
+      pattern: "^sk-or-v1-"
+      hint: "Same as RENTL_OPENROUTER_API_KEY if using OpenRouter for quality evals"
+    - key: RENTL_QUALITY_BASE_URL
+      description: "Base URL for quality eval model provider"
+      pattern: "^https?://"
+      hint: "e.g. https://openrouter.ai/api/v1"
+    - key: RENTL_QUALITY_MODEL
+      description: "Model ID for agent evaluation runs"
+      hint: "e.g. qwen/qwen3-vl-30b-a3b-instruct"
+    - key: RENTL_QUALITY_JUDGE_MODEL
+      description: "Model ID for LLM-as-judge evaluations"
+      hint: "e.g. qwen/qwen3-vl-30b-a3b-instruct"
+    - key: RENTL_QUALITY_JUDGE_BASE_URL
+      description: "Base URL for judge model provider"
+      pattern: "^https?://"
+      hint: "e.g. https://openrouter.ai/api/v1"
+  optional:
+    - key: RENTL_LOCAL_API_KEY
+      description: "API key for local LLM endpoints (local dev only)"
+    - key: PYPI_TOKEN
+      description: "PyPI auth token for package publishing"
+    - key: RENTL_LOG_LEVEL
+      description: "Log verbosity"
+      default: "INFO"
