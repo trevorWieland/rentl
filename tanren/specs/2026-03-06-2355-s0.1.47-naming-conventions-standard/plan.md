@@ -31,7 +31,8 @@ The `naming-conventions` standard omits `SCREAMING_SNAKE_CASE` for module-level 
 - [x] Task 4: Update `index.yml`
   - Revise `naming-conventions` description to mention `SCREAMING_SNAKE_CASE` for module-level constants
   - File: `agent-os/standards/index.yml`
-- [ ] Task 5: Verify demo steps pass
+- [x] Task 5: Verify demo steps pass
   - Confirm updated standard contains SCREAMING_SNAKE_CASE rule
   - Grep for 3 previously-flagged constants and confirm they match the updated standard
   - Run `audit-standards.sh --standards naming-conventions --dry-run` to confirm targeting is correct
+  - **Result:** Verified: `grep -i "SCREAMING_SNAKE"` confirms rule present in naming-conventions.md. All three constants (`CURRENT_SCHEMA_VERSION`, `REQUIRED_COLUMNS`, `OPENROUTER_CAPABILITIES`) found in codebase using correct SCREAMING_SNAKE_CASE. `make check` passes with 1133 tests. Demo step 4 skipped per demo.md (codex CLI unavailable).
