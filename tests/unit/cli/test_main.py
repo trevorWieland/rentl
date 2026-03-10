@@ -35,7 +35,13 @@ from rentl_schemas.llm import LlmPromptRequest, LlmPromptResponse
 from rentl_schemas.logs import LogEntry
 from rentl_schemas.phases import ContextPhaseOutput, SceneSummary
 from rentl_schemas.pipeline import PhaseRunRecord, RunMetadata, RunState
-from rentl_schemas.primitives import LogLevel, PhaseName, PhaseStatus, RunStatus
+from rentl_schemas.primitives import (
+    JsonValue,
+    LogLevel,
+    PhaseName,
+    PhaseStatus,
+    RunStatus,
+)
 from rentl_schemas.progress import (
     AgentStatus,
     AgentTelemetry,
@@ -2950,7 +2956,7 @@ def test_dict_to_toml_simple_values() -> None:
 
 def test_dict_to_toml_nested_tables() -> None:
     """Test TOML serialization of nested tables."""
-    data = {
+    data: ConfigDict = {
         "project": {
             "schema_version": {"major": 0, "minor": 1, "patch": 0},
             "project_name": "test",
@@ -2972,6 +2978,7 @@ def test_dict_to_toml_arrays() -> None:
         "project": {
             "name": "test",
             "schema_version": {"major": 0, "minor": 1, "patch": 0},
+            "target_languages": ["en", "fr", "de"],
         },
         "logging": {"sinks": [{"type": "console"}, {"type": "file"}]},
     }
@@ -2999,7 +3006,7 @@ def test_dict_to_toml_escaping() -> None:
 def test_auto_migrate_if_needed_up_to_date(tmp_path: Path) -> None:
     """Test auto-migrate skips migration when config is already up to date."""
     config_path = tmp_path / "rentl.toml"
-    payload = {
+    payload: dict[str, JsonValue] = {
         "project": {
             "schema_version": {"major": 0, "minor": 1, "patch": 0},
             "project_name": "test",
@@ -3114,7 +3121,7 @@ enabled = false
 def test_auto_migrate_if_needed_no_schema_version(tmp_path: Path) -> None:
     """Test auto-migrate skips migration when no schema_version field exists."""
     config_path = tmp_path / "rentl.toml"
-    payload = {"project": {"project_name": "test"}}
+    payload: dict[str, JsonValue] = {"project": {"project_name": "test"}}
 
     result = cli_main._auto_migrate_if_needed(config_path, payload)
 
@@ -3135,7 +3142,7 @@ def test_auto_migrate_if_needed_unsupported_schema_raises_config_error(
         'project_name = "test"\n',
         encoding="utf-8",
     )
-    payload = {
+    payload: dict[str, JsonValue] = {
         "project": {
             "schema_version": {"major": 0, "minor": 0, "patch": 2},
             "project_name": "test",

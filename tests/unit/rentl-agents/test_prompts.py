@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from rentl_agents.prompts import PromptRenderer, PromptTemplate
+from rentl_schemas.primitives import JsonValue
 
 
 class TestPromptTemplate:
@@ -89,7 +90,11 @@ class TestPromptRenderer:
         """Test rendering template with all variables provided."""
         renderer = PromptRenderer()
         template = "Translate {{text}} from {{source}} to {{target}}"
-        context = {"text": "Hello", "source": "en", "target": "ja"}
+        context: dict[str, JsonValue] = {
+            "text": "Hello",
+            "source": "en",
+            "target": "ja",
+        }
 
         rendered = renderer.render_template(template, context)
 
@@ -99,7 +104,7 @@ class TestPromptRenderer:
         """Test rendering template with missing variable raises error in strict mode."""
         renderer = PromptRenderer()
         template = "Translate {{text}} from {{source}} to {{target}}"
-        context = {"text": "Hello", "source": "en"}
+        context: dict[str, JsonValue] = {"text": "Hello", "source": "en"}
 
         with pytest.raises(ValueError, match="Missing required variables"):
             renderer.render_template(template, context, strict=True)
@@ -108,7 +113,7 @@ class TestPromptRenderer:
         """Test rendering template with missing variable in non-strict mode."""
         renderer = PromptRenderer()
         template = "Translate {{text}} from {{source}} to {{target}}"
-        context = {"text": "Hello", "source": "en"}
+        context: dict[str, JsonValue] = {"text": "Hello", "source": "en"}
 
         rendered = renderer.render_template(template, context, strict=False)
 
@@ -118,7 +123,7 @@ class TestPromptRenderer:
         """Test rendering template with None value in strict mode."""
         renderer = PromptRenderer()
         template = "Translate {{text}} to {{target}}"
-        context = {"text": "Hello", "target": None}
+        context: dict[str, JsonValue] = {"text": "Hello", "target": None}
 
         with pytest.raises(ValueError, match="Variable target is None"):
             renderer.render_template(template, context, strict=True)
@@ -127,7 +132,7 @@ class TestPromptRenderer:
         """Test rendering template with None value in non-strict mode."""
         renderer = PromptRenderer()
         template = "Translate {{text}} to {{target}}"
-        context = {"text": "Hello", "target": None}
+        context: dict[str, JsonValue] = {"text": "Hello", "target": None}
 
         rendered = renderer.render_template(template, context, strict=False)
 
@@ -137,7 +142,7 @@ class TestPromptRenderer:
         """Test rendering template with numeric context values."""
         renderer = PromptRenderer()
         template = "Score: {{score}} / {{max_score}}"
-        context = {"score": 95, "max_score": 100}
+        context: dict[str, JsonValue] = {"score": 95, "max_score": 100}
 
         rendered = renderer.render_template(template, context)
 
@@ -147,7 +152,7 @@ class TestPromptRenderer:
         """Test rendering template with list context values."""
         renderer = PromptRenderer()
         template = "Items: {{items}}"
-        context = {"items": ["apple", "banana", "cherry"]}
+        context: dict[str, JsonValue] = {"items": ["apple", "banana", "cherry"]}
 
         rendered = renderer.render_template(template, context)
 
@@ -162,7 +167,7 @@ class TestPromptRenderer:
             variables={"text": "str", "target": "str", "style": "str"},
             default_values={"style": "formal"},
         )
-        context = {"text": "Hello", "target": "ja"}
+        context: dict[str, JsonValue] = {"text": "Hello", "target": "ja"}
 
         rendered = renderer.render_template_object(template, context)
 
@@ -182,7 +187,7 @@ class TestPromptRenderer:
     def test_build_context_with_optional_fields(self) -> None:
         """Test building context with optional injected fields."""
         renderer = PromptRenderer()
-        base_context = {"text": "Hello", "target": "ja"}
+        base_context: dict[str, JsonValue] = {"text": "Hello", "target": "ja"}
 
         context = renderer.build_context(
             base_context,
@@ -200,7 +205,7 @@ class TestPromptRenderer:
     def test_build_context_without_optional_fields(self) -> None:
         """Test building context without optional injected fields."""
         renderer = PromptRenderer()
-        base_context = {"text": "Hello", "target": "ja"}
+        base_context: dict[str, JsonValue] = {"text": "Hello", "target": "ja"}
 
         context = renderer.build_context(base_context)
 
@@ -209,7 +214,7 @@ class TestPromptRenderer:
     def test_build_context_overwrites_base(self) -> None:
         """Test that injected fields do not overwrite base context."""
         renderer = PromptRenderer()
-        base_context = {
+        base_context: dict[str, JsonValue] = {
             "text": "Hello",
             "project_context": "Original context",
         }

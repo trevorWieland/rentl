@@ -10,6 +10,7 @@ from typing import cast
 import pytest
 
 from rentl_core.migrate import (
+    ConfigDict,
     MigrateError,
     MigrationRegistry,
     MigrationTransform,
@@ -186,7 +187,7 @@ class TestApplyMigrations:
     def test_apply_no_migrations(self) -> None:
         """Test applying empty migration chain returns copy of original."""
         registry = MigrationRegistry()
-        config = {"key": "value", "nested": {"field": 42}}
+        config: ConfigDict = {"key": "value", "nested": {"field": 42}}
 
         result = apply_migrations(config, [], registry)
 
@@ -206,7 +207,7 @@ class TestApplyMigrations:
 
         registry.register(v001, v010, "Add field", add_field_transform)
 
-        config = {"existing": "data"}
+        config: ConfigDict = {"existing": "data"}
         steps = registry.get_all_steps()
 
         result = apply_migrations(config, steps, registry)
@@ -232,7 +233,7 @@ class TestApplyMigrations:
         registry.register(v001, v010, "Step 1", step1_transform)
         registry.register(v010, v020, "Step 2", step2_transform)
 
-        config = {"initial": "state"}
+        config: ConfigDict = {"initial": "state"}
         steps = registry.get_all_steps()
 
         result = apply_migrations(config, steps, registry)
@@ -251,7 +252,7 @@ class TestApplyMigrations:
 
         registry.register(v001, v010, "Update version", update_version_transform)
 
-        config = {
+        config: ConfigDict = {
             "schema_version": "0.0.1",
             "important_data": [1, 2, 3],
             "nested": {"key": "value"},
@@ -310,7 +311,7 @@ def transform(config: dict) -> dict:
         registry.register(v010, v020, "Second migration", transform2)
 
         # Apply migration chain
-        config = {"schema_version": "0.0.1"}
+        config: ConfigDict = {"schema_version": "0.0.1"}
         steps = registry.get_all_steps()
         result = apply_migrations(config, steps, registry)
 
@@ -352,7 +353,7 @@ class TestGlobalRegistry:
         """Test that the seed migration transform preserves data."""
         registry = get_registry()
 
-        config = {
+        config: ConfigDict = {
             "project": {
                 "schema_version": {"major": 0, "minor": 0, "patch": 1},
                 "project_name": "test-project",
@@ -393,7 +394,7 @@ class TestGlobalRegistry:
         """
         registry = get_registry()
 
-        config = {
+        config: ConfigDict = {
             "project": {
                 "schema_version": {"major": 0, "minor": 0, "patch": 1},
                 "project_name": "test-project",
@@ -559,7 +560,7 @@ class TestAutoMigrateFile:
     def test_up_to_date_returns_unchanged(self, tmp_path: Path) -> None:
         """Returns unmigrated result when config is already at target version."""
         config_path = tmp_path / "rentl.toml"
-        payload = {
+        payload: ConfigDict = {
             "project": {
                 "schema_version": {"major": 99, "minor": 99, "patch": 99},
                 "project_name": "test",
@@ -623,7 +624,7 @@ class TestAutoMigrateConfig:
 
     def test_unsupported_schema_version_raises_migrate_error(self) -> None:
         """Raises MigrateError (not ValueError) for unsupported schema versions."""
-        payload = {
+        payload: ConfigDict = {
             "project": {
                 "schema_version": {"major": 0, "minor": 0, "patch": 2},
                 "project_name": "test",
