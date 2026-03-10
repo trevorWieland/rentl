@@ -124,9 +124,9 @@ def verify_llm_endpoints(ctx: BenchmarkContext) -> None:
 
     Raises RuntimeError if required environment variables are not set.
     """
-    from tests.quality.agents.quality_harness import _load_env_file
+    from tests.quality.agents.quality_harness import load_env_file
 
-    _load_env_file()
+    load_env_file()
     required_vars = ["RENTL_QUALITY_API_KEY", "RENTL_QUALITY_BASE_URL"]
     missing = [v for v in required_vars if not os.getenv(v)]
     if missing:
