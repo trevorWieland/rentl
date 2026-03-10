@@ -41,9 +41,9 @@ The `naming-conventions` standard omits `SCREAMING_SNAKE_CASE` for module-level 
   - Context agent needs more than 6 requests to complete execution
   - Override `max_requests_per_run` from 6 to 10 in test_context_agent.py
   - File: `tests/quality/agents/test_context_agent.py`
-- [ ] Task 7: Fix demo.md file paths
+- [x] Task 7: Fix demo.md file paths
   - Update Step 1 grep command from `agent-os/standards/architecture/naming-conventions.md` to `tanren/standards/architecture/naming-conventions.md`
   - Check all other demo steps for similar path issues
   - The codebase migrated from `agent-os` to `tanren` framework but demo.md wasn't updated
   - File: `tanren/specs/2026-03-06-2355-s0.1.47-naming-conventions-standard/demo.md`
-  - [ ] Fix: Replace stale Step 4 command path `./agent-os/scripts/audit-standards.sh` with `./tanren/scripts/audit-standards.sh` in `tanren/specs/2026-03-06-2355-s0.1.47-naming-conventions-standard/demo.md:19`; verify command path exists in repo (`tanren/scripts/audit-standards.sh`) (audit round 1)
+  - [x] Fix: Replace stale Step 4 command path `./agent-os/scripts/audit-standards.sh` with `./tanren/scripts/audit-standards.sh` in `tanren/specs/2026-03-06-2355-s0.1.47-naming-conventions-standard/demo.md:19`; verify command path exists in repo (`tanren/scripts/audit-standards.sh`) (audit round 1)

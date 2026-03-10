@@ -16,7 +16,7 @@ The naming-conventions standard incorrectly flagged 61 valid Python constants as
    - `grep -r "REQUIRED_COLUMNS" packages/rentl-io/`
    - `grep -r "OPENROUTER_CAPABILITIES" packages/rentl-agents/`
 3. **[RUN]** Run `make check` to confirm all unit tests pass with no regressions from any constant renames
-4. **[SKIP]** Run `./agent-os/scripts/audit-standards.sh --standards naming-conventions` and verify improved score — `codex exec` CLI not available in this container (not reachable during shaping)
+4. **[SKIP]** Run `./tanren/scripts/audit-standards.sh --standards naming-conventions` and verify improved score — `codex exec` CLI not available in this container (not reachable during shaping)
 
 ## Results
 
