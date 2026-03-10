@@ -20,3 +20,4 @@ Future auditors: check this log for regressions and patterns.
 - **Task 4** (round 1): PASS — Commit `b271cba` updates `agent-os/standards/index.yml:17` to explicitly include `SCREAMING_SNAKE_CASE` for module-level constants, matching `plan.md:31-33` with no standards or spec non-negotiable violations.
 - **Demo** (run 1): FAIL — Step 1 cannot execute: demo.md references `agent-os/standards/architecture/naming-conventions.md` but actual file is at `tanren/standards/architecture/naming-conventions.md` (0 run, 0 verified)
 - **Demo** (run 2): PASS — All [RUN] steps executed successfully: SCREAMING_SNAKE_CASE rule verified in standard, three constants confirmed in codebase, all 1133 unit tests passing (3 run, 3 verified)
+- **Spec Audit** (round 1): FAIL — Performance 5/5, Intent 4/5, Completion 4/5, Security 5/5, Stability 5/5; fix-now count 1 (stale demo Step 4 `agent-os` path)

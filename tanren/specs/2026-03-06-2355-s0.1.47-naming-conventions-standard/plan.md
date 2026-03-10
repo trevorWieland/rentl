@@ -46,3 +46,4 @@ The `naming-conventions` standard omits `SCREAMING_SNAKE_CASE` for module-level 
   - Check all other demo steps for similar path issues
   - The codebase migrated from `agent-os` to `tanren` framework but demo.md wasn't updated
   - File: `tanren/specs/2026-03-06-2355-s0.1.47-naming-conventions-standard/demo.md`
+  - [ ] Fix: Replace stale Step 4 command path `./agent-os/scripts/audit-standards.sh` with `./tanren/scripts/audit-standards.sh` in `tanren/specs/2026-03-06-2355-s0.1.47-naming-conventions-standard/demo.md:19`; verify command path exists in repo (`tanren/scripts/audit-standards.sh`) (audit round 1)
