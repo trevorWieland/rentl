@@ -2969,7 +2969,10 @@ def test_dict_to_toml_nested_tables() -> None:
 def test_dict_to_toml_arrays() -> None:
     """Test TOML serialization of arrays."""
     data: ConfigDict = {
-        "project": {"name": "test", "schema_version": {"major": 0, "minor": 1, "patch": 0}},
+        "project": {
+            "name": "test",
+            "schema_version": {"major": 0, "minor": 1, "patch": 0},
+        },
         "logging": {"sinks": [{"type": "console"}, {"type": "file"}]},
     }
 
