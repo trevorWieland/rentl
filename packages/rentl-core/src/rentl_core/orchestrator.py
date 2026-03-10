@@ -3207,7 +3207,7 @@ async def _update_stale_flags(
             continue
         if stale_before.get(key) is True:
             continue
-        data = {
+        data: dict[str, JsonValue] = {
             "revision": record.revision,
             "target_language": record.target_language,
         }

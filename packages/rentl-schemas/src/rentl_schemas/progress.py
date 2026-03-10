@@ -557,11 +557,11 @@ def compute_run_summary(
 ) -> ProgressSummary:
     """Compute a run summary progress value from phase summaries.
 
-    Raises:
-        ValueError: If phase entries are not unique or weights are invalid.
-
     Returns:
         ProgressSummary: Summary progress for the run.
+
+    Raises:
+        ValueError: If phase entries are not unique or weights are invalid.
     """
     if not phases:
         return ProgressSummary(

@@ -21,7 +21,7 @@ import rentl.main as cli_main
 from rentl.main import app
 from rentl_agents.wiring import build_agent_pools
 from rentl_core.init import StandardEnvVar
-from rentl_core.migrate import dict_to_toml
+from rentl_core.migrate import ConfigDict, dict_to_toml
 from rentl_core.orchestrator import PipelineOrchestrator
 from rentl_core.ports.orchestrator import LogSinkProtocol
 from rentl_core.ports.storage import LogStoreProtocol
@@ -2929,7 +2929,7 @@ def test_redaction_in_command_logs(
 
 def test_dict_to_toml_simple_values() -> None:
     """Test TOML serialization of simple values."""
-    data = {
+    data: ConfigDict = {
         "project": {
             "project_name": "test",
             "enabled": True,
@@ -2968,8 +2968,8 @@ def test_dict_to_toml_nested_tables() -> None:
 
 def test_dict_to_toml_arrays() -> None:
     """Test TOML serialization of arrays."""
-    data = {
-        "project": {"target_languages": ["en", "fr", "de"]},
+    data: ConfigDict = {
+        "project": {"name": "test", "schema_version": {"major": 0, "minor": 1, "patch": 0}},
         "logging": {"sinks": [{"type": "console"}, {"type": "file"}]},
     }
 
@@ -2984,7 +2984,7 @@ def test_dict_to_toml_arrays() -> None:
 
 def test_dict_to_toml_escaping() -> None:
     """Test TOML serialization handles escaping correctly."""
-    data = {"test": {"value": 'quote" and backslash\\ here'}}
+    data: ConfigDict = {"test": {"value": 'quote" and backslash\\ here'}}
 
     result = dict_to_toml(data)
 
