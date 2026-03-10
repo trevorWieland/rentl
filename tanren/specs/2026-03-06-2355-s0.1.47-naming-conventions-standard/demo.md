@@ -21,3 +21,10 @@ The naming-conventions standard incorrectly flagged 61 valid Python constants as
 ## Results
 
 (Appended by run-demo — do not write this section during shaping)
+
+### Run 1 — Initial demo execution (2026-03-09 22:28)
+- Step 1 [RUN]: FAIL — File path `agent-os/standards/architecture/naming-conventions.md` does not exist. Actual file is at `tanren/standards/architecture/naming-conventions.md`. Path needs updating in demo.md.
+- Step 2 [RUN]: NOT EXECUTED — Stopped after Step 1 failure
+- Step 3 [RUN]: NOT EXECUTED — Stopped after Step 1 failure
+- Step 4 [SKIP]: SKIPPED — codex CLI not available
+- **Overall: FAIL**

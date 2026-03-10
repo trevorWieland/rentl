@@ -55,3 +55,26 @@ Expected `list[PhaseAgentProtocol[...]]`, found `list[_NumberAgent]`
 - 62 additional type errors across test files
 
 **Next steps:** The lint fix is complete and committed. A separate task should address the type checking errors in the test suite.
+
+---
+
+## Task: Run Demo Step 1
+
+**Status:** unresolved
+
+**Problem:** Demo Step 1 specifies `grep -i "SCREAMING_SNAKE" agent-os/standards/architecture/naming-conventions.md` but the file path doesn't exist. The actual file is at `tanren/standards/architecture/naming-conventions.md`.
+
+**Evidence:**
+```
+$ grep -i "SCREAMING_SNAKE" agent-os/standards/architecture/naming-conventions.md
+grep: agent-os/standards/architecture/naming-conventions.md: No such file or directory
+
+$ grep -i "SCREAMING_SNAKE" tanren/standards/architecture/naming-conventions.md
+- Module-level constants: `SCREAMING_SNAKE_CASE` (immutable, module-scoped values)
+Use `SCREAMING_SNAKE_CASE` for module-level constants — values that are immutable and defined at the top level of a module.
+```
+
+**Root cause:** The demo.md file was not updated during the migration from `agent-os` to `tanren` framework (commit `1740a38 Migrate agent-os to tanren framework`). All references to `agent-os/standards/` should be `tanren/standards/`.
+
+**Files affected:**
+- `tanren/specs/2026-03-06-2355-s0.1.47-naming-conventions-standard/demo.md` (needs path fix)
