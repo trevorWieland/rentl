@@ -44,9 +44,9 @@ Integration and quality suites are largely aligned to the BDD standard, but ther
   def test_deterministic_qa_detects_issues():
       pass
 
+
   @given("a set of translated lines with known issues", target_fixture="ctx")
-  def given_sample_qa_lines():
-      ...
+  def given_sample_qa_lines(): ...
   ```
 
 ### Violation 2: Integration auto-migration test file uses direct `test_*` assertions instead of scenario flow
@@ -128,7 +128,10 @@ Integration and quality suites are largely aligned to the BDD standard, but ther
       ...
       with monkeypatch.context() as m:
           m.setenv(StandardEnvVar.API_KEY.value, "fake-api-key-for-scoping-test")
-          assert os.environ.get(StandardEnvVar.API_KEY.value) == "fake-api-key-for-scoping-test"
+          assert (
+              os.environ.get(StandardEnvVar.API_KEY.value)
+              == "fake-api-key-for-scoping-test"
+          )
       assert os.environ.get(StandardEnvVar.API_KEY.value) == original_value
   ```
 - **Recommendation:** Merge these regression checks into BDD scenarios so they align with surrounding init behavior tests in the same module.

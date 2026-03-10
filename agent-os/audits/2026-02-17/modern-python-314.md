@@ -39,13 +39,9 @@ Compliance is uneven: modern syntax is present in data model annotations, but ke
           run, _require_language(language, phase), execution
       )
   elif phase == PhaseName.QA:
-      record = await self._run_qa(
-          run, _require_language(language, phase), execution
-      )
+      record = await self._run_qa(run, _require_language(language, phase), execution)
   elif phase == PhaseName.EDIT:
-      record = await self._run_edit(
-          run, _require_language(language, phase), execution
-      )
+      record = await self._run_edit(run, _require_language(language, phase), execution)
   elif phase == PhaseName.EXPORT:
       record = await self._run_export(
           run, _require_language(language, phase), export_target

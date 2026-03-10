@@ -7,27 +7,34 @@ Use consistent naming conventions across all code. Never mix styles.
 from translation_engine import translate_scene
 from config_loader import load_config
 
+
 def process_scene(scene: Scene) -> TranslationResult:
     """Process single scene."""
     result = translate_scene(scene)
     return result
 
+
 # ✓ Good: PascalCase for classes/types
 class TranslationRequest(BaseModel):
     """Translation request model."""
 
+
 class VectorStoreProtocol(Protocol):
     """Vector store interface protocol."""
 
+
 class SQLiteIndex:
     """SQLite run metadata index."""
+
 
 # ✗ Bad: Inconsistent naming
 from TranslationEngine import translate_Scene  # PascalCase for module
 from config_loader import LoadConfig  # PascalCase for function
 
+
 def ProcessScene(scene: Scene) -> TranslationResult:  # PascalCase for function
     ...
+
 
 class translationRequest:  # snake_case for class
     pass

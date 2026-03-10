@@ -8,10 +8,11 @@ Coverage is mandatory for features. Tests must directly exercise intended behavi
 async def test_translates_scene_with_context(given_scene, given_context):
     """Test that translation applies context to output."""
     result = await translate_scene(given_scene, given_context)
-    
+
     # Directly exercises translation behavior
     assert "character_name" in result.text
     assert result.context_used == given_context.id
+
 
 # ✗ Bad: Tests don't exercise behavior
 async def test_translator_initialization():

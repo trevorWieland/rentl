@@ -7,6 +7,7 @@ Quality tests use real LLMs (actual model calls). Integration tests must mock LL
 # tests/quality/core/translation.py
 from rentl_core.adapters.model.openai_client import OpenAIClient
 
+
 async def test_translation_quality_with_real_llm(given_translation_request):
     """Test translation quality with actual model call."""
     client = OpenAIClient(base_url="https://api.openai.com/v1", api_key="test-key")
@@ -17,17 +18,22 @@ async def test_translation_quality_with_real_llm(given_translation_request):
     assert len(result.text) > 0
     assert result.model == "gpt-4"
 
+
 # ✓ Good: Integration test with mocked LLM
 # tests/integration/core/translation.py
 from unittest.mock import AsyncMock
 
+
 async def test_translation_flow(given_translation_request):
     """Test translation flow with mocked LLM (no real calls)."""
     mock_client = AsyncMock()
-    mock_client.translate.return_value = TranslationResult(text="mocked text", model="gpt-4")
+    mock_client.translate.return_value = TranslationResult(
+        text="mocked text", model="gpt-4"
+    )
 
     result = await mock_client.translate(given_translation_request)
     assert result.text == "mocked text"  # Verify mock, not real model
+
 
 # ✗ Bad: Quality test with mocked LLM
 async def test_translation_quality(given_translation_request):

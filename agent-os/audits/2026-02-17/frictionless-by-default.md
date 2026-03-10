@@ -30,7 +30,9 @@ Initialization is guided and user-friendly for baseline setup, but it is only pa
   project_name = typer.prompt("Project name", default=Path.cwd().name)
   game_name = typer.prompt("Game name", default=game_name_default)
   source_language = typer.prompt("Source language code", default="ja")
-  target_languages_input = typer.prompt("Target language codes (comma-separated)", default="en")
+  target_languages_input = typer.prompt(
+      "Target language codes (comma-separated)", default="en"
+  )
   input_format_str = typer.prompt("Input format (jsonl, csv, txt)", default="jsonl")
   ```
 - **Recommendation:** Replace hardcoded/manual prompts with auto-detection where possible (e.g., inspect files in `scripts/`, `src/`, `data/`, parse likely format/extensions), then pre-fill detected values with opt-out prompts.

@@ -39,7 +39,7 @@ The codebase is largely compliant: no empty SHA-256 sentinel values (`e3b0...`) 
   ```python
   # Example intent
   path = f"run-{run.run_id}/artifact-{artifact_id}.{format.value}"
-  location=StorageReference(backend=StorageBackend.FILESYSTEM, path=path, uri=None)
+  location = StorageReference(backend=StorageBackend.FILESYSTEM, path=path, uri=None)
   ```
 
 ### Violation 2: Incomplete placeholder-marked benchmark config test

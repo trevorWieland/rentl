@@ -12,13 +12,16 @@ Integration and quality tests must use BDD-style (Given/When/Then). Unit tests c
 # Good: BDD-style for integration/quality tests
 from pytest_bdd import given, when, then, scenarios
 
+
 @given("a configured pipeline with sample script")
 def configured_pipeline(tmp_path):
     return setup_pipeline(tmp_path, sample_script)
 
+
 @when("the pipeline runs to completion")
 async def run_pipeline(configured_pipeline):
     configured_pipeline.result = await configured_pipeline.run()
+
 
 @then("the pipeline produces a playable patch")
 def check_output(configured_pipeline):

@@ -35,6 +35,7 @@ The codebase has strong adoption of the `ApiResponse`/`ErrorResponse` pydantic e
   ```python
   from rentl_schemas.responses import ApiResponse, MetaInfo
 
+
   @app.get("/health")
   async def health() -> ApiResponse[dict[str, str]]:
       return ApiResponse(

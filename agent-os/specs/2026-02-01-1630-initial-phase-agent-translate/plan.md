@@ -185,8 +185,11 @@ benefits_from_reasoning = false
 
 Functions in `lines.py`:
 ```python
-def chunk_lines(source_lines: list[SourceLine], chunk_size: int = 50) -> list[list[SourceLine]]:
+def chunk_lines(
+    source_lines: list[SourceLine], chunk_size: int = 50
+) -> list[list[SourceLine]]:
     """Split source lines into batches for processing."""
+
 
 def format_lines_for_prompt(lines: list[SourceLine]) -> str:
     """Format source lines for prompt injection.
@@ -194,6 +197,7 @@ def format_lines_for_prompt(lines: list[SourceLine]) -> str:
     Format: [line_id] [speaker]: text
     or:     [line_id]: text
     """
+
 
 def get_scene_summary_for_lines(
     lines: list[SourceLine],
@@ -203,6 +207,7 @@ def get_scene_summary_for_lines(
 
     Returns "(No scene context available)" if no summaries match.
     """
+
 
 def format_pretranslation_annotations(
     lines: list[SourceLine],
@@ -214,12 +219,14 @@ def format_pretranslation_annotations(
     Filters to only annotations for the given lines.
     """
 
+
 def format_glossary_terms(glossary: list[GlossaryTerm] | None) -> str:
     """Format glossary terms for prompt injection.
 
     Returns "(No glossary terms)" if glossary is empty/None.
     Format: "term → translation (notes)" or "term → translation"
     """
+
 
 def translation_result_to_lines(
     result: TranslationResult,
@@ -230,6 +237,7 @@ def translation_result_to_lines(
     Copies metadata from source lines (route_id, scene_id, speaker, source_columns).
     Sets source_text from the original source line.
     """
+
 
 def merge_translated_lines(
     run_id: RunId,

@@ -76,21 +76,26 @@ Integration and quality tests must use BDD-style (Given/When/Then). Unit tests c
 # ✓ Good: BDD-style for integration/quality tests
 from pytest_bdd import given, when, then, scenarios
 
+
 @given("a configured pipeline with sample script")
 def configured_pipeline(tmp_path):
     return setup_pipeline(tmp_path, sample_script)
 
+
 @when("the pipeline runs to completion")
 async def run_pipeline(configured_pipeline):
     configured_pipeline.result = await configured_pipeline.run()
+
 
 @then("the pipeline produces a playable patch")
 def check_output(configured_pipeline):
     assert configured_pipeline.result.success is True
     assert (configured_pipeline.output_dir / "patch.json").exists()
 
+
 # Integration tests: Use mock model adapter (no real LLMs)
 # Quality tests: Use real model adapter (actual LLMs)
+
 
 # ✗ Bad: Direct assertions in integration/quality tests
 def test_pipeline_completion():
@@ -170,6 +175,7 @@ Quality tests use real LLMs (actual model calls). Integration tests must mock LL
 # tests/quality/core/translation.py
 from rentl_core.adapters.model.openai_client import OpenAIClient
 
+
 async def test_translation_quality_with_real_llm(given_translation_request):
     """Test translation quality with actual model call."""
     client = OpenAIClient(base_url="https://api.openai.com/v1", api_key="test-key")
@@ -180,17 +186,22 @@ async def test_translation_quality_with_real_llm(given_translation_request):
     assert len(result.text) > 0
     assert result.model == "gpt-4"
 
+
 # ✓ Good: Integration test with mocked LLM
 # tests/integration/core/translation.py
 from unittest.mock import AsyncMock
 
+
 async def test_translation_flow(given_translation_request):
     """Test translation flow with mocked LLM (no real calls)."""
     mock_client = AsyncMock()
-    mock_client.translate.return_value = TranslationResult(text="mocked text", model="gpt-4")
+    mock_client.translate.return_value = TranslationResult(
+        text="mocked text", model="gpt-4"
+    )
 
     result = await mock_client.translate(given_translation_request)
     assert result.text == "mocked text"  # Verify mock, not real model
+
 
 # ✗ Bad: Quality test with mocked LLM
 async def test_translation_quality(given_translation_request):
@@ -325,10 +336,11 @@ Coverage is mandatory for features. Tests must directly exercise intended behavi
 async def test_translates_scene_with_context(given_scene, given_context):
     """Test that translation applies context to output."""
     result = await translate_scene(given_scene, given_context)
-    
+
     # Directly exercises translation behavior
     assert "character_name" in result.text
     assert result.context_used == given_context.id
+
 
 # ✗ Bad: Tests don't exercise behavior
 async def test_translator_initialization():
@@ -406,14 +418,16 @@ Never skip tests within a tier. Tests either run and pass or run and fail.
 async def test_translation_with_context(given_scene, given_context):
     """Test runs and validates result."""
     result = await translate_scene(given_scene, given_context)
-    
+
     if result.success:
         assert "character_name" in result.text
     else:
         raise AssertionError(f"Translation failed: {result.error}")  # Test fails
 
+
 # ✗ Bad: Skip test instead of fixing
 import pytest
+
 
 @pytest.mark.skip(reason="Flaky test, will fix later")  # NEVER DO THIS
 async def test_translation_with_context(given_scene, given_context):

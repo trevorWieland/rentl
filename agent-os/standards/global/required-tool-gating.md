@@ -8,6 +8,7 @@ async def prepare_output_tools(ctx, output_tools):
         return []
     return output_tools
 
+
 agent = Agent(..., prepare_output_tools=prepare_output_tools, end_strategy="exhaustive")
 ```
 

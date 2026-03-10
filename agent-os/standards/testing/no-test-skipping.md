@@ -7,14 +7,16 @@ Never skip tests within a tier. Tests either run and pass or run and fail.
 async def test_translation_with_context(given_scene, given_context):
     """Test runs and validates result."""
     result = await translate_scene(given_scene, given_context)
-    
+
     if result.success:
         assert "character_name" in result.text
     else:
         raise AssertionError(f"Translation failed: {result.error}")  # Test fails
 
+
 # ✗ Bad: Skip test instead of fixing
 import pytest
+
 
 @pytest.mark.skip(reason="Flaky test, will fix later")  # NEVER DO THIS
 async def test_translation_with_context(given_scene, given_context):
