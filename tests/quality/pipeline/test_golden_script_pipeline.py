@@ -59,7 +59,8 @@ def _write_pipeline_config(
     Returns:
         Path to the written config file.
 
-    Skips if required environment variables are not set.
+    Raises:
+        RuntimeError: If required environment variables are not set.
     """
     env_path = Path(__file__).resolve().parents[3] / ".env"
     if env_path.exists():

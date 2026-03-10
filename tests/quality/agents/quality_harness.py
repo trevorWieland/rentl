@@ -38,7 +38,7 @@ def _require_env(name: str) -> str:
     return value
 
 
-def _load_env_file() -> None:
+def load_env_file() -> None:
     """Load environment variables from the repo .env file if present."""
     env_path = Path(__file__).resolve().parents[3] / ".env"
     if env_path.exists():
@@ -51,7 +51,7 @@ def load_quality_model_config() -> QualityModelConfig:
     Returns:
         Quality model configuration.
     """
-    _load_env_file()
+    load_env_file()
     api_key = _require_env("RENTL_QUALITY_API_KEY")
     base_url = _require_env("RENTL_QUALITY_BASE_URL")
     model_id = _require_env("RENTL_QUALITY_MODEL")
