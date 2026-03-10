@@ -10,7 +10,7 @@ The naming-conventions standard incorrectly flagged 61 valid Python constants as
 
 ## Steps
 
-1. **[RUN]** Show that `naming-conventions.md` now contains an explicit `SCREAMING_SNAKE_CASE` rule — `grep -i "SCREAMING_SNAKE" agent-os/standards/architecture/naming-conventions.md` should return at least one line
+1. **[RUN]** Show that `naming-conventions.md` now contains an explicit `SCREAMING_SNAKE_CASE` rule — `grep -i "SCREAMING_SNAKE" tanren/standards/architecture/naming-conventions.md` should return at least one line
 2. **[RUN]** Confirm three previously-flagged constants exist in the codebase and match the updated standard:
    - `grep -r "CURRENT_SCHEMA_VERSION" packages/rentl-schemas/`
    - `grep -r "REQUIRED_COLUMNS" packages/rentl-io/`
@@ -28,3 +28,10 @@ The naming-conventions standard incorrectly flagged 61 valid Python constants as
 - Step 3 [RUN]: NOT EXECUTED — Stopped after Step 1 failure
 - Step 4 [SKIP]: SKIPPED — codex CLI not available
 - **Overall: FAIL**
+
+### Run 2 — After path fix (2026-03-09 22:38)
+- Step 1 [RUN]: PASS — grep found SCREAMING_SNAKE_CASE rule in naming-conventions.md with multiple matches
+- Step 2 [RUN]: PASS — All three constants confirmed in codebase: CURRENT_SCHEMA_VERSION in rentl-schemas, REQUIRED_COLUMNS in rentl-io, OPENROUTER_CAPABILITIES in rentl-agents
+- Step 3 [RUN]: PASS — make check passed with all 1133 unit tests passing
+- Step 4 [SKIP]: SKIPPED — codex CLI not available
+- **Overall: PASS**
