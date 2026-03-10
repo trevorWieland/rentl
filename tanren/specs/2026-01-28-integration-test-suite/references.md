@@ -26,6 +26,7 @@ class _FakeRuntime:
             output_text="ok",
         )
 
+
 def test_validate_connection_returns_results(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -33,14 +34,14 @@ def test_validate_connection_returns_results(
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     config_path = _write_connection_config(tmp_path, workspace_dir)
-    
+
     monkeypatch.setenv("PRIMARY_KEY", "fake-key")
     monkeypatch.setattr(cli_main, "_build_llm_runtime", lambda: _FakeRuntime())
-    
+
     result = runner.invoke(
         cli_main.app, ["validate-connection", "--config", str(config_path)]
     )
-    
+
     assert result.exit_code == 0
     response = json.loads(result.stdout)
     assert response["error"] is None

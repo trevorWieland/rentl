@@ -41,9 +41,7 @@ LLM execution is mostly centralized through `pydantic_ai.Agent`, and most produc
 - **Severity:** Medium
 - **Evidence:**
   ```python
-  agent = Agent(
-      model, output_type=request.result_schema, instructions=instructions
-  )
+  agent = Agent(model, output_type=request.result_schema, instructions=instructions)
   result = await agent.run(
       request.prompt,
       model_settings=cast(ModelSettings, model_settings),

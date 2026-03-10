@@ -14,17 +14,23 @@ Never use dataclasses or plain classes for schemas. All schemas must use Pydanti
 # ✓ Good: Pydantic schema
 from pydantic import BaseModel, Field
 
+
 class TranslationRequest(BaseModel):
     source_text: str = Field(..., min_length=1, description="Text to translate")
-    target_language: str = Field(..., pattern=r'^[a-z]{2}$', description="ISO 639-1 language code")
+    target_language: str = Field(
+        ..., pattern=r"^[a-z]{2}$", description="ISO 639-1 language code"
+    )
+
 
 # ✗ Bad: dataclass
 from dataclasses import dataclass
+
 
 @dataclass
 class TranslationRequest:
     source_text: str  # No validation, no serialization
     target_language: str
+
 
 # ✗ Bad: Plain class
 class TranslationRequest:
@@ -66,17 +72,21 @@ Never use `Any` or `object` in types. Always model explicit schema types.
 # ✓ Good: Explicit types
 from pydantic import BaseModel, Field
 
+
 class TranslationRequest(BaseModel):
     source_text: str
     target_language: str
     model: str = Field(..., description="Model identifier for translation")
 
+
 def translate(request: TranslationRequest) -> TranslationResult:
     """Translate with explicit types - ty will catch errors."""
     ...
 
+
 # ✗ Bad: Any or object
 from typing import Any
+
 
 def translate(request: Any) -> Any:
     """Translate with Any - no type safety."""
@@ -97,13 +107,18 @@ def translate(request: Any) -> Any:
 # ✓ Good: Field with description and validators
 from pydantic import BaseModel, Field
 
+
 class TranslationRequest(BaseModel):
     source_text: str = Field(..., min_length=1, description="Text to translate")
-    target_language: str = Field(..., pattern=r'^[a-z]{2}$', description="ISO 639-1 language code")
+    target_language: str = Field(
+        ..., pattern=r"^[a-z]{2}$", description="ISO 639-1 language code"
+    )
     model: str = Field(..., description="Model identifier for translation")
+
 
 # ✗ Bad: Raw type annotation without Field
 from pydantic import BaseModel
+
 
 class TranslationRequest(BaseModel):
     source_text: str  # No description, no validators
@@ -137,6 +152,7 @@ def run_pipeline(run_id: str):
     # Calls Core Domain API directly
     result = await pipeline_runner.start_run(run_id)
     return format_json_output(result)
+
 
 # ✗ Bad: Business logic in CLI
 def run_pipeline(run_id: str):
@@ -174,27 +190,39 @@ All CLI JSON responses use `{data, error, meta}` envelope structure. Each field 
 ```python
 from pydantic import BaseModel, Field
 
+
 # ✓ Good: Clear Pydantic models for envelope fields
 class MetaInfo(BaseModel):
     """Metadata for API responses."""
+
     timestamp: str = Field(..., description="ISO-8601 timestamp")
+
 
 class ErrorDetails(BaseModel):
     """Detailed error context."""
+
     field: str | None = Field(None, description="Field name if validation error")
     provided: str | None = Field(None, description="Value that was provided")
-    valid_options: list[str] | None = Field(None, description="Valid values if applicable")
+    valid_options: list[str] | None = Field(
+        None, description="Valid values if applicable"
+    )
+
 
 class ErrorResponse(BaseModel):
     """Error information in response."""
+
     code: str = Field(..., description="Error code (e.g., VAL_001)")
     message: str = Field(..., description="Human-readable error message")
     details: ErrorDetails | None = Field(None, description="Additional error context")
 
+
 class APIResponse[T](BaseModel, Generic[T]):
     """Generic API response envelope."""
+
     data: T | None = Field(None, description="Success payload, null on error")
-    error: ErrorResponse | None = Field(None, description="Error information, null on success")
+    error: ErrorResponse | None = Field(
+        None, description="Error information, null on success"
+    )
     meta: MetaInfo = Field(..., description="Response metadata")
 ```
 
@@ -460,11 +488,9 @@ Fast iterations without sacrificing determinism or quality signals. Speed and qu
 async def edit_cycle(run_id: str, review_notes: list[ReviewNote]) -> None:
     """Apply review notes with quality guardrails."""
     # Fast: Parallel processing
-    tasks = [
-        apply_fix(note) for note in review_notes
-    ]
+    tasks = [apply_fix(note) for note in review_notes]
     results = await asyncio.gather(*tasks)
-    
+
     # Guardrails: Quality checks before accepting
     if not await validate_qa_after_edit(results):
         # Don't break determinism - rollback and report
@@ -475,37 +501,44 @@ async def edit_cycle(run_id: str, review_notes: list[ReviewNote]) -> None:
             "Consistency issues: 3. "
             "Review manually and retry."
         )
-    
+
     # Success: Apply and continue momentum
     await apply_edits(results)
-    await emit_event("edit_cycle_completed", {
-        "edits_applied": len(results),
-        "qa_passed": True,
-        "duration_s": 2.3  # Fast iteration
-    })
+    await emit_event(
+        "edit_cycle_completed",
+        {
+            "edits_applied": len(results),
+            "qa_passed": True,
+            "duration_s": 2.3,  # Fast iteration
+        },
+    )
+
 
 # ✓ Good: Hotfix loop with guardrails
 async def hotfix_fix(issue: IssueReport) -> None:
     """Fix issue rapidly but maintain quality."""
     # Speed: Targeted fix
     fix = await generate_fix(issue)
-    
+
     # Guardrails: Validate fix doesn't break similar lines
     similar_lines = await find_similar_lines(issue.context)
     for line in similar_lines:
         if not await validate_fix_preserves_context(line, fix):
             raise QualityGuardrailError(
-                f"Fix breaks context for line {line.id}. "
-                "Review fix and retry."
+                f"Fix breaks context for line {line.id}. Review fix and retry."
             )
-    
+
     # Success: Apply fast but safe
     await apply_fix(issue, similar_lines)
-    await emit_event("hotfix_applied", {
-        "issue_id": issue.id,
-        "lines_affected": len(similar_lines) + 1,
-        "qa_passed": True
-    })
+    await emit_event(
+        "hotfix_applied",
+        {
+            "issue_id": issue.id,
+            "lines_affected": len(similar_lines) + 1,
+            "qa_passed": True,
+        },
+    )
+
 
 # ✗ Bad: Speed without guardrails
 async def edit_cycle(run_id: str, review_notes: list[ReviewNote]) -> None:
@@ -514,7 +547,7 @@ async def edit_cycle(run_id: str, review_notes: list[ReviewNote]) -> None:
     for note in review_notes:
         fix = await generate_fix(note)
         await apply_fix(fix)  # Apply immediately, no QA check
-    
+
     # No guardrails - breaks determinism and consistency
     # Style violations accumulate
     # Context breaks happen silently

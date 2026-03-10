@@ -27,17 +27,21 @@ Design all APIs and I/O around `async`/`await` and modern structured concurrency
 # ✓ Good: Async-first API
 from pydantic import BaseModel
 
+
 class TranslationRequest(BaseModel):
     scenes: list[str]
+
 
 async def translate_scenes(request: TranslationRequest) -> list[str]:
     """Translate scenes in parallel using structured concurrency."""
     tasks = [translate_scene(scene) for scene in request.scenes]
     return await asyncio.gather(*tasks)
 
+
 async def translate_scene(scene: str) -> str:
     """Translate single scene - async for LLM network IO."""
     ...
+
 
 # ✗ Bad: Blocking I/O
 def translate_scenes(request: TranslationRequest) -> list[str]:
@@ -95,10 +99,12 @@ config = base_config | custom_config
 # f-string debugging (Python 3.8+)
 print(f"{result=}")  # Prints: result='value'
 
+
 # Async generators (Python 3.6+)
 async def stream_translations():
     for scene in scenes:
         yield await translate_scene(scene)
+
 
 # ✗ Bad: Legacy patterns
 result: Optional[str]  # Old-style Union
@@ -113,6 +119,7 @@ else:
 config = {**base_config, **custom_config}  # Old unpacking
 
 print(f"result={result}")  # No f-string debugging
+
 
 def stream_translations():  # Blocking generator
     for scene in scenes:
@@ -151,17 +158,21 @@ Never use `Any` or `object` in types. Always model explicit schema types.
 # ✓ Good: Explicit types
 from pydantic import BaseModel, Field
 
+
 class TranslationRequest(BaseModel):
     source_text: str
     target_language: str
     model: str = Field(..., description="Model identifier for translation")
 
+
 def translate(request: TranslationRequest) -> TranslationResult:
     """Translate with explicit types - ty will catch errors."""
     ...
 
+
 # ✗ Bad: Any or object
 from typing import Any
+
 
 def translate(request: Any) -> Any:
     """Translate with Any - no type safety."""
@@ -182,13 +193,18 @@ def translate(request: Any) -> Any:
 # ✓ Good: Field with description and validators
 from pydantic import BaseModel, Field
 
+
 class TranslationRequest(BaseModel):
     source_text: str = Field(..., min_length=1, description="Text to translate")
-    target_language: str = Field(..., pattern=r'^[a-z]{2}$', description="ISO 639-1 language code")
+    target_language: str = Field(
+        ..., pattern=r"^[a-z]{2}$", description="ISO 639-1 language code"
+    )
     model: str = Field(..., description="Model identifier for translation")
+
 
 # ✗ Bad: Raw type annotation without Field
 from pydantic import BaseModel
+
 
 class TranslationRequest(BaseModel):
     source_text: str  # No description, no validators
@@ -222,6 +238,7 @@ def run_pipeline(run_id: str):
     # Calls Core Domain API directly
     result = await pipeline_runner.start_run(run_id)
     return format_json_output(result)
+
 
 # ✗ Bad: Business logic in CLI
 def run_pipeline(run_id: str):
@@ -260,12 +277,15 @@ Never access infrastructure adapters directly. Always access storage, models, an
 # ✓ Good: Access through protocol interface
 from core.adapters.vector import VectorStoreProtocol
 
+
 async def search_context(query: str, vector_store: VectorStoreProtocol):
     """Search vector context via protocol - implementation agnostic."""
     return await vector_store.search(query)
 
+
 # ✗ Bad: Direct access to implementation
 import chromadb
+
 
 async def search_context(query: str):
     """Search vector context - hardcoded to Chroma."""
@@ -544,6 +564,7 @@ Quality tests use real LLMs (actual model calls). Integration tests must mock LL
 # tests/quality/core/translation.py
 from rentl_core.adapters.model.openai_client import OpenAIClient
 
+
 async def test_translation_quality_with_real_llm(given_translation_request):
     """Test translation quality with actual model call."""
     client = OpenAIClient(base_url="https://api.openai.com/v1", api_key="test-key")
@@ -554,17 +575,22 @@ async def test_translation_quality_with_real_llm(given_translation_request):
     assert len(result.text) > 0
     assert result.model == "gpt-4"
 
+
 # ✓ Good: Integration test with mocked LLM
 # tests/integration/core/translation.py
 from unittest.mock import AsyncMock
 
+
 async def test_translation_flow(given_translation_request):
     """Test translation flow with mocked LLM (no real calls)."""
     mock_client = AsyncMock()
-    mock_client.translate.return_value = TranslationResult(text="mocked text", model="gpt-4")
+    mock_client.translate.return_value = TranslationResult(
+        text="mocked text", model="gpt-4"
+    )
 
     result = await mock_client.translate(given_translation_request)
     assert result.text == "mocked text"  # Verify mock, not real model
+
 
 # ✗ Bad: Quality test with mocked LLM
 async def test_translation_quality(given_translation_request):

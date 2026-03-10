@@ -46,15 +46,22 @@ Add new Pydantic schemas for configuring deterministic checks:
 ```python
 class DeterministicQaCheckConfig(BaseSchema):
     """Configuration for a single deterministic QA check."""
+
     check_name: str = Field(..., description="Check identifier (e.g., 'line_length')")
     enabled: bool = Field(True, description="Whether this check runs")
     severity: QaSeverity = Field(..., description="Severity for issues from this check")
-    parameters: dict[str, JsonValue] | None = Field(None, description="Check-specific params")
+    parameters: dict[str, JsonValue] | None = Field(
+        None, description="Check-specific params"
+    )
+
 
 class DeterministicQaConfig(BaseSchema):
     """Configuration for the deterministic QA check suite."""
+
     enabled: bool = Field(True, description="Enable deterministic QA checks")
-    checks: list[DeterministicQaCheckConfig] = Field(..., description="Configured checks")
+    checks: list[DeterministicQaCheckConfig] = Field(
+        ..., description="Configured checks"
+    )
 ```
 
 ---
@@ -71,12 +78,14 @@ class DeterministicQaConfig(BaseSchema):
 @dataclass(frozen=True, slots=True)
 class DeterministicCheckResult:
     """Result of a single check on a single line."""
+
     line_id: LineId
     category: QaCategory
     severity: QaSeverity
     message: str
     suggestion: str | None = None
     metadata: dict[str, JsonValue] | None = None
+
 
 @runtime_checkable
 class DeterministicCheck(Protocol):
@@ -90,7 +99,9 @@ class DeterministicCheck(Protocol):
 
     def configure(self, parameters: dict[str, JsonValue] | None) -> None: ...
 
-    def check_line(self, line: TranslatedLine, severity: QaSeverity) -> list[DeterministicCheckResult]: ...
+    def check_line(
+        self, line: TranslatedLine, severity: QaSeverity
+    ) -> list[DeterministicCheckResult]: ...
 ```
 
 ### 3b. Check Registry
@@ -108,7 +119,9 @@ class DeterministicCheck(Protocol):
 class DeterministicQaRunner:
     """Runner for deterministic QA checks."""
 
-    def configure_check(self, check_name: str, severity: QaSeverity, parameters: dict | None) -> None:
+    def configure_check(
+        self, check_name: str, severity: QaSeverity, parameters: dict | None
+    ) -> None:
         """Configure and add a check to the runner."""
         ...
 

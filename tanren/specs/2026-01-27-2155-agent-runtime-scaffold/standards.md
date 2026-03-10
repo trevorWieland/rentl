@@ -23,17 +23,21 @@ Design all APIs and I/O around `async`/`await` and modern structured concurrency
 # ✓ Good: Async-first API
 from pydantic import BaseModel
 
+
 class TranslationRequest(BaseModel):
     scenes: list[str]
+
 
 async def translate_scenes(request: TranslationRequest) -> list[str]:
     """Translate scenes in parallel using structured concurrency."""
     tasks = [translate_scene(scene) for scene in request.scenes]
     return await asyncio.gather(*tasks)
 
+
 async def translate_scene(scene: str) -> str:
     """Translate single scene - async for LLM network IO."""
     ...
+
 
 # ✗ Bad: Blocking I/O
 def translate_scenes(request: TranslationRequest) -> list[str]:
@@ -73,17 +77,21 @@ Never use `Any` or `object` in types. Always model explicit schema types.
 # ✓ Good: Explicit types
 from pydantic import BaseModel, Field
 
+
 class TranslationRequest(BaseModel):
     source_text: str
     target_language: str
     model: str = Field(..., description="Model identifier for translation")
 
+
 def translate(request: TranslationRequest) -> TranslationResult:
     """Translate with explicit types - ty will catch errors."""
     ...
 
+
 # ✗ Bad: Any or object
 from typing import Any
+
 
 def translate(request: Any) -> Any:
     """Translate with Any - no type safety."""
@@ -104,13 +112,18 @@ def translate(request: Any) -> Any:
 # ✓ Good: Field with description and validators
 from pydantic import BaseModel, Field
 
+
 class TranslationRequest(BaseModel):
     source_text: str = Field(..., min_length=1, description="Text to translate")
-    target_language: str = Field(..., pattern=r'^[a-z]{2}$', description="ISO 639-1 language code")
+    target_language: str = Field(
+        ..., pattern=r"^[a-z]{2}$", description="ISO 639-1 language code"
+    )
     model: str = Field(..., description="Model identifier for translation")
+
 
 # ✗ Bad: Raw type annotation without Field
 from pydantic import BaseModel
+
 
 class TranslationRequest(BaseModel):
     source_text: str  # No description, no validators
@@ -139,17 +152,23 @@ Never use dataclasses or plain classes for schemas. All schemas must use Pydanti
 # ✓ Good: Pydantic schema
 from pydantic import BaseModel, Field
 
+
 class TranslationRequest(BaseModel):
     source_text: str = Field(..., min_length=1, description="Text to translate")
-    target_language: str = Field(..., pattern=r'^[a-z]{2}$', description="ISO 639-1 language code")
+    target_language: str = Field(
+        ..., pattern=r"^[a-z]{2}$", description="ISO 639-1 language code"
+    )
+
 
 # ✗ Bad: dataclass
 from dataclasses import dataclass
+
 
 @dataclass
 class TranslationRequest:
     source_text: str  # No validation, no serialization
     target_language: str
+
 
 # ✗ Bad: Plain class
 class TranslationRequest:
@@ -189,12 +208,15 @@ Never access infrastructure adapters directly. Always access storage, models, an
 # ✓ Good: Access through protocol interface
 from core.adapters.vector import VectorStoreProtocol
 
+
 async def search_context(query: str, vector_store: VectorStoreProtocol):
     """Search vector context via protocol - implementation agnostic."""
     return await vector_store.search(query)
 
+
 # ✗ Bad: Direct access to implementation
 import chromadb
+
 
 async def search_context(query: str):
     """Search vector context - hardcoded to Chroma."""

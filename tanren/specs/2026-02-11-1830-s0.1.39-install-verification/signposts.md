@@ -1372,7 +1372,9 @@ Before fix:
 pytestmark = [
     pytest.mark.quality,
     pytest.mark.timeout(600),
-    pytest.mark.skip(reason="Pretranslation agent requires high structured output capability..."),
+    pytest.mark.skip(
+        reason="Pretranslation agent requires high structured output capability..."
+    ),
 ]
 ```
 
@@ -1763,8 +1765,8 @@ FAILED tests/quality/pipeline/test_golden_script_pipeline.py::test_translate_pha
 
 Agent config before fix (`quality_harness.py:74-86`):
 ```python
-timeout_s=60.0,   # 60s per request
-max_retries=2,    # 3 total attempts = worst case 180s
+timeout_s = (60.0,)  # 60s per request
+max_retries = (2,)  # 3 total attempts = worst case 180s
 ```
 
 Pipeline endpoint config before fix:

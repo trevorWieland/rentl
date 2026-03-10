@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 import pytest
 from click.testing import Result
 from pytest_bdd import given, scenarios, then, when
+from tests.quality.agents.quality_harness import load_env_file
 from typer.testing import CliRunner
 
 import rentl.main as cli_main
@@ -64,12 +65,13 @@ def given_openrouter_preset() -> PresetValidationContext:
         PresetValidationContext with API key loaded.
 
     Raises:
-        ValueError: If RENTL_QUALITY_API_KEY is not set.
+        RuntimeError: If RENTL_QUALITY_API_KEY is not set.
     """
+    load_env_file()
     ctx = PresetValidationContext()
     api_key = os.environ.get("RENTL_QUALITY_API_KEY")
     if not api_key:
-        raise ValueError("RENTL_QUALITY_API_KEY must be set for quality tests")
+        raise RuntimeError("Quality tests require RENTL_QUALITY_API_KEY")
     ctx.api_key = api_key
     return ctx
 

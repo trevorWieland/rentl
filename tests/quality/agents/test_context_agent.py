@@ -70,7 +70,12 @@ def given_context_dataset(
     """
     profile_path = get_default_agents_dir() / "context" / "scene_summarizer.toml"
     prompts_dir = get_default_prompts_dir()
-    agent_config = build_profile_config(quality_model_config)
+    base_config = build_profile_config(quality_model_config)
+    agent_config = base_config.model_copy(
+        update={
+            "max_requests_per_run": 10,
+        }
+    )
 
     source_lines = [
         SourceLine(

@@ -62,14 +62,20 @@ class IdiomAnnotation(BaseSchema):
     """Single idiom annotation produced by the Idiom Labeler agent."""
 
     line_id: LineId = Field(..., description="Line identifier for the annotation")
-    idiom_text: str = Field(..., min_length=1, description="The idiomatic expression found")
+    idiom_text: str = Field(
+        ..., min_length=1, description="The idiomatic expression found"
+    )
     idiom_type: str = Field(
         ...,
         pattern=r"^(pun|wordplay|set_phrase|cultural_reference|honorific_nuance|other)$",
-        description="Type of idiom"
+        description="Type of idiom",
     )
-    explanation: str = Field(..., min_length=1, description="Explanation of the idiom's meaning")
-    translation_hint: str | None = Field(None, description="Optional translation suggestion")
+    explanation: str = Field(
+        ..., min_length=1, description="Explanation of the idiom's meaning"
+    )
+    translation_hint: str | None = Field(
+        None, description="Optional translation suggestion"
+    )
 ```
 
 ### Task 4: Register IdiomAnnotation in Schema Registry

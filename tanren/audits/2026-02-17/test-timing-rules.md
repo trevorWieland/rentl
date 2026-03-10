@@ -68,6 +68,7 @@ The repository has a three-tier test layout and marker conventions, but timing e
   ```
   ```python
   """Unit tests for phase explanation module."""
+
   from __future__ import annotations
 
   import pytest

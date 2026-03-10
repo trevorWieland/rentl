@@ -182,6 +182,7 @@ def run_pipeline(run_id: str):
     result = await pipeline_runner.start_run(run_id)
     return format_json_output(result)
 
+
 # ✗ Bad: Business logic in CLI
 def run_pipeline(run_id: str):
     """Start pipeline run - contains core logic."""
@@ -220,18 +221,23 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Literal
 
+
 # ✓ Good: Stable Pydantic model for log lines
 class LogEntry(BaseModel):
     """Single log line in JSONL format."""
+
     timestamp: str = Field(..., description="ISO-8601 timestamp")
     level: Literal["debug", "info", "warn", "error"] = Field(
         ..., description="Log level"
     )
-    event: str = Field(..., description="Event type (e.g., run_started, phase_completed)")
+    event: str = Field(
+        ..., description="Event type (e.g., run_started, phase_completed)"
+    )
     run_id: str = Field(..., description="Pipeline run identifier")
     phase: str | None = Field(None, description="Pipeline phase (e.g., translate, qa)")
     message: str = Field(..., description="Human-readable log message")
     data: dict | None = Field(None, description="Structured event data")
+
 
 # ✓ Good: Writing log lines
 def write_log(entry: LogEntry) -> None:
@@ -289,27 +295,39 @@ All CLI JSON responses use `{data, error, meta}` envelope structure. Each field 
 ```python
 from pydantic import BaseModel, Field
 
+
 # ✓ Good: Clear Pydantic models for envelope fields
 class MetaInfo(BaseModel):
     """Metadata for API responses."""
+
     timestamp: str = Field(..., description="ISO-8601 timestamp")
+
 
 class ErrorDetails(BaseModel):
     """Detailed error context."""
+
     field: str | None = Field(None, description="Field name if validation error")
     provided: str | None = Field(None, description="Value that was provided")
-    valid_options: list[str] | None = Field(None, description="Valid values if applicable")
+    valid_options: list[str] | None = Field(
+        None, description="Valid values if applicable"
+    )
+
 
 class ErrorResponse(BaseModel):
     """Error information in response."""
+
     code: str = Field(..., description="Error code (e.g., VAL_001)")
     message: str = Field(..., description="Human-readable error message")
     details: ErrorDetails | None = Field(None, description="Additional error context")
 
+
 class APIResponse[T](BaseModel, Generic[T]):
     """Generic API response envelope."""
+
     data: T | None = Field(None, description="Success payload, null on error")
-    error: ErrorResponse | None = Field(None, description="Error information, null on success")
+    error: ErrorResponse | None = Field(
+        None, description="Error information, null on success"
+    )
     meta: MetaInfo = Field(..., description="Response metadata")
 ```
 

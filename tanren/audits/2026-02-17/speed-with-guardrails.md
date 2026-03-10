@@ -26,9 +26,7 @@ The edit pipeline is fast and parallelized, and QA phase execution itself has st
 - **Severity:** High
 - **Evidence:**
   ```python
-  merged_output = _merge_edit_outputs_across_agents(
-      run, target_language, agent_outputs
-  )
+  merged_output = _merge_edit_outputs_across_agents(run, target_language, agent_outputs)
   run.edit_outputs[target_language] = merged_output
   artifact_ids = await self._persist_phase_artifact(
       run,

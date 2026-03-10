@@ -150,7 +150,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
 
     def __init__(
         self,
-        agents: list[PhaseAgentProtocol[InputT, OutputT_co]],
+        agents: Sequence[PhaseAgentProtocol[InputT, OutputT_co]],
         max_parallel: int | None = None,
         max_consecutive_failures: int = 3,
     ) -> None:
@@ -168,7 +168,7 @@ class PhaseAgentPool(PhaseAgentPoolProtocol[InputT, OutputT_co]):
             raise ValueError("agents must not be empty")
         if max_parallel is not None and max_parallel <= 0:
             raise ValueError("max_parallel must be positive")
-        self._agents: list[PhaseAgentProtocol[InputT, OutputT_co]] = agents
+        self._agents: Sequence[PhaseAgentProtocol[InputT, OutputT_co]] = agents
         self._max_parallel: int | None = max_parallel
         self._max_consecutive_failures = max_consecutive_failures
 
@@ -3207,7 +3207,7 @@ async def _update_stale_flags(
             continue
         if stale_before.get(key) is True:
             continue
-        data = {
+        data: dict[str, JsonValue] = {
             "revision": record.revision,
             "target_language": record.target_language,
         }

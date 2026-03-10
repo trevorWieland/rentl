@@ -76,7 +76,7 @@ integration:
 # Run quality tests (requires RENTL_OPENROUTER_API_KEY in .env or environment)
 quality:
 	@echo "💎 Running quality tests..."
-	$(call run_test, bash -c 'set -a && [ -f .env ] && source .env && set +a && uv run pytest tests/quality -q --tb=short --timeout=30 -W error::DeprecationWarning', .quality.log, Quality Tests)
+	$(call run_test, uv run pytest tests/quality -q --tb=short --timeout=30 -W error::DeprecationWarning, .quality.log, Quality Tests)
 
 # Run all tests with coverage
 test:

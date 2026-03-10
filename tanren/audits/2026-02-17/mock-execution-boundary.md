@@ -73,10 +73,12 @@ Compliance is mixed. The codebase has a strong pattern in `tests/integration/cli
   ```python
   mock_call_count = {"count": 0}
 
+
   async def mock_agent_run(self: ProfileAgent, payload: object) -> object:
       await asyncio.sleep(0)
       mock_call_count["count"] += 1
       ...
+
 
   monkeypatch.setattr(ProfileAgent, "run", mock_agent_run)
   ```

@@ -29,6 +29,7 @@ OpenRouter integrations have partial adherence: request-parameter enforcement (`
   ```python
   class LlmModelSettings(BaseModel):
       """Runtime model settings for a provider."""
+
       model_id: str
   ```
   ```python
@@ -76,9 +77,7 @@ OpenRouter integrations have partial adherence: request-parameter enforcement (`
 - **Severity:** Critical
 - **Evidence:**
   ```python
-  async def run_pipeline(
-      config, **kwargs
-  ):
+  async def run_pipeline(config, **kwargs):
       pipeline = await self._load_pipeline(...)
       if not await self._check_api_key_configured(api_key_name=api_key_name):
           return ExitCode.ERROR

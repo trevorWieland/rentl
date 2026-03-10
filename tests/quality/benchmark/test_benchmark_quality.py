@@ -122,13 +122,15 @@ def create_sample_outputs(ctx: BenchmarkContext) -> None:
 def verify_llm_endpoints(ctx: BenchmarkContext) -> None:
     """Verify that real LLM endpoint configuration is available.
 
-    Raises:
-        ValueError: If required environment variables are not set.
+    Raises RuntimeError if required environment variables are not set.
     """
-    if not os.getenv("RENTL_QUALITY_API_KEY"):
-        raise ValueError("RENTL_QUALITY_API_KEY must be set for quality tests")
-    if not os.getenv("RENTL_QUALITY_BASE_URL"):
-        raise ValueError("RENTL_QUALITY_BASE_URL must be set for quality tests")
+    from tests.quality.agents.quality_harness import load_env_file
+
+    load_env_file()
+    required_vars = ["RENTL_QUALITY_API_KEY", "RENTL_QUALITY_BASE_URL"]
+    missing = [v for v in required_vars if not os.getenv(v)]
+    if missing:
+        raise RuntimeError(f"Quality tests require environment variables: {', '.join(missing)}")
 
 
 @when("I run benchmark compare on the output files")

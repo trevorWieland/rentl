@@ -30,9 +30,7 @@ The codebase partially applies batch alignment checks, with a centralized helper
   expected_set = set(expected_ids)
   ...
   actual_ids = [idiom.line_id for idiom in result.idioms]
-  extra_ids = [
-      line_id for line_id in actual_ids if line_id not in expected_set
-  ]
+  extra_ids = [line_id for line_id in actual_ids if line_id not in expected_set]
   if extra_ids:
       alignment_feedback = (
           "Alignment error: idiom line_id values must come from the "

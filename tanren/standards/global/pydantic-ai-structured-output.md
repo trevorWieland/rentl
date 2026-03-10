@@ -5,8 +5,10 @@ All code that calls an LLM must use `pydantic_ai.Agent` with `output_type`. Neve
 ```python
 from pydantic_ai import Agent
 
+
 class MyOutput(BaseModel):
     field: str = Field(..., description="...")
+
 
 agent = Agent(model=model, output_type=MyOutput, output_retries=5)
 result = await agent.run(prompt, model_settings=settings)

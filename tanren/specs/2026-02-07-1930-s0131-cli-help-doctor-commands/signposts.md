@@ -125,11 +125,11 @@ LLM Connectivity fail 1/1 endpoint(s) failed: test
 Help registry uses a nonexistent plural flag and comma-separated value:
 - `packages/rentl-core/src/rentl_core/help.py:120`
   ```python
-  "--target-languages LANGS  Target language codes (comma-separated)",
+  ("--target-languages LANGS  Target language codes (comma-separated)",)
   ```
 - `packages/rentl-core/src/rentl_core/help.py:124`
   ```python
-  "rentl run-pipeline --target-languages en,es",
+  ("rentl run-pipeline --target-languages en,es",)
   ```
 
 Actual CLI option is singular and repeatable:
@@ -139,7 +139,7 @@ Actual CLI option is singular and repeatable:
   ```
 - `services/rentl-cli/src/rentl_cli/main.py:504`
   ```python
-  target_languages: list[str] | None = TARGET_LANGUAGE_OPTION,
+  target_languages: list[str] | None = (TARGET_LANGUAGE_OPTION,)
   ```
 
 **Impact:** `rentl help run-pipeline` will mislead users into running an invalid flag, increasing avoidable command failures and weakening trust in CLI diagnostics.
@@ -156,7 +156,7 @@ Actual CLI option is singular and repeatable:
 Help registry currently says comma-separated:
 - `packages/rentl-core/src/rentl_core/help.py:95`
   ```python
-  "--column-order           Comma-separated column order",
+  ("--column-order           Comma-separated column order",)
   ```
 
 Actual CLI option is repeatable:
@@ -193,7 +193,7 @@ Code path that triggered the error:
 Root cause:
 - `packages/rentl-schemas/src/rentl_schemas/base.py:21`
   ```python
-  use_enum_values=True,
+  use_enum_values = (True,)
   ```
 
 **Solution:** All Pydantic models inherit from BaseSchema which has `use_enum_values=True` in the model config. This means Pydantic automatically converts enum fields to their values (ints) when creating model instances. Therefore, `report.exit_code` is already an int, not an ExitCode enum. Changed line 375 to:
@@ -299,6 +299,7 @@ class PatchedConsole(RichConsole):
     def __init__(self, *args, **kwargs):
         kwargs["force_terminal"] = True
         super().__init__(*args, **kwargs)
+
 
 monkeypatch.setattr(cli_main, "Console", PatchedConsole)
 monkeypatch.setattr("rentl_cli.main.sys.stdout.isatty", lambda: True)

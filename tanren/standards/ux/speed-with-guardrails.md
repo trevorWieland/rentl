@@ -7,11 +7,9 @@ Fast iterations without sacrificing determinism or quality signals. Speed and qu
 async def edit_cycle(run_id: str, review_notes: list[ReviewNote]) -> None:
     """Apply review notes with quality guardrails."""
     # Fast: Parallel processing
-    tasks = [
-        apply_fix(note) for note in review_notes
-    ]
+    tasks = [apply_fix(note) for note in review_notes]
     results = await asyncio.gather(*tasks)
-    
+
     # Guardrails: Quality checks before accepting
     if not await validate_qa_after_edit(results):
         # Don't break determinism - rollback and report
@@ -22,37 +20,44 @@ async def edit_cycle(run_id: str, review_notes: list[ReviewNote]) -> None:
             "Consistency issues: 3. "
             "Review manually and retry."
         )
-    
+
     # Success: Apply and continue momentum
     await apply_edits(results)
-    await emit_event("edit_cycle_completed", {
-        "edits_applied": len(results),
-        "qa_passed": True,
-        "duration_s": 2.3  # Fast iteration
-    })
+    await emit_event(
+        "edit_cycle_completed",
+        {
+            "edits_applied": len(results),
+            "qa_passed": True,
+            "duration_s": 2.3,  # Fast iteration
+        },
+    )
+
 
 # ✓ Good: Hotfix loop with guardrails
 async def hotfix_fix(issue: IssueReport) -> None:
     """Fix issue rapidly but maintain quality."""
     # Speed: Targeted fix
     fix = await generate_fix(issue)
-    
+
     # Guardrails: Validate fix doesn't break similar lines
     similar_lines = await find_similar_lines(issue.context)
     for line in similar_lines:
         if not await validate_fix_preserves_context(line, fix):
             raise QualityGuardrailError(
-                f"Fix breaks context for line {line.id}. "
-                "Review fix and retry."
+                f"Fix breaks context for line {line.id}. Review fix and retry."
             )
-    
+
     # Success: Apply fast but safe
     await apply_fix(issue, similar_lines)
-    await emit_event("hotfix_applied", {
-        "issue_id": issue.id,
-        "lines_affected": len(similar_lines) + 1,
-        "qa_passed": True
-    })
+    await emit_event(
+        "hotfix_applied",
+        {
+            "issue_id": issue.id,
+            "lines_affected": len(similar_lines) + 1,
+            "qa_passed": True,
+        },
+    )
+
 
 # ✗ Bad: Speed without guardrails
 async def edit_cycle(run_id: str, review_notes: list[ReviewNote]) -> None:
@@ -61,7 +66,7 @@ async def edit_cycle(run_id: str, review_notes: list[ReviewNote]) -> None:
     for note in review_notes:
         fix = await generate_fix(note)
         await apply_fix(fix)  # Apply immediately, no QA check
-    
+
     # No guardrails - breaks determinism and consistency
     # Style violations accumulate
     # Context breaks happen silently
