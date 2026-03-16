@@ -1,6 +1,11 @@
 version: 0.1.0
 profile: python-uv
 installed: 2026-03-07
+environment:
+  default:
+    type: remote
+    setup:
+      - "make install"
 env:
   on_missing: error
   required:
