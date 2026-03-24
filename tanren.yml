@@ -1,6 +1,14 @@
 version: 0.1.0
 profile: python-uv
 installed: 2026-03-07
+environment:
+  default:
+    type: remote
+    setup:
+      - "make install"
+  local-dev:
+    type: local
+    gate_cmd: "make check"
 env:
   on_missing: error
   required:
