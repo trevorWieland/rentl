@@ -6,6 +6,11 @@ environment:
     type: remote
     setup:
       - "make install"
+  remote-small:
+    type: remote
+    server_type: cpx21
+    setup:
+      - "make install"
   local-dev:
     type: local
     gate_cmd: "make check"
