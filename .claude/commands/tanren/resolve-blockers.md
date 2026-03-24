@@ -2,12 +2,12 @@
 
 Investigate blockers that halted the orchestrator, propose solutions, and reconcile the spec artifacts after the user chooses a path forward. Interactive — the user makes decisions, the agent investigates and executes.
 
-**Suggested model:** Strong reasoner with good interactive skills (e.g., Opus via TUI). Needs to understand architectural constraints and present options clearly.
+**Suggested model:** Strong reasoner with good interactive skills. Interactive — requires user dialogue. Needs to understand architectural constraints and present options clearly.
 
 ## Important Guidelines
 
 - Human-in-the-loop — investigate and present options, but the user decides
-- Always use AskUserQuestion tool when asking the user anything. In TUI: use AskUserQuestion. In Discord/NanoClaw: use send_message with numbered options and wait for reply.
+- When asking the user a question, present numbered options and wait for their response before proceeding.
 - Never modify spec.md without explicit user approval (and even then, present the exact diff first)
 - Signposts must include evidence — verify every claim before trusting it
 - Changes must be committed with clear "Resolve blockers" messages
@@ -95,7 +95,7 @@ For each blocker, present 2-3 resolution strategies ranked by recommendation:
 - Why: [when this makes sense]
 ```
 
-Use AskUserQuestion to let the user pick an option per blocker. Group related blockers if they share a root cause.
+Present options to the user and let them pick an option per blocker. Group related blockers if they share a root cause.
 
 ### Step 4: Reconcile Artifacts
 
@@ -194,7 +194,13 @@ Tell the user what to do next:
 
 ### Step 9: Exit
 
-Print one of these exit signals (machine-readable):
+Write your exit signal to the status file **and** print it to stdout.
+
+First, write the status file (the orchestrator reads this):
+
+    echo "resolve-blockers-status: {token}" > {spec_folder}/.agent-status
+
+Then print the same signal to stdout (machine-readable fallback):
 
 - `resolve-blockers-status: resolved` — all blockers resolved, orchestrator can resume
 - `resolve-blockers-status: deferred` — some blockers deferred to future specs

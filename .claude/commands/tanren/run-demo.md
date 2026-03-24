@@ -2,17 +2,17 @@
 
 Execute the demo plan and validate it works. If it fails, investigate and route issues back to the task loop. Fully autonomous — no user interaction.
 
-**Suggested model:** Capable implementer with good debugging skills (e.g., Sonnet via headless CLI).
+**Suggested model:** Capable implementer with good debugging skills. Autonomous — no user interaction.
 
 ## Important Guidelines
 
+- **IMPORTANT: Do NOT edit these files — they are read-only during orchestration: spec.md, plan.md, progress.json, .gitignore.**
 - Execute the demo — don't just read it and say it looks good
 - **[RUN] steps MUST be executed.** You do not get to decide a [RUN] step "can't run" — that decision was made during shape-spec, and the environment was verified at that time. If a [RUN] step fails to execute, that's a FAIL and a blocker.
 - **[SKIP] steps** were marked during shaping because the environment couldn't support them (probe failed). Skip them entirely — do not attempt to execute, do not count toward pass or fail.
 - If a step fails, investigate the root cause before adding tasks
 - If tests pass but the demo fails, that's a test gap — identify what's missing
-- Never fix code directly — add tasks to plan.md for do-task to pick up
-- Never modify spec.md
+- Never fix code directly — route fix tasks through the orchestration system
 - Signposts must include evidence
 
 ## Prerequisites
@@ -89,10 +89,30 @@ For each failed step:
    - **Evidence:** what the expected outcome was vs what happened
    - **Root cause:** the root cause (or best hypothesis if uncertain)
    - **Files affected:** which files/functions are involved
-5. **Add tasks to plan.md** for do-task to fix:
-   - If a test gap was found: add a task to write the missing test(s) first, then a task to fix the underlying issue
-   - If the code is simply wrong: add a task describing the fix needed
-   - Each new task must be specific enough for do-task to act on without ambiguity
+5. **Record findings** — the orchestration system will route fix tasks based on the demo signal (pass/fail) and investigation findings in the signpost.
+
+### Step 4b: Write Structured Findings
+
+Write your findings to `demo-findings.json` in the spec folder:
+
+```json
+{
+  "signal": "pass|fail",
+  "findings": [
+    {
+      "title": "Short description of issue",
+      "description": "Detailed explanation with evidence",
+      "severity": "fix|note|question",
+      "affected_files": ["src/module.py"],
+      "line_numbers": [42, 67]
+    }
+  ]
+}
+```
+
+If all [RUN] steps pass, write `{"signal": "pass", "findings": []}`.
+
+**This file is required** — the orchestration system reads it for structured routing.
 
 ### Step 5: Record Results
 
@@ -125,10 +145,10 @@ If audit-log.md doesn't exist, create it with the standard header.
 
 ### Step 7: Commit
 
-Commit demo.md, audit-log.md, signposts.md, and plan.md changes:
+Commit demo.md, audit-log.md, and signposts.md changes:
 
 ```
-git add demo.md audit-log.md signposts.md plan.md
+git add demo.md audit-log.md signposts.md demo-findings.json
 git commit -m "Demo run N: PASS|FAIL"
 ```
 
@@ -136,7 +156,13 @@ Only include files that were actually modified.
 
 ### Step 8: Exit
 
-Print one of these exit signals (machine-readable):
+Write your exit signal to the status file **and** print it to stdout.
+
+First, write the status file (the orchestrator reads this):
+
+    echo "run-demo-status: {token}" > {spec_folder}/.agent-status
+
+Then print the same signal to stdout (machine-readable fallback):
 
 - `run-demo-status: pass` — all [RUN] steps passed ([SKIP] steps excluded)
 - `run-demo-status: fail` — one or more [RUN] steps failed, tasks added to plan.md
@@ -144,8 +170,8 @@ Print one of these exit signals (machine-readable):
 
 ## Does NOT
 
-- Fix code itself (it adds tasks for do-task to pick up)
-- Modify spec.md
+- Fix code itself (findings route through the orchestration system)
+- Modify spec.md, plan.md, progress.json, or .gitignore
 - Push or touch GitHub
 - Score rubrics (that's audit-spec)
 - Skip investigation — every failure must be diagnosed before adding tasks

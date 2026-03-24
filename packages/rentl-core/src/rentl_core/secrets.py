@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 from rentl_schemas.redaction import DEFAULT_PATTERNS
@@ -30,8 +31,47 @@ def looks_like_secret(value: str) -> bool:
     return False
 
 
+def _toml_get(data: object, *keys: str) -> object:
+    """Walk a chain of string keys into nested parsed data.
+
+    Each level must be a Mapping; returns None if any key is missing
+    or a level isn't a Mapping.
+
+    Returns:
+        The value at the end of the key chain, or None.
+    """
+    current = data
+    for key in keys:
+        if not hasattr(current, "get"):
+            return None
+        current = current.get(key)  # type: ignore[union-attr]
+        if current is None:
+            return None
+    return current
+
+
+def _toml_get_str(data: object, *keys: str, default: str = "") -> str:
+    """Walk keys and return the leaf as a string.
+
+    Returns:
+        The string value, or *default* if not found.
+    """
+    val = _toml_get(data, *keys)
+    return str(val) if val is not None else default
+
+
+def _toml_get_list(data: object, *keys: str) -> list[object]:
+    """Walk keys and return the leaf as a list.
+
+    Returns:
+        The list value, or empty list if not found.
+    """
+    val = _toml_get(data, *keys)
+    return list(val) if isinstance(val, list) else []
+
+
 def check_config_secrets(
-    config_data: dict,
+    config_data: Mapping[str, object],
     project_dir: Path,
 ) -> list[str]:
     """Scan a parsed config dict and project directory for hardcoded secrets.
@@ -49,35 +89,25 @@ def check_config_secrets(
     findings: list[str] = []
 
     # Check endpoint.api_key_env
-    if "endpoint" in config_data:
-        endpoint_val = config_data["endpoint"]
-        if isinstance(endpoint_val, dict):
-            api_key_env = endpoint_val.get("api_key_env", "")
-            if api_key_env and looks_like_secret(api_key_env):
-                findings.append(
-                    f"endpoint.api_key_env contains what looks like a secret value: "
-                    f"'{api_key_env[:20]}...' (should be an env var name like "
-                    "RENTL_OPENROUTER_API_KEY)"
-                )
+    api_key_env = _toml_get_str(config_data, "endpoint", "api_key_env")
+    if api_key_env and looks_like_secret(api_key_env):
+        findings.append(
+            f"endpoint.api_key_env contains what looks like a secret value: "
+            f"'{api_key_env[:20]}...' (should be an env var name like "
+            "RENTL_OPENROUTER_API_KEY)"
+        )
 
     # Check endpoints.endpoints[].api_key_env (multi-endpoint configs)
-    if "endpoints" in config_data:
-        endpoints_val = config_data["endpoints"]
-        if isinstance(endpoints_val, dict):
-            endpoints_list = endpoints_val.get("endpoints", [])
-            if isinstance(endpoints_list, list):
-                for idx, endpoint in enumerate(endpoints_list):
-                    if not isinstance(endpoint, dict):
-                        continue
-                    api_key_env = endpoint.get("api_key_env", "")
-                    if api_key_env and looks_like_secret(api_key_env):
-                        provider_name = endpoint.get("provider_name", f"[{idx}]")
-                        findings.append(
-                            f"endpoints.endpoints[{idx}] ({provider_name}) "
-                            f"api_key_env contains what looks like a secret value: "
-                            f"'{api_key_env[:20]}...' (should be an env var name like "
-                            "RENTL_OPENROUTER_API_KEY)"
-                        )
+    for idx, entry in enumerate(_toml_get_list(config_data, "endpoints", "endpoints")):
+        ep_api_key = _toml_get_str(entry, "api_key_env")
+        if ep_api_key and looks_like_secret(ep_api_key):
+            provider_name = _toml_get_str(entry, "provider_name", default=f"[{idx}]")
+            findings.append(
+                f"endpoints.endpoints[{idx}] ({provider_name}) "
+                f"api_key_env contains what looks like a secret value: "
+                f"'{ep_api_key[:20]}...' (should be an env var name like "
+                "RENTL_OPENROUTER_API_KEY)"
+            )
 
     # Check .env files in project directory
     env_file = project_dir / ".env"
