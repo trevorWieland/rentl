@@ -6,4 +6,4 @@ version: v0.1
 
 ## Tasks
 
-- [ ] Task 1: Create result.txt with content "tanren-pipeline-validated"
+- [x] Task 1: Create result.txt with content "tanren-pipeline-validated"
